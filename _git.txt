@@ -1,0 +1,1 @@
+Initialized empty Git repository in C:/Users/fotov/.openclaw/workspace/crm_norkevin/.git/

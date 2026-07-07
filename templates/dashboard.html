@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Norkevin CRM{% endblock %}
+{% block header %}Dashboard{% endblock %}
+{% block subtitle %}Resumen en vivo del negocio{% endblock %}
+
+{% block content %}
+
+<!-- KPIs principales -->
+<div class="grid grid-cols-4 gap-4 mb-6">
+  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Leads</div>
+    <div class="text-3xl font-bold text-nk-gold">{{ leads_total or leads|length }}</div>
+    <div class="text-xs text-nk-text-soft mt-1">Total en pipeline</div>
+  </div>
+  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Sesiones</div>
+    <div class="text-3xl font-bold text-blue-700">{{ clientes|length }}</div>
+    <div class="text-xs text-nk-text-soft mt-1">Clientes activos</div>
+  </div>
+  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Payments</div>
+    <div class="text-3xl font-bold text-green-700">{{ q_money(total_payments) }} <span class="text-base text-nk-text-soft">({{ q_money(total_payments_pending) }})</span></div>
+    <div class="text-xs text-nk-text-soft mt-1">Cobrado (pendiente)</div>
+  </div>
+  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Revenue Comparison</div>
+    <div class="text-3xl font-bold text-nk-text">{{ q_money(revenue_ytd) }}</div>
+    <div class="text-xs text-nk-text-soft mt-1">{{ year_current }} YTD</div>
+  </div>
+</div>
+
+<!-- Charts principales -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <!-- Area chart revenue por año -->
+  <div class="col-span-2 bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-sm font-semibold text-nk-text">Revenue por año</h3>
+      <div class="flex items-center gap-1.5 flex-wrap" id="year-toggle">
+        <button data-year="all" class="year-btn year-btn-active">All</button>
+      </div>
+    </div>
+    <div style="height: 300px;">
+      <canvas id="revenueChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Pie chart Lead Sources -->
+  <div class="bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
+    <h3 class="text-sm font-semibold text-nk-text mb-4">Lead Sources</h3>
+    <div style="height: 300px; display:flex; align-items:center; justify-content:center;">
+      <canvas id="leadSourcesChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Pipeline Bodas + Pipeline Leads -->
+<div class="grid grid-cols-2 gap-4 mb-6">
+  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
+    <h3 class="text-sm font-semibold mb-4 text-nk-text">Pipeline Bodas</h3>
+    <div class="space-y-2">
+      {% for status, count in pipeline.items() %}
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-nk-text-soft">{{ status }}</span>
+        <div class="flex items-center gap-3">
+          <div class="w-32 bg-nk-gray rounded-full h-2 overflow-hidden">
+            <div class="bg-nk-gold h-full" style="width: {{ (count / (pipeline.values()|list|max) * 100)|round }}%"></div>
+          </div>
+          <span class="text-nk-gold font-medium w-8 text-right">{{ count }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
+    <h3 class="text-sm font-semibold mb-4 text-nk-text">Pipeline Leads</h3>
+    <div class="space-y-2">
+      {% for status, count in leads_por_estado.items() %}
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-nk-text-soft">{{ status }}</span>
+        <div class="flex items-center gap-3">
+          <div class="w-32 bg-nk-gray rounded-full h-2 overflow-hidden">
+            <div class="bg-blue-500 h-full" style="width: {{ (count / (leads_por_estado.values()|list|max) * 100)|round }}%"></div>
+          </div>
+          <span class="text-blue-700 font-medium w-8 text-right">{{ count }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Próximas 30 días + Equipo top -->
+<div class="grid grid-cols-2 gap-4">
+  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
+    <h3 class="text-sm font-semibold mb-4 text-nk-text">Próximas 30 días</h3>
+    {% if proximas_30 %}
+    <div class="space-y-2">
+      {% for j in proximas_30[:6] %}
+      <a href="/jobs/{{ j.id }}" class="block px-3 py-2 rounded bg-nk-black hover:bg-nk-border transition">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-medium text-nk-text">{{ j['BODA'] }}</div>
+            <div class="text-xs text-nk-text-soft">{{ parse_date(j['Fecha del evento']) }} · {{ j.get('Lugar de evento') or '—' }}</div>
+          </div>
+          <div class="text-xs text-nk-gold">{{ j.get('days_until') }}d</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-nk-text-soft">No hay bodas en los próximos 30 días</p>
+    {% endif %}
+  </div>
+
+  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
+    <h3 class="text-sm font-semibold mb-4 text-nk-text">Equipo activo (Primera Cámara)</h3>
+    <div class="space-y-2">
+      {% for nombre, count in primera_camara_count.items()|sort(attribute=1, reverse=true) %}
+      <div class="flex items-center justify-between text-sm px-3 py-2 rounded bg-nk-black">
+        <span class="text-nk-text">{{ nombre }}</span>
+        <span class="text-nk-gold font-medium">{{ count }} bodas</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ============================================================
+// Revenue chart - area por año con botones de toggle
+// ============================================================
+const revenueData = {{ revenue_by_year_json|safe }};
+const yearColors = {
+  '2023': { border: 'rgba(170,180,200,0.7)', bg: 'rgba(170,180,200,0.15)' },
+  '2024': { border: 'rgba(220,180,80,0.8)',  bg: 'rgba(220,180,80,0.15)' },
+  '2025': { border: 'rgba(80,170,140,0.85)', bg: 'rgba(80,170,140,0.15)' },
+  '2026': { border: 'rgba(170,120,200,0.85)', bg: 'rgba(170,120,200,0.20)' },
+  '2027': { border: 'rgba(120,170,210,0.8)', bg: 'rgba(120,170,210,0.15)' },
+};
+
+const allYears = Object.keys(revenueData).sort();
+const datasets = [];
+allYears.forEach(year => {
+  const c = yearColors[year] || { border: 'rgba(150,150,150,0.7)', bg: 'rgba(150,150,150,0.15)' };
+  datasets.push({
+    label: year,
+    data: revenueData[year],
+    borderColor: c.border,
+    backgroundColor: c.bg,
+    borderWidth: 2,
+    fill: true,
+    tension: 0.35,
+    pointRadius: 3,
+    pointHoverRadius: 5,
+    hidden: false,
+  });
+});
+
+// Botones de toggle de año
+const toggleContainer = document.getElementById('year-toggle');
+const yearVisibility = {};
+allYears.forEach(year => yearVisibility[year] = true);
+
+function renderYearButtons() {
+  const allBtn = toggleContainer.querySelector('[data-year="all"]');
+  toggleContainer.innerHTML = '';
+  toggleContainer.appendChild(allBtn);
+  allYears.forEach(year => {
+    const btn = document.createElement('button');
+    btn.className = 'year-btn ' + (yearVisibility[year] ? 'year-btn-active' : 'year-btn-hidden');
+    btn.textContent = year;
+    btn.dataset.year = year;
+    btn.onclick = () => toggleYear(year);
+    toggleContainer.appendChild(btn);
+  });
+}
+
+function toggleYear(year) {
+  yearVisibility[year] = !yearVisibility[year];
+  const idx = allYears.indexOf(year);
+  chart.data.datasets[idx].hidden = !yearVisibility[year];
+  chart.update();
+  renderYearButtons();
+  updateAllBtn();
+}
+
+function updateAllBtn() {
+  const allBtn = toggleContainer.querySelector('[data-year="all"]');
+  const anyVisible = Object.values(yearVisibility).some(v => v);
+  if (anyVisible) {
+    allBtn.classList.remove('year-btn-active');
+  } else {
+    allBtn.classList.add('year-btn-active');
+  }
+}
+
+toggleContainer.querySelector('[data-year="all"]').onclick = () => {
+  allYears.forEach(y => yearVisibility[y] = true);
+  datasets.forEach(ds => ds.hidden = false);
+  chart.update();
+  renderYearButtons();
+  const allBtn = toggleContainer.querySelector('[data-year="all"]');
+  allBtn.classList.add('year-btn-active');
+};
+
+renderYearButtons();
+
+const chart = new Chart(document.getElementById('revenueChart').getContext('2d'), {
+  type: 'line',
+  data: {
+    labels: ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'],
+    datasets: datasets,
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            if (ctx.dataset.hidden) return null;
+            const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+            return ctx.dataset.label + ': Q' + ctx.parsed.y.toLocaleString() + ' (Q' + total.toLocaleString() + ' total)';
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: { callback: (v) => 'Q' + v.toLocaleString(), font: { size: 10 } },
+        grid: { color: 'rgba(0,0,0,0.05)' },
+      },
+      x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+    },
+  },
+});
+
+// ============================================================
+// Lead Sources - pie chart
+// ============================================================
+const leadSources = {{ lead_sources_json|safe }};
+const sourceColors = {
+  'Instagram':     'rgba(170,120,200,0.85)',
+  'Recomendación': 'rgba(220,180,80,0.85)',
+  'WhatsApp':      'rgba(80,180,140,0.85)',
+  'Web':           'rgba(100,160,210,0.85)',
+  'Facebook':      'rgba(210,120,100,0.85)',
+  'Email':         'rgba(150,150,170,0.85)',
+  'Llamada':       'rgba(190,150,110,0.85)',
+  'Otro':          'rgba(160,160,160,0.85)',
+};
+
+new Chart(document.getElementById('leadSourcesChart').getContext('2d'), {
+  type: 'doughnut',
+  data: {
+    labels: leadSources.map(s => s.label + ' (' + s.count + ')'),
+    datasets: [{
+      data: leadSources.map(s => s.count),
+      backgroundColor: leadSources.map(s => sourceColors[s.label] || 'rgba(150,150,150,0.85)'),
+      borderColor: '#fff',
+      borderWidth: 2,
+    }],
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '55%',
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { boxWidth: 12, font: { size: 10 }, padding: 8 },
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+            const pct = ((ctx.parsed/total)*100).toFixed(1);
+            return ctx.label + ': ' + pct + '%';
+          },
+        },
+      },
+    },
+  },
+});
+</script>
+{% endblock %}

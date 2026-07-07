@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Norkevin CRM{% endblock %}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        'nk-black': '#FFFFFF',
+        'nk-dark': '#FFFFFF',
+        'nk-gray': '#F3F4F6',
+        'nk-gold': '#E0B244',
+        'nk-gold-light': '#F4D880',
+        'nk-text': '#1A1F36',
+        'nk-text-soft': '#6B7280',
+        'nk-border': '#E5E7EB',
+        'nk-blue': '#4F6BED',
+        'nk-blue-soft': '#EEF1FE',
+      },
+      fontFamily: {
+        'inter': ['Inter', 'sans-serif'],
+        'serif': ['Cormorant Garamond', 'serif'],
+      },
+      boxShadow: {
+        'soft': '0 1px 2px 0 rgba(15, 23, 42, 0.04), 0 1px 3px 0 rgba(15, 23, 42, 0.06)',
+        'card': '0 2px 4px 0 rgba(15, 23, 42, 0.04), 0 4px 8px 0 rgba(15, 23, 42, 0.04)',
+      }
+    }
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', sans-serif; color: #1A1F36; font-feature-settings: 'cv11', 'ss01'; }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: #F3F4F6; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
+  h1, h2, h3 { font-family: 'Inter', sans-serif; letter-spacing: -0.01em; }
+  .font-serif { font-family: 'Cormorant Garamond', serif; }
+  .label-uppercase { text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; font-weight: 600; color: #6B7280; }
+  /* Inputs en modo claro */
+  input, select, textarea {
+    color: #1A1F36;
+  }
+  input::placeholder, textarea::placeholder {
+    color: #9CA3AF;
+  }
+  /* Hover sutil en cards */
+  .card-hover { transition: box-shadow 200ms ease, transform 200ms ease; }
+  .card-hover:hover { box-shadow: 0 4px 12px 0 rgba(15, 23, 42, 0.08), 0 2px 4px 0 rgba(15, 23, 42, 0.04); }
+  /* Botones de toggle de año (revenue chart) */
+  .year-btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #F3F4F6;
+    color: #6B7280;
+    border: 1px solid transparent;
+    transition: all 150ms;
+    cursor: pointer;
+  }
+  .year-btn:hover { background: #E5E7EB; color: #1F1B14; }
+  .year-btn-active {
+    background: #FEF3C7;
+    color: #92400E;
+    border-color: #FDE68A;
+  }
+  .year-btn-hidden {
+    opacity: 0.4;
+    text-decoration: line-through;
+    background: #F9FAFB;
+  }
+</style>
+</head>
+<body class="bg-nk-gray text-nk-text">
+
+<!-- TOP NAV -->
+<header class="fixed top-0 left-0 right-0 z-20 bg-nk-dark border-b border-nk-border shadow-soft">
+  <div class="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
+    <!-- Logo + Brand -->
+    <a href="/dashboard" class="flex items-center gap-2 shrink-0">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-nk-gold to-nk-gold-light flex items-center justify-center text-white font-bold text-sm">N</div>
+      <div class="leading-tight">
+        <div class="font-bold text-[15px] text-nk-text">Norkevin</div>
+        <div class="text-[10px] text-nk-text-soft uppercase tracking-wider font-medium">Photography CRM</div>
+      </div>
+    </a>
+
+    <!-- Center nav -->
+    <nav class="flex items-center gap-0.5">
+      <a href="/dashboard" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path == '/dashboard' %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Dashboard</a>
+      <a href="/clients" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path.startswith('/clients') %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Clients</a>
+      <a href="/leads" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path == '/leads' %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Leads</a>
+      <a href="/jobs" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path.startswith('/jobs') %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Jobs</a>
+      <a href="/" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path == '/' %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Calendar</a>
+      <a href="/partners" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path == '/partners' %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Equipo</a>
+      <a href="/payments" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path.startswith('/payments') %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Payments</a>
+    </nav>
+
+    <!-- Right actions -->
+    <div class="flex items-center gap-2 shrink-0">
+      {% block header_actions %}{% endblock %}
+      <button class="p-2 rounded-lg hover:bg-nk-gray text-nk-text-soft" title="Notificaciones">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0"/></svg>
+      </button>
+      <button class="p-2 rounded-lg hover:bg-nk-gray text-nk-text-soft" title="Ayuda">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </button>
+      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-nk-blue to-nk-blue/70 flex items-center justify-center text-white font-bold text-sm ml-1">K</div>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main class="pt-16 min-h-screen">
+  <div class="border-b border-nk-border bg-nk-dark">
+    <div class="max-w-[1400px] mx-auto px-6 py-6 flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-nk-text tracking-tight">{% block header %}Dashboard{% endblock %}</h1>
+        <p class="text-sm text-nk-text-soft mt-1">{% block subtitle %}{% endblock %}</p>
+      </div>
+      <div class="flex items-center gap-3">
+        {% block subheader_actions %}{% endblock %}
+      </div>
+    </div>
+  </div>
+  <div class="max-w-[1400px] mx-auto px-6 py-8">
+
+  <div class="p-6 md:p-8">
+    {% block content %}{% endblock %}
+  </div>
+</main>
+
+</body>
+</html>

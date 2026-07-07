@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Jobs · Norkevin CRM{% endblock %}
+{% block header %}Jobs Overview{% endblock %}
+{% block subtitle %}{{ jobs|length }} jobs {% if view == 'active_upcoming' %}con shoot próximo{% elif view == 'completed' %}completados{% endif %}{% if estado_filtro %}· {{ estado_filtro }}{% endif %}{% if search %}· "{{ search }}"{% endif %}{% endblock %}
+
+{% block content %}
+
+<!-- Selector de vista (Jobs Overview) -->
+<div class="bg-nk-dark rounded-xl border border-nk-border shadow-soft mb-4">
+  <details class="group" open>
+    <summary class="px-5 py-4 cursor-pointer flex items-center justify-between hover:bg-nk-border/30 transition">
+      <span class="text-sm font-semibold text-nk-text">
+        {% if view == 'active' %}Active Jobs
+        {% elif view == 'active_upcoming' %}Active Jobs with Upcoming Shoot
+        {% elif view == 'completed' %}Completed Jobs
+        {% elif view == 'archived' %}Archived Jobs
+        {% else %}All Jobs{% endif %}
+      </span>
+      <svg class="w-4 h-4 text-nk-text-soft group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+    </summary>
+    <div class="border-t border-nk-border divide-y divide-nk-border">
+      <a href="/jobs?view=active" class="block px-5 py-3 hover:bg-emerald-50/50 transition flex items-center justify-between {% if view == 'active' %}bg-emerald-50/40{% endif %}">
+        <span class="text-sm font-medium">Active Jobs</span>
+        <span class="text-xs bg-nk-gold/15 text-nk-gold px-2 py-0.5 rounded-full font-medium">{{ view_counts.active or 0 }}</span>
+      </a>
+      <a href="/jobs?view=active_upcoming" class="block px-5 py-3 hover:bg-nk-blue-soft transition flex items-center justify-between {% if view == 'active_upcoming' %}bg-nk-blue-soft{% endif %}">
+        <span class="text-sm font-medium">Active Jobs with Upcoming Shoot</span>
+        <span class="text-xs bg-nk-blue text-white px-2 py-0.5 rounded-full font-medium">{{ view_counts.active_upcoming or 0 }}</span>
+      </a>
+      <a href="/jobs?view=completed" class="block px-5 py-3 hover:bg-nk-gray transition flex items-center justify-between {% if view == 'completed' %}bg-nk-gray{% endif %}">
+        <span class="text-sm font-medium">Completed Jobs</span>
+        <span class="text-xs bg-emerald-500 text-white px-2 py-0.5 rounded-full font-medium">{{ view_counts.completed or 0 }}</span>
+      </a>
+      <a href="/jobs?view=archived" class="block px-5 py-3 hover:bg-nk-gray transition flex items-center justify-between {% if view == 'archived' %}bg-nk-gray{% endif %}">
+        <span class="text-sm font-medium">Archived Jobs</span>
+        <span class="text-xs bg-nk-text-soft/20 text-nk-text-soft px-2 py-0.5 rounded-full font-medium">Ver →</span>
+      </a>
+    </div>
+  </details>
+</div>
+
+<!-- Filtros adicionales -->
+<form method="get" class="flex items-center gap-3 mb-4">
+  <input type="hidden" name="view" value="{{ view }}">
+  <input type="text" name="q" value="{{ search }}" placeholder="Buscar boda o lugar..." class="flex-1 bg-nk-dark border border-nk-border rounded-lg px-3 py-2 text-sm">
+  <select name="estado" onchange="this.form.submit()" class="bg-nk-dark border border-nk-border rounded-lg px-3 py-2 text-sm">
+    <option value="">Todos los estados</option>
+    {% for s in status_options %}
+    <option value="{{ s }}" {% if s == estado_filtro %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <select name="empresa" onchange="this.form.submit()" class="bg-nk-dark border border-nk-border rounded-lg px-3 py-2 text-sm">
+    <option value="">Todas las empresas</option>
+    <option value="NORKEVIN" {% if empresa_filtro == 'NORKEVIN' %}selected{% endif %}>Norkevin</option>
+    <option value="ASTRAL FILMS" {% if empresa_filtro == 'ASTRAL FILMS' %}selected{% endif %}>Astral</option>
+  </select>
+  <button type="submit" class="bg-nk-gold text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-nk-gold/90">Buscar</button>
+  {% if estado_filtro or search or empresa_filtro or view != 'active' %}
+  <a href="/jobs" class="text-nk-text-soft hover:text-nk-text text-xs">✕ Limpiar</a>
+  {% endif %}
+</form>
+
+{% if jobs %}
+<div class="bg-nk-dark rounded-xl border border-nk-border overflow-hidden shadow-soft">
+  <table class="w-full text-sm">
+    <thead class="bg-nk-border/50 text-xs uppercase tracking-wider text-nk-text-soft">
+      <tr>
+        <th class="px-4 py-3 text-left">Boda</th>
+        <th class="px-4 py-3 text-left">Fecha</th>
+        <th class="px-4 py-3 text-left">Lugar</th>
+        <th class="px-4 py-3 text-left">Estado</th>
+        <th class="px-4 py-3 text-left">Equipo</th>
+        <th class="px-4 py-3 text-right">Facturado</th>
+        <th class="px-4 py-3 text-right">Pagado</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-nk-border">
+      {% for j in jobs %}
+      <tr class="hover:bg-nk-border/30 transition cursor-pointer" onclick="window.location='/jobs/{{ j.id }}'">
+        <td class="px-4 py-3 font-medium text-nk-text">
+          {{ j.get('BODA') or '—' }}
+          {% if j.get('EMPRESA') == 'ASTRAL FILMS' %}<span class="text-[10px] text-purple-700 ml-1">ASTRAL</span>{% endif %}
+        </td>
+        <td class="px-4 py-3 text-xs">
+          <div class="{% if days_until(j.get('Fecha del evento')) <= 30 and view != 'completed' %}text-amber-700 font-medium{% elif days_until(j.get('Fecha del evento')) <= 90 and view != 'completed' %}text-blue-700{% endif %}">
+            {{ parse_date(j.get('Fecha del evento')) or '—' }}
+          </div>
+          <div class="text-nk-text-soft text-[10px]">{{ days_until(j.get('Fecha del evento')) }}d</div>
+        </td>
+        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ j.get('Lugar de evento') or '—' }}</td>
+        <td class="px-4 py-3">
+          <span class="text-xs px-2 py-0.5 rounded
+            {% if j.get('Estado') == 'Confirmado' %}bg-emerald-50 text-emerald-700
+            {% elif j.get('Estado') == 'En produccion' %}bg-nk-blue-soft text-nk-blue
+            {% elif j.get('Estado') == 'Listo' %}bg-nk-gray text-nk-text-soft
+            {% elif j.get('Estado') in ('Cotizando','Lead') %}bg-amber-50 text-amber-700
+            {% else %}bg-violet-50 text-violet-700{% endif %}">{{ j.get('Estado') or '—' }}</span>
+        </td>
+        <td class="px-4 py-3 text-xs">
+          <div class="text-blue-700 flex items-center gap-1.5">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M4 5a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-3.5l-1-1.5h-5L8 5H4z"/></svg>
+            {{ j.get('Primera Camara') or '—' }}
+          </div>
+          <div class="text-purple-700 flex items-center gap-1.5">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h8a2 2 0 012 2v.5l2.5-2v9l-2.5-2V12a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
+            {{ j.get('Videografo 1') or '—' }}
+          </div>
+        </td>
+        <td class="px-4 py-3 text-right text-xs">{{ q_money(j.get('Total facturado al cliente (Q)')) }}</td>
+        <td class="px-4 py-3 text-right text-xs
+          {% if (j.get('Total pagado por cliente (Q)') or 0) >= (j.get('Total facturado al cliente (Q)') or 0) %}text-emerald-700
+          {% elif (j.get('Total pagado por cliente (Q)') or 0) > 0 %}text-amber-700
+          {% else %}text-nk-text-soft{% endif %}">
+          {{ q_money(j.get('Total pagado por cliente (Q)')) }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-nk-dark rounded-xl p-12 border border-nk-border shadow-soft text-center">
+  <p class="text-sm text-nk-text-soft mb-4">No hay jobs que coincidan con tu vista</p>
+  <a href="/jobs?view=active" class="text-nk-gold hover:underline text-sm">← Ver Active Jobs</a>
+</div>
+{% endif %}
+{% endblock %}

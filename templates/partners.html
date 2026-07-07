@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Equipo · Norkevin CRM{% endblock %}
+{% block header %}Equipo{% endblock %}
+{% block subtitle %}{{ partners|length }} fotógrafos y videógrafos{% endblock %}
+
+{% block content %}
+
+<!-- Filtros -->
+<form method="get" class="flex items-center gap-3 mb-6">
+  <select name="estado" onchange="this.form.submit()" class="bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+    <option value="">Todos los estados</option>
+    {% for e in estado_options %}
+    <option value="{{ e }}" {% if e == estado_filtro %}selected{% endif %}>{{ e }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+<div class="grid grid-cols-3 gap-4">
+{% for p in partners %}
+<div class="bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
+  <div class="flex items-start justify-between mb-3">
+    <div>
+      <h3 class="font-semibold text-base">{{ p.get('Nombre') }}</h3>
+      <p class="text-xs text-nk-text-soft">{{ p.get('Calificacion') or '—' }}</p>
+    </div>
+    <span class="text-xs px-2 py-1 rounded
+      {% if p.get('Estado') == 'Activo' %}bg-emerald-50 text-emerald-700
+      {% elif p.get('Estado') == 'Nuevo' %}bg-nk-blue-soft text-nk-blue
+      {% elif p.get('Estado') == 'Pausa temporal' %}bg-amber-50 text-amber-700
+      {% else %}bg-gray-100 text-nk-text-soft{% endif %}">{{ p.get('Estado') or '—' }}</span>
+  </div>
+
+  <dl class="text-xs space-y-1.5 mb-3">
+    <div class="flex justify-between"><dt class="text-nk-text-soft">Teléfono</dt><dd class="text-gray-700">{{ p.get('Numero de celular') or '—' }}</dd></div>
+    <div class="flex justify-between"><dt class="text-nk-text-soft">Banco</dt><dd>{{ p.get('Banco') or '—' }}</dd></div>
+    <div class="flex justify-between"><dt class="text-nk-text-soft">Cuenta</dt><dd class="font-mono text-[10px]">{{ p.get('Numero de cuenta') or '—' }}</dd></div>
+    <div class="flex justify-between"><dt class="text-nk-text-soft">Tarifa Foto 8h</dt><dd class="text-nk-gold">{{ q_money(p.get('Tarifa Foto 8h (Q)')) }}</dd></div>
+    <div class="flex justify-between"><dt class="text-nk-text-soft">Tarifa Video 8h</dt><dd class="text-nk-gold">{{ q_money(p.get('Tarifa Video 8h (Q)')) }}</dd></div>
+    <div class="flex justify-between"><dt class="text-nk-text-soft">Wedding Content 8h</dt><dd class="text-nk-gold">{{ q_money(p.get('Tarifa Wedding Content 8h (Q)')) }}</dd></div>
+    <div class="flex justify-between"><dt class="text-nk-text-soft">Skills</dt><dd class="text-purple-700">{{ (p.get('Skills') or [])|join(', ') or '—' }}</dd></div>
+  </dl>
+
+  {% if p.get('Portal URL') %}
+  <a href="{{ p['Portal URL'] }}" target="_blank" class="text-xs text-nk-gold hover:underline">Portal partner →</a>
+  {% endif %}
+</div>
+{% endfor %}
+</div>
+{% endblock %}

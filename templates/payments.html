@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Payments · Norkevin CRM{% endblock %}
+{% block header %}Pagos al Equipo{% endblock %}
+{% block subtitle %}Liquidaciones y pagos pendientes{% endblock %}
+
+{% block content %}
+<!-- Resumen -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Pendiente</div>
+    <div class="text-3xl font-bold text-amber-700">{{ q_money(total_pendiente) }}</div>
+    <div class="text-xs text-nk-text-soft mt-1">{{ pendientes|length }} pagos</div>
+  </div>
+  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Pagado</div>
+    <div class="text-3xl font-bold text-green-700">{{ q_money(total_pagado) }}</div>
+    <div class="text-xs text-nk-text-soft mt-1">{{ pagados|length }} pagos</div>
+  </div>
+  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Total</div>
+    <div class="text-3xl font-bold text-nk-gold">{{ q_money(total_pendiente + total_pagado) }}</div>
+    <div class="text-xs text-nk-text-soft mt-1">{{ pendientes|length + pagados|length }} movimientos</div>
+  </div>
+</div>
+
+<!-- Filtros -->
+<form method="get" class="flex items-center gap-3 mb-4">
+  <select name="estado" onchange="this.form.submit()" class="bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+    <option value="">Todos los estados</option>
+    {% for s in status_options %}
+    <option value="{{ s }}" {% if s == estado_filtro %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <select name="persona" onchange="this.form.submit()" class="bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+    <option value="">Todas las personas</option>
+    {% for per in personas %}
+    <option value="{{ per }}" {% if per == persona_filtro %}selected{% endif %}>{{ per }}</option>
+    {% endfor %}
+  </select>
+  {% if estado_filtro or persona_filtro %}
+  <a href="/payments" class="text-nk-text-soft hover:text-nk-text text-xs">✕ Limpiar</a>
+  {% endif %}
+</form>
+
+<!-- Pendientes -->
+<h3 class="text-sm font-semibold mb-3 text-amber-700">⏳ Pendientes</h3>
+{% if pendientes %}
+<div class="bg-nk-dark rounded-xl border border-nk-border overflow-hidden shadow-soft mb-8">
+  <table class="w-full text-sm">
+    <thead class="bg-nk-border/50 text-nk-text-soft text-xs uppercase tracking-wider text-nk-text-soft">
+      <tr>
+        <th class="px-4 py-3 text-left">Persona</th>
+        <th class="px-4 py-3 text-left">Evento</th>
+        <th class="px-4 py-3 text-left">Servicio</th>
+        <th class="px-4 py-3 text-left">Fecha</th>
+        <th class="px-4 py-3 text-right">Monto</th>
+        <th class="px-4 py-3 text-left">Estado</th>
+        <th class="px-4 py-3 text-right">Acción</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-nk-border">
+      {% for p in pendientes %}
+      <tr class="hover:bg-nk-border transition">
+        <td class="px-4 py-3 font-medium">{{ p.get('Persona') }}</td>
+        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ p.get('Evento específico') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ p.get('Servicio') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ parse_date(p.get('Fecha del evento')) or '—' }}</td>
+        <td class="px-4 py-3 text-right font-medium text-amber-700">{{ q_money(p.get('Monto acordado')) }}</td>
+        <td class="px-4 py-3">
+          <span class="text-xs px-2 py-1 rounded
+            {% if p.get('Estado de pago') == 'Pendiente' %}bg-amber-50 text-amber-700
+            {% elif p.get('Estado de pago') == 'Mitad pagado' %}bg-orange-50 text-orange-700
+            {% else %}bg-nk-blue-soft text-nk-blue{% endif %}">{{ p.get('Estado de pago') }}</span>
+        </td>
+        <td class="px-4 py-3 text-right">
+          <button onclick="markPaid('{{ p.id }}')" class="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded hover:bg-green-500/30">Marcar pagado</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-nk-dark rounded-lg p-8 border border-nk-border text-center mb-8">
+  <p class="text-sm text-nk-text-soft">No hay pagos pendientes ✓</p>
+</div>
+{% endif %}
+
+<!-- Pagados -->
+<h3 class="text-sm font-semibold mb-3 text-green-700">✓ Pagados</h3>
+{% if pagados %}
+<div class="bg-nk-dark rounded-xl border border-nk-border overflow-hidden shadow-soft">
+  <table class="w-full text-sm">
+    <thead class="bg-nk-border/50 text-nk-text-soft text-xs uppercase tracking-wider text-nk-text-soft">
+      <tr>
+        <th class="px-4 py-3 text-left">Persona</th>
+        <th class="px-4 py-3 text-left">Evento</th>
+        <th class="px-4 py-3 text-left">Servicio</th>
+        <th class="px-4 py-3 text-left">Fecha pago</th>
+        <th class="px-4 py-3 text-right">Monto</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-nk-border">
+      {% for p in pagados %}
+      <tr class="hover:bg-nk-border transition">
+        <td class="px-4 py-3 font-medium">{{ p.get('Persona') }}</td>
+        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ p.get('Evento específico') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ p.get('Servicio') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ p.get('Fecha de pago') or '—' }}</td>
+        <td class="px-4 py-3 text-right font-medium text-green-700">{{ q_money(p.get('Monto acordado')) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-nk-dark rounded-lg p-8 border border-nk-border text-center">
+  <p class="text-sm text-nk-text-soft">Sin pagos cobrados todavía</p>
+</div>
+{% endif %}
+
+<script>
+async function markPaid(id) {
+  const r = await fetch('/api/payments/' + id + '/pay', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})});
+  const d = await r.json();
+  if (d.ok) location.reload();
+  else alert('Error: ' + (d.error || 'desconocido'));
+}
+</script>
+{% endblock %}

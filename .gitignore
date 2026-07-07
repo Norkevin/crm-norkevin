@@ -1,0 +1,27 @@
+# Secrets (never commit)
+.env
+*.env
+
+# Logs
+*.log
+stdout.log
+stderr.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data personal (workspace)
+data/
+_quarantine_scripts/
+.pre_revert_*/
+backup_*/

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Leads · Norkevin CRM{% endblock %}
+{% block header %}Leads{% endblock %}
+{% block subtitle %}{{ leads|length }} leads en el pipeline{% endblock %}
+
+{% block content %}
+
+<!-- Pipeline stats -->
+<div class="grid grid-cols-7 gap-2 mb-6">
+  {% for status in status_options %}
+  <div class="bg-nk-dark rounded-lg p-3 border border-nk-border">
+    <div class="text-[10px] text-nk-text-soft uppercase tracking-wider font-semibold mb-1">{{ status }}</div>
+    <div class="text-2xl font-bold {% if status == 'Convertido' %}text-emerald-700{% elif status == 'Perdido' %}text-rose-700{% elif status == 'Negociando' %}text-amber-700{% elif status == 'Cotizando' %}text-nk-blue{% else %}text-nk-text{% endif %}">{{ counts.get(status, 0) }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Lista de leads -->
+<div class="bg-nk-dark rounded-xl border border-nk-border overflow-hidden shadow-soft">
+  <table class="w-full text-sm">
+    <thead class="bg-nk-border/50 text-xs uppercase tracking-wider text-nk-text-soft">
+      <tr>
+        <th class="px-4 py-3 text-left">Nombre</th>
+        <th class="px-4 py-3 text-left">Contacto</th>
+        <th class="px-4 py-3 text-left">Boda</th>
+        <th class="px-4 py-3 text-left">Paquete</th>
+        <th class="px-4 py-3 text-left">Estado</th>
+        <th class="px-4 py-3 text-left">Origen</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-nk-border">
+      {% for lead in leads %}
+      <tr class="hover:bg-nk-border/30 transition cursor-pointer" onclick="window.location='/leads/{{ lead.id }}'">
+        <td class="px-4 py-3">
+          <div class="font-medium text-nk-text">{{ lead.nombre or '—' }}</div>
+          {% if lead.cliente_generado_nombre %}
+          <div class="text-[10px] text-emerald-700 mt-0.5">✓ → {{ lead.cliente_generado_nombre }}</div>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-xs">
+          <div class="text-nk-text">{{ lead.email or '—' }}</div>
+          <div class="text-nk-text-soft">{{ lead.telefono or '—' }}</div>
+        </td>
+        <td class="px-4 py-3 text-xs">
+          <div class="text-nk-text font-medium">{{ parse_date(lead.fecha_tentativa) or '—' }}</div>
+          <div class="text-nk-text-soft text-[10px]">{{ lead.locacion or '—' }}</div>
+        </td>
+        <td class="px-4 py-3 text-xs">
+          {% if lead.tipo_evento %}<span class="text-nk-gold font-medium">{{ lead.tipo_evento }}</span>{% endif %}
+          {% if lead.presupuesto %}<div class="text-[10px] text-nk-text-soft">{{ lead.presupuesto }}</div>{% endif %}
+        </td>
+        <td class="px-4 py-3">
+          <span class="text-xs px-2 py-0.5 rounded {% if lead.estado == 'Convertido' %}bg-emerald-50 text-emerald-700{% elif lead.estado == 'Perdido' %}bg-rose-50 text-rose-700{% elif lead.estado in ('Negociando','Cotizando') %}bg-amber-50 text-amber-700{% elif lead.estado == 'Nuevo' %}bg-nk-blue-soft text-nk-blue{% else %}bg-nk-gray text-nk-text-soft{% endif %}">{{ lead.estado }}</span>
+        </td>
+        <td class="px-4 py-3 text-xs text-nk-text-soft">
+          {% if lead.fuente %}<span class="text-nk-gold font-medium">{{ lead.fuente }}</span>{% else %}—{% endif %}
+          {% if lead.proximo_followup %}
+          <div class="text-[10px] {% if lead.proximo_followup < '2026-07-07' %}text-rose-700 font-semibold{% elif lead.proximo_followup < '2026-07-14' %}text-amber-700{% else %}text-nk-text-soft{% endif %}">F/U: {{ lead.proximo_followup }}</div>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="px-4 py-12 text-center text-nk-text-soft">No hay leads</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Tags legend (top tags usados) -->
+{% set tags_counter = {} %}
+{% for l in leads %}{% for t in l.tags %}{% set _ = tags_counter.update({t: tags_counter.get(t, 0) + 1}) %}{% endfor %}{% endfor %}
+{% if tags_counter %}
+<div class="mt-6 flex items-center gap-3 flex-wrap">
+  <span class="text-xs text-nk-text-soft uppercase tracking-wider font-semibold">Tags activos:</span>
+  {% for t, c in tags_counter.items() %}
+  <span class="text-xs bg-nk-gold/15 text-nk-gold px-2 py-0.5 rounded-full">{{ t }} <span class="opacity-60">{{ c }}</span></span>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

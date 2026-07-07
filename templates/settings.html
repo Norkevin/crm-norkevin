@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Settings · Norkevin CRM{% endblock %}
+{% block header %}Settings{% endblock %}
+{% block subtitle %}Configuración del CRM{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-2 gap-6">
+  <div class="bg-nk-dark rounded-lg p-6 border border-nk-border">
+    <h3 class="text-sm font-semibold mb-4">📊 Info del sistema</h3>
+    <div class="space-y-3 text-sm">
+      <div class="flex justify-between">
+        <span class="text-nk-text-soft">Versión</span>
+        <span>v0.1</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-nk-text-soft">Database</span>
+        <span class="text-xs text-green-700">SQLite local</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-nk-text-soft">Storage</span>
+        <span>C:\Users\fotov\.openclaw\workspace\crm_norkevin\data\crm.db</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-nk-dark rounded-lg p-6 border border-nk-border">
+    <h3 class="text-sm font-semibold mb-4">💰 Paquetes Norkevin</h3>
+    <div class="space-y-2 text-xs">
+      <div class="flex justify-between p-2 bg-nk-gray rounded">
+        <span>Foto Gold</span>
+        <span class="text-nk-gold font-medium">Q13,500</span>
+      </div>
+      <div class="flex justify-between p-2 bg-nk-gray rounded">
+        <span>Mix Gold</span>
+        <span class="text-nk-gold font-medium">Q20,500</span>
+      </div>
+      <div class="flex justify-between p-2 bg-nk-gray rounded">
+        <span>Mix Platinum</span>
+        <span class="text-nk-gold font-medium">Q29,500</span>
+      </div>
+      <div class="flex justify-between p-2 bg-nk-gray rounded">
+        <span>Signature</span>
+        <span class="text-nk-gold font-medium">Q35,500</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-nk-dark rounded-lg p-6 border border-nk-border">
+    <h3 class="text-sm font-semibold mb-4">🏦 Cuentas bancarias</h3>
+    <div class="space-y-2 text-xs">
+      <div class="p-2 bg-nk-gray rounded">
+        <div class="text-nk-text-soft text-[10px] uppercase">Banco Industrial</div>
+        <div class="font-mono">214-008308-6 · Monetaria</div>
+      </div>
+      <div class="p-2 bg-nk-gray rounded">
+        <div class="text-nk-text-soft text-[10px] uppercase">Banrural</div>
+        <div class="font-mono">039-68500356-0-45 · Monetaria</div>
+      </div>
+      <div class="p-2 bg-nk-gray rounded">
+        <div class="text-nk-text-soft text-[10px] uppercase">Promerica</div>
+        <div class="font-mono">323-12060435-58-6 · Ahorro</div>
+      </div>
+      <div class="text-[10px] text-nk-text-soft mt-2">A nombre de Kevin Lemus</div>
+    </div>
+  </div>
+
+  <div class="bg-nk-dark rounded-lg p-6 border border-nk-border">
+    <h3 class="text-sm font-semibold mb-4">🔌 Integraciones</h3>
+    <div class="space-y-2 text-xs">
+      <div class="flex justify-between items-center p-2 bg-nk-gray rounded">
+        <span>Notion</span>
+        <span class="text-green-700">✓ Conectado</span>
+      </div>
+      <div class="flex justify-between items-center p-2 bg-nk-gray rounded">
+        <span>Recurrente</span>
+        <span class="text-green-700">✓ Conectado</span>
+      </div>
+      <div class="flex justify-between items-center p-2 bg-nk-gray rounded">
+        <span>Obsidian</span>
+        <span class="text-green-700">✓ Conectado</span>
+      </div>
+      <div class="flex justify-between items-center p-2 bg-nk-gray rounded">
+        <span>WhatsApp</span>
+        <span class="text-nk-text-soft">○ Pendiente</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
