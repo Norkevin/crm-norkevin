@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ cliente['Nombre'] }} · Cliente{% endblock %}
 {% block header %}
-<a href="/clients" class="text-nk-text-soft hover:text-nk-text text-sm">← Clientes</a>
-<span class="text-nk-text-soft mx-2">/</span>
+<a href="/clients" class="text-ink-soft hover:text-ink text-sm">← Clientes</a>
+<span class="text-ink-soft mx-2">/</span>
 <span>{{ cliente['Nombre'] }}</span>
 {% endblock %}
 {% block subtitle %}{{ cliente.get('Email') or '—' }} · {{ cliente.get('Teléfono') or '—' }}{% endblock %}
@@ -14,106 +14,106 @@
   <div class="col-span-2 space-y-4">
 
     <!-- Card Datos básicos -->
-    <div class="bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-4 text-nk-gold">Datos del cliente</h3>
+    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
+      <h3 class="text-sm font-semibold mb-4 text-gold">Datos del cliente</h3>
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Nombre</label>
-          <input id="cl-nombre" value="{{ cliente.get('Nombre') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Nombre</label>
+          <input id="cl-nombre" value="{{ cliente.get('Nombre') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Estado</label>
-          <select id="cl-estado" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Estado</label>
+          <select id="cl-estado" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
             {% for s in ['Activo','Inactivo','Archivado'] %}
             <option value="{{ s }}" {% if s == cliente.get('Estado') %}selected{% endif %}>{{ s }}</option>
             {% endfor %}
           </select>
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Teléfono</label>
-          <input id="cl-telefono" value="{{ cliente.get('Teléfono') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Teléfono</label>
+          <input id="cl-telefono" value="{{ cliente.get('Teléfono') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Teléfono secundario</label>
-          <input id="cl-telefono-sec" value="{{ cliente.get('Teléfono secundario') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Teléfono secundario</label>
+          <input id="cl-telefono-sec" value="{{ cliente.get('Teléfono secundario') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
         <div class="col-span-2">
-          <label class="text-xs text-nk-text-soft block mb-1">Email</label>
-          <input id="cl-email" value="{{ cliente.get('Email') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Email</label>
+          <input id="cl-email" value="{{ cliente.get('Email') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
         <div class="col-span-2">
-          <label class="text-xs text-nk-text-soft block mb-1">Dirección facturación</label>
-          <input id="cl-direccion" value="{{ cliente.get('Dirección facturación') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Dirección facturación</label>
+          <input id="cl-direccion" value="{{ cliente.get('Dirección facturación') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
         <div class="col-span-2">
-          <label class="text-xs text-nk-text-soft block mb-1">Notas</label>
-          <textarea id="cl-notas" rows="3" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">{{ cliente.get('Notas') or '' }}</textarea>
+          <label class="text-xs text-ink-soft block mb-1">Notas</label>
+          <textarea id="cl-notas" rows="3" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">{{ cliente.get('Notas') or '' }}</textarea>
         </div>
       </div>
-      <button onclick="saveClient()" class="mt-4 bg-nk-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-nk-gold-light">Guardar cambios</button>
-      <span id="client-msg" class="text-xs text-nk-text-soft ml-3"></span>
+      <button onclick="saveClient()" class="mt-4 bg-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-gold-light">Guardar cambios</button>
+      <span id="client-msg" class="text-xs text-ink-soft ml-3"></span>
     </div>
 
     <!-- Card Portal -->
-    <div class="bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-4 text-nk-gold">Portal & Galería</h3>
+    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
+      <h3 class="text-sm font-semibold mb-4 text-gold">Portal & Galería</h3>
       <div class="grid grid-cols-2 gap-3">
         <div class="col-span-2">
-          <label class="text-xs text-nk-text-soft block mb-1">Portal URL</label>
-          <input id="cl-portal" value="{{ cliente.get('Portal URL') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm" placeholder="https://...">
+          <label class="text-xs text-ink-soft block mb-1">Portal URL</label>
+          <input id="cl-portal" value="{{ cliente.get('Portal URL') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm" placeholder="https://...">
         </div>
         <div class="col-span-2">
-          <label class="text-xs text-nk-text-soft block mb-1">Galería URL</label>
-          <input id="cl-galeria" value="{{ cliente.get('Galería URL') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm" placeholder="https://...">
+          <label class="text-xs text-ink-soft block mb-1">Galería URL</label>
+          <input id="cl-galeria" value="{{ cliente.get('Galería URL') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm" placeholder="https://...">
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Pwd cliente</label>
-          <input id="cl-pwd-cli" value="{{ cliente.get('Galería contraseña cliente') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Pwd cliente</label>
+          <input id="cl-pwd-cli" value="{{ cliente.get('Galería contraseña cliente') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Pwd invitado</label>
-          <input id="cl-pwd-inv" value="{{ cliente.get('Galería contraseña invitado') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Pwd invitado</label>
+          <input id="cl-pwd-inv" value="{{ cliente.get('Galería contraseña invitado') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
         <div class="col-span-2">
-          <label class="text-xs text-nk-text-soft block mb-1">Token de acceso</label>
-          <input id="cl-token" value="{{ cliente.get('Token de acceso') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm font-mono text-xs">
+          <label class="text-xs text-ink-soft block mb-1">Token de acceso</label>
+          <input id="cl-token" value="{{ cliente.get('Token de acceso') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm font-mono text-xs">
         </div>
         <div class="col-span-2">
-          <label class="text-xs text-nk-text-soft block mb-1">Carpeta Drive</label>
-          <input id="cl-drive" value="{{ cliente.get('Carpeta Drive') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm" placeholder="https://drive.google.com/...">
+          <label class="text-xs text-ink-soft block mb-1">Carpeta Drive</label>
+          <input id="cl-drive" value="{{ cliente.get('Carpeta Drive') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm" placeholder="https://drive.google.com/...">
         </div>
       </div>
-      <button onclick="savePortal()" class="mt-4 bg-nk-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-nk-gold-light">Guardar portal/galería</button>
-      <span id="portal-msg" class="text-xs text-nk-text-soft ml-3"></span>
+      <button onclick="savePortal()" class="mt-4 bg-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-gold-light">Guardar portal/galería</button>
+      <span id="portal-msg" class="text-xs text-ink-soft ml-3"></span>
     </div>
   </div>
 
   <!-- COL DER: Resumen -->
   <div class="space-y-4">
-    <div class="bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-3 text-nk-gold">Resumen</h3>
+    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
+      <h3 class="text-sm font-semibold mb-3 text-gold">Resumen</h3>
       <dl class="text-sm space-y-2">
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Estado</dt><dd>
+        <div class="flex justify-between"><dt class="text-ink-soft">Estado</dt><dd>
           {% if cliente.get('Estado') == 'Activo' %}<span class="text-green-700">Activo</span>
-          {% elif cliente.get('Estado') == 'Inactivo' %}<span class="text-nk-text-soft">Inactivo</span>
-          {% else %}<span class="text-nk-text-soft">{{ cliente.get('Estado') or '—' }}</span>{% endif %}
+          {% elif cliente.get('Estado') == 'Inactivo' %}<span class="text-ink-soft">Inactivo</span>
+          {% else %}<span class="text-ink-soft">{{ cliente.get('Estado') or '—' }}</span>{% endif %}
         </dd></div>
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Fuente</dt><dd>{{ cliente.get('Fuente') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Tags</dt><dd class="text-nk-gold text-xs">{{ (cliente.get('Tags') or [])|join(', ') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Primer contacto</dt><dd>{{ cliente.get('Fecha primer contacto') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Último acceso</dt><dd>{{ cliente.get('Último acceso') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Jobs</dt><dd>{{ jobs|length }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Fuente</dt><dd>{{ cliente.get('Fuente') or '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Tags</dt><dd class="text-gold text-xs">{{ (cliente.get('Tags') or [])|join(', ') or '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Primer contacto</dt><dd>{{ cliente.get('Fecha primer contacto') or '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Último acceso</dt><dd>{{ cliente.get('Último acceso') or '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Jobs</dt><dd>{{ jobs|length }}</dd></div>
       </dl>
     </div>
 
     {% if jobs %}
-    <div class="bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-3 text-nk-gold">Bodas</h3>
+    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
+      <h3 class="text-sm font-semibold mb-3 text-gold">Bodas</h3>
       <div class="space-y-2">
         {% for j in jobs %}
-        <a href="/jobs/{{ j.id }}" class="block bg-nk-black hover:bg-nk-gray rounded px-3 py-2 transition">
+        <a href="/jobs/{{ j.id }}" class="block bg-ink hover:bg-paper rounded px-3 py-2 transition">
           <div class="text-sm font-medium">{{ j.get('BODA') }}</div>
-          <div class="text-xs text-nk-text-soft">{{ parse_date(j.get('Fecha del evento')) }} · {{ j.get('Estado') or '—' }}</div>
+          <div class="text-xs text-ink-soft">{{ parse_date(j.get('Fecha del evento')) }} · {{ j.get('Estado') or '—' }}</div>
         </a>
         {% endfor %}
       </div>

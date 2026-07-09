@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ lead['Nombre'] }} · Lead{% endblock %}
 {% block header %}
-<a href="/leads" class="text-nk-text-soft hover:text-nk-text text-sm">← Leads</a>
-<span class="text-nk-text-soft mx-2">/</span>
+<a href="/leads" class="text-ink-soft hover:text-ink text-sm">← Leads</a>
+<span class="text-ink-soft mx-2">/</span>
 <span>{{ lead['Nombre'] }}</span>
 {% endblock %}
 {% block subtitle %}{{ lead.get('Email') or '—' }} · {{ lead.get('Teléfono') or '—' }}{% endblock %}
@@ -13,34 +13,34 @@
   <div class="col-span-2 space-y-4">
 
     <!-- Workflow -->
-    <div class="bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
+    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-sm font-semibold text-nk-gold">Estado</h3>
-        <span id="lead-estado-badge" class="text-xs px-3 py-1 rounded font-medium bg-nk-blue-soft text-nk-blue">{{ lead.get('Estado') or 'Nuevo' }}</span>
+        <h3 class="text-sm font-semibold text-gold">Estado</h3>
+        <span id="lead-estado-badge" class="text-xs px-3 py-1 rounded font-medium bg-ink-soft text-ink">{{ lead.get('Estado') or 'Nuevo' }}</span>
       </div>
       <div class="flex items-center gap-2 mb-3">
-        <span class="text-xs text-nk-text-soft w-24">Cambiar a:</span>
-        <select id="estado-select" class="flex-1 bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+        <span class="text-xs text-ink-soft w-24">Cambiar a:</span>
+        <select id="estado-select" class="flex-1 bg-paper-pure border border-line rounded px-3 py-2 text-sm">
           {% for s in status_options %}
           <option value="{{ s }}" {% if s == lead.get('Estado') %}selected{% endif %}>{{ s }}</option>
           {% endfor %}
         </select>
-        <button onclick="updateEstado()" class="bg-nk-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-nk-gold-light">Aplicar</button>
+        <button onclick="updateEstado()" class="bg-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-gold-light">Aplicar</button>
       </div>
 
       {% if lead.get('Estado') in ('Negociando','Propuesta Enviada','Cotizando') %}
-      <div class="mt-4 pt-4 border-t border-nk-border">
-        <div class="bg-nk-blue-soft rounded-lg p-3 mb-3">
-          <p class="text-xs text-nk-blue font-medium">¿El cliente aceptó el shoot?</p>
-          <p class="text-xs text-nk-text-soft mt-1">Al aceptar, se crea automáticamente un Cliente + Job en el sistema con todos los datos del lead.</p>
+      <div class="mt-4 pt-4 border-t border-line">
+        <div class="bg-ink-soft rounded-lg p-3 mb-3">
+          <p class="text-xs text-ink font-medium">¿El cliente aceptó el shoot?</p>
+          <p class="text-xs text-ink-soft mt-1">Al aceptar, se crea automáticamente un Cliente + Job en el sistema con todos los datos del lead.</p>
         </div>
-        <button onclick="acceptShoot()" class="w-full bg-nk-gold text-white text-sm px-4 py-3 rounded-lg font-semibold hover:bg-nk-gold/90 flex items-center justify-center gap-2">
+        <button onclick="acceptShoot()" class="w-full bg-gold text-white text-sm px-4 py-3 rounded-lg font-semibold hover:bg-gold/90 flex items-center justify-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
           Aceptar Shoot (Crear Cliente + Job)
         </button>
       </div>
       {% elif lead.get('Estado') == 'Convertido' %}
-      <div class="mt-4 pt-4 border-t border-nk-border">
+      <div class="mt-4 pt-4 border-t border-line">
         <div class="bg-emerald-50 rounded-lg p-3">
           <p class="text-xs text-emerald-700 font-medium flex items-center gap-1.5">
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 00-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg>
@@ -55,40 +55,40 @@
     </div>
 
     <!-- Datos -->
-    <div class="bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-4 text-nk-gold">Datos del lead</h3>
+    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
+      <h3 class="text-sm font-semibold mb-4 text-gold">Datos del lead</h3>
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Nombre</label>
-          <input id="ld-nombre" value="{{ lead.get('Nombre') or '' }}" disabled class="w-full bg-nk-gray border border-nk-border rounded px-3 py-2 text-sm text-nk-text-soft">
+          <label class="text-xs text-ink-soft block mb-1">Nombre</label>
+          <input id="ld-nombre" value="{{ lead.get('Nombre') or '' }}" disabled class="w-full bg-paper border border-line rounded px-3 py-2 text-sm text-ink-soft">
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Fuente</label>
-          <select id="ld-fuente" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Fuente</label>
+          <select id="ld-fuente" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
             {% for f in ['Instagram','WhatsApp','Web','Recomendación','Facebook','Email','Llamada','Otro'] %}
             <option value="{{ f }}" {% if f == lead.get('Fuente') %}selected{% endif %}>{{ f }}</option>
             {% endfor %}
           </select>
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Email</label>
-          <input id="ld-email" value="{{ lead.get('Email') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Email</label>
+          <input id="ld-email" value="{{ lead.get('Email') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Teléfono</label>
-          <input id="ld-telefono" value="{{ lead.get('Teléfono') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Teléfono</label>
+          <input id="ld-telefono" value="{{ lead.get('Teléfono') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Fecha tentativa evento</label>
-          <input id="ld-fecha" type="date" value="{{ lead.get('Fecha tentativa del evento') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Fecha tentativa evento</label>
+          <input id="ld-fecha" type="date" value="{{ lead.get('Fecha tentativa del evento') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Próximo follow-up</label>
-          <input id="ld-followup" type="date" value="{{ lead.get('Próximo follow-up') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Próximo follow-up</label>
+          <input id="ld-followup" type="date" value="{{ lead.get('Próximo follow-up') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Presupuesto</label>
-          <select id="ld-presupuesto" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Presupuesto</label>
+          <select id="ld-presupuesto" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
             <option value="">—</option>
             {% for p in ['Menos de Q5000','Q5000 a Q10000','Q10000 a Q20000','Q20000 a Q35000','Mas de Q35000','No definido'] %}
             <option value="{{ p }}" {% if p == lead.get('Presupuesto estimado') %}selected{% endif %}>{{ p }}</option>
@@ -96,8 +96,8 @@
           </select>
         </div>
         <div>
-          <label class="text-xs text-nk-text-soft block mb-1">Tipo de evento</label>
-          <select id="ld-tipo" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Tipo de evento</label>
+          <select id="ld-tipo" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
             <option value="">—</option>
             {% for t in ['Boda','Save the date','Boda civil','Compromiso','Aniversario','Otro'] %}
             <option value="{{ t }}" {% if t == lead.get('Tipo de evento') %}selected{% endif %}>{{ t }}</option>
@@ -105,38 +105,38 @@
           </select>
         </div>
         <div class="col-span-2">
-          <label class="text-xs text-nk-text-soft block mb-1">Locación tentativa</label>
-          <input id="ld-ubicacion" value="{{ lead.get('Locación tentativa') or '' }}" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+          <label class="text-xs text-ink-soft block mb-1">Locación tentativa</label>
+          <input id="ld-ubicacion" value="{{ lead.get('Locación tentativa') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
         </div>
       </div>
-      <button onclick="saveDatos()" class="mt-4 bg-nk-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-nk-gold-light">Guardar datos</button>
-      <span id="datos-msg" class="text-xs text-nk-text-soft ml-3"></span>
+      <button onclick="saveDatos()" class="mt-4 bg-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-gold-light">Guardar datos</button>
+      <span id="datos-msg" class="text-xs text-ink-soft ml-3"></span>
     </div>
 
     <!-- Notas -->
-    <div class="bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-4 text-nk-gold">Notas & Historial</h3>
-      <label class="text-xs text-nk-text-soft block mb-1">Notas</label>
-      <textarea id="ld-notas" rows="3" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm mb-3">{{ lead.get('Notas') or '' }}</textarea>
-      <label class="text-xs text-nk-text-soft block mb-1">Historial de interacciones</label>
-      <textarea id="ld-historial" rows="5" class="w-full bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm mb-3" placeholder="15/06 - Llamada: pidió info&#10;18/06 - Envíe cotización Mix Gold...">{{ lead.get('Historial interacciones') or '' }}</textarea>
-      <button onclick="saveNotas()" class="bg-nk-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-nk-gold-light">Guardar notas</button>
-      <span id="notas-msg" class="text-xs text-nk-text-soft ml-3"></span>
+    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
+      <h3 class="text-sm font-semibold mb-4 text-gold">Notas & Historial</h3>
+      <label class="text-xs text-ink-soft block mb-1">Notas</label>
+      <textarea id="ld-notas" rows="3" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm mb-3">{{ lead.get('Notas') or '' }}</textarea>
+      <label class="text-xs text-ink-soft block mb-1">Historial de interacciones</label>
+      <textarea id="ld-historial" rows="5" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm mb-3" placeholder="15/06 - Llamada: pidió info&#10;18/06 - Envíe cotización Mix Gold...">{{ lead.get('Historial interacciones') or '' }}</textarea>
+      <button onclick="saveNotas()" class="bg-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-gold-light">Guardar notas</button>
+      <span id="notas-msg" class="text-xs text-ink-soft ml-3"></span>
     </div>
   </div>
 
   <!-- DER -->
   <div class="space-y-4">
-    <div class="bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-3 text-nk-gold">Resumen</h3>
+    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
+      <h3 class="text-sm font-semibold mb-3 text-gold">Resumen</h3>
       <dl class="text-sm space-y-2">
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Estado</dt><dd class="text-blue-700">{{ lead.get('Estado') }}</dd></div>
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Fuente</dt><dd>{{ lead.get('Fuente') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Tags</dt><dd class="text-nk-gold text-xs">{{ (lead.get('Tags') or [])|join(', ') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Presupuesto</dt><dd>{{ lead.get('Presupuesto estimado') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Tipo evento</dt><dd>{{ lead.get('Tipo de evento') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Fecha</dt><dd>{{ parse_date(lead.get('Fecha tentativa del evento')) or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-nk-text-soft">Próximo follow-up</dt><dd class="{% if lead.get('Próximo follow-up') and lead['Próximo follow-up'] < '2026-07-07' %}text-red-700{% endif %}">{{ lead.get('Próximo follow-up') or '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Estado</dt><dd class="text-blue-700">{{ lead.get('Estado') }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Fuente</dt><dd>{{ lead.get('Fuente') or '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Tags</dt><dd class="text-gold text-xs">{{ (lead.get('Tags') or [])|join(', ') or '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Presupuesto</dt><dd>{{ lead.get('Presupuesto estimado') or '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Tipo evento</dt><dd>{{ lead.get('Tipo de evento') or '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Fecha</dt><dd>{{ parse_date(lead.get('Fecha tentativa del evento')) or '—' }}</dd></div>
+        <div class="flex justify-between"><dt class="text-ink-soft">Próximo follow-up</dt><dd class="{% if lead.get('Próximo follow-up') and lead['Próximo follow-up'] < '2026-07-07' %}text-red-700{% endif %}">{{ lead.get('Próximo follow-up') or '—' }}</dd></div>
       </dl>
     </div>
   </div>
@@ -185,6 +185,70 @@ async function saveNotas() {
   else { msg.textContent = '✗ ' + (r.error || 'error'); msg.className = 'text-xs text-red-700 ml-3'; }
 }
 
+<!-- PAQUETES desde DB CONFIG (M2 ↔ M8) -->
+<div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="text-sm label-eyebrow">Generar Cotización (paquetes del catálogo)</h3>
+    <span class="text-xs text-mute">{{ paquetes|length }} paquetes</span>
+  </div>
+  {% if paquetes %}
+  <div class="grid grid-cols-3 gap-2 mb-3">
+    {% for p in paquetes %}
+    <label class="cursor-pointer border border-line rounded-md p-3 hover:border-gold hover:bg-gold-soft transition block">
+      <input type="radio" name="paquete_sel" value="{{ p.Name }}" class="mr-1.5">
+      <span class="text-sm font-medium text-ink">{{ p.Name }}</span>
+      <div class="text-base font-mono font-bold text-gold-deep mt-1">Q{{ (p['Precio Q'] or 0)|int }}</div>
+    </label>
+    {% endfor %}
+  </div>
+  <button onclick="crearCotizacion()" class="bg-ink hover:bg-ink-soft text-paper px-4 py-2 rounded-md text-sm font-medium w-full">
+    + Crear cotización rápida (50% anticipo)
+  </button>
+  <div id="cotiz-msg" class="text-xs text-center text-mute mt-2"></div>
+  {% else %}
+  <p class="text-xs text-mute text-center py-2">Sin paquetes activos en el catálogo.
+    <a href="/configuracion" class="text-gold hover:underline">Agregar paquete →</a>
+  </p>
+  {% endif %}
+</div>
+
+<!-- Cotizaciones previas del lead -->
+{% if cotizaciones %}
+<div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft">
+  <h3 class="text-sm label-eyebrow mb-3">Cotizaciones previas de este lead</h3>
+  <ul class="space-y-2">
+    {% for c in cotizaciones %}
+    <li class="flex items-center gap-3 px-3 py-2 bg-paper rounded-md text-sm">
+      <span class="text-mute">{{ parse_date(c.get('Fecha de envío')) }}</span>
+      <span class="font-medium flex-1">{{ c.get('Cotización') or '—' }}</span>
+      <span class="font-mono text-gold-deep font-semibold">Q{{ (c.get('Monto total (Q)') or 0)|int }}</span>
+      <span class="text-xs px-2 py-0.5 rounded
+        {% if c.get('Estado') == 'Aceptada' %}bg-emerald-50 text-emerald-700
+        {% elif c.get('Estado') == 'Pagada' %}bg-blue-50 text-blue-700
+        {% else %}bg-amber-50 text-amber-700{% endif %}">{{ c.get('Estado') }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<script>
+async function crearCotizacion() {
+  const checked = document.querySelector('input[name="paquete_sel"]:checked');
+  if (!checked) { alert('Elegí un paquete'); return; }
+  const msg = document.getElementById('cotiz-msg');
+  msg.textContent = '⏳ Creando cotización...';
+  const r = await api('/api/leads/' + LEAD_ID + '/cotizar', {paquete: checked.value});
+  if (r.ok) {
+    msg.textContent = '✓ Cotización creada: ' + (r.nombre || '');
+    msg.className = 'text-xs text-center text-emerald-700 mt-2';
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    msg.textContent = '✗ ' + (r.error || 'error');
+    msg.className = 'text-xs text-center text-red-700 mt-2';
+  }
+}
+
 async function acceptShoot() {
   if (!confirm('¿Confirmas que el cliente ACEPTÓ el shoot?\n\nEsto va a:\n1. Crear un Cliente nuevo en Notion\n2. Crear un Job vinculado al cliente\n3. Marcar este lead como Convertido')) return;
   const btn = event.target.closest('button');
@@ -194,7 +258,7 @@ async function acceptShoot() {
     const r = await api(`/api/leads/${LEAD_ID}/accept_shoot`, {});
     if (r.ok) {
       btn.innerHTML = '✓ ¡Listo! Redirigiendo...';
-      btn.className = btn.className.replace('bg-nk-gold', 'bg-emerald-500');
+      btn.className = btn.className.replace('bg-gold', 'bg-emerald-500');
       setTimeout(() => location.href = '/jobs/' + r.job_id, 1200);
     } else {
       alert('Error: ' + (r.error || 'desconocido'));

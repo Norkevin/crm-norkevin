@@ -10,24 +10,29 @@ tailwind.config = {
   theme: {
     extend: {
       colors: {
-        'nk-black': '#FFFFFF',
-        'nk-dark': '#FFFFFF',
-        'nk-gray': '#F3F4F6',
-        'nk-gold': '#E0B244',
-        'nk-gold-light': '#F4D880',
-        'nk-text': '#1A1F36',
-        'nk-text-soft': '#6B7280',
-        'nk-border': '#E5E7EB',
-        'nk-blue': '#4F6BED',
-        'nk-blue-soft': '#EEF1FE',
+        'ink': '#0A0E1A',
+        'ink-soft': '#1A2233',
+        'line': '#E4E7EC',
+        'line-soft': '#F1F3F6',
+        'paper': '#FAFAF7',
+        'paper-pure': '#FFFFFF',
+        'gold': '#2F7D73',
+        'gold-deep': '#1F5F58',
+        'gold-light': '#4FA69A',
+        'gold-soft': '#E8F4F2',
+        'mute': '#6B7280',
+        'mute-soft': '#9CA3AF',
       },
       fontFamily: {
-        'inter': ['Inter', 'sans-serif'],
-        'serif': ['Cormorant Garamond', 'serif'],
+        'sans': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+      },
+      letterSpacing: {
+        'wide-mega': '0.18em',
       },
       boxShadow: {
-        'soft': '0 1px 2px 0 rgba(15, 23, 42, 0.04), 0 1px 3px 0 rgba(15, 23, 42, 0.06)',
-        'card': '0 2px 4px 0 rgba(15, 23, 42, 0.04), 0 4px 8px 0 rgba(15, 23, 42, 0.04)',
+        'soft': '0 1px 2px 0 rgba(10, 14, 26, 0.04), 0 1px 3px 0 rgba(10, 14, 26, 0.06)',
+        'card': '0 2px 4px 0 rgba(10, 14, 26, 0.04), 0 4px 8px 0 rgba(10, 14, 26, 0.04)',
+        'lift': '0 4px 12px rgba(10, 14, 26, 0.08), 0 2px 4px rgba(10, 14, 26, 0.04)',
       }
     }
   }
@@ -35,108 +40,189 @@ tailwind.config = {
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  body { font-family: 'Inter', sans-serif; color: #1A1F36; font-feature-settings: 'cv11', 'ss01'; }
-  .scrollbar-thin::-webkit-scrollbar { width: 6px; }
-  .scrollbar-thin::-webkit-scrollbar-track { background: #F3F4F6; }
+  html, body { background: #FAFAF7; color: #0A0E1A; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { font-feature-settings: 'cv11', 'ss01'; }
+  *, *::before, *::after { box-sizing: border-box; }
+  h1, h2, h3, h4 { letter-spacing: 0; }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
   .scrollbar-thin::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
-  h1, h2, h3 { font-family: 'Inter', sans-serif; letter-spacing: -0.01em; }
-  .font-serif { font-family: 'Cormorant Garamond', serif; }
-  .label-uppercase { text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; font-weight: 600; color: #6B7280; }
-  /* Inputs en modo claro */
-  input, select, textarea {
-    color: #1A1F36;
-  }
-  input::placeholder, textarea::placeholder {
-    color: #9CA3AF;
-  }
-  /* Hover sutil en cards */
-  .card-hover { transition: box-shadow 200ms ease, transform 200ms ease; }
-  .card-hover:hover { box-shadow: 0 4px 12px 0 rgba(15, 23, 42, 0.08), 0 2px 4px 0 rgba(15, 23, 42, 0.04); }
-  /* Botones de toggle de año (revenue chart) */
+  .label-eyebrow, .label-uppercase { text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; font-weight: 700; color: #6B7280; }
+  input, select, textarea { color: #0A0E1A; background: #FFFFFF; }
+  input::placeholder, textarea::placeholder { color: #9CA3AF; font-weight: 300; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #0A0E1A; box-shadow: 0 0 0 3px rgba(10, 14, 26, 0.06); }
+  .card-hover { transition: box-shadow 200ms ease, transform 200ms ease, border-color 200ms ease, background 200ms ease; }
+  .card-hover:hover { box-shadow: 0 4px 12px 0 rgba(10, 14, 26, 0.08); border-color: #CBD2DD; transform: translateY(-1px); }
+  .crm-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .crm-table { min-width: 760px; }
+  .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; background: #0A0E1A; color: #FAFAF7; font-size: 13px; font-weight: 700; padding: 9px 14px; transition: background 150ms ease, transform 150ms ease; }
+  .btn-primary:hover { background: #1A2233; transform: translateY(-1px); }
+  .btn-gold { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; background: #2F7D73; color: white; font-size: 13px; font-weight: 700; padding: 9px 14px; transition: background 150ms ease, transform 150ms ease; }
+  .btn-gold:hover { background: #1F5F58; transform: translateY(-1px); }
+  .status-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 700; white-space: nowrap; }
   .year-btn {
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    background: #F3F4F6;
-    color: #6B7280;
-    border: 1px solid transparent;
-    transition: all 150ms;
-    cursor: pointer;
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    background: #F1F3F6; color: #6B7280; border: 1px solid transparent;
+    transition: all 150ms; cursor: pointer;
   }
-  .year-btn:hover { background: #E5E7EB; color: #1F1B14; }
-  .year-btn-active {
-    background: #FEF3C7;
-    color: #92400E;
-    border-color: #FDE68A;
-  }
-  .year-btn-hidden {
-    opacity: 0.4;
-    text-decoration: line-through;
-    background: #F9FAFB;
-  }
+  .year-btn:hover { background: #E4E7EC; color: #0A0E1A; }
+  .year-btn-active { background: #E8F4F2; color: #1F5F58; border-color: #2F7D73; }
+  .year-btn-hidden { opacity: 0.4; text-decoration: line-through; background: #F9FAFB; }
+  .cmd-k-modal { background: rgba(10, 14, 26, 0.45); backdrop-filter: blur(4px); }
 </style>
 </head>
-<body class="bg-nk-gray text-nk-text">
+<body class="bg-paper text-ink">
 
 <!-- TOP NAV -->
-<header class="fixed top-0 left-0 right-0 z-20 bg-nk-dark border-b border-nk-border shadow-soft">
-  <div class="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
-    <!-- Logo + Brand -->
-    <a href="/dashboard" class="flex items-center gap-2 shrink-0">
-      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-nk-gold to-nk-gold-light flex items-center justify-center text-white font-bold text-sm">N</div>
+<header class="fixed top-0 left-0 right-0 z-20 bg-paper-pure border-b border-line">
+  <div class="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+    <!-- Logo -->
+    <a href="/dashboard" class="flex items-center gap-3 shrink-0">
+      <div class="w-9 h-9 rounded-md bg-ink flex items-center justify-center text-paper font-semibold text-sm">N</div>
       <div class="leading-tight">
-        <div class="font-bold text-[15px] text-nk-text">Norkevin</div>
-        <div class="text-[10px] text-nk-text-soft uppercase tracking-wider font-medium">Photography CRM</div>
+        <div class="font-semibold text-[14px] text-ink tracking-tight">Norkevin</div>
+        <div class="text-[9px] text-mute uppercase tracking-wide-mega font-medium">Photography CRM</div>
       </div>
     </a>
 
-    <!-- Center nav -->
-    <nav class="flex items-center gap-0.5">
-      <a href="/dashboard" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path == '/dashboard' %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Dashboard</a>
-      <a href="/clients" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path.startswith('/clients') %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Clients</a>
-      <a href="/leads" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path == '/leads' %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Leads</a>
-      <a href="/jobs" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path.startswith('/jobs') %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Jobs</a>
-      <a href="/" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path == '/' %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Calendar</a>
-      <a href="/partners" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path == '/partners' %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Equipo</a>
-      <a href="/payments" class="px-3.5 py-1.5 rounded-lg text-sm font-medium {% if request.path.startswith('/payments') %}bg-nk-gold/10 text-nk-gold{% else %}text-nk-text-soft hover:bg-nk-gray hover:text-nk-text{% endif %} transition">Payments</a>
+    <!-- Search trigger -->
+    <button onclick="openCmdK()" class="hidden sm:flex items-center gap-2 flex-1 max-w-md mx-2 lg:mx-4 px-3 py-1.5 bg-paper border border-line rounded-md text-left text-sm text-mute hover:bg-line-soft transition">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+      <span>Buscar leads, clientes, bodas...</span>
+      <span class="ml-auto text-[10px] text-mute-soft border border-line rounded px-1.5 py-0.5 font-medium">Ctrl K</span>
+    </button>
+
+    <!-- Center nav (compacto) -->
+    <nav class="hidden md:flex items-center gap-0.5">
+      <a href="/dashboard" class="px-3 py-1.5 rounded-md text-[13px] font-medium {% if request.path == '/dashboard' %}bg-ink text-paper{% else %}text-mute hover:text-ink hover:bg-line-soft{% endif %} transition">Resumen</a>
+      <a href="/leads" class="px-3 py-1.5 rounded-md text-[13px] font-medium {% if request.path.startswith('/leads') %}bg-ink text-paper{% else %}text-mute hover:text-ink hover:bg-line-soft{% endif %} transition">Leads</a>
+      <a href="/clients" class="px-3 py-1.5 rounded-md text-[13px] font-medium {% if request.path.startswith('/clients') %}bg-ink text-paper{% else %}text-mute hover:text-ink hover:bg-line-soft{% endif %} transition">Clientes</a>
+      <a href="/jobs" class="px-3 py-1.5 rounded-md text-[13px] font-medium {% if request.path.startswith('/jobs') %}bg-ink text-paper{% else %}text-mute hover:text-ink hover:bg-line-soft{% endif %} transition">Bodas</a>
+      <a href="/" class="px-3 py-1.5 rounded-md text-[13px] font-medium {% if request.path == '/' %}bg-ink text-paper{% else %}text-mute hover:text-ink hover:bg-line-soft{% endif %} transition">Calendario</a>
+      <a href="/payments" class="px-3 py-1.5 rounded-md text-[13px] font-medium {% if request.path.startswith('/payments') %}bg-ink text-paper{% else %}text-mute hover:text-ink hover:bg-line-soft{% endif %} transition">Cobros</a>
+      <a href="/pagos-equipo" class="px-3 py-1.5 rounded-md text-[13px] font-medium {% if request.path == '/pagos-equipo' %}bg-ink text-paper{% else %}text-mute hover:text-ink hover:bg-line-soft{% endif %} transition">Pagos</a>
+      <a href="/partners" class="px-3 py-1.5 rounded-md text-[13px] font-medium {% if request.path.startswith('/partners') %}bg-ink text-paper{% else %}text-mute hover:text-ink hover:bg-line-soft{% endif %} transition">Equipo</a>
+      <a href="/configuracion" class="px-3 py-1.5 rounded-md text-[13px] font-medium {% if request.path == '/configuracion' %}bg-ink text-paper{% else %}text-mute hover:text-ink hover:bg-line-soft{% endif %} transition">Config</a>
     </nav>
 
     <!-- Right actions -->
     <div class="flex items-center gap-2 shrink-0">
       {% block header_actions %}{% endblock %}
-      <button class="p-2 rounded-lg hover:bg-nk-gray text-nk-text-soft" title="Notificaciones">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0"/></svg>
+      <button onclick="openCmdK()" class="sm:hidden p-2 rounded-md hover:bg-line-soft text-mute" title="Buscar">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
       </button>
-      <button class="p-2 rounded-lg hover:bg-nk-gray text-nk-text-soft" title="Ayuda">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      </button>
-      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-nk-blue to-nk-blue/70 flex items-center justify-center text-white font-bold text-sm ml-1">K</div>
+      <div class="w-9 h-9 rounded-md bg-ink text-paper flex items-center justify-center font-semibold text-sm ml-1">K</div>
     </div>
   </div>
 </header>
 
+<!-- Cmd+K Modal -->
+<div id="cmdk-modal" class="fixed inset-0 z-50 hidden cmd-k-modal" onclick="if(event.target===this)closeCmdK()">
+  <div class="max-w-2xl mx-auto mt-24 bg-paper-pure rounded-lg shadow-lift overflow-hidden">
+    <div class="border-b border-line px-4 py-3 flex items-center gap-3">
+      <svg class="w-4 h-4 text-mute" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+      <input id="cmdk-input" type="text" placeholder="Buscar leads, clientes, bodas, equipo..." class="flex-1 bg-transparent text-sm focus:outline-none" autofocus>
+      <kbd class="text-[10px] text-mute bg-paper border border-line rounded px-1.5 py-0.5">ESC</kbd>
+    </div>
+    <div id="cmdk-results" class="max-h-[60vh] overflow-y-auto scrollbar-thin">
+      <div class="px-6 py-12 text-center text-sm text-mute">Empezá a escribir para buscar...</div>
+    </div>
+  </div>
+</div>
+
 <!-- MAIN -->
 <main class="pt-16 min-h-screen">
-  <div class="border-b border-nk-border bg-nk-dark">
-    <div class="max-w-[1400px] mx-auto px-6 py-6 flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-nk-text tracking-tight">{% block header %}Dashboard{% endblock %}</h1>
-        <p class="text-sm text-nk-text-soft mt-1">{% block subtitle %}{% endblock %}</p>
+  <div class="border-b border-line bg-paper-pure">
+    <div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="min-w-0">
+        <h1 class="text-2xl font-semibold text-ink tracking-tight">{% block header %}Dashboard{% endblock %}</h1>
+        <p class="text-sm text-mute mt-1">{% block subtitle %}{% endblock %}</p>
       </div>
       <div class="flex items-center gap-3">
         {% block subheader_actions %}{% endblock %}
       </div>
     </div>
   </div>
-  <div class="max-w-[1400px] mx-auto px-6 py-8">
-
-  <div class="p-6 md:p-8">
+  <div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 md:py-8">
     {% block content %}{% endblock %}
   </div>
 </main>
+
+<script>
+// Cmd+K global search
+let cmdkOpen = false;
+function openCmdK() {
+  const m = document.getElementById('cmdk-modal');
+  m.classList.remove('hidden');
+  document.getElementById('cmdk-input').focus();
+  cmdkOpen = true;
+}
+function closeCmdK() {
+  document.getElementById('cmdk-modal').classList.add('hidden');
+  document.getElementById('cmdk-input').value = '';
+  document.getElementById('cmdk-results').innerHTML = '<div class="px-6 py-12 text-center text-sm text-mute">Empezá a escribir para buscar...</div>';
+  cmdkOpen = false;
+}
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    cmdkOpen ? closeCmdK() : openCmdK();
+  } else if (e.key === 'Escape' && cmdkOpen) {
+    closeCmdK();
+  }
+});
+
+let cmdkTimer = null;
+document.getElementById('cmdk-input').addEventListener('input', (e) => {
+  clearTimeout(cmdkTimer);
+  const q = e.target.value.trim();
+  if (!q) {
+    document.getElementById('cmdk-results').innerHTML = '<div class="px-6 py-12 text-center text-sm text-mute">Empezá a escribir para buscar...</div>';
+    return;
+  }
+  cmdkTimer = setTimeout(() => doSearch(q), 200);
+});
+
+async function doSearch(q) {
+  const results = document.getElementById('cmdk-results');
+  results.innerHTML = '<div class="px-6 py-12 text-center text-sm text-mute">Buscando...</div>';
+  try {
+    const r = await fetch('/api/search?q=' + encodeURIComponent(q));
+    const d = await r.json();
+    if (d.results && d.results.length) {
+      let html = '';
+      const groupBy = {};
+      d.results.forEach(item => {
+        if (!groupBy[item.type]) groupBy[item.type] = [];
+        groupBy[item.type].push(item);
+      });
+      for (const [type, items] of Object.entries(groupBy)) {
+        html += `<div class="px-4 pt-4 pb-1 text-[10px] uppercase tracking-wide-mega font-semibold text-mute">${type}</div>`;
+        items.forEach(item => {
+          html += `<a href="${item.url}" class="flex items-center gap-3 px-4 py-2 hover:bg-line-soft transition">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium text-ink truncate">${escapeHtml(item.title)}</div>
+              <div class="text-xs text-mute truncate">${escapeHtml(item.subtitle || '')}</div>
+            </div>
+            <svg class="w-4 h-4 text-mute-soft shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </a>`;
+        });
+      }
+      results.innerHTML = html;
+    } else {
+      results.innerHTML = '<div class="px-6 py-12 text-center text-sm text-mute">Sin resultados para "' + escapeHtml(q) + '"</div>';
+    }
+  } catch (err) {
+    results.innerHTML = '<div class="px-6 py-12 text-center text-sm text-red-700">Error de búsqueda</div>';
+  }
+}
+
+function escapeHtml(s) {
+  return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+</script>
 
 </body>
 </html>

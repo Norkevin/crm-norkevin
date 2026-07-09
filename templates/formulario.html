@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotizar mi boda · Norkevin Photography</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        'ink': '#0A0E1A',
+        'ink-soft': '#1A2233',
+        'line': '#E4E7EC',
+        'paper': '#FAFAF7',
+        'gold': '#2F7D73',
+        'gold-deep': '#1F5F58',
+        'mute': '#6B7280',
+      },
+      fontFamily: {
+        'sans': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+      },
+      letterSpacing: {
+        'wide-mega': '0.18em',
+      }
+    }
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { background: #FAFAF7; color: #0A0E1A; font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+  input, select, textarea { color: #0A0E1A; background: #FFFFFF; }
+  input::placeholder, textarea::placeholder { color: #9CA3AF; font-weight: 300; }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #0A0E1A;
+    box-shadow: 0 0 0 3px rgba(10, 14, 26, 0.06);
+  }
+  .label-eyebrow { text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; font-weight: 500; color: #6B7280; }
+  .field-error { display: none; color: #B91C1C; font-size: 12px; margin-top: 4px; }
+  .field-error.visible { display: block; }
+  .required-mark { color: #B91C1C; margin-left: 2px; }
+  .divider-thin { height: 1px; background: #E4E7EC; }
+  .btn-primary {
+    background: #0A0E1A;
+    color: #FAFAF7;
+    transition: all 200ms;
+  }
+  .btn-primary:hover:not(:disabled) { background: #1A2233; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(10, 14, 26, 0.15); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .form-card { background: #FFFFFF; border: 1px solid #E4E7EC; }
+  .field { transition: border-color 150ms; }
+</style>
+</head>
+<body class="bg-paper text-ink min-h-screen">
+
+<!-- TOP NAV -->
+<header class="border-b border-line bg-white">
+  <div class="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
+    <a href="/" class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-sm bg-ink flex items-center justify-center text-paper font-semibold text-sm tracking-wider">N</div>
+      <div class="leading-tight">
+        <div class="font-semibold text-[14px] text-ink tracking-tight">Norkevin</div>
+        <div class="text-[9px] text-mute uppercase tracking-wide-mega font-medium">Photography</div>
+      </div>
+    </a>
+    <a href="/" class="text-xs text-mute hover:text-ink transition">← Volver al sitio</a>
+  </div>
+</header>
+
+<main class="max-w-2xl mx-auto px-6 py-16 md:py-20">
+
+  <!-- Encabezado -->
+  <div class="mb-10">
+    <div class="label-eyebrow mb-3">Consulta personalizada</div>
+    <h1 class="text-4xl md:text-5xl font-semibold text-ink tracking-tight leading-[1.05] mb-4">Cuéntame de tu boda</h1>
+    <p class="text-mute text-[15px] leading-relaxed max-w-lg">
+      Completa este formulario y recibirás una cotización personalizada en menos de 24 horas.
+      Toda la información es confidencial.
+    </p>
+  </div>
+
+  <div class="divider-thin mb-10"></div>
+
+  <!-- Mensaje de éxito -->
+  <div id="msg-exito" class="hidden form-card p-8 mb-8 border-l-4 border-l-ink">
+    <div class="flex items-start gap-4">
+      <div class="w-10 h-10 rounded-full bg-ink text-paper flex items-center justify-center shrink-0">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <div>
+        <div class="font-semibold text-ink text-lg mb-1">Mensaje enviado</div>
+        <div class="text-mute text-sm leading-relaxed">Recibí tu información. Te escribiré al correo que indicaste en las próximas horas con los detalles.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mensaje de error -->
+  <div id="msg-error" class="hidden form-card p-6 mb-8 border-l-4 border-l-red-700">
+    <div class="font-semibold text-red-900 mb-1">Hubo un problema</div>
+    <div class="text-sm text-red-700" id="msg-error-text">Intenta de nuevo o escríbeme directo a norkevinfoto@gmail.com</div>
+  </div>
+
+  <!-- Formulario -->
+  <form id="lead-form" class="space-y-7">
+
+    <!-- Nombre + Apellido -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div>
+        <label class="label-eyebrow block mb-2">Nombre<span class="required-mark">*</span></label>
+        <input type="text" name="nombre" required placeholder="Tu nombre" class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+        <div class="field-error">Ingresa tu nombre</div>
+      </div>
+      <div>
+        <label class="label-eyebrow block mb-2">Apellido<span class="required-mark">*</span></label>
+        <input type="text" name="apellido" required placeholder="Tu apellido" class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+        <div class="field-error">Ingresa tu apellido</div>
+      </div>
+    </div>
+
+    <!-- Correo -->
+    <div>
+      <label class="label-eyebrow block mb-2">Correo electrónico<span class="required-mark">*</span></label>
+      <p class="text-xs text-mute mb-2 -mt-1">Por acá te enviaré la información</p>
+      <input type="email" name="email" required placeholder="tu@correo.com" class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+      <div class="field-error">Ingresa un correo válido</div>
+    </div>
+
+    <!-- Celular -->
+    <div>
+      <label class="label-eyebrow block mb-2">Celular</label>
+      <input type="tel" name="celular" placeholder="+502 0000 0000" class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+    </div>
+
+    <!-- Mensaje -->
+    <div>
+      <label class="label-eyebrow block mb-2">Mensaje<span class="required-mark">*</span></label>
+      <p class="text-xs text-mute mb-2 -mt-1">Información importante o relevante sobre tu evento</p>
+      <textarea name="mensaje" required rows="5" maxlength="5000" placeholder="Cómo te imaginas tu boda, qué servicios te interesan, número aproximado de invitados, estilo, etc." class="field w-full border border-line rounded-md px-4 py-3 text-sm resize-y"></textarea>
+      <div class="flex justify-between mt-1.5">
+        <div class="field-error">Cuéntame algo sobre tu evento</div>
+        <div class="text-xs text-mute"><span id="char-count">0</span> / 5000</div>
+      </div>
+    </div>
+
+    <div class="divider-thin"></div>
+
+    <!-- Cómo se enteró -->
+    <div>
+      <label class="label-eyebrow block mb-2">¿Cómo te enteraste de mis servicios?</label>
+      <select name="fuente" class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+        <option value="">Selecciona una opción</option>
+        <option value="Instagram">Instagram</option>
+        <option value="Facebook">Facebook</option>
+        <option value="TikTok">TikTok</option>
+        <option value="Google">Google</option>
+        <option value="Recomendación">Recomendación</option>
+        <option value="Boda anterior">Los vi en una boda</option>
+        <option value="Wedding Planner">Wedding Planner</option>
+        <option value="Otro">Otro</option>
+      </select>
+    </div>
+
+    <!-- País -->
+    <div>
+      <label class="label-eyebrow block mb-2">País donde será la boda<span class="required-mark">*</span></label>
+      <input type="text" name="pais" required placeholder="Guatemala, México, etc." class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+      <div class="field-error">Ingresa el país</div>
+    </div>
+
+    <!-- Ubicación + Fecha -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div>
+        <label class="label-eyebrow block mb-2">Ubicación de la boda</label>
+        <input type="text" name="ubicacion" placeholder="Antigua Guatemala, etc." class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+      </div>
+      <div>
+        <label class="label-eyebrow block mb-2">Fecha tentativa<span class="required-mark">*</span></label>
+        <input type="date" name="fecha_boda" required class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+        <div class="field-error">Elige la fecha tentativa</div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="pt-4 flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-4">
+      <p class="text-xs text-mute leading-relaxed">Al enviar, creas un lead en mi CRM privado. No comparto tu información con terceros.</p>
+      <button type="submit" id="btn-submit" class="btn-primary text-sm font-medium px-8 py-3 rounded-md inline-flex items-center justify-center gap-2 shrink-0">
+        <span id="btn-text">Enviar consulta</span>
+        <span id="btn-spinner" class="hidden">Enviando…</span>
+      </button>
+    </div>
+  </form>
+
+  <!-- Footer -->
+  <div class="mt-12 pt-8 border-t border-line text-center">
+    <p class="text-xs text-mute">¿Prefieres escribirme directo? <a href="mailto:norkevinfoto@gmail.com" class="text-ink font-medium hover:underline">norkevinfoto@gmail.com</a></p>
+  </div>
+
+</main>
+
+<script>
+const form = document.getElementById('lead-form');
+const msgExito = document.getElementById('msg-exito');
+const msgError = document.getElementById('msg-error');
+const msgErrorText = document.getElementById('msg-error-text');
+const btnSubmit = document.getElementById('btn-submit');
+const btnText = document.getElementById('btn-text');
+const btnSpinner = document.getElementById('btn-spinner');
+const charCount = document.getElementById('char-count');
+const mensaje = form.querySelector('[name="mensaje"]');
+
+// Pre-poblar con localStorage si ya se lleno antes
+const STORAGE_KEY = 'norkevin_lead_draft_v1';
+try {
+  const draft = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  for (const k of Object.keys(draft || {})) {
+    const el = form.querySelector(`[name="${k}"]`);
+    if (el && draft[k]) el.value = draft[k];
+  }
+} catch (e) { /* ignore */ }
+
+// Guardar en cada cambio (no email, no celular para no confundir)
+form.addEventListener('input', () => {
+  const data = {};
+  new FormData(form).forEach((v, k) => {
+    if (k !== 'email' && k !== 'celular') data[k] = v;
+  });
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+});
+
+mensaje.addEventListener('input', () => { charCount.textContent = mensaje.value.length; });
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  let ok = true;
+  form.querySelectorAll('[required]').forEach(input => {
+    const err = input.parentElement.querySelector('.field-error');
+    if (!input.value.trim()) {
+      if (err) err.classList.add('visible');
+      ok = false;
+    } else if (input.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.value)) {
+      if (err) err.classList.add('visible');
+      ok = false;
+    } else {
+      if (err) err.classList.remove('visible');
+    }
+  });
+  if (!ok) return;
+
+  btnText.classList.add('hidden');
+  btnSpinner.classList.remove('hidden');
+  btnSubmit.disabled = true;
+
+  const data = Object.fromEntries(new FormData(form).entries());
+
+  try {
+    const r = await fetch('/api/leads/nuevo', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+    const d = await r.json();
+    if (d.ok) {
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+      form.classList.add('hidden');
+      msgExito.classList.remove('hidden');
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    } else {
+      msgErrorText.textContent = d.error || 'Intenta de nuevo o escríbeme directo a norkevinfoto@gmail.com';
+      msgError.classList.remove('hidden');
+    }
+  } catch (err) {
+    msgErrorText.textContent = 'Error de conexión. Intenta de nuevo.';
+    msgError.classList.remove('hidden');
+  } finally {
+    btnText.classList.remove('hidden');
+    btnSpinner.classList.add('hidden');
+    btnSubmit.disabled = false;
+  }
+});
+</script>
+
+</body>
+</html>

@@ -32,6 +32,7 @@ DS = {
     'PAGOS_EQ':   '24056821-236e-8092-875b-000b196c3eed',
     'COTIZ':      '6f0bc40e-df95-4608-98e4-f2b2f74e6c92',
     'PARTNERS':   '35756821-236e-80d6-b168-000bef2d69b4',
+    'CONFIG':     '2d91a52d-3df1-471a-bf56-fa5fe3fd6253',
 }
 
 def _strip(d: Dict[str, Any]) -> Dict[str, Any]:
@@ -180,7 +181,10 @@ def list_leads_full() -> List[Dict[str, Any]]:
     for p in pages:
         props = _normalize_props(p.get('properties', {}))
         props['id'] = p['id']
+        props['created_time'] = p.get('created_time')
         out.append(props)
+    # Ordenar: recientes primero (desc por created_time)
+    out.sort(key=lambda x: x.get('created_time') or '', reverse=True)
     return out
 
 
@@ -190,6 +194,7 @@ def list_pagos_eq_full() -> List[Dict[str, Any]]:
     for p in pages:
         props = _normalize_props(p.get('properties', {}))
         props['id'] = p['id']
+        props['created_time'] = p.get('created_time')
         out.append(props)
     return out
 
@@ -202,6 +207,93 @@ def list_partners_full() -> List[Dict[str, Any]]:
         props['id'] = p['id']
         out.append(props)
     return out
+
+
+def list_cotizaciones_full() -> List[Dict[str, Any]]:
+    """Lista cotizaciones (pagos de clientes) con campos normalizados."""
+    pages = query('COTIZ', sorts=[{'property': 'Fecha de envío', 'direction': 'descending'}])
+    out = []
+    for p in pages:
+        props = _normalize_props(p.get('properties', {}))
+        props['id'] = p['id']
+        out.append(props)
+    return out
+
+
+# ============================================================
+# CONFIG (Módulo 2 — Configuración General)
+# ============================================================
+
+def list_config(tipo: Optional[str] = None, marca: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Lista items de configuración. Filtra opcionalmente por Tipo y Marca."""
+    pages = query('CONFIG', sorts=[{'property': 'Name', 'direction': 'ascending'}], page_size=100)
+    out = []
+    for p in pages:
+        props = _normalize_props(p.get('properties', {}))
+        props['id'] = p['id']
+        if tipo and props.get('Tipo') != tipo:
+            continue
+        if marca and props.get('Marca') not in (marca, 'Global', None):
+            continue
+        out.append(props)
+    return out
+
+
+def get_config_item(item_id: str) -> Dict[str, Any]:
+    page = client().pages.retrieve(page_id=item_id)
+    props = _normalize_props(page.get('properties', {}))
+    props['id'] = item_id
+    return props
+
+
+def upsert_config_item(item_id: Optional[str], propiedades: Dict[str, Any]) -> Dict[str, Any]:
+    """Crea o actualiza un item de configuración. Si item_id es None, crea."""
+    if item_id:
+        page = client().pages.update(page_id=item_id, properties=propiedades)
+    else:
+        page = client().pages.create(parent={'data_source_id': DS['CONFIG']}, properties=propiedades)
+    props = _normalize_props(page.get('properties', {}))
+    props['id'] = page['id']
+    return props
+
+
+def list_paquetes(marca: Optional[str] = None) -> List[Dict[str, Any]]:
+    items = list_config('Paquete', marca)
+    return [i for i in items if i.get('Activo', True)]
+
+
+def get_paquete_by_nombre(nombre: str) -> Optional[Dict[str, Any]]:
+    for p in list_paquetes():
+        if p.get('Name') == nombre:
+            return p
+    return None
+
+
+def list_cuentas_activas(marca: Optional[str] = None) -> List[Dict[str, Any]]:
+    items = list_config('Cuenta Bancaria', marca)
+    return [i for i in items if i.get('Activo', True)]
+
+
+def list_reglas_liquidacion(marca: Optional[str] = None) -> List[Dict[str, Any]]:
+    items = list_config('Regla Liquidación', marca)
+    return [i for i in items if i.get('Activo', True)]
+
+
+def list_fuentes_activas() -> List[Dict[str, Any]]:
+    items = list_config('Fuente Lead')
+    return [i for i in items if i.get('Activo', True)]
+
+
+def list_ubicaciones() -> List[Dict[str, Any]]:
+    return list_config('Ubicación')
+
+
+def list_tags() -> List[Dict[str, Any]]:
+    return list_config('Tag')
+
+
+def list_datos_estudio() -> List[Dict[str, Any]]:
+    return list_config('Dato del Estudio')
 
 
 # ============================================================

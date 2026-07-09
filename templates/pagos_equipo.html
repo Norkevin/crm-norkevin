@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Pagos al Equipo · Norkevin CRM{% endblock %}
+{% block header %}Pagos al Equipo{% endblock %}
+{% block subtitle %}Liquidaciones y pagos pendientes a fotógrafos y videógrafos{% endblock %}
+
+{% block content %}
+
+<!-- Resumen -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Pendiente</div>
+    <div class="text-3xl font-bold text-amber-700">{{ q_money(total_pendiente) }}</div>
+    <div class="text-xs text-ink-soft mt-1">{{ pendientes|length }} pagos</div>
+  </div>
+  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Pagado</div>
+    <div class="text-3xl font-bold text-emerald-700">{{ q_money(total_pagado) }}</div>
+    <div class="text-xs text-ink-soft mt-1">{{ pagados|length }} pagos</div>
+  </div>
+  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Total</div>
+    <div class="text-3xl font-bold text-gold">{{ q_money(total_pendiente + total_pagado) }}</div>
+    <div class="text-xs text-ink-soft mt-1">{{ pendientes|length + pagados|length }} movimientos</div>
+  </div>
+</div>
+
+<!-- Filtros -->
+<form method="get" class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+  <select name="estado" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
+    <option value="">Todos los estados</option>
+    {% for s in status_options %}
+    <option value="{{ s }}" {% if s == estado_filtro %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <select name="persona" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
+    <option value="">Todas las personas</option>
+    {% for per in personas %}
+    <option value="{{ per }}" {% if per == persona_filtro %}selected{% endif %}>{{ per }}</option>
+    {% endfor %}
+  </select>
+  {% if estado_filtro or persona_filtro %}
+  <a href="/pagos-equipo" class="text-xs text-ink-soft hover:text-ink font-medium">Limpiar</a>
+  {% endif %}
+</form>
+
+<!-- Pendientes -->
+<h3 class="text-sm font-semibold mb-3 text-amber-700">Pendientes</h3>
+{% if pendientes %}
+<div class="bg-paper-pure rounded-lg border border-line shadow-soft mb-8 crm-table-wrap">
+  <table class="w-full text-sm crm-table min-w-[860px]">
+    <thead class="bg-line/50 text-xs uppercase tracking-wider text-ink-soft">
+      <tr>
+        <th class="px-4 py-3 text-left">Persona</th>
+        <th class="px-4 py-3 text-left">Evento</th>
+        <th class="px-4 py-3 text-left">Servicio</th>
+        <th class="px-4 py-3 text-left">Fecha evento</th>
+        <th class="px-4 py-3 text-right">Monto</th>
+        <th class="px-4 py-3 text-left">Estado</th>
+        <th class="px-4 py-3 text-right">Acción</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-line">
+      {% for p in pendientes %}
+      <tr class="hover:bg-line/30 transition">
+        <td class="px-4 py-3 font-medium text-ink">{{ p.get('Persona') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.get('Evento específico') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.get('Servicio') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-ink-soft">{{ parse_date(p.get('Fecha del evento')) or '—' }}</td>
+        <td class="px-4 py-3 text-right font-semibold text-amber-700">{{ q_money(p.get('Monto acordado')) }}</td>
+        <td class="px-4 py-3">
+          <span class="text-xs px-2 py-0.5 rounded
+            {% if p.get('Estado de pago') == 'Pendiente' %}bg-amber-50 text-amber-700
+            {% elif p.get('Estado de pago') == 'Mitad pagado' %}bg-orange-50 text-orange-700
+            {% elif p.get('Estado de pago') == 'En proceso' %}bg-ink-soft text-ink
+            {% else %}bg-paper text-ink-soft{% endif %}">{{ p.get('Estado de pago') }}</span>
+        </td>
+        <td class="px-4 py-3 text-right">
+          <button onclick="markPaid('{{ p.id }}')" class="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded hover:bg-emerald-100">Marcar pagado</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-paper-pure rounded-xl p-8 border border-line shadow-soft text-center mb-8">
+  <p class="text-sm text-ink-soft">No hay pagos pendientes al equipo</p>
+</div>
+{% endif %}
+
+<!-- Pagados -->
+<h3 class="text-sm font-semibold mb-3 text-emerald-700">Pagados</h3>
+{% if pagados %}
+<div class="bg-paper-pure rounded-lg border border-line shadow-soft crm-table-wrap">
+  <table class="w-full text-sm crm-table min-w-[820px]">
+    <thead class="bg-line/50 text-xs uppercase tracking-wider text-ink-soft">
+      <tr>
+        <th class="px-4 py-3 text-left">Persona</th>
+        <th class="px-4 py-3 text-left">Evento</th>
+        <th class="px-4 py-3 text-left">Servicio</th>
+        <th class="px-4 py-3 text-left">Fecha pago</th>
+        <th class="px-4 py-3 text-right">Monto</th>
+        <th class="px-4 py-3 text-left">Estado</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-line">
+      {% for p in pagados %}
+      <tr class="hover:bg-line/30 transition">
+        <td class="px-4 py-3 font-medium text-ink">{{ p.get('Persona') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.get('Evento específico') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.get('Servicio') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.get('Fecha de pago') or '—' }}</td>
+        <td class="px-4 py-3 text-right font-semibold text-emerald-700">{{ q_money(p.get('Monto acordado')) }}</td>
+        <td class="px-4 py-3">
+          <span class="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">{{ p.get('Estado de pago') }}</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-paper-pure rounded-xl p-8 border border-line shadow-soft text-center">
+  <p class="text-sm text-ink-soft">Sin pagos cobrados todavía</p>
+</div>
+{% endif %}
+
+<script>
+async function markPaid(id) {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.innerHTML = '⏳';
+  const r = await fetch('/api/payments/' + id + '/pay', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})});
+  const d = await r.json();
+  if (d.ok) location.reload();
+  else { alert('Error: ' + (d.error || 'desconocido')); btn.disabled = false; btn.innerHTML = 'Marcar pagado'; }
+}
+</script>
+{% endblock %}

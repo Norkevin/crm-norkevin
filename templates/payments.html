@@ -1,130 +1,94 @@
 {% extends "base.html" %}
-{% block title %}Payments · Norkevin CRM{% endblock %}
-{% block header %}Pagos al Equipo{% endblock %}
-{% block subtitle %}Liquidaciones y pagos pendientes{% endblock %}
+{% block title %}Cobros · Norkevin CRM{% endblock %}
+{% block header %}Cobros a Clientes{% endblock %}
+{% block subtitle %}Pagos recibidos y pendientes de clientes{% endblock %}
 
 {% block content %}
+
 <!-- Resumen -->
-<div class="grid grid-cols-3 gap-4 mb-6">
-  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Pendiente</div>
-    <div class="text-3xl font-bold text-amber-700">{{ q_money(total_pendiente) }}</div>
-    <div class="text-xs text-nk-text-soft mt-1">{{ pendientes|length }} pagos</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Total facturado</div>
+    <div class="text-3xl font-bold text-ink">{{ q_money(total_facturado) }}</div>
+    <div class="text-xs text-ink-soft mt-1">{{ cotizaciones|length }} cotizaciones</div>
   </div>
-  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Pagado</div>
-    <div class="text-3xl font-bold text-green-700">{{ q_money(total_pagado) }}</div>
-    <div class="text-xs text-nk-text-soft mt-1">{{ pagados|length }} pagos</div>
+  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Cobrado</div>
+    <div class="text-3xl font-bold text-emerald-700">{{ q_money(total_pagado) }}</div>
+    <div class="text-xs text-ink-soft mt-1">recibido de clientes</div>
   </div>
-  <div class="bg-nk-dark rounded-xl p-5 border border-nk-border shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Total</div>
-    <div class="text-3xl font-bold text-nk-gold">{{ q_money(total_pendiente + total_pagado) }}</div>
-    <div class="text-xs text-nk-text-soft mt-1">{{ pendientes|length + pagados|length }} movimientos</div>
+  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Por cobrar</div>
+    <div class="text-3xl font-bold text-amber-700">{{ q_money(total_saldo) }}</div>
+    <div class="text-xs text-ink-soft mt-1">saldo pendiente</div>
+  </div>
+  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
+    <div class="label-uppercase mb-2">Anticipos</div>
+    <div class="text-3xl font-bold text-ink">{{ q_money(total_anticipo) }}</div>
+    <div class="text-xs text-ink-soft mt-1">recibido al reservar</div>
   </div>
 </div>
 
 <!-- Filtros -->
-<form method="get" class="flex items-center gap-3 mb-4">
-  <select name="estado" onchange="this.form.submit()" class="bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+<form method="get" class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+  <select name="estado" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
     <option value="">Todos los estados</option>
     {% for s in status_options %}
     <option value="{{ s }}" {% if s == estado_filtro %}selected{% endif %}>{{ s }}</option>
     {% endfor %}
   </select>
-  <select name="persona" onchange="this.form.submit()" class="bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
-    <option value="">Todas las personas</option>
-    {% for per in personas %}
-    <option value="{{ per }}" {% if per == persona_filtro %}selected{% endif %}>{{ per }}</option>
-    {% endfor %}
-  </select>
-  {% if estado_filtro or persona_filtro %}
-  <a href="/payments" class="text-nk-text-soft hover:text-nk-text text-xs">✕ Limpiar</a>
+  {% if estado_filtro %}
+  <a href="/payments" class="text-xs text-ink-soft hover:text-ink font-medium">Limpiar</a>
   {% endif %}
 </form>
 
-<!-- Pendientes -->
-<h3 class="text-sm font-semibold mb-3 text-amber-700">⏳ Pendientes</h3>
-{% if pendientes %}
-<div class="bg-nk-dark rounded-xl border border-nk-border overflow-hidden shadow-soft mb-8">
-  <table class="w-full text-sm">
-    <thead class="bg-nk-border/50 text-nk-text-soft text-xs uppercase tracking-wider text-nk-text-soft">
+<!-- Tabla de cotizaciones -->
+{% if cotizaciones %}
+<div class="bg-paper-pure rounded-lg border border-line shadow-soft crm-table-wrap">
+  <table class="w-full text-sm crm-table min-w-[880px]">
+    <thead class="bg-line/50 text-xs uppercase tracking-wider text-ink-soft">
       <tr>
-        <th class="px-4 py-3 text-left">Persona</th>
-        <th class="px-4 py-3 text-left">Evento</th>
-        <th class="px-4 py-3 text-left">Servicio</th>
-        <th class="px-4 py-3 text-left">Fecha</th>
-        <th class="px-4 py-3 text-right">Monto</th>
+        <th class="px-4 py-3 text-left">Cliente / Boda</th>
+        <th class="px-4 py-3 text-left">Paquete</th>
+        <th class="px-4 py-3 text-left">Fecha evento</th>
+        <th class="px-4 py-3 text-right">Total</th>
+        <th class="px-4 py-3 text-right">Pagado</th>
+        <th class="px-4 py-3 text-right">Saldo</th>
         <th class="px-4 py-3 text-left">Estado</th>
-        <th class="px-4 py-3 text-right">Acción</th>
+        <th class="px-4 py-3 text-center">Cuotas</th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-nk-border">
-      {% for p in pendientes %}
-      <tr class="hover:bg-nk-border transition">
-        <td class="px-4 py-3 font-medium">{{ p.get('Persona') }}</td>
-        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ p.get('Evento específico') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ p.get('Servicio') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ parse_date(p.get('Fecha del evento')) or '—' }}</td>
-        <td class="px-4 py-3 text-right font-medium text-amber-700">{{ q_money(p.get('Monto acordado')) }}</td>
+    <tbody class="divide-y divide-line">
+      {% for c in cotizaciones %}
+      <tr class="hover:bg-line/30 transition">
+        <td class="px-4 py-3 font-medium text-ink">{{ c.get('Cotización') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-ink-soft">{{ c.get('Paquete') or '—' }}</td>
+        <td class="px-4 py-3 text-xs text-ink-soft">{{ parse_date(c.get('Fecha aceptación')) or '—' }}</td>
+        <td class="px-4 py-3 text-right font-semibold text-ink">{{ q_money(c.get('Monto total (Q)')) }}</td>
+        <td class="px-4 py-3 text-right font-semibold text-emerald-700">{{ q_money(c.get('Pagado (Q)')) }}</td>
+        <td class="px-4 py-3 text-right font-semibold text-amber-700">{{ q_money(c.get('Saldo (Q)')) }}</td>
         <td class="px-4 py-3">
-          <span class="text-xs px-2 py-1 rounded
-            {% if p.get('Estado de pago') == 'Pendiente' %}bg-amber-50 text-amber-700
-            {% elif p.get('Estado de pago') == 'Mitad pagado' %}bg-orange-50 text-orange-700
-            {% else %}bg-nk-blue-soft text-nk-blue{% endif %}">{{ p.get('Estado de pago') }}</span>
+          <span class="text-xs px-2 py-0.5 rounded
+            {% if c.get('Estado') in ('Aceptada','Pagada') %}bg-emerald-50 text-emerald-700
+            {% elif c.get('Estado') == 'Cotizando' %}bg-ink-soft text-ink
+            {% elif c.get('Estado') == 'Perdida' %}bg-red-50 text-red-700
+            {% else %}bg-paper text-ink-soft{% endif %}">{{ c.get('Estado') or '—' }}</span>
         </td>
-        <td class="px-4 py-3 text-right">
-          <button onclick="markPaid('{{ p.id }}')" class="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded hover:bg-green-500/30">Marcar pagado</button>
-        </td>
+        <td class="px-4 py-3 text-center text-xs text-ink-soft">{{ c.get('Cantidad de cuotas') or '—' }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 {% else %}
-<div class="bg-nk-dark rounded-lg p-8 border border-nk-border text-center mb-8">
-  <p class="text-sm text-nk-text-soft">No hay pagos pendientes ✓</p>
+<div class="bg-paper-pure rounded-xl p-8 border border-line shadow-soft text-center">
+  <p class="text-sm text-ink-soft">No hay cotizaciones registradas</p>
 </div>
 {% endif %}
 
-<!-- Pagados -->
-<h3 class="text-sm font-semibold mb-3 text-green-700">✓ Pagados</h3>
-{% if pagados %}
-<div class="bg-nk-dark rounded-xl border border-nk-border overflow-hidden shadow-soft">
-  <table class="w-full text-sm">
-    <thead class="bg-nk-border/50 text-nk-text-soft text-xs uppercase tracking-wider text-nk-text-soft">
-      <tr>
-        <th class="px-4 py-3 text-left">Persona</th>
-        <th class="px-4 py-3 text-left">Evento</th>
-        <th class="px-4 py-3 text-left">Servicio</th>
-        <th class="px-4 py-3 text-left">Fecha pago</th>
-        <th class="px-4 py-3 text-right">Monto</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-nk-border">
-      {% for p in pagados %}
-      <tr class="hover:bg-nk-border transition">
-        <td class="px-4 py-3 font-medium">{{ p.get('Persona') }}</td>
-        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ p.get('Evento específico') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ p.get('Servicio') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-nk-text-soft">{{ p.get('Fecha de pago') or '—' }}</td>
-        <td class="px-4 py-3 text-right font-medium text-green-700">{{ q_money(p.get('Monto acordado')) }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% else %}
-<div class="bg-nk-dark rounded-lg p-8 border border-nk-border text-center">
-  <p class="text-sm text-nk-text-soft">Sin pagos cobrados todavía</p>
-</div>
-{% endif %}
+<!-- Botón flotante a pagos al equipo -->
+<a href="/pagos-equipo" class="fixed bottom-6 right-6 btn-gold shadow-card">
+  Pagos al equipo
+</a>
 
-<script>
-async function markPaid(id) {
-  const r = await fetch('/api/payments/' + id + '/pay', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})});
-  const d = await r.json();
-  if (d.ok) location.reload();
-  else alert('Error: ' + (d.error || 'desconocido'));
-}
-</script>
 {% endblock %}

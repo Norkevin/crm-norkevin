@@ -6,44 +6,74 @@
 {% block content %}
 
 <!-- Filtros -->
-<form method="get" class="flex items-center gap-3 mb-6">
-  <select name="estado" onchange="this.form.submit()" class="bg-nk-dark border border-nk-border rounded px-3 py-2 text-sm">
+<form method="get" class="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+  <select name="estado" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
     <option value="">Todos los estados</option>
     {% for e in estado_options %}
     <option value="{{ e }}" {% if e == estado_filtro %}selected{% endif %}>{{ e }}</option>
     {% endfor %}
   </select>
+  {% if estado_filtro %}
+  <a href="/partners" class="text-xs text-ink-soft hover:text-ink font-medium">Limpiar</a>
+  {% endif %}
 </form>
 
-<div class="grid grid-cols-3 gap-4">
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 {% for p in partners %}
-<div class="bg-nk-dark rounded-xl border border-nk-border p-5 shadow-soft card-hover">
+<div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
   <div class="flex items-start justify-between mb-3">
     <div>
-      <h3 class="font-semibold text-base">{{ p.get('Nombre') }}</h3>
-      <p class="text-xs text-nk-text-soft">{{ p.get('Calificacion') or '—' }}</p>
+      <h3 class="font-semibold text-base text-ink">{{ p.get('Nombre') or '—' }}</h3>
+      {% if p.get('Calificacion') %}<p class="text-xs text-ink-soft">{{ p.get('Calificacion') }} ★</p>{% endif %}
     </div>
-    <span class="text-xs px-2 py-1 rounded
+    <span class="text-xs px-2 py-0.5 rounded
       {% if p.get('Estado') == 'Activo' %}bg-emerald-50 text-emerald-700
-      {% elif p.get('Estado') == 'Nuevo' %}bg-nk-blue-soft text-nk-blue
+      {% elif p.get('Estado') == 'Nuevo' %}bg-ink-soft text-ink
       {% elif p.get('Estado') == 'Pausa temporal' %}bg-amber-50 text-amber-700
-      {% else %}bg-gray-100 text-nk-text-soft{% endif %}">{{ p.get('Estado') or '—' }}</span>
+      {% else %}bg-paper text-ink-soft{% endif %}">{{ p.get('Estado') or '—' }}</span>
   </div>
 
   <dl class="text-xs space-y-1.5 mb-3">
-    <div class="flex justify-between"><dt class="text-nk-text-soft">Teléfono</dt><dd class="text-gray-700">{{ p.get('Numero de celular') or '—' }}</dd></div>
-    <div class="flex justify-between"><dt class="text-nk-text-soft">Banco</dt><dd>{{ p.get('Banco') or '—' }}</dd></div>
-    <div class="flex justify-between"><dt class="text-nk-text-soft">Cuenta</dt><dd class="font-mono text-[10px]">{{ p.get('Numero de cuenta') or '—' }}</dd></div>
-    <div class="flex justify-between"><dt class="text-nk-text-soft">Tarifa Foto 8h</dt><dd class="text-nk-gold">{{ q_money(p.get('Tarifa Foto 8h (Q)')) }}</dd></div>
-    <div class="flex justify-between"><dt class="text-nk-text-soft">Tarifa Video 8h</dt><dd class="text-nk-gold">{{ q_money(p.get('Tarifa Video 8h (Q)')) }}</dd></div>
-    <div class="flex justify-between"><dt class="text-nk-text-soft">Wedding Content 8h</dt><dd class="text-nk-gold">{{ q_money(p.get('Tarifa Wedding Content 8h (Q)')) }}</dd></div>
-    <div class="flex justify-between"><dt class="text-nk-text-soft">Skills</dt><dd class="text-purple-700">{{ (p.get('Skills') or [])|join(', ') or '—' }}</dd></div>
+    {% if p.get('Numero de celular') %}
+    <div class="flex justify-between"><dt class="text-ink-soft">Teléfono</dt><dd class="text-ink">{{ p.get('Numero de celular') }}</dd></div>
+    {% endif %}
+    {% if p.get('Banco') %}
+    <div class="flex justify-between"><dt class="text-ink-soft">Banco</dt><dd class="text-ink">{{ p.get('Banco') }}</dd></div>
+    {% endif %}
+    {% if p.get('Numero de cuenta') %}
+    <div class="flex justify-between"><dt class="text-ink-soft">Cuenta</dt><dd class="font-mono text-[10px] text-ink">{{ p.get('Numero de cuenta') }}</dd></div>
+    {% endif %}
+    {% if p.get('Tarifa Foto 8h (Q)') %}
+    <div class="flex justify-between"><dt class="text-ink-soft">Tarifa Foto 8h</dt><dd class="text-gold font-medium">{{ q_money(p.get('Tarifa Foto 8h (Q)')) }}</dd></div>
+    {% endif %}
+    {% if p.get('Tarifa Video 8h (Q)') %}
+    <div class="flex justify-between"><dt class="text-ink-soft">Tarifa Video 8h</dt><dd class="text-gold font-medium">{{ q_money(p.get('Tarifa Video 8h (Q)')) }}</dd></div>
+    {% endif %}
+    {% if p.get('Tarifa Wedding Content 8h (Q)') %}
+    <div class="flex justify-between"><dt class="text-ink-soft">Wedding Content 8h</dt><dd class="text-gold font-medium">{{ q_money(p.get('Tarifa Wedding Content 8h (Q)')) }}</dd></div>
+    {% endif %}
+    {% if p.get('Skills') %}
+    <div class="flex justify-between items-start"><dt class="text-ink-soft">Skills</dt><dd class="text-purple-700 text-right">{{ (p.get('Skills') or [])|join(', ') }}</dd></div>
+    {% endif %}
   </dl>
 
-  {% if p.get('Portal URL') %}
-  <a href="{{ p['Portal URL'] }}" target="_blank" class="text-xs text-nk-gold hover:underline">Portal partner →</a>
-  {% endif %}
+  <div class="flex items-center justify-between text-xs">
+    {% if p.get('Portal URL') %}
+    <a href="{{ p['Portal URL'] }}" target="_blank" class="text-gold hover:underline flex items-center gap-1">
+      Portal partner
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+    </a>
+    {% endif %}
+    {% if p.get('Email') %}
+    <a href="mailto:{{ p.get('Email') }}" class="text-ink hover:underline">Email</a>
+    {% endif %}
+  </div>
 </div>
 {% endfor %}
+{% if not partners %}
+  <div class="md:col-span-2 xl:col-span-3 text-center py-12">
+  <p class="text-ink-soft">No hay miembros del equipo que mostrar</p>
+</div>
+{% endif %}
 </div>
 {% endblock %}

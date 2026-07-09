@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% block title %}Configuración · Norkevin CRM{% endblock %}
+{% block header %}Configuración General{% endblock %}
+{% block subtitle %}Paquetes, cuentas, reglas, fuentes, datos del estudio — editables sin developer{% endblock %}
+
+{% block content %}
+
+<!-- Tabs -->
+<div class="bg-paper-pure border-b border-line mb-6">
+  <nav class="flex gap-1" id="config-tabs">
+    <button onclick="showTab('paquetes')" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-ink text-ink" data-tab="paquetes">📦 Paquetes</button>
+    <button onclick="showTab('cuentas')" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-mute hover:text-ink" data-tab="cuentas">🏦 Cuentas</button>
+    <button onclick="showTab('reglas')" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-mute hover:text-ink" data-tab="reglas">📐 Reglas</button>
+    <button onclick="showTab('fuentes')" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-mute hover:text-ink" data-tab="fuentes">📡 Fuentes</button>
+    <button onclick="showTab('datos')" class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-mute hover:text-ink" data-tab="datos">🏢 Datos Estudio</button>
+  </nav>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="fixed top-20 right-4 hidden z-50 bg-ink text-paper px-4 py-2 rounded-md text-sm shadow-lift"></div>
+
+<!-- Paquetes (editable) -->
+<div id="tab-paquetes" class="tab-panel">
+  <div class="flex items-center justify-between mb-3">
+    <div class="label-eyebrow">Catálogo de paquetes</div>
+    <button onclick="createPaquete()" class="bg-ink hover:bg-ink-soft text-paper px-3 py-1.5 rounded-md text-xs font-medium">+ Nuevo paquete</button>
+  </div>
+  <div class="bg-paper-pure rounded-lg border border-line overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-line-soft border-b border-line">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Nombre</th>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Marca</th>
+          <th class="px-4 py-3 text-right text-xs uppercase tracking-wider text-mute font-medium">Precio Q</th>
+          <th class="px-4 py-3 text-center text-xs uppercase tracking-wider text-mute font-medium">Activo</th>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Notas</th>
+        </tr>
+      </thead>
+      <tbody id="paquetes-body" class="divide-y divide-line"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Cuentas -->
+<div id="tab-cuentas" class="tab-panel hidden">
+  <div class="flex items-center justify-between mb-3">
+    <div class="label-eyebrow">Cuentas bancarias</div>
+    <button onclick="createCuenta()" class="bg-ink hover:bg-ink-soft text-paper px-3 py-1.5 rounded-md text-xs font-medium">+ Nueva cuenta</button>
+  </div>
+  <div class="bg-paper-pure rounded-lg border border-line overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-line-soft border-b border-line">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Nombre</th>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Marca</th>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Notas</th>
+        </tr>
+      </thead>
+      <tbody id="cuentas-body" class="divide-y divide-line"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Reglas -->
+<div id="tab-reglas" class="tab-panel hidden">
+  <div class="flex items-center justify-between mb-3">
+    <div class="label-eyebrow">Reglas de liquidación</div>
+  </div>
+  <div class="bg-paper-pure rounded-lg border border-line overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-line-soft border-b border-line">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Nombre</th>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Marca</th>
+          <th class="px-4 py-3 text-right text-xs uppercase tracking-wider text-mute font-medium">% Partner</th>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Notas</th>
+        </tr>
+      </thead>
+      <tbody id="reglas-body" class="divide-y divide-line"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Fuentes -->
+<div id="tab-fuentes" class="tab-panel hidden">
+  <div class="flex items-center justify-between mb-3">
+    <div class="label-eyebrow">Fuentes de leads</div>
+  </div>
+  <div class="bg-paper-pure rounded-lg border border-line overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-line-soft border-b border-line">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Nombre</th>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Marca</th>
+          <th class="px-4 py-3 text-center text-xs uppercase tracking-wider text-mute font-medium">Activo</th>
+        </tr>
+      </thead>
+      <tbody id="fuentes-body" class="divide-y divide-line"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Datos -->
+<div id="tab-datos" class="tab-panel hidden">
+  <div class="flex items-center justify-between mb-3">
+    <div class="label-eyebrow">Datos del estudio</div>
+    <button onclick="createDato()" class="bg-ink hover:bg-ink-soft text-paper px-3 py-1.5 rounded-md text-xs font-medium">+ Nuevo dato</button>
+  </div>
+  <div class="bg-paper-pure rounded-lg border border-line overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-line-soft border-b border-line">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Campo</th>
+          <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Valor</th>
+        </tr>
+      </thead>
+      <tbody id="datos-body" class="divide-y divide-line"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('border-ink', 'text-ink');
+    b.classList.add('border-transparent', 'text-mute');
+  });
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  const btn = document.querySelector(`[data-tab="${name}"]`);
+  btn.classList.add('border-ink', 'text-ink');
+  btn.classList.remove('border-transparent', 'text-mute');
+}
+
+let toastTimer;
+function showToast(msg, ok = true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'fixed top-20 right-4 z-50 px-4 py-2 rounded-md text-sm shadow-lift ' + (ok ? 'bg-ink text-paper' : 'bg-red-700 text-paper');
+  t.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add('hidden'), 2500);
+}
+
+function escapeHtml(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function fmtQ(v) { return 'Q' + Number(v || 0).toLocaleString(); }
+
+function renderTable(tbodyId, items, mapper) {
+  const tbody = document.getElementById(tbodyId);
+  if (!items || !items.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-mute text-sm">Sin items</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(mapper).join('');
+}
+
+// === PAQUETES ===
+async function loadPaquetes() {
+  const r = await fetch('/api/config/paquetes');
+  const d = await r.json();
+  renderTable('paquetes-body', d.paquetes, (p) => `
+    <tr data-id="${p.id}">
+      <td class="px-4 py-3 font-medium text-ink">
+        <input type="text" value="${escapeHtml(p.Name)}" onchange="updatePaquete('${p.id}', {Name: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm">
+      </td>
+      <td class="px-4 py-3 text-xs text-mute">${escapeHtml(p.Marca || '—')}</td>
+      <td class="px-4 py-3 text-right">
+        <input type="number" value="${p['Precio Q'] || 0}" onchange="updatePaquete('${p.id}', {precio_q: parseInt(this.value)})" class="w-24 text-right bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm font-mono font-semibold">
+      </td>
+      <td class="px-4 py-3 text-center">
+        <input type="checkbox" ${p.Activo ? 'checked' : ''} onchange="updatePaquete('${p.id}', {Activo: this.checked})" class="w-4 h-4 accent-ink">
+      </td>
+      <td class="px-4 py-3">
+        <input type="text" value="${escapeHtml(p.Notas || '')}" onchange="updatePaquete('${p.id}', {Notas: this.value})" placeholder="—" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-xs text-mute">
+      </td>
+    </tr>
+  `);
+}
+
+async function updatePaquete(id, fields) {
+  const r = await fetch('/api/config/paquetes/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(fields)
+  });
+  const d = await r.json();
+  showToast(d.ok ? '✓ Guardado' : '✗ ' + (d.error || 'error'), d.ok);
+}
+
+async function createPaquete() {
+  const nombre = prompt('Nombre del paquete:');
+  if (!nombre) return;
+  const precio = prompt('Precio Q:', '0');
+  if (precio === null) return;
+  const r = await fetch('/api/config/paquetes', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({Name: nombre, precio_q: parseInt(precio), Tipo: 'Paquete'})
+  });
+  const d = await r.json();
+  showToast(d.ok ? '✓ Creado' : '✗ ' + d.error, d.ok);
+  loadPaquetes();
+}
+
+// === CUENTAS ===
+async function loadCuentas() {
+  const r = await fetch('/api/config/cuentas');
+  const d = await r.json();
+  renderTable('cuentas-body', d.cuentas, (c) => `
+    <tr data-id="${c.id}">
+      <td class="px-4 py-3 font-medium text-ink">
+        <input type="text" value="${escapeHtml(c.Name)}" onchange="updateCuenta('${c.id}', {Name: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm">
+      </td>
+      <td class="px-4 py-3 text-xs text-mute">${escapeHtml(c.Marca || '—')}</td>
+      <td class="px-4 py-3">
+        <input type="text" value="${escapeHtml(c.Notas || '')}" onchange="updateCuenta('${c.id}', {Notas: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-xs text-mute">
+      </td>
+    </tr>
+  `);
+}
+
+async function updateCuenta(id, fields) {
+  const r = await fetch('/api/config/cuentas/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(fields)
+  });
+  const d = await r.json();
+  showToast(d.ok ? '✓ Guardado' : '✗ ' + d.error, d.ok);
+}
+
+async function createCuenta() {
+  const nombre = prompt('Nombre de la cuenta:');
+  if (!nombre) return;
+  const r = await fetch('/api/config/cuentas', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({Name: nombre, Tipo: 'Cuenta Bancaria'})
+  });
+  const d = await r.json();
+  showToast(d.ok ? '✓ Creado' : '✗ ' + d.error, d.ok);
+  loadCuentas();
+}
+
+// === REGLAS ===
+async function loadReglas() {
+  const r = await fetch('/api/config/reglas');
+  const d = await r.json();
+  renderTable('reglas-body', d.reglas, (r2) => `
+    <tr data-id="${r2.id}">
+      <td class="px-4 py-3 font-medium text-ink">
+        <input type="text" value="${escapeHtml(r2.Name)}" onchange="updateRegla('${r2.id}', {Name: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm">
+      </td>
+      <td class="px-4 py-3 text-xs text-mute">${escapeHtml(r2.Marca || '—')}</td>
+      <td class="px-4 py-3 text-right">
+        <input type="number" value="${r2.Porcentaje || 0}" onchange="updateRegla('${r2.id}', {porcentaje: parseFloat(this.value), Tipo: 'Regla Liquidación'})" class="w-20 text-right bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm font-mono font-semibold">
+        <span class="text-xs text-mute">%</span>
+      </td>
+      <td class="px-4 py-3">
+        <input type="text" value="${escapeHtml(r2.Notas || '')}" onchange="updateRegla('${r2.id}', {Notas: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-xs text-mute">
+      </td>
+    </tr>
+  `);
+}
+
+async function updateRegla(id, fields) {
+  const r = await fetch('/api/config/reglas/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(fields)
+  });
+  const d = await r.json();
+  showToast(d.ok ? '✓ Guardado' : '✗ ' + d.error, d.ok);
+}
+
+// === FUENTES ===
+async function loadFuentes() {
+  const r = await fetch('/api/config/fuentes');
+  const d = await r.json();
+  renderTable('fuentes-body', d.fuentes, (f) => `
+    <tr data-id="${f.id}">
+      <td class="px-4 py-3 font-medium text-ink">${escapeHtml(f.Name)}</td>
+      <td class="px-4 py-3 text-xs text-mute">${escapeHtml(f.Marca || 'Global')}</td>
+      <td class="px-4 py-3 text-center">
+        <input type="checkbox" ${f.Activo ? 'checked' : ''} onchange="toggleFuente('${f.id}', this.checked)" class="w-4 h-4 accent-ink">
+      </td>
+    </tr>
+  `);
+}
+
+async function toggleFuente(id, activo) {
+  const r = await fetch('/api/config/fuentes/' + id + '/activo', {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({Activo: activo})
+  });
+  const d = await r.json();
+  showToast(d.ok ? '✓ Guardado' : '✗ ' + d.error, d.ok);
+}
+
+// === DATOS ===
+async function loadDatos() {
+  const r = await fetch('/api/config/datos');
+  const d = await r.json();
+  renderTable('datos-body', d.datos, (x) => `
+    <tr data-id="${x.id}">
+      <td class="px-4 py-3 font-medium text-ink">
+        <input type="text" value="${escapeHtml(x.Name)}" onchange="updateDato('${x.id}', {Name: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm">
+      </td>
+      <td class="px-4 py-3">
+        <input type="text" value="${escapeHtml(x.Notas || '')}" onchange="updateDato('${x.id}', {Notas: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm text-mute font-mono">
+      </td>
+    </tr>
+  `);
+}
+
+async function updateDato(id, fields) {
+  const r = await fetch('/api/config/datos/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(fields)
+  });
+  const d = await r.json();
+  showToast(d.ok ? '✓ Guardado' : '✗ ' + d.error, d.ok);
+}
+
+async function createDato() {
+  const nombre = prompt('Nombre del dato (ej: Email corporativo):');
+  if (!nombre) return;
+  const valor = prompt('Valor:', '');
+  if (valor === null) return;
+  const r = await fetch('/api/config/datos', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({Name: nombre, Notas: valor, Tipo: 'Dato del Estudio'})
+  });
+  const d = await r.json();
+  showToast(d.ok ? '✓ Creado' : '✗ ' + d.error, d.ok);
+  loadDatos();
+}
+
+async function loadAll() {
+  await Promise.all([loadPaquetes(), loadCuentas(), loadReglas(), loadFuentes(), loadDatos()]);
+}
+
+loadAll();
+</script>
+
+{% endblock %}

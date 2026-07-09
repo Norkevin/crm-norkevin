@@ -3,11 +3,11 @@
 {% block header %}Error interno{% endblock %}
 {% block subtitle %}Algo falló del lado del servidor{% endblock %}
 {% block content %}
-<div class="bg-nk-dark rounded-lg p-12 border border-red-500/30 text-center">
+<div class="bg-paper-pure rounded-lg p-12 border border-red-500/30 text-center">
   <div class="text-6xl mb-4 text-red-700">500</div>
-  <p class="text-sm text-nk-text-soft mb-2">{{ error or 'Error desconocido' }}</p>
-  <p class="text-xs text-nk-text-soft mb-6">Si persiste, revisá los logs del CRM o contactame.</p>
-  <a href="/" class="bg-nk-gold text-white px-4 py-2 rounded font-medium hover:bg-nk-gold-light text-sm">← Volver al inicio</a>
+  <p class="text-sm text-ink-soft mb-2">{{ error or 'Error desconocido' }}</p>
+  <p class="text-xs text-ink-soft mb-6">Si persiste, revisá los logs del CRM o contactame.</p>
+  <a href="/" class="bg-gold text-white px-4 py-2 rounded font-medium hover:bg-gold-light text-sm">← Volver al inicio</a>
 </div>
 {% endblock %}
 

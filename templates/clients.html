@@ -6,23 +6,23 @@
 {% block content %}
 
 <!-- Filtros -->
-<form method="get" class="flex items-center gap-3 mb-4">
-  <input type="text" name="q" value="{{ search }}" placeholder="Buscar cliente o email..." class="flex-1 bg-nk-dark border border-nk-border rounded-lg px-3 py-2 text-sm">
-  <select name="estado" onchange="this.form.submit()" class="bg-nk-dark border border-nk-border rounded-lg px-3 py-2 text-sm">
+<form method="get" class="grid grid-cols-1 md:grid-cols-[1fr_200px_auto_auto] gap-3 mb-4">
+  <input type="text" name="q" value="{{ search }}" placeholder="Buscar cliente o email..." class="flex-1 bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
+  <select name="estado" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
     <option value="">Todos los estados</option>
     {% for s in estado_options %}
     <option value="{{ s }}" {% if s == estado %}selected{% endif %}>{{ s }}</option>
     {% endfor %}
   </select>
-  <button type="submit" class="bg-nk-gold text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-nk-gold/90">Buscar</button>
+  <button type="submit" class="btn-gold">Buscar</button>
   {% if estado or search %}
-  <a href="/clients" class="text-gray-500 hover:text-white text-xs">✕ Limpiar</a>
+  <a href="/clients" class="inline-flex items-center justify-center text-ink-soft hover:text-ink text-xs font-medium px-2">Limpiar</a>
   {% endif %}
 </form>
 
-<div class="bg-nk-dark rounded-xl border border-nk-border overflow-hidden shadow-soft">
-  <table class="w-full text-sm">
-    <thead class="bg-nk-border/50 text-xs uppercase tracking-wider text-nk-text-soft">
+<div class="bg-paper-pure rounded-lg border border-line shadow-soft crm-table-wrap">
+  <table class="w-full text-sm crm-table min-w-[900px]">
+    <thead class="bg-line/50 text-xs uppercase tracking-wider text-ink-soft">
       <tr>
         <th class="px-4 py-3 text-left">Cliente</th>
         <th class="px-4 py-3 text-left">Contacto</th>
@@ -33,46 +33,46 @@
         <th class="px-4 py-3 text-left">Estado</th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-nk-border">
+    <tbody class="divide-y divide-line">
       {% for c in clients %}
-      <tr class="hover:bg-nk-border/30 transition cursor-pointer" onclick="{% if c.job_id %}window.location='/jobs/{{ c.job_id }}'{% elif c.id %}window.location='/clients/{{ c.id }}'{% endif %}">
+      <tr class="hover:bg-line/30 transition cursor-pointer" onclick="{% if c.job_id %}window.location='/jobs/{{ c.job_id }}'{% elif c.id %}window.location='/clients/{{ c.id }}'{% endif %}">
         <td class="px-4 py-3">
-          <div class="font-medium text-nk-text">{{ c.nombre or '—' }}</div>
-          {% if c.tags %}<div class="text-xs mt-0.5">{% for t in c.tags[:2] %}<span class="text-[10px] bg-nk-gold/15 text-nk-gold px-1.5 py-0.5 rounded mr-1">{{ t }}</span>{% endfor %}</div>{% endif %}
+          <div class="font-medium text-ink">{{ c.nombre or '—' }}</div>
+          {% if c.tags %}<div class="text-xs mt-0.5">{% for t in c.tags[:2] %}<span class="text-[10px] bg-gold/15 text-gold px-1.5 py-0.5 rounded mr-1">{{ t }}</span>{% endfor %}</div>{% endif %}
         </td>
         <td class="px-4 py-3 text-xs">
-          <div class="text-nk-text">{{ c.email or '—' }}</div>
-          <div class="text-nk-text-soft">{{ c.telefono or '—' }}</div>
+          <div class="text-ink">{{ c.email or '—' }}</div>
+          <div class="text-ink-soft">{{ c.telefono or '—' }}</div>
         </td>
         <td class="px-4 py-3 text-xs">
           {% if c.job_nombre %}
-          <a href="/jobs/{{ c.job_id }}" class="text-nk-text font-medium hover:text-nk-blue" onclick="event.stopPropagation()">{{ c.job_nombre }}</a>
-          <div class="text-nk-text-soft text-[10px]">{{ parse_date(c.boda_fecha) or '—' }} · {{ c.boda_lugar or '—' }}</div>
+          <a href="/jobs/{{ c.job_id }}" class="text-ink font-medium hover:text-ink" onclick="event.stopPropagation()">{{ c.job_nombre }}</a>
+          <div class="text-ink-soft text-[10px]">{{ parse_date(c.boda_fecha) or '—' }} · {{ c.boda_lugar or '—' }}</div>
           {% else %}
-          <span class="text-nk-text-soft">Sin boda asignada</span>
+          <span class="text-ink-soft">Sin boda asignada</span>
           {% endif %}
         </td>
         <td class="px-4 py-3">
           {% if c.paquete %}
-          <span class="text-xs text-nk-gold font-medium">{{ c.paquete }}</span>
-          {% if c.total_cotizaciones > 1 %}<div class="text-[10px] text-nk-text-soft">{{ c.total_cotizaciones }} cotizaciones</div>{% endif %}
+          <span class="text-xs text-gold font-medium">{{ c.paquete }}</span>
+          {% if c.total_cotizaciones > 1 %}<div class="text-[10px] text-ink-soft">{{ c.total_cotizaciones }} cotizaciones</div>{% endif %}
           {% else %}
-          <span class="text-nk-text-soft text-xs">—</span>
+          <span class="text-ink-soft text-xs">—</span>
           {% endif %}
         </td>
-        <td class="px-4 py-3 text-right text-xs font-medium text-nk-text">{{ q_money(c.precio) }}</td>
+        <td class="px-4 py-3 text-right text-xs font-medium text-ink">{{ q_money(c.precio) }}</td>
         <td class="px-4 py-3 text-right text-xs">
-          <span class="{% if c.precio and c.pagado >= c.precio %}text-emerald-700 font-medium{% elif c.pagado > 0 %}text-amber-700 font-medium{% else %}text-nk-text-soft{% endif %}">{{ q_money(c.pagado) }}</span>
+          <span class="{% if c.precio and c.pagado >= c.precio %}text-emerald-700 font-medium{% elif c.pagado > 0 %}text-amber-700 font-medium{% else %}text-ink-soft{% endif %}">{{ q_money(c.pagado) }}</span>
           {% if c.precio and c.pagado < c.precio %}
           <div class="text-[10px] text-rose-700">Falta: {{ q_money(c.precio - c.pagado) }}</div>
           {% endif %}
         </td>
         <td class="px-4 py-3">
-          <span class="text-xs px-2 py-0.5 rounded {% if c.estado == 'Activo' %}bg-emerald-50 text-emerald-700{% elif c.estado == 'Inactivo' %}bg-nk-gray text-nk-text-soft{% else %}bg-rose-50 text-rose-700{% endif %}">{{ c.estado or 'Activo' }}</span>
+          <span class="text-xs px-2 py-0.5 rounded {% if c.estado == 'Activo' %}bg-emerald-50 text-emerald-700{% elif c.estado == 'Inactivo' %}bg-paper text-ink-soft{% else %}bg-rose-50 text-rose-700{% endif %}">{{ c.estado or 'Activo' }}</span>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="px-4 py-12 text-center text-nk-text-soft">No hay clientes que coincidan</td></tr>
+      <tr><td colspan="7" class="px-4 py-12 text-center text-ink-soft">No hay clientes que coincidan</td></tr>
       {% endfor %}
     </tbody>
   </table>

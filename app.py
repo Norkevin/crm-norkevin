@@ -3,6 +3,7 @@ CRM Norkevin - Backend Flask
 Arquitectura: Notion-first. SQLite solo para cache de sesión.
 """
 import os
+import re
 import logging
 from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort
@@ -55,6 +56,97 @@ def fmt_dt(s) -> str:
         return d.strftime('%Y-%m-%d %H:%M')
     except:
         return s
+
+
+JOB_WORKFLOW_STEPS = [
+    ('Lead', 'lead'),
+    ('Cotizando', 'quote'),
+    ('Confirmado', 'booked'),
+    ('Produccion', 'shoot'),
+    ('Post produccion', 'post'),
+    ('Listo', 'done'),
+]
+
+
+def job_stage_index(status: str) -> int:
+    st = (status or '').lower()
+    if 'listo' in st:
+        return 5
+    if 'post' in st:
+        return 4
+    if 'produccion' in st or 'producción' in st or 'progreso' in st:
+        return 3
+    if 'confirmado' in st:
+        return 2
+    if 'cotizando' in st or 'propuesta' in st:
+        return 1
+    if 'lead' in st:
+        return 0
+    return 0
+
+
+def enrich_job_ops(job, cotizaciones=None):
+    """Studio Ninja-style operational summary for list/detail screens."""
+    cotizaciones = cotizaciones or []
+    total = float(job.get('Total facturado al cliente (Q)') or 0)
+    paid = float(job.get('Total pagado por cliente (Q)') or 0)
+    if cotizaciones:
+        total = max(total, sum(float(c.get('Monto total (Q)') or 0) for c in cotizaciones))
+        paid = max(paid, sum(float(c.get('Pagado (Q)') or c.get('Anticipo (Q)') or 0) for c in cotizaciones))
+
+    quote_count = len([c for c in cotizaciones if c.get('Estado') != 'Pagada'])
+    invoice_count = len([c for c in cotizaciones if c.get('Estado') == 'Pagada'])
+    accepted_quote = any((c.get('Estado') or '') in ('Aceptada', 'Pagada') for c in cotizaciones)
+    sent_quote = any((c.get('Estado') or '') in ('Enviada', 'Vista por cliente') for c in cotizaciones)
+    status = job.get('Estado') or ''
+    stage_idx = job_stage_index(status)
+    event_days = days_until(job.get('Fecha del evento'))
+    balance = max(0, total - paid)
+    has_client = bool(job.get('Cliente') or job.get('cliente'))
+    has_team = any(job.get(k) and job.get(k) != 'NO APLICA' for k in ('Primera Camara', 'Segunda Camara', 'Videografo 1', 'Videografo 2'))
+
+    next_task = 'Revisar proyecto'
+    next_task_tone = 'neutral'
+    if status == 'Listo':
+        next_task = 'Proyecto completado'
+        next_task_tone = 'done'
+    elif not has_client:
+        next_task = 'Vincular cliente'
+        next_task_tone = 'urgent'
+    elif stage_idx <= 1 and quote_count == 0 and not accepted_quote:
+        next_task = 'Crear cotizacion'
+        next_task_tone = 'urgent'
+    elif sent_quote and not accepted_quote:
+        next_task = 'Dar seguimiento a cotizacion'
+        next_task_tone = 'warning'
+    elif accepted_quote and balance > 0:
+        next_task = 'Cobrar saldo pendiente'
+        next_task_tone = 'warning'
+    elif event_days <= 14 and event_days >= 0 and not has_team:
+        next_task = 'Asignar equipo'
+        next_task_tone = 'urgent'
+    elif event_days <= 7 and event_days >= 0 and not job.get('Confirmado'):
+        next_task = 'Confirmar produccion'
+        next_task_tone = 'warning'
+    elif event_days < 0 and status != 'Listo':
+        next_task = 'Cerrar post produccion'
+        next_task_tone = 'warning'
+    elif event_days >= 0:
+        next_task = 'Preparar shoot'
+        next_task_tone = 'neutral'
+
+    progress = int(((stage_idx + 1) / len(JOB_WORKFLOW_STEPS)) * 100)
+    return {
+        'stage_idx': stage_idx,
+        'progress': max(0, min(100, progress)),
+        'next_task': next_task,
+        'next_task_tone': next_task_tone,
+        'quote_count': quote_count,
+        'invoice_count': invoice_count,
+        'balance': balance,
+        'total': total,
+        'paid': paid,
+    }
 
 
 # ============================================================
@@ -129,6 +221,7 @@ def index():
                            nombre_mes=nombre_mes,
                            prev_month=prev_month,
                            next_month=next_month,
+                           hoy=hoy,
                            hoy_dia=hoy.day if (hoy.month == mes_actual and hoy.year == anio_actual) else None,
                            proximas=proximas[:8],
                            jobs_mes=jobs_mes,
@@ -226,6 +319,81 @@ def dashboard():
     pagos_pendientes = [p for p in pagos if p.get('Estado de pago') in ('Pendiente','Mitad pagado','En proceso')]
     monto_pendiente = sum(p.get('Monto acordado') or 0 for p in pagos_pendientes)
 
+    # === KPIs del Módulo 14 ===
+    from datetime import datetime as _dt, timedelta as _td
+    _ahora = _dt.now()
+    _cots = ns.list_cotizaciones_full()
+
+    # Leads nuevos (24h)
+    kpi_leads_24h = 0
+    for l in leads:
+        try:
+            ct = (l.get('created_time') or '')[:19]
+            if ct and (_dt.fromisoformat(ct) > _ahora - _td(hours=24)):
+                kpi_leads_24h += 1
+        except Exception:
+            pass
+
+    # Clientes nuevos este mes
+    kpi_clientes_nuevos_mes = 0
+    for c in clientes:
+        try:
+            ct = str(c.get('created_time') or c.get('Fecha alta') or '')[:10]
+            if ct and ct[:7] == f'{_ahora.year:04d}-{_ahora.month:02d}':
+                kpi_clientes_nuevos_mes += 1
+        except Exception:
+            pass
+
+    # Por cobrar (suma de Saldo de cotizaciones)
+    kpi_por_cobrar = sum(c.get('Saldo (Q)') or 0 for c in _cots)
+
+    # Bodas próximas 90 días + este mes
+    kpi_proximas_90d = 0
+    kpi_bodas_mes = 0
+    for j in jobs:
+        try:
+            f = j.get('Fecha del evento') or ''
+            if not f:
+                continue
+            d = days_until(f)
+            if 0 <= d <= 90:
+                kpi_proximas_90d += 1
+            if f[:7] == f'{_ahora.year:04d}-{_ahora.month:02d}':
+                kpi_bodas_mes += 1
+        except Exception:
+            pass
+
+    # Cobrado este mes (sum Pagado de cotizaciones aceptadas este mes)
+    kpi_cobrado_mes = 0
+    for c in _cots:
+        try:
+            f = str(c.get('Fecha aceptación') or '')[:10]
+            if f[:7] == f'{_ahora.year:04d}-{_ahora.month:02d}':
+                kpi_cobrado_mes += c.get('Pagado (Q)') or 0
+        except Exception:
+            pass
+
+    # A pagar partners (liquidaciones pendientes + parciales)
+    kpi_a_pagar_partners = sum(
+        p.get('Monto acordado') or 0 for p in pagos
+        if p.get('Estado de pago') in ('Pendiente', 'Mitad pagado', 'En proceso')
+    )
+
+    # Tareas vencidas (jobs con fecha < hoy y estado no listo)
+    kpi_tareas_vencidas = 0
+    for j in jobs:
+        try:
+            d = days_until(j.get('Fecha del evento') or '')
+            if d is not None and d < 0 and j.get('Estado') in ('Sin empezar', 'Cotizando', 'Lead'):
+                kpi_tareas_vencidas += 1
+        except Exception:
+            pass
+
+    # Tasa de conversión (mes)
+    _leads_mes = [l for l in leads if (l.get('created_time') or '')[:7] == f'{_ahora.year:04d}-{_ahora.month:02d}']
+    _leads_conv = [l for l in _leads_mes if (l.get('Estado') or '').upper() == 'CONVERTIDO']
+    kpi_tasa_conversion = f'{int(len(_leads_conv) / max(len(_leads_mes), 1) * 100)}%'
+
     return render_template('dashboard.html',
                            jobs=jobs, leads=leads, pagos=pagos, clientes=clientes,
                            proximas_30=proximas_30, proximas_90=proximas_90,
@@ -235,6 +403,15 @@ def dashboard():
                            pagos_pendientes=pagos_pendientes,
                            monto_pendiente=monto_pendiente,
                            leads_total=len(leads),
+                           kpi_leads_24h=kpi_leads_24h,
+                           kpi_clientes_nuevos_mes=kpi_clientes_nuevos_mes,
+                           kpi_por_cobrar=kpi_por_cobrar,
+                           kpi_proximas_90d=kpi_proximas_90d,
+                           kpi_bodas_mes=kpi_bodas_mes,
+                           kpi_cobrado_mes=kpi_cobrado_mes,
+                           kpi_a_pagar_partners=kpi_a_pagar_partners,
+                           kpi_tareas_vencidas=kpi_tareas_vencidas,
+                           kpi_tasa_conversion=kpi_tasa_conversion,
                            total_payments=total_payments_pagado,
                            total_payments_pending=total_payments_pendiente,
                            revenue_ytd=revenue_ytd,
@@ -328,6 +505,37 @@ def jobs_list():
         'completed': len([j for j in all_for_stats if j.get('Estado') == 'Listo']),
     }
 
+    # Origen: buscar si el cliente del job vino de un lead
+    leads_all = ns.list_leads_full()
+    leads_by_cliente = {}
+    for l in leads_all:
+        cg_ids = l.get('Cliente generado') or []
+        if cg_ids:
+            leads_by_cliente[cg_ids[0]] = l
+
+    for j in jobs:
+        cliente_ids = j.get('Cliente') or []
+        if cliente_ids and cliente_ids[0] in leads_by_cliente:
+            origin_lead = leads_by_cliente[cliente_ids[0]]
+            j['origen_lead'] = {
+                'id': origin_lead.get('id'),
+                'nombre': origin_lead.get('Nombre'),
+            }
+        else:
+            j['origen_lead'] = None
+
+    # Cotizaciones/facturas por job para resumen operativo tipo Job Overview.
+    cotiz_by_job = defaultdict(list)
+    try:
+        for c in ns.list_cotizaciones_full():
+            for jid in (c.get('Job') or []):
+                cotiz_by_job[jid].append(c)
+    except Exception as e:
+        logger.error(f'Error cargando cotizaciones para jobs overview: {e}')
+
+    for j in jobs:
+        j['ops'] = enrich_job_ops(j, cotiz_by_job.get(j.get('id'), []))
+
     return render_template('jobs.html',
                            jobs=jobs,
                            counts=counts,
@@ -356,6 +564,130 @@ def job_detail(job_id):
             ev = (p.get('Evento específico') or '').lower()
             if nombre_boda.lower() in ev or ev in nombre_boda.lower():
                 pagos_rel.append(p)
+
+    # TIMELINE derivado (eventos del proyecto en orden cronológico)
+    timeline = []
+
+    # 1) Job creado
+    if job.get('created_time'):
+        timeline.append({
+            'fecha': job['created_time'][:10],
+            'titulo': 'Proyecto creado',
+            'detalle': f"{job.get('BODA') or 'Proyecto'}",
+            'icono': 'crear',
+            'quien': 'Kevin',
+        })
+
+    # 2) Cliente vinculado
+    cliente_ids = job.get('Cliente') or []
+    if cliente_ids:
+        try:
+            cliente = ns.get_page(cliente_ids[0])
+            cliente_created = cliente.get('created_time')
+            if cliente_created:
+                cliente_nombre = ''.join([t.get('plain_text', '') for t in cliente.get('properties', {}).get('Nombre', {}).get('title', [])])
+                timeline.append({
+                    'fecha': cliente_created[:10],
+                    'titulo': 'Cliente vinculado',
+                    'detalle': cliente_nombre or '—',
+                    'icono': 'cliente',
+                    'quien': 'Sistema',
+                })
+        except Exception:
+            pass
+
+    # 3) Lead origen
+    leads_all = ns.list_leads_full()
+    origin_lead_nombre = None
+    if cliente_ids and cliente_ids[0]:
+        for l in leads_all:
+            cg = l.get('Cliente generado') or []
+            if cg and cg[0] == cliente_ids[0]:
+                origin_lead = l
+                origin_lead_nombre = origin_lead.get('Nombre')
+                if origin_lead.get('created_time'):
+                    timeline.append({
+                        'fecha': origin_lead['created_time'][:10],
+                        'titulo': 'Lead originario',
+                        'detalle': origin_lead_nombre or '—',
+                        'icono': 'lead',
+                        'quien': 'Sistema',
+                    })
+                break
+
+    # 4) Pago recibido del cliente (FACTURA relacionada al job)
+    try:
+        cotizaciones = ns.list_cotizaciones_full()
+        for c in cotizaciones:
+            job_in_cotiz = c.get('Job') or []
+            if job_in_cotiz and job_id in job_in_cotiz:
+                # Esta cotizacion esta asociada al job
+                fecha_envio = c.get('Fecha aceptación')
+                if fecha_envio:
+                    timeline.append({
+                        'fecha': str(fecha_envio)[:10] if isinstance(fecha_envio, str) else str(fecha_envio),
+                        'titulo': 'Cotización aceptada',
+                        'detalle': f"{c.get('Cotización') or 'Cotización'} · Q{(c.get('Monto total (Q)') or 0):,.0f}".replace(',', ','),
+                        'icono': 'cotizacion',
+                        'quien': 'Cliente',
+                    })
+                break
+    except Exception:
+        pass
+
+    # 5) Cobros realizados (recibidos)
+    try:
+        cotizaciones = ns.list_cotizaciones_full()
+        for c in cotizaciones:
+            job_in_cotiz = c.get('Job') or []
+            if job_in_cotiz and job_id in job_in_cotiz:
+                # Si tiene pagos al cliente reflejados en estado Pagada
+                estado_cotiz = c.get('Estado') or ''
+                if estado_cotiz == 'Pagada':
+                    timeline.append({
+                        'fecha': 'Pago total',
+                        'titulo': 'Pago completo recibido',
+                        'detalle': f"Q{(c.get('Monto total (Q)') or 0):,.0f}".replace(',', ','),
+                        'icono': 'pago',
+                        'quien': 'Cliente',
+                    })
+                elif (c.get('Anticipo (Q)') or 0) > 0:
+                    timeline.append({
+                        'fecha': 'Anticipo',
+                        'titulo': 'Anticipo recibido',
+                        'detalle': f"Q{(c.get('Anticipo (Q)') or 0):,.0f}".replace(',', ',') + ' (de Q' + f"{(c.get('Monto total (Q)') or 0):,.0f}".replace(',', ',') + ' total)',
+                        'icono': 'pago',
+                        'quien': 'Cliente',
+                    })
+                break
+    except Exception:
+        pass
+
+    # 6) Liquidaciones al equipo hechas
+    for p in pagos_rel:
+        if p.get('Estado de pago') == 'Pagado':
+            timeline.append({
+                'fecha': str(p.get('Fecha de pago') or '')[:10],
+                'titulo': f'Liquidado a {p.get("Persona") or "equipo"}',
+                'detalle': f"Q{p.get('Monto acordado', 0):,.0f}".replace(',', ','),
+                'icono': 'liquidado',
+                'quien': 'Kevin',
+            })
+
+    # 7) Marcas del estado actual
+    timeline.append({
+        'fecha': 'Estado actual',
+        'titulo': f"Estado: {job.get('Estado') or '—'}",
+        'detalle': job.get('Notas') or 'Sin notas',
+        'icono': 'actual',
+        'quien': 'Sistema',
+    })
+
+    # Ordenar timeline por fecha descendente (mas reciente primero), pero el actual al final
+    eventos_con_fecha = [e for e in timeline if e['fecha'] not in ('Estado actual', 'Pago total', 'Anticipo')]
+    eventos_sin_fecha = [e for e in timeline if e['fecha'] in ('Estado actual', 'Pago total', 'Anticipo')]
+    eventos_con_fecha.sort(key=lambda e: e['fecha'], reverse=True)
+    timeline = eventos_con_fecha + eventos_sin_fecha
 
     # Workflow timeline state
     estado = job.get('Estado') or ''
@@ -419,11 +751,16 @@ def job_detail(job_id):
         except Exception as e:
             logger.error(f'Error cargando cotizaciones: {e}')
 
+    job_ops = enrich_job_ops(job, quotes + invoices)
+
     return render_template('job_detail.html',
                            job=job,
+                           job_ops=job_ops,
                            pagos_rel=pagos_rel,
                            quotes=quotes,
                            invoices=invoices,
+                           timeline=timeline,
+                           origin_lead_nombre=origin_lead_nombre,
                            workflow_progress=workflow_progress,
                            workflow_done=workflow_done,
                            workflow_current=workflow_current,
@@ -564,67 +901,104 @@ def client_detail(client_id):
 # LEADS
 # ============================================================
 
-@app.route('/leads')
-def leads_list():
-    leads = ns.list_leads_full()
-    jobs = ns.list_jobs_full()
-    clientes = ns.list_clients_full()
+@app.route('/leads-demo')
+def leads_demo():
+    """Endpoint demo del Kanban con datos FAKE para validar el template sin Notion."""
+    import random
+    from datetime import datetime, date, timedelta
 
-    # Index clientes por id para lookup rápido de Cliente generado
-    clientes_by_id = {c['id']: c for c in clientes}
+    # Datos fake
+    nombres = [
+        'Maria Lopez', 'Carlos Mendez', 'Ana Ramirez', 'Luis Garcia',
+        'Sofia Castillo', 'Diego Morales', 'Valentina Cruz', 'Andres Vega',
+        'Camila Reyes', 'Sebastian Diaz', 'Isabella Torres', 'Mateo Romero',
+        'Luciana Flores', 'Joaquin Vargas'
+    ]
+    fuentes = ['Instagram', 'Facebook', 'WhatsApp', 'Recomendacion', 'Google', 'Web']
+    tipos = ['Boda', 'Evento corporativo', 'Quinceaneros', 'Civil', 'Otro']
+    telefonos = ['+502 5555 1234', '+502 4444 5678', '+502 3333 9012', '+502 2222 3456']
+    emails = ['maria@gmail.com', 'carlos@hotmail.com', 'ana@yahoo.com', 'luis@outlook.com', 'sofia@gmail.com']
+    ubicaciones = ['Antigua Guatemala', 'Atitlan', 'Ciudad de Guatemala', 'Huehuetenango', 'Quetzaltenango']
+    estados = ['Nuevo', 'Contactado', 'Cotizando', 'Propuesta Enviada', 'Negociando', 'Convertido', 'Perdido']
 
-    # Enriquecer cada lead con info derivada
-    leads_enriquecidos = []
-    for l in leads:
-        lid = l['id']
-        # Si tiene cliente generado, buscar info del cliente
-        cliente_gen_ids = l.get('Cliente generado') or []
-        cliente_gen_nombre = None
-        cliente_gen_email = None
-        if cliente_gen_ids:
-            cg = clientes_by_id.get(cliente_gen_ids[0])
-            if cg:
-                cliente_gen_nombre = cg.get('Nombre')
-                cliente_gen_email = cg.get('Email')
+    leads = []
+    now = datetime.now()
+    for i, nombre in enumerate(nombres):
+        estado = random.choice(estados)
+        tiene_fecha_evento = random.random() > 0.3
+        fecha_evento = (now + timedelta(days=random.randint(20, 200))).strftime('%Y-%m-%d') if tiene_fecha_evento else None
+        fuente = random.choice(fuentes)
+        tipo = random.choice(tipos)
 
-        leads_enriquecidos.append({
-            'id': lid,
-            'nombre': l.get('Nombre') or '',
-            'email': l.get('Email') or '',
-            'telefono': l.get('Teléfono') or '',
-            'estado': l.get('Estado') or 'Nuevo',
-            'fuente': l.get('Fuente'),
-            'tipo_evento': l.get('Tipo de evento'),
-            'fecha_tentativa': l.get('Fecha tentativa del evento'),
-            'locacion': l.get('Locación tentativa'),
-            'presupuesto': l.get('Presupuesto estimado'),
-            'tags': l.get('Tags') or [],
-            'notas': l.get('Notas') or '',
-            'proximo_followup': l.get('Próximo follow-up'),
-            'cliente_generado_id': cliente_gen_ids[0] if cliente_gen_ids else None,
-            'cliente_generado_nombre': cliente_gen_nombre,
-            'cliente_generado_email': cliente_gen_email,
-            'ultimo_contacto': l.get('Último acceso') or l.get('Fecha primer contacto'),
+        leads.append({
+            'id': f'lead-{i:03d}',
+            'Nombre': nombre,
+            'Email': random.choice(emails),
+            'Teléfono': random.choice(telefonos),
+            'Estado': estado,
+            'Fuente': fuente,
+            'Tipo de evento': tipo,
+            'Fecha tentativa del evento': fecha_evento,
+            'is_new': random.random() > 0.7,
+            'created_time': (now - timedelta(days=random.randint(0, 30))).isoformat()
         })
 
-    # Kanban: agrupar por estado
-    kanban = {st: [] for st in ns.LEAD_STATUS_OPTIONS}
-    for l in leads_enriquecidos:
-        st = l['estado'] or 'Nuevo'
-        if st not in kanban:
-            kanban[st] = []
-        kanban[st].append(l)
+    # Conteos
+    counts = {}
+    for l in leads:
+        st = l['Estado']
+        counts[st] = counts.get(st, 0) + 1
 
-    counts = {st: len(items) for st, items in kanban.items()}
+    fuentes_set = sorted(set(l['Fuente'] for l in leads))
+    tipos_set = sorted(set(l['Tipo de evento'] for l in leads))
 
-    return render_template('leads.html',
-                           leads=leads_enriquecidos,
-                           kanban=kanban,
-                           counts=counts,
-                           status_options=ns.LEAD_STATUS_OPTIONS,
-                           parse_date=parse_date, days_until=days_until)
+    return render_template(
+        'leads.html',
+        leads=leads,
+        search='',
+        counts=counts,
+        fuentes=fuentes_set,
+        tipos_evento=tipos_set,
+        fuente_filtro='',
+        tipo_filtro=''
+    )
 
+@app.route('/leads')
+def leads_list():
+    """Pipeline Kanban de leads con drag-and-drop."""
+    from datetime import datetime
 
+    search = (request.args.get('q') or '').strip().lower()
+
+    leads_raw = ns.list_leads_full()
+
+    now = datetime.now()
+    for l in leads_raw:
+        ct_str = l.get('created_time') or ''
+        try:
+            ct = datetime.fromisoformat(ct_str.replace('Z', '+00:00')).replace(tzinfo=None)
+            l['is_new'] = (now - ct).total_seconds() < 172800
+        except Exception:
+            l['is_new'] = False
+
+    counts = {}
+    for l in leads_raw:
+        st = l.get('Estado') or 'Nuevo'
+        counts[st] = counts.get(st, 0) + 1
+
+    fuentes_set = sorted(set(l.get('Fuente') for l in leads_raw if l.get('Fuente')))
+    tipos_set = sorted(set(l.get('Tipo de evento') for l in leads_raw if l.get('Tipo de evento')))
+
+    return render_template(
+        'leads.html',
+        leads=leads_raw,
+        search=search,
+        counts=counts,
+        fuentes=fuentes_set,
+        tipos_evento=tipos_set,
+        fuente_filtro='',
+        tipo_filtro=''
+    )
 @app.route('/leads/<lead_id>')
 def lead_detail(lead_id):
     try:
@@ -635,18 +1009,103 @@ def lead_detail(lead_id):
         logger.error(f'Error cargando lead {lead_id}: {e}')
         abort(404)
 
+    # Cargar paquetes del DB CONFIG (Módulo 2)
+    paquetes = ns.list_paquetes()
+
+    # Cotizaciones previas del lead
+    cotizaciones = ns.list_cotizaciones_full()
+    cot_del_lead = [c for c in cotizaciones if (c.get('Email') or '').lower() == (lead.get('Email') or '').lower()]
+
     return render_template('lead_detail.html',
                            lead=lead,
+                           paquetes=paquetes,
+                           cotizaciones=cot_del_lead,
                            status_options=ns.LEAD_STATUS_OPTIONS,
                            parse_date=parse_date, days_until=days_until, fmt_dt=fmt_dt)
 
 
+@app.route('/api/leads/<lead_id>/cotizar', methods=['POST'])
+def crear_cotizacion_desde_lead(lead_id):
+    """Crea una cotización para un lead usando un paquete del DB CONFIG."""
+    data = request.get_json() or {}
+    paquete_nombre = data.get('paquete')
+    cliente_email = data.get('email') or ''
+    if not paquete_nombre:
+        return jsonify({'ok': False, 'error': 'Paquete requerido'}), 400
+
+    paquete = ns.get_paquete_by_nombre(paquete_nombre)
+    if not paquete:
+        return jsonify({'ok': False, 'error': 'Paquete no existe'}), 400
+
+    precio = paquete.get('Precio Q') or 0
+
+    # Obtener nombre del lead
+    try:
+        page = ns.get_page(lead_id)
+        lead_props = ns._normalize_props(page.get('properties', {}))
+        nombre = lead_props.get('Nombre') or f'Cotización para {cliente_email}'
+        lead_email = lead_props.get('Email') or cliente_email
+    except Exception:
+        nombre = f'Cotización {paquete_nombre}'
+        lead_email = cliente_email
+
+    cotiz_props = {
+        'Cotización': {'title': [{'type': 'text', 'text': {'content': f'{nombre} · {paquete_nombre}'}}]},
+        'Paquete': {'select': {'name': paquete_nombre}},
+        'Monto total (Q)': {'number': precio},
+        'Anticipo (Q)': {'number': round(precio * 0.5, 2)},
+        'Estado': {'status': {'name': 'Aceptada'}},
+        'Cantidad de cuotas': {'select': {'name': '2 (50% + 50%)'}},
+        'Fecha de envío': {'date': {'start': date.today().isoformat()}},
+        'Fecha aceptación': {'date': {'start': date.today().isoformat()}},
+    }
+
+    try:
+        cotiz = ns.client().pages.create(parent={'data_source_id': ns.DS['COTIZ']}, properties=cotiz_props)
+        return jsonify({'ok': True, 'id': cotiz['id'], 'nombre': cotiz_props['Cotización']['title'][0]['text']['content']})
+    except Exception as e:
+        logger.error(f'Error creando cotización: {e}')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 # ============================================================
-# PAYMENTS (PAGOS AL EQUIPO)
+# COBROS A CLIENTES (COTIZACIONES)
 # ============================================================
 
 @app.route('/payments')
 def payments_list():
+    """Vista de cobros a clientes (dinero que entra)."""
+    estado_filtro = request.args.get('estado', '')
+
+    cotizaciones = ns.list_cotizaciones_full()
+    if estado_filtro:
+        cotizaciones = [c for c in cotizaciones if c.get('Estado') == estado_filtro]
+
+    total_facturado = sum(c.get('Monto total (Q)') or 0 for c in cotizaciones)
+    total_pagado = sum(c.get('Pagado (Q)') or 0 for c in cotizaciones)
+    total_saldo = sum(c.get('Saldo (Q)') or 0 for c in cotizaciones)
+    total_anticipo = sum(c.get('Anticipo (Q)') or 0 for c in cotizaciones)
+
+    # Status options únicos
+    status_options = sorted(set(c.get('Estado') for c in ns.list_cotizaciones_full() if c.get('Estado')))
+
+    return render_template('payments.html',
+                           cotizaciones=cotizaciones,
+                           total_facturado=total_facturado,
+                           total_pagado=total_pagado,
+                           total_saldo=total_saldo,
+                           total_anticipo=total_anticipo,
+                           estado_filtro=estado_filtro,
+                           status_options=status_options,
+                           parse_date=parse_date, q_money=q_money)
+
+
+# PAGOS AL EQUIPO (CXP)
+# ============================================================
+
+@app.route('/pagos-equipo')
+def pagos_equipo_list():
+    """Vista de pagos al equipo (dinero que sale)."""
     estado_filtro = request.args.get('estado', '')
     persona_filtro = request.args.get('persona', '')
 
@@ -662,10 +1121,9 @@ def payments_list():
     total_pendiente = sum(p.get('Monto acordado') or 0 for p in pendientes)
     total_pagado = sum(p.get('Monto acordado') or 0 for p in pagados)
 
-    # Personas únicas
     personas = sorted(set(p.get('Persona') for p in ns.list_pagos_eq_full() if p.get('Persona')))
 
-    return render_template('payments.html',
+    return render_template('pagos_equipo.html',
                            pendientes=pendientes,
                            pagados=pagados,
                            total_pendiente=total_pendiente,
@@ -1094,6 +1552,300 @@ def server_error(e):
 # ============================================================
 # MAIN
 # ============================================================
+
+# ============================================================
+# FORMULARIO PÚBLICO (crea Lead en Notion)
+# ============================================================
+
+@app.route('/contacto')
+def formulario_lead():
+    """Formulario público para captar leads."""
+    return render_template('formulario.html')
+
+
+@app.route('/api/leads/nuevo', methods=['POST'])
+def crear_lead_publico():
+    """Crea un nuevo Lead desde el formulario público."""
+    data = request.get_json() or {}
+
+    # Validación mínima
+    nombre = (data.get('nombre') or '').strip()
+    apellido = (data.get('apellido') or '').strip()
+    email = (data.get('email') or '').strip()
+    pais = (data.get('pais') or '').strip()
+    fecha = (data.get('fecha_boda') or '').strip()
+
+    if not nombre or not apellido or not email or not pais or not fecha:
+        return jsonify({'ok': False, 'error': 'Faltan campos obligatorios'}), 400
+
+    # Construir notas con toda la info adicional
+    mensaje = (data.get('mensaje') or '').strip()
+    celular = (data.get('celular') or '').strip()
+    ubicacion = (data.get('ubicacion') or '').strip()
+    fuente = (data.get('fuente') or '').strip()
+
+    notas_parts = []
+    if mensaje:
+        notas_parts.append(f"📝 {mensaje}")
+    if celular:
+        notas_parts.append(f"📱 {celular}")
+    if ubicacion:
+        notas_parts.append(f"📍 Ubicación: {ubicacion}")
+    if pais:
+        notas_parts.append(f"🌎 País: {pais}")
+    if fuente:
+        notas_parts.append(f"🔗 Fuente: {fuente}")
+    notas_texto = '\n'.join(notas_parts)
+
+    # Propiedades Notion
+    properties = {
+        'Nombre': {'title': [{'type': 'text', 'text': {'content': f"{nombre} {apellido}"}}]},
+        'Email': {'email': email if email else None},
+        'Fecha tentativa del evento': {'date': {'start': fecha}},
+        'Locación tentativa': {'rich_text': [{'type': 'text', 'text': {'content': f"{ubicacion + ', ' if ubicacion else ''}{pais}"[:1900]}}]},
+        'Estado': {'status': {'name': 'Nuevo'}},
+    }
+    if celular:
+        properties['Teléfono'] = {'phone_number': celular}
+    if fuente:
+        properties['Fuente'] = {'select': {'name': fuente}}
+    if notas_texto:
+        properties['Notas'] = {'rich_text': [{'type': 'text', 'text': {'content': notas_texto[:1900]}}]}
+
+    try:
+        page = ns.client().pages.create(parent={'data_source_id': ns.DS['LEADS']}, properties=properties)
+        logger.info(f"Lead público creado: {nombre} {apellido} ({email}) → {page['id']}")
+        return jsonify({'ok': True, 'id': page['id']})
+    except Exception as e:
+        logger.error(f"Error creando lead público: {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ============================================================
+# BÚSQUEDA GLOBAL (Cmd+K)
+# ============================================================
+
+@app.route('/api/search')
+def api_search():
+    q = (request.args.get('q') or '').strip().lower()
+    if not q or len(q) < 2:
+        return jsonify({'results': []})
+
+    results = []
+
+    # Buscar en LEADS
+    try:
+        for l in ns.list_leads_full():
+            nombre = (l.get('Nombre') or '').lower()
+            email = (l.get('Email') or '').lower()
+            telefono = (l.get('Teléfono') or '').lower()
+            if q in nombre or q in email or q in telefono:
+                results.append({
+                    'type': 'Lead',
+                    'title': l.get('Nombre') or '—',
+                    'subtitle': f"{l.get('Email') or ''}  ·  {l.get('Teléfono') or ''}",
+                    'url': f"/leads/{l.get('id')}",
+                })
+                if len(results) >= 8: break
+    except Exception: pass
+
+    # Buscar en CLIENTES
+    try:
+        for c in ns.list_clients_full():
+            nombre = (c.get('Nombre') or '').lower()
+            email = (c.get('Email') or '').lower()
+            telefono = (c.get('Teléfono') or '').lower()
+            if q in nombre or q in email or q in telefono:
+                results.append({
+                    'type': 'Cliente',
+                    'title': c.get('Nombre') or '—',
+                    'subtitle': f"{c.get('Email') or ''}  ·  {c.get('Teléfono') or ''}",
+                    'url': f"/clients/{c.get('id')}",
+                })
+                if len(results) >= 16: break
+    except Exception: pass
+
+    # Buscar en JOBS (bodas)
+    try:
+        for j in ns.list_jobs_full():
+            boda = (j.get('BODA') or '').lower()
+            lugar = (j.get('Lugar de evento') or '').lower()
+            if q in boda or q in lugar:
+                results.append({
+                    'type': 'Boda',
+                    'title': j.get('BODA') or '—',
+                    'subtitle': f"{j.get('Lugar de evento') or ''}  ·  {j.get('Fecha del evento') or ''}",
+                    'url': f"/jobs/{j.get('id')}",
+                })
+                if len(results) >= 24: break
+    except Exception: pass
+
+    # Buscar en PARTNERS (equipo)
+    try:
+        for p in ns.list_partners_full():
+            nombre = (p.get('Nombre') or '').lower()
+            if q in nombre:
+                results.append({
+                    'type': 'Equipo',
+                    'title': p.get('Nombre') or '—',
+                    'subtitle': f"{p.get('Tipo') or ''}  ·  {p.get('Email') or ''}",
+                    'url': f"/partners/{p.get('id')}",
+                })
+                if len(results) >= 30: break
+    except Exception: pass
+
+    return jsonify({'results': results[:30]})
+
+
+# ============================================================
+# CONFIGURACIÓN (Módulo 2 — vista admin)
+# ============================================================
+
+@app.route('/configuracion')
+def configuracion_index():
+    return render_template('configuracion.html')
+
+
+@app.route('/api/config/paquetes', methods=['GET'])
+def api_config_paquetes_list():
+    return jsonify({'paquetes': ns.list_paquetes()})
+
+
+@app.route('/api/config/paquetes', methods=['POST'])
+def api_config_paquetes_create():
+    data = request.get_json() or {}
+    nombre = data.get('Name')
+    if not nombre:
+        return jsonify({'ok': False, 'error': 'Nombre requerido'}), 400
+    props = {
+        'Name': {'title': [{'type': 'text', 'text': {'content': nombre}}]},
+        'Tipo': {'select': {'name': 'Paquete'}},
+        'Activo': {'checkbox': data.get('Activo', True)},
+    }
+    if data.get('Marca'):
+        props['Marca'] = {'select': {'name': data['Marca']}}
+    if data.get('precio_q') is not None:
+        props['Precio Q'] = {'number': data['precio_q']}
+    if data.get('Notas'):
+        props['Notas'] = {'rich_text': [{'type': 'text', 'text': {'content': data['Notas']}}]}
+    item = ns.upsert_config_item(None, props)
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/config/paquetes/<item_id>', methods=['PATCH'])
+def api_config_paquetes_update(item_id):
+    data = request.get_json() or {}
+    props = {}
+    if 'Name' in data:
+        props['Name'] = {'title': [{'type': 'text', 'text': {'content': data['Name']}}]}
+    if 'precio_q' in data and data['precio_q'] is not None:
+        props['Precio Q'] = {'number': data['precio_q']}
+    if 'Activo' in data:
+        props['Activo'] = {'checkbox': bool(data['Activo'])}
+    if 'Notas' in data:
+        props['Notas'] = {'rich_text': [{'type': 'text', 'text': {'content': data['Notas'] or ''}}]}
+    item = ns.upsert_config_item(item_id, props)
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/config/cuentas', methods=['GET'])
+def api_config_cuentas_list():
+    return jsonify({'cuentas': ns.list_cuentas_activas()})
+
+
+@app.route('/api/config/cuentas', methods=['POST'])
+def api_config_cuentas_create():
+    data = request.get_json() or {}
+    if not data.get('Name'):
+        return jsonify({'ok': False, 'error': 'Nombre requerido'}), 400
+    props = {
+        'Name': {'title': [{'type': 'text', 'text': {'content': data['Name']}}]},
+        'Tipo': {'select': {'name': 'Cuenta Bancaria'}},
+        'Activo': {'checkbox': data.get('Activo', True)},
+    }
+    if data.get('Marca'):
+        props['Marca'] = {'select': {'name': data['Marca']}}
+    if data.get('Notas'):
+        props['Notas'] = {'rich_text': [{'type': 'text', 'text': {'content': data['Notas']}}]}
+    item = ns.upsert_config_item(None, props)
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/config/cuentas/<item_id>', methods=['PATCH'])
+def api_config_cuentas_update(item_id):
+    data = request.get_json() or {}
+    props = {}
+    if 'Name' in data:
+        props['Name'] = {'title': [{'type': 'text', 'text': {'content': data['Name']}}]}
+    if 'Notas' in data:
+        props['Notas'] = {'rich_text': [{'type': 'text', 'text': {'content': data['Notas'] or ''}}]}
+    item = ns.upsert_config_item(item_id, props)
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/config/reglas', methods=['GET'])
+def api_config_reglas_list():
+    return jsonify({'reglas': ns.list_reglas_liquidacion()})
+
+
+@app.route('/api/config/reglas/<item_id>', methods=['PATCH'])
+def api_config_reglas_update(item_id):
+    data = request.get_json() or {}
+    props = {}
+    if 'Name' in data:
+        props['Name'] = {'title': [{'type': 'text', 'text': {'content': data['Name']}}]}
+    if 'porcentaje' in data and data['porcentaje'] is not None:
+        props['Porcentaje'] = {'number': data['porcentaje']}
+    if 'Notas' in data:
+        props['Notas'] = {'rich_text': [{'type': 'text', 'text': {'content': data['Notas'] or ''}}]}
+    item = ns.upsert_config_item(item_id, props)
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/config/fuentes', methods=['GET'])
+def api_config_fuentes_list():
+    return jsonify({'fuentes': ns.list_fuentes_activas()})
+
+
+@app.route('/api/config/fuentes/<item_id>/activo', methods=['PATCH'])
+def api_config_fuentes_toggle(item_id):
+    data = request.get_json() or {}
+    props = {'Activo': {'checkbox': bool(data.get('Activo', True))}}
+    item = ns.upsert_config_item(item_id, props)
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/config/datos', methods=['GET'])
+def api_config_datos_list():
+    return jsonify({'datos': ns.list_datos_estudio()})
+
+
+@app.route('/api/config/datos', methods=['POST'])
+def api_config_datos_create():
+    data = request.get_json() or {}
+    if not data.get('Name'):
+        return jsonify({'ok': False, 'error': 'Nombre requerido'}), 400
+    props = {
+        'Name': {'title': [{'type': 'text', 'text': {'content': data['Name']}}]},
+        'Tipo': {'select': {'name': 'Dato del Estudio'}},
+        'Activo': {'checkbox': True},
+        'Notas': {'rich_text': [{'type': 'text', 'text': {'content': data.get('Notas', '')}}]},
+    }
+    item = ns.upsert_config_item(None, props)
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/config/datos/<item_id>', methods=['PATCH'])
+def api_config_datos_update(item_id):
+    data = request.get_json() or {}
+    props = {}
+    if 'Name' in data:
+        props['Name'] = {'title': [{'type': 'text', 'text': {'content': data['Name']}}]}
+    if 'Notas' in data:
+        props['Notas'] = {'rich_text': [{'type': 'text', 'text': {'content': data['Notas'] or ''}}]}
+    item = ns.upsert_config_item(item_id, props)
+    return jsonify({'ok': True, 'item': item})
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8765))

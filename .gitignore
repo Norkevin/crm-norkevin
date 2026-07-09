@@ -1,27 +1,47 @@
-# Secrets (never commit)
-.env
-*.env
-
-# Logs
-*.log
-stdout.log
-stderr.log
+# .gitignore - Norkevin CRM
+# Cosas que NO deben commitearse
 
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
-# IDE
+# Virtual env
+venv/
+env/
+ENV/
+.venv/
+
+# Configuracion con secrets
+.env
+*.env.local
+
+# Logs
+*.log
+logs/
+
+# IDEs
 .vscode/
 .idea/
+*.swp
 
-# OS
+# Sistema
 .DS_Store
 Thumbs.db
 
-# Data personal (workspace)
-data/
-_quarantine_scripts/
-.pre_revert_*/
-backup_*/
+# Backups
+*.bak
+*~
+*.tmp
+
+# Builds
+build/
+dist/
+
+# Tests (mientras sean temporales)
+.pytest_cache/
+.coverage
+
+# Wrangler / deploy temporal
+.wrangler/
