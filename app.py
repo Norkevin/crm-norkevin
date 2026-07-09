@@ -12,12 +12,24 @@ from dotenv import load_dotenv
 import notion_sync as ns
 from collections import defaultdict
 
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+from src.workflow import WorkflowEngine, LEAD_WORKFLOW, PRODUCTION_WORKFLOW
+from src.workflow.models import StepStatus, WorkflowStatus
+
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET', 'norkevin-crm-dev-secret-change-me')
+
+# ============================================================
+# WORKFLOW ENGINE (singleton global)
+# ============================================================
+workflow_engine = WorkflowEngine()
+workflow_engine.register_template(LEAD_WORKFLOW())
+workflow_engine.register_template(PRODUCTION_WORKFLOW())
 
 # ============================================================
 # HELPERS
@@ -1843,8 +1855,156 @@ def api_config_datos_update(item_id):
         props['Name'] = {'title': [{'type': 'text', 'text': {'content': data['Name']}}]}
     if 'Notas' in data:
         props['Notas'] = {'rich_text': [{'type': 'text', 'text': {'content': data['Notas'] or ''}}]}
-    item = ns.upsert_config_item(item_id, props)
+    item = ns.upsert_config_item(None, props)
     return jsonify({'ok': True, 'item': item})
+
+
+# ============================================================
+# WORKFLOW EDITOR + API
+# ============================================================
+
+@app.route('/workflow-editor')
+def workflow_editor():
+    """Pantalla estilo Studio Ninja para editar workflow templates."""
+    selected_id = request.args.get('id', 'lead_workflow_v1')
+    templates = workflow_engine.list_templates()
+    selected = workflow_engine.get_template(selected_id)
+    if not selected:
+        selected = templates[0] if templates else LEAD_WORKFLOW()
+    return render_template('workflow_editor.html',
+                          templates=templates,
+                          selected=selected,
+                          selected_id=selected.id)
+
+
+@app.route('/api/workflow/templates')
+def api_workflow_templates():
+    return jsonify({'templates': [t.to_dict() for t in workflow_engine.list_templates()]})
+
+
+@app.route('/api/workflow/template/<template_id>')
+def api_workflow_template_get(template_id):
+    tmpl = workflow_engine.get_template(template_id)
+    if not tmpl:
+        return jsonify({'ok': False, 'error': 'Template no encontrado'}), 404
+    return jsonify({'ok': True, 'template': tmpl.to_dict()})
+
+
+@app.route('/api/workflow/template/<template_id>', methods=['PUT'])
+def api_workflow_template_update(template_id):
+    """Actualiza un template (reemplaza steps)."""
+    data = request.get_json() or {}
+    try:
+        # Reconstruir el Workflow desde el JSON
+        from src.workflow.models import Workflow, Step, Trigger, Action, TriggerType, ActionType
+        steps = []
+        for s in data.get('steps', []):
+            step = Step(
+                id=s['id'],
+                name=s['name'],
+                description=s.get('description', ''),
+                trigger=Trigger(
+                    type=TriggerType(s['trigger_type']),
+                    offset_minutes=int(s.get('offset_minutes', 0)),
+                ),
+                action=Action(
+                    type=ActionType(s['action_type']),
+                    template=s.get('action_template'),
+                    params=s.get('action_params', {}),
+                ),
+            )
+            steps.append(step)
+
+        new_workflow = Workflow(
+            id=template_id,
+            name=data.get('name', template_id),
+            description=data.get('description', ''),
+            trigger=Trigger(type=TriggerType(data.get('trigger_type', 'lead.created'))),
+            steps=steps,
+        )
+        workflow_engine.register_template(new_workflow)
+        return jsonify({'ok': True, 'template': new_workflow.to_dict()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+
+@app.route('/api/workflow/test/<template_id>', methods=['POST'])
+def api_workflow_test(template_id):
+    """Crea un lead ficticio y le aplica el workflow."""
+    tmpl = workflow_engine.get_template(template_id)
+    if not tmpl:
+        return jsonify({'ok': False, 'error': 'Template no encontrado'}), 404
+
+    # Crear instancia ficticia
+    fake_name = f"Test Lead {datetime.now().strftime('%H:%M:%S')}"
+    instance = workflow_engine.start_workflow(
+        workflow=tmpl,
+        subject_type='lead',
+        subject_id=f"test_{int(datetime.now().timestamp())}",
+        subject_name=fake_name,
+        trigger_event='test.created',
+    )
+    return jsonify({'ok': True, 'instance_id': instance.id, 'subject': fake_name})
+
+
+@app.route('/api/workflow/instances')
+def api_workflow_instances():
+    return jsonify({
+        'instances': [i.to_dict() for i in workflow_engine.list_instances()],
+        'stats': workflow_engine.stats(),
+    })
+
+
+@app.route('/api/workflow/instances/<instance_id>')
+def api_workflow_instance_detail(instance_id):
+    inst = workflow_engine.get_instance(instance_id)
+    if not inst:
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    return jsonify({'ok': True, 'instance': inst.to_dict()})
+
+
+@app.route('/api/workflow/history')
+def api_workflow_history():
+    return jsonify({'history': workflow_engine.get_history(limit=100)})
+
+
+# Trigger automatico: cuando se crea un lead, dispara LEAD_WORKFLOW
+@app.route('/api/workflow/trigger/lead_created', methods=['POST'])
+def api_workflow_trigger_lead_created():
+    data = request.get_json() or {}
+    instance = workflow_engine.start_workflow(
+        workflow=LEAD_WORKFLOW(),
+        subject_type='lead',
+        subject_id=data.get('lead_id', ''),
+        subject_name=data.get('nombre', 'Lead'),
+        trigger_event='lead.created',
+    )
+    return jsonify({'ok': True, 'instance_id': instance.id})
+
+
+# Trigger automatico: cuando se acepta quote, dispara PRODUCTION_WORKFLOW
+@app.route('/api/workflow/trigger/quote_accepted', methods=['POST'])
+def api_workflow_trigger_quote_accepted():
+    data = request.get_json() or {}
+    instance = workflow_engine.start_workflow(
+        workflow=PRODUCTION_WORKFLOW(),
+        subject_type='job',
+        subject_id=data.get('job_id', ''),
+        subject_name=data.get('nombre', 'Job'),
+        trigger_event='quote.accepted',
+    )
+    return jsonify({'ok': True, 'instance_id': instance.id})
+
+
+# Cron: ejecutar steps vencidos
+@app.route('/api/workflow/run-due', methods=['POST'])
+def api_workflow_run_due():
+    due = workflow_engine.get_due_steps()
+    executed = 0
+    for instance, step in due:
+        if workflow_engine.execute_step(instance.id, step.id):
+            executed += 1
+    return jsonify({'ok': True, 'executed': executed, 'due_count': len(due)})
 
 
 if __name__ == '__main__':

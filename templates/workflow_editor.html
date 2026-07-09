@@ -1,0 +1,460 @@
+{% extends "base.html" %}
+{% block title %}Workflow Templates · Norkevin CRM{% endblock %}
+{% block header %}Workflow Templates{% endblock %}
+{% block subtitle %}Configura las secuencias automaticas que se disparan segun los eventos{% endblock %}
+
+{% block content %}
+
+<div class="grid grid-cols-12 gap-6">
+
+  <!-- ============================================================
+       SIDEBAR: Lista de templates
+       ============================================================ -->
+  <aside class="col-span-3 bg-paper-pure rounded-lg border border-line shadow-soft p-4 self-start">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-sm uppercase tracking-wide text-ink-soft">Templates</h2>
+      <button onclick="newTemplate()" class="text-xs text-gold hover:text-gold-deep font-medium">+ Nuevo</button>
+    </div>
+    <div id="template-list" class="space-y-1">
+      {% for t in templates %}
+      <button onclick="selectTemplate('{{ t.id }}')"
+              data-template-id="{{ t.id }}"
+              class="template-btn w-full text-left px-3 py-2 rounded-md text-sm hover:bg-line/40 transition {% if t.id == selected_id %}bg-gold-soft text-gold-deep{% endif %}">
+        <div class="font-medium">{{ t.name }}</div>
+        <div class="text-[10px] text-ink-soft">{{ t.steps|length }} steps &middot; {{ t.trigger_type }}</div>
+      </button>
+      {% endfor %}
+    </div>
+
+    <hr class="my-4 border-line">
+
+    <h3 class="font-semibold text-xs uppercase tracking-wide text-ink-soft mb-2">Aplicar a</h3>
+    <div class="space-y-1 text-xs">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="radio" name="apply_to" value="all" checked class="text-gold">
+        <span>Todos los leads nuevos</span>
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="radio" name="apply_to" value="specific" class="text-gold">
+        <span>Solo leads especificos</span>
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="radio" name="apply_to" value="none" class="text-gold">
+        <span>Manual (no auto)</span>
+      </label>
+    </div>
+
+    <hr class="my-4 border-line">
+
+    <h3 class="font-semibold text-xs uppercase tracking-wide text-ink-soft mb-2">Acciones</h3>
+    <button onclick="saveTemplate()" class="w-full px-3 py-2 bg-gold text-white rounded-md text-sm font-medium hover:bg-gold-deep transition">
+      Guardar cambios
+    </button>
+    <button onclick="testWorkflow()" class="w-full mt-2 px-3 py-2 border border-line rounded-md text-sm hover:bg-line/30 transition">
+      Test con lead ficticio
+    </button>
+  </aside>
+
+  <!-- ============================================================
+       MAIN: Editor del template seleccionado
+       ============================================================ -->
+  <main class="col-span-9">
+
+    <!-- Template header -->
+    <div class="bg-paper-pure rounded-lg border border-line shadow-soft p-5 mb-4">
+      <div class="flex items-start justify-between">
+        <div class="flex-1">
+          <input id="workflow-name" type="text" value="{{ selected.name }}"
+                 class="text-xl font-semibold text-ink border-0 focus:outline-none focus:border-b focus:border-gold w-full">
+          <input id="workflow-description" type="text" value="{{ selected.description }}"
+                 class="text-sm text-ink-soft border-0 focus:outline-none focus:border-b focus:border-gold w-full mt-1"
+                 placeholder="Descripcion del workflow...">
+        </div>
+        <div class="text-right text-xs text-ink-soft">
+          <div>ID: <code class="text-[10px]">{{ selected.id }}</code></div>
+          <div class="mt-1">Trigger: <code class="text-[10px]">{{ selected.trigger_type }}</code></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workflow Steps (vertical, como Studio Ninja) -->
+    <div class="bg-paper-pure rounded-lg border border-line shadow-soft p-5">
+
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold text-ink">Steps del workflow</h2>
+        <button onclick="addStep()" class="text-sm text-gold hover:text-gold-deep font-medium">
+          + Agregar step
+        </button>
+      </div>
+
+      <div id="steps-container" class="space-y-3">
+        {% for step in selected.steps %}
+        <div class="step-card group relative bg-paper-pure border border-line rounded-lg p-4 hover:border-gold transition cursor-pointer"
+             data-step-id="{{ step.id }}"
+             onclick="selectStep('{{ step.id }}')"
+             draggable="true"
+             ondragstart="stepDragStart(event)"
+             ondragover="stepDragOver(event)"
+             ondrop="stepDrop(event)">
+
+          <div class="flex items-start gap-4">
+            <!-- Drag handle + order -->
+            <div class="flex-shrink-0 text-center w-8">
+              <div class="drag-handle text-ink-soft text-xs cursor-grab">⋮⋮</div>
+              <div class="text-[10px] text-ink-soft mt-1 font-mono">{{ loop.index }}</div>
+            </div>
+
+            <!-- Trigger icon -->
+            <div class="flex-shrink-0">
+              {% set icons = {
+                'lead.created': '🆕',
+                'quote.sent': '📧',
+                'quote.accepted': '✅',
+                'contract.signed': '✍️',
+                'invoice.paid': '💳',
+                'boda': '💍',
+                'scheduled': '⏰'
+              } %}
+              <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg
+                {% if step.trigger_type == 'lead.created' %}bg-blue-100 text-blue-700
+                {% elif step.trigger_type == 'quote.accepted' %}bg-emerald-100 text-emerald-700
+                {% elif 'boda' in step.trigger_type %}bg-rose-100 text-rose-700
+                {% else %}bg-line text-ink-soft{% endif %}">
+                {{ icons.get(step.trigger_type, '⚙️') }}
+              </div>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-baseline gap-2 mb-1">
+                <h3 class="font-medium text-ink">{{ step.name }}</h3>
+                <span class="text-[10px] px-1.5 py-0.5 bg-line text-ink-soft rounded uppercase tracking-wide">{{ step.action_type }}</span>
+              </div>
+              <p class="text-xs text-ink-soft mb-2">{{ step.description }}</p>
+
+              <div class="flex items-center gap-3 text-[10px] text-ink-soft">
+                <span class="inline-flex items-center gap-1">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+                  {{ step.delay_display }}
+                </span>
+                {% if step.action_template %}
+                <span class="inline-flex items-center gap-1">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M2.94 6.5l6.493 6.493a1 1 0 001.414 0L17.34 6.5H14a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V7.66l-6.493 6.493a3 3 0 01-4.242 0L2.94 7.66V11a1 1 0 11-2 0V6a1 1 0 011-1h5a1 1 0 010 2H2.94z"/></svg>
+                  {{ step.action_template }}
+                </span>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex-shrink-0 opacity-0 group-hover:opacity-100 transition">
+              <button onclick="event.stopPropagation(); editStep('{{ step.id }}')"
+                      class="text-ink-soft hover:text-gold p-1">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+              </button>
+              <button onclick="event.stopPropagation(); deleteStep('{{ step.id }}')"
+                      class="text-ink-soft hover:text-rose-600 p-1">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Empty state si no hay steps -->
+      {% if not selected.steps %}
+      <div class="text-center py-12 text-ink-soft">
+        <svg class="w-12 h-12 mx-auto text-line mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        <p class="text-sm">No hay steps todavia. Haz clic en "+ Agregar step" para empezar.</p>
+      </div>
+      {% endif %}
+    </div>
+
+  </main>
+</div>
+
+<!-- ============================================================
+     MODAL: Editor de Step
+     ============================================================ -->
+<div id="step-editor-modal" class="hidden fixed inset-0 bg-ink/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-paper-pure rounded-lg shadow-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-lg" id="step-editor-title">Editar step</h3>
+      <button onclick="closeStepEditor()" class="text-ink-soft hover:text-ink">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+      </button>
+    </div>
+
+    <form id="step-form" class="space-y-4">
+      <input type="hidden" id="step-id-input" name="step_id">
+
+      <div>
+        <label class="text-xs text-ink-soft block mb-1">Nombre del step</label>
+        <input id="step-name-input" name="name" type="text" required
+               class="w-full border border-line rounded px-3 py-2 text-sm focus:outline-none focus:border-gold">
+      </div>
+
+      <div>
+        <label class="text-xs text-ink-soft block mb-1">Descripcion</label>
+        <textarea id="step-desc-input" name="description" rows="2"
+                  class="w-full border border-line rounded px-3 py-2 text-sm focus:outline-none focus:border-gold"></textarea>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs text-ink-soft block mb-1">Trigger (cuando)</label>
+          <select id="step-trigger-input" name="trigger_type"
+                  class="w-full border border-line rounded px-3 py-2 text-sm focus:outline-none focus:border-gold">
+            <option value="lead.created">Lead creado</option>
+            <option value="quote.sent">Cotizacion enviada</option>
+            <option value="quote.accepted">Quote aceptado (lead -&gt; job)</option>
+            <option value="contract.signed">Contrato firmado</option>
+            <option value="invoice.paid">Pago recibido</option>
+            <option value="boda">Dia de la boda</option>
+            <option value="wedding.passed">Boda ya paso</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-xs text-ink-soft block mb-1">Delay</label>
+          <div class="flex gap-2">
+            <input id="step-delay-amount" type="number" min="0" value="0"
+                   class="w-20 border border-line rounded px-3 py-2 text-sm focus:outline-none focus:border-gold">
+            <select id="step-delay-unit" class="flex-1 border border-line rounded px-3 py-2 text-sm">
+              <option value="min">minutos</option>
+              <option value="hours">horas</option>
+              <option value="days" selected>dias</option>
+              <option value="weeks">semanas</option>
+              <option value="months">meses</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs text-ink-soft block mb-1">Accion (que hace)</label>
+          <select id="step-action-input" name="action_type"
+                  class="w-full border border-line rounded px-3 py-2 text-sm focus:outline-none focus:border-gold">
+            <option value="send_email">Enviar email</option>
+            <option value="send_whatsapp">Enviar WhatsApp</option>
+            <option value="create_task">Crear tarea interna</option>
+            <option value="change_status">Cambiar status</option>
+            <option value="notify_owner">Notificar al dueno</option>
+            <option value="link_job">Crear Job (magic)</option>
+            <option value="noop">Marcador (sin accion)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-xs text-ink-soft block mb-1">Template del mensaje</label>
+          <input id="step-template-input" name="template" type="text"
+                 placeholder="ej: envio_paquetes"
+                 class="w-full border border-line rounded px-3 py-2 text-sm focus:outline-none focus:border-gold">
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-4 border-t border-line">
+        <button type="submit" class="btn-gold flex-1">Guardar step</button>
+        <button type="button" onclick="closeStepEditor()" class="btn-outline">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .step-card.dragging { opacity: 0.4; }
+  .step-card.drag-over { border-color: #2F7D73; background: rgba(47, 125, 115, 0.05); }
+  .btn-outline { padding: 0.5em 1em; border: 1px solid #E4E7EC; border-radius: 0.375rem; font-size: 0.875rem; }
+  .btn-outline:hover { background: #F1F3F6; }
+</style>
+
+<script>
+// ============================================================
+// WORKFLOW EDITOR
+// ============================================================
+const workflowData = {{ selected.to_dict() | tojson }};
+
+let editingStep = null;
+let draggedStepEl = null;
+
+// Seleccionar template
+function selectTemplate(id) {
+  window.location.href = `/workflow-editor?id=${id}`;
+}
+
+// Seleccionar step para ver/editar
+function selectStep(stepId) {
+  editingStep = workflowData.steps.find(s => s.id === stepId);
+  if (!editingStep) return;
+  openStepEditor(editingStep);
+}
+
+// Drag-and-drop para reordenar
+function stepDragStart(e) {
+  draggedStepEl = e.currentTarget;
+  draggedStepEl.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', e.currentTarget.dataset.stepId);
+}
+
+function stepDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (e.currentTarget !== draggedStepEl) {
+    e.currentTarget.classList.add('drag-over');
+  }
+}
+
+function stepDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!draggedStepEl || e.currentTarget === draggedStepEl) return;
+
+  const draggedId = e.dataTransfer.getData('text/plain');
+  const targetId = e.currentTarget.dataset.stepId;
+
+  // Reordenar en el array
+  const draggedIdx = workflowData.steps.findIndex(s => s.id === draggedId);
+  const targetIdx = workflowData.steps.findIndex(s => s.id === targetId);
+
+  if (draggedIdx >= 0 && targetIdx >= 0) {
+    const [removed] = workflowData.steps.splice(draggedIdx, 1);
+    workflowData.steps.splice(targetIdx, 0, removed);
+
+    // Reordenar en el DOM
+    const container = document.getElementById('steps-container');
+    const cards = Array.from(container.querySelectorAll('.step-card'));
+    cards.sort((a, b) => {
+      const aId = a.dataset.stepId;
+      const bId = b.dataset.stepId;
+      const aIdx = workflowData.steps.findIndex(s => s.id === aId);
+      const bIdx = workflowData.steps.findIndex(s => s.id === bId);
+      return aIdx - bIdx;
+    });
+    cards.forEach(c => container.appendChild(c));
+  }
+
+  draggedStepEl.classList.remove('dragging');
+  draggedStepEl = null;
+}
+
+document.querySelectorAll('.step-card').forEach(card => {
+  card.addEventListener('dragleave', function() { this.classList.remove('drag-over'); });
+});
+
+// Modal del editor
+function openStepEditor(step) {
+  document.getElementById('step-editor-title').textContent = step ? 'Editar step' : 'Nuevo step';
+  document.getElementById('step-id-input').value = step ? step.id : '';
+  document.getElementById('step-name-input').value = step ? step.name : '';
+  document.getElementById('step-desc-input').value = step ? step.description || '' : '';
+  document.getElementById('step-trigger-input').value = step ? step.trigger_type : 'lead.created';
+  document.getElementById('step-action-input').value = step ? step.action_type : 'send_email';
+  document.getElementById('step-template-input').value = step ? step.action_template || '' : '';
+  document.getElementById('step-editor-modal').classList.remove('hidden');
+}
+
+function closeStepEditor() {
+  document.getElementById('step-editor-modal').classList.add('hidden');
+  editingStep = null;
+}
+
+document.getElementById('step-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const data = Object.fromEntries(formData.entries());
+
+  // Convertir delay a minutos
+  const amount = parseInt(data.step_delay_amount || document.getElementById('step-delay-amount').value);
+  const unit = document.getElementById('step-delay-unit').value;
+  const minutes = amount * {
+    'min': 1,
+    'hours': 60,
+    'days': 60 * 24,
+    'weeks': 60 * 24 * 7,
+    'months': 60 * 24 * 30,
+  }[unit];
+
+  const stepId = data.step_id || 'step_' + Date.now();
+  const step = {
+    id: stepId,
+    name: data.name,
+    description: data.description,
+    trigger_type: data.trigger_type,
+    offset_minutes: minutes,
+    action_type: data.action_type,
+    action_template: data.template || null,
+    action_params: {},
+  };
+
+  // Actualizar o agregar
+  const idx = workflowData.steps.findIndex(s => s.id === stepId);
+  if (idx >= 0) {
+    workflowData.steps[idx] = step;
+  } else {
+    workflowData.steps.push(step);
+  }
+
+  closeStepEditor();
+  // Recargar para ver cambios
+  setTimeout(() => location.reload(), 200);
+});
+
+function editStep(stepId) {
+  selectStep(stepId);
+}
+
+function deleteStep(stepId) {
+  if (!confirm('Eliminar este step?')) return;
+  workflowData.steps = workflowData.steps.filter(s => s.id !== stepId);
+  setTimeout(() => location.reload(), 200);
+}
+
+function addStep() {
+  openStepEditor(null);
+}
+
+function newTemplate() {
+  const name = prompt('Nombre del template:');
+  if (!name) return;
+  // TODO: POST a /api/workflow/template
+  alert('Crear template: ' + name + '\n(Proximamente con el POST endpoint)');
+}
+
+function saveTemplate() {
+  // TODO: POST workflowData al backend
+  fetch('/api/workflow/template/' + workflowData.id, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(workflowData)
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) flashToast('Template guardado');
+    else flashToast('Error: ' + data.error, 'error');
+  })
+  .catch(err => flashToast('Error de red', 'error'));
+}
+
+function testWorkflow() {
+  fetch('/api/workflow/test/' + workflowData.id, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) flashToast('Test disparado: revisa el historial');
+      else flashToast('Error: ' + data.error, 'error');
+    });
+}
+
+function flashToast(msg, type) {
+  var t = document.createElement('div');
+  t.className = 'fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg z-50 text-sm ' +
+    (type === 'error' ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+</script>
+
+{% endblock %}
