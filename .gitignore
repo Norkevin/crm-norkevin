@@ -45,3 +45,7 @@ dist/
 
 # Wrangler / deploy temporal
 .wrangler/
+
+# SQLite local
+*.db
+data/*.db
