@@ -260,9 +260,16 @@
 
         <div>
           <label class="text-xs text-ink-soft block mb-1">Template del mensaje</label>
-          <input id="step-template-input" name="template" type="text"
-                 placeholder="ej: envio_paquetes"
+          <select id="step-template-input" name="template"
                  class="w-full border border-line rounded px-3 py-2 text-sm focus:outline-none focus:border-gold">
+            <option value="">Sin plantilla</option>
+            {% for tpl in email_templates %}
+            <option value="{{ tpl.id }}">{{ tpl.name }}</option>
+            {% endfor %}
+          </select>
+          {% if not email_templates %}
+          <p class="text-xs text-ink-soft mt-1">No hay plantillas todavia. <a href="/settings/email-templates" class="text-gold hover:underline">Creá una</a>.</p>
+          {% endif %}
         </div>
       </div>
 
@@ -407,9 +414,11 @@ function openStepEditor(step) {
   document.getElementById('step-id-input').value = step ? step.id : '';
   document.getElementById('step-name-input').value = step ? step.name : '';
   document.getElementById('step-desc-input').value = step ? step.description || '' : '';
-  document.getElementById('step-trigger-input').value = step ? step.trigger_type : 'lead.created';
   document.getElementById('step-action-input').value = step ? step.action_type : 'send_email';
-  document.getElementById('step-template-input').value = step ? step.action_template || '' : '';
+  document.getElementById('step-template-input').value = step ? step.email_template_id || '' : '';
+  const dueDate = step ? (step.due_date || {}) : {};
+  document.getElementById('step-delay-amount').value = dueDate.amount || 0;
+  document.getElementById('step-delay-unit').value = dueDate.unit || 'days';
   document.getElementById('step-editor-modal').classList.remove('hidden');
 }
 
@@ -435,15 +444,18 @@ document.getElementById('step-form').addEventListener('submit', function(e) {
   }[unit];
 
   const stepId = data.step_id || 'step_' + Date.now();
+  // due_date debe tener esta forma exacta (Step.to_dict() en el backend),
+  // si no el server ignora el template_id y el delay al guardar.
+  const relativeTo = workflowData.id === 'production_workflow_v1' ? 'job_created' : 'lead_created';
   const step = {
     id: stepId,
     name: data.name,
     description: data.description,
-    trigger_type: data.trigger_type,
-    offset_minutes: minutes,
     action_type: data.action_type,
-    action_template: data.template || null,
-    action_params: {},
+    email_template_id: data.template || null,
+    due_date: amount > 0
+      ? { mode: 'after_creation', amount: amount, unit: unit, relative_to: relativeTo }
+      : { mode: 'manual', amount: 0, unit: 'days', relative_to: relativeTo },
   };
 
   // Actualizar o agregar

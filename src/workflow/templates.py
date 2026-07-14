@@ -9,8 +9,28 @@ ARQUITECTURA NUEVA (estilo Studio Ninja):
 from .models import Workflow, Step, DueDate, ActionType, TriggerType
 
 
+def _saved_override(workflow_id):
+    """Si el Workflow Editor guardo una edicion para este workflow, la
+    devuelve. Si no, None (se usa el template por defecto hardcodeado).
+    Se consulta aqui -- en el punto donde se CONSTRUYE el template -- para
+    que TODOS los que llamen LEAD_WORKFLOW()/PRODUCTION_WORKFLOW() (son
+    muchos en app.py) vean automaticamente la version editada sin tener que
+    tocar cada uno."""
+    try:
+        from ..storage import store
+        saved = store.get_dict('workflow_templates').get(workflow_id)
+        if saved:
+            return Workflow.from_dict(saved)
+    except Exception:
+        pass
+    return None
+
+
 def LEAD_WORKFLOW() -> Workflow:
     """Workflow que se aplica cuando se crea un LEAD."""
+    override = _saved_override('lead_workflow_v1')
+    if override:
+        return override
     return Workflow(
         id='lead_workflow_v1',
         name='Lead Follow-up',
@@ -56,6 +76,9 @@ def LEAD_WORKFLOW() -> Workflow:
 
 def PRODUCTION_WORKFLOW() -> Workflow:
     """Workflow que se aplica cuando se ACEPTA el quote (lead -> job)."""
+    override = _saved_override('production_workflow_v1')
+    if override:
+        return override
     return Workflow(
         id='production_workflow_v1',
         name='Production',

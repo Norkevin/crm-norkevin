@@ -24,6 +24,38 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def _bootstrap_seed_table(table):
+    """Si una tabla de configuracion esta vacia (deploy nuevo, ej. Render),
+    la llena con los defaults en data/seeds/<table>.default.json -- esos SI
+    viajan con el codigo (a diferencia de data/*.json real, que nunca se
+    sube). Sin esto los steps de workflow que 'auto-mandan email' mandan
+    correos en blanco (plantillas inexistentes) y el editor de cotizaciones
+    arranca sin ningun paquete para elegir."""
+    if store.list(table):
+        return
+    seed_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'seeds', f'{table}.default.json')
+    if not os.path.exists(seed_path):
+        return
+    try:
+        import json as _json_seed
+        with open(seed_path, 'r', encoding='utf-8') as f:
+            defaults = _json_seed.load(f)
+        for record in defaults:
+            store.upsert(table, record)
+        logger.info(f'Sembrados {len(defaults)} registros por defecto en {table}')
+    except Exception as exc:
+        logger.warning(f'No se pudieron sembrar los defaults de {table}: {exc}')
+
+
+def _bootstrap_default_email_templates():
+    """Compat: los tests y el arranque llaman esta funcion por nombre."""
+    _bootstrap_seed_table('email_templates')
+
+
+_bootstrap_default_email_templates()
+_bootstrap_seed_table('packages')
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET', 'norkevin-crm-dev-secret-change-me')
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -2010,19 +2042,9 @@ def lead_detail(lead_id):
 
 
 def _load_packages():
-    """Carga el catalogo de paquetes desde data/packages.json."""
-    import json
-    app_dir = os.path.dirname(os.path.abspath(__file__))
-    paths = [
-        os.path.join(app_dir, 'data', 'packages.json'),
-        os.path.join(os.path.dirname(app_dir), 'data', 'packages.json'),
-        os.path.join(os.path.dirname(app_dir), 'data', 'paquetes_norkevin.json'),
-    ]
-    path = next((p for p in paths if os.path.exists(p)), None)
-    if not path:
-        return []
-    with open(path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    """Carga el catalogo de paquetes via el JsonStore compartido (respeta
+    CRM_DATA_DIR, a diferencia de la version vieja con ruta fija)."""
+    return store.list('packages')
 
 
 @app.route('/clients')
@@ -5012,7 +5034,8 @@ def workflow_editor():
     return render_template('workflow_editor.html',
                           templates=templates,
                           selected=selected,
-                          selected_id=selected.id)
+                          selected_id=selected.id,
+                          email_templates=store.list('email_templates'))
 
 
 @app.route('/api/workflow/templates')
@@ -5480,6 +5503,7 @@ def quote_edit(quote_id):
         display_name=display_name,
         display_email=display_email,
         plan_pago_opciones=quote.get('plan_pago_opciones') or [1, 2, 3, 4],
+        saved_packages=_load_packages(),
     )
 
 

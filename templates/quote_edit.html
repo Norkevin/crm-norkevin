@@ -90,6 +90,20 @@
 
         <div id="option-form" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--doc-line);">
           <input type="hidden" id="opt-id-input">
+          <div class="opt-field">
+            <label>Usar un paquete guardado</label>
+            <select id="opt-package-picker" onchange="fillFromSavedPackage(this.value)"
+                    style="width:100%;border:1px solid var(--doc-line);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit;color:var(--doc-ink);background:#fff;">
+              <option value="">Escribir desde cero...</option>
+              {% for pkg in saved_packages %}
+              <option value="{{ pkg.id }}">{{ pkg.name }} &middot; Q{{ '{:,.0f}'.format(pkg.price or 0) }}</option>
+              {% endfor %}
+            </select>
+            <p class="doc-hint" style="text-align:left;margin-top:5px;">
+              Al elegir uno se llenan los campos y los podes ajustar solo para esta cotizacion.
+              <a href="/settings/packages" target="_blank" style="color:var(--doc-ink);font-weight:600;">Editar paquetes guardados</a>
+            </p>
+          </div>
           <div class="opt-form-row">
             <div class="opt-field">
               <label>Nombre del paquete *</label>
@@ -169,12 +183,24 @@
 
 <script>
 var QUOTE_ID = {{ quote.id|tojson }};
+var SAVED_PACKAGES = {{ saved_packages|tojson }};
+
+function fillFromSavedPackage(pkgId) {
+  var pkg = SAVED_PACKAGES.find(function(p) { return p.id === pkgId; });
+  if (!pkg) return;
+  document.getElementById('opt-name-input').value = pkg.name || '';
+  document.getElementById('opt-price-input').value = pkg.price || '';
+  var includes = pkg.includes || pkg.incluye || [];
+  if (typeof includes === 'string') includes = includes.split('\n');
+  document.getElementById('opt-includes-input').value = includes.join('\n');
+}
 
 function openOptionForm(opt) {
   document.getElementById('opt-id-input').value = opt ? opt.id : '';
   document.getElementById('opt-name-input').value = opt ? opt.name : '';
   document.getElementById('opt-price-input').value = opt ? opt.precio_total : '';
   document.getElementById('opt-includes-input').value = opt && opt.incluye ? opt.incluye.join('\n') : '';
+  document.getElementById('opt-package-picker').value = '';
   document.getElementById('option-form').style.display = 'block';
   document.getElementById('opt-name-input').focus();
 }

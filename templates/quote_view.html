@@ -261,6 +261,13 @@ function updateSummary() {
 
 document.addEventListener('DOMContentLoaded', function() {
   if (OPTIONS.length === 1) { selectPackage(OPTIONS[0].id); }
+  // Plan de pago pre-seleccionado: 2 cuotas si esta entre las opciones
+  // ofrecidas, si no la primera disponible. El cliente puede cambiarlo.
+  var planBtns = Array.prototype.slice.call(document.querySelectorAll('.plan-btn'));
+  if (planBtns.length) {
+    var plans = planBtns.map(function(el) { return Number(el.dataset.plan); });
+    selectPlan(plans.indexOf(2) !== -1 ? 2 : plans[0]);
+  }
 });
 </script>
 

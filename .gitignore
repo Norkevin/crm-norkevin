@@ -52,7 +52,10 @@ data/*.db
 
 # Datos reales del negocio -- nombres, emails, telefonos, pagos de clientes.
 # Este repo es publico, esto NUNCA debe subirse.
-data/
+# (data/* en vez de data/ para poder des-ignorar data/seeds/ mas abajo --
+# git no puede "reincluir" un archivo si el directorio padre esta excluido.)
+data/*
+!data/seeds/
 
 # Secrets de OAuth / archivos subidos por usuarios (nunca deben commitearse)
 data/google_token.json

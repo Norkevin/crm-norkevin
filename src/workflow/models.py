@@ -148,6 +148,36 @@ class Workflow:
     steps: List[Step] = field(default_factory=list)
     is_template: bool = True
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> 'Workflow':
+        """Reconstruye un Workflow desde el formato de to_dict() -- se usa
+        para aplicar ediciones guardadas del Workflow Editor sobre el
+        template por defecto."""
+        steps = []
+        for s in d.get('steps', []):
+            dd = s.get('due_date') or {}
+            steps.append(Step(
+                id=s['id'],
+                name=s['name'],
+                description=s.get('description', ''),
+                action_type=ActionType(s.get('action_type', 'noop')),
+                email_template_id=s.get('email_template_id') or None,
+                due_date=DueDate(
+                    mode=dd.get('mode', 'manual'),
+                    amount=int(dd.get('amount', 0) or 0),
+                    unit=dd.get('unit', 'days'),
+                    relative_to=dd.get('relative_to', 'lead_created'),
+                ),
+            ))
+        return cls(
+            id=d['id'],
+            name=d.get('name', d['id']),
+            description=d.get('description', ''),
+            trigger=TriggerType(d.get('trigger_type', 'lead.created')),
+            steps=steps,
+            is_template=True,
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             'id': self.id,

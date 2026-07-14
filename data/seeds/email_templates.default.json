@@ -1,0 +1,71 @@
+[
+  {
+    "id": "tpl-paquetes",
+    "name": "Paquetes de boda ASTRAL WEDDINGS",
+    "asunto": "Nuestros paquetes para tu boda",
+    "cuerpo": "Hola {{nombre}},\n\nGracias por tu interes en ASTRAL WEDDINGS. Adjunto nuestros paquetes:\n\n- Paquete Basico: Q10,000\n- Paquete Premium: Q20,000\n- Paquete Deluxe: Q35,000\n\nQuedamos atentos a tus comentarios.\n\nSaludos,\nKevin Lemus\nASTRAL WEDDINGS",
+    "adjuntos": [
+      "paquete_basico.pdf",
+      "paquete_premium.pdf"
+    ],
+    "activo": true
+  },
+  {
+    "id": "tpl-seguimiento",
+    "name": "Seguimiento",
+    "asunto": "Tuviste chance de revisar los paquetes?",
+    "cuerpo": "Hola {{nombre}},\n\nSolo queria saber si tuviste chance de revisar los paquetes que te envie.\n\nSi tienes alguna duda, estoy disponible para una llamada cuando mejor te convenga.\n\nSaludos,\nKevin",
+    "adjuntos": [],
+    "activo": true
+  },
+  {
+    "id": "tpl-levanta-muertos",
+    "name": "Levanta Muertos",
+    "asunto": "Tu boda sigue siendo importante para nosotros",
+    "cuerpo": "Hola {{nombre}},\n\nSe que has estado ocupado, pero queria recordarte que tu boda sigue siendo una prioridad para nosotros.\n\nLos paquetes siguen disponibles con los mismos precios. Te gustaria coordinar una llamada?\n\nSaludos,\nKevin",
+    "adjuntos": [],
+    "activo": true
+  },
+  {
+    "id": "tpl-reserva",
+    "name": "Reserva confirmada",
+    "asunto": "Reserva confirmada - Bienvenido!",
+    "cuerpo": "Hola {{nombre}},\n\nTu reserva esta confirmada. Bienvenido a ASTRAL WEDDINGS!\n\nProximos pasos:\n1. Firma del contrato (te lo envio por separado)\n2. Pago de la reserva (50%)\n3. Cuestionario pre-boda (1 mes antes)\n\nCualquier duda estoy a la orden.\n\nSaludos,\nKevin",
+    "adjuntos": [],
+    "activo": true
+  },
+  {
+    "id": "tpl-contrato",
+    "name": "Contrato para firma",
+    "asunto": "Tu contrato de servicios fotograficos",
+    "cuerpo": "Hola {{nombre}},\n\nAdjunto el contrato de servicios. Por favor firma y devuelve antes del {{fecha_boda}}.\n\nSi tienes preguntas legales, no dudes en consultarme.\n\nSaludos,\nKevin",
+    "adjuntos": [
+      "contrato_boda.pdf"
+    ],
+    "activo": true
+  },
+  {
+    "id": "tpl-cuestionario",
+    "name": "Cuestionario pre-boda",
+    "asunto": "Cuestionario para tu boda",
+    "cuerpo": "Hola {{nombre}},\n\nPara asegurar que capturamos cada momento importante, te pido que completes este cuestionario:\n\n[LINK: /cuestionario]\n\nIncluye contactos clave, momentos que no te quieres perder, y preferencias de estilo.\n\nSaludos,\nKevin",
+    "adjuntos": [],
+    "activo": true
+  },
+  {
+    "id": "tpl-galeria",
+    "name": "Envio de galeria",
+    "asunto": "Tu galeria de fotos esta lista",
+    "cuerpo": "Hola {{nombre}},\n\nTu galeria de fotos esta lista. Accede aqui:\n\n[LINK: {{galeria_url}}]\n\nTienes 30 dias para descargar todas las fotos en alta resolucion.\n\nSaludos,\nKevin",
+    "adjuntos": [],
+    "activo": true
+  },
+  {
+    "id": "tpl-review",
+    "name": "Pedir review Google",
+    "asunto": "Tu opinion nos importa",
+    "cuerpo": "Hola {{nombre}},\n\nGracias por confiar en nosotros para tu boda. Si tienes un momento, nos ayudaria mucho una review en Google:\n\n[LINK: Google Review]\n\nSaludos,\nKevin",
+    "adjuntos": [],
+    "activo": true
+  }
+]
