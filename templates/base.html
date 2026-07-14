@@ -160,6 +160,25 @@ svg[stroke="currentColor"] rect {
   gap: 10px;
   min-width: 0;
 }
+.gmail-warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  background: #FDF1DC;
+  color: #97620C;
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 1px solid #F5DDA8;
+}
+.gmail-warning-banner svg { width: 18px; height: 18px; flex-shrink: 0; }
+.gmail-warning-banner span { flex: 1; }
+.gmail-warning-banner a {
+  color: #97620C;
+  font-weight: 700;
+  text-decoration: underline;
+  flex-shrink: 0;
+}
 .sn-icon-button {
   width: 44px;
   height: 44px;
@@ -1506,7 +1525,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
         </div>
         <div class="sn-notification-list" id="notif-list">
           {% for n in recent_notifications %}
-          <a class="sn-notification-item" {% if n.url %}href="{{ n.url }}"{% else %}href="javascript:void(0)" style="cursor:default;"{% endif %}>
+          <a class="sn-notification-item" data-notif-id="{{ n.id }}" onclick="markNotificationRead('{{ n.id }}')" {% if n.url %}href="{{ n.url }}"{% else %}href="javascript:void(0)" style="cursor:default;"{% endif %}>
             {% if n.type == 'mail' %}
             <svg class="sn-notification-icon mail" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
             {% else %}
@@ -1554,6 +1573,14 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     </div>
   </div>
 </header>
+
+{% if gmail_connected is defined and not gmail_connected %}
+<div class="gmail-warning-banner">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-8.99 3.75h.008v.008h-.008v-.008Z"/></svg>
+  <span>Gmail no está conectado — los correos que envíes (cotizaciones, contratos, recordatorios) no se están entregando de verdad.</span>
+  <a href="/settings">Conectar Gmail</a>
+</div>
+{% endif %}
 
 <main class="main-content">
   {% block content %}{% endblock %}
@@ -1624,30 +1651,73 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+var NOTIF_READ_KEY = 'astral-notif-read-ids';
+
+function getReadNotificationIds() {
+  try { return JSON.parse(localStorage.getItem(NOTIF_READ_KEY) || '[]'); } catch (e) { return []; }
+}
+
+function addReadNotificationId(id) {
+  if (!id) return;
+  var ids = getReadNotificationIds();
+  if (ids.indexOf(id) === -1) {
+    ids.push(id);
+    if (ids.length > 50) ids = ids.slice(ids.length - 50);
+    try { localStorage.setItem(NOTIF_READ_KEY, JSON.stringify(ids)); } catch (e) {}
+  }
+}
+
+function markNotificationRead(id) {
+  addReadNotificationId(id);
+  applyReadState();
+}
+
+function markNotificationsRead() {
+  document.querySelectorAll('#notif-list [data-notif-id]').forEach(function(el) {
+    addReadNotificationId(el.getAttribute('data-notif-id'));
+  });
+  applyReadState();
+  flashToast('Notifications marked as read', 'success');
+}
+
+function applyReadState() {
+  var readIds = getReadNotificationIds();
+  var unread = 0;
+  document.querySelectorAll('#notif-list [data-notif-id]').forEach(function(el) {
+    var isRead = readIds.indexOf(el.getAttribute('data-notif-id')) !== -1;
+    var dot = el.querySelector('.sn-unread-dot');
+    if (dot) dot.style.display = isRead ? 'none' : '';
+    if (!isRead) unread++;
+  });
+  var badge = document.getElementById('notif-bell-badge');
+  if (badge) badge.innerHTML = unread > 0 ? '<span class="sn-bubble">' + unread + '</span>' : '';
+  var pill = document.getElementById('notif-unread-pill');
+  if (pill) pill.textContent = unread;
+}
+
 function refreshNotifications() {
   fetch('/api/notifications/recent' + window.location.search)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) return;
-      var badge = document.getElementById('notif-bell-badge');
-      if (badge) badge.innerHTML = data.count > 0 ? '<span class="sn-bubble">' + data.count + '</span>' : '';
-      var pill = document.getElementById('notif-unread-pill');
-      if (pill) pill.textContent = data.count;
       var list = document.getElementById('notif-list');
       if (!list) return;
       if (!data.notifications.length) {
         list.innerHTML = '<div class="sn-notification-item">' + MAIL_ICON_SVG
           + '<div><div class="sn-notification-title">No new activity yet.</div><div class="sn-notification-meta">Today</div></div></div>';
+        applyReadState();
         return;
       }
       list.innerHTML = data.notifications.map(function(n) {
         var meta = [n.date, n.time, n.age].filter(Boolean).map(escapeHtml).join(' | ');
         var href = n.url ? escapeHtml(n.url) : 'javascript:void(0)';
         var style = n.url ? '' : ' style="cursor:default;"';
-        return '<a class="sn-notification-item" href="' + href + '"' + style + '>' + (n.type === 'mail' ? MAIL_ICON_SVG : LEAD_ICON_SVG)
+        var id = escapeHtml(n.id || '');
+        return '<a class="sn-notification-item" data-notif-id="' + id + '" onclick="markNotificationRead(\'' + id + '\')" href="' + href + '"' + style + '>' + (n.type === 'mail' ? MAIL_ICON_SVG : LEAD_ICON_SVG)
           + '<div><div class="sn-notification-title">' + escapeHtml(n.title) + '</div><div class="sn-notification-meta">' + meta + '</div></div>'
           + '<span class="sn-unread-dot"></span></a>';
       }).join('');
+      applyReadState();
     })
     .catch(function() {});
 }
@@ -1663,23 +1733,6 @@ function toggleAccountMenu(e) {
   var wasOpen = menu && menu.classList.contains('open');
   closeHeaderPopovers();
   if (menu && !wasOpen) menu.classList.add('open');
-}
-
-function markNotificationsRead() {
-  document.querySelectorAll('.sn-unread-dot').forEach(function(dot) { dot.remove(); });
-  document.querySelectorAll('.sn-bubble').forEach(function(bubble) { bubble.remove(); });
-  document.querySelectorAll('.sn-count-pill').forEach(function(pill) { pill.textContent = '0'; });
-  try { localStorage.setItem('astral-notifications-read', new Date().toISOString()); } catch (e) {}
-  flashToast('Notifications marked as read', 'success');
-}
-
-function applyReadNotificationsState() {
-  try {
-    if (!localStorage.getItem('astral-notifications-read')) return;
-    document.querySelectorAll('.sn-unread-dot').forEach(function(dot) { dot.remove(); });
-    document.querySelectorAll('.sn-bubble').forEach(function(bubble) { bubble.remove(); });
-    document.querySelectorAll('.sn-count-pill').forEach(function(pill) { pill.textContent = '0'; });
-  } catch (e) {}
 }
 
 function requestBrowserNotifications() {
@@ -1839,7 +1892,6 @@ document.addEventListener('DOMContentLoaded', function() {
       el.classList.add('active');
     }
   });
-  applyReadNotificationsState();
 });
 
 document.addEventListener('click', closeActionMenu);

@@ -8,8 +8,13 @@
 {% include "_tailwind_config.html" %}
 <style>
   body { background: #FAFAF7; color: #0A0E1A; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
-  .brand { color: #0284C7; }
-  .brand-bg { background: #E8F4F2; }
+  .brand { color: #0A0E1A; }
+  .field-simple {
+    width: 100%; background: #F3F4F6; border: 1px solid transparent; border-radius: 10px;
+    padding: 12px 16px; font-size: 14px; transition: border-color 150ms, background 150ms;
+  }
+  .field-simple:focus { outline: none; background: #FFFFFF; border-color: #0A0E1A; }
+  .label-simple { font-size: 14px; font-weight: 500; color: #1F2937; display: block; margin-bottom: 6px; }
 </style>
 </head>
 <body>
@@ -18,8 +23,8 @@
   <div class="max-w-xl w-full">
 
     <div class="text-center mb-8">
-      <h1 class="text-4xl font-light tracking-tight text-ink mb-2">ASTRAL</h1>
-      <p class="text-sm text-ink-soft">WEDDINGS</p>
+      <div class="text-3xl font-semibold tracking-tight text-ink">ASTRAL WEDDINGS</div>
+      <p class="text-xs text-ink-soft uppercase tracking-widest mt-1">Photography &amp; Films</p>
     </div>
 
     <div class="bg-white rounded-xl border border-line shadow-soft p-8">
@@ -28,29 +33,29 @@
 
       <form id="form-captacion" class="space-y-4">
         <div>
-          <label class="text-xs text-ink-soft block mb-1">Nombre completo *</label>
-          <input name="nombre" required class="w-full border border-line rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-brand">
+          <label class="label-simple">Nombre completo *</label>
+          <input name="nombre" required class="field-simple">
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="text-xs text-ink-soft block mb-1">Email *</label>
-            <input type="email" name="email" required class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+            <label class="label-simple">Email *</label>
+            <input type="email" name="email" required class="field-simple">
           </div>
           <div>
-            <label class="text-xs text-ink-soft block mb-1">Telefono</label>
-            <input name="telefono" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+            <label class="label-simple">Telefono</label>
+            <input name="telefono" class="field-simple">
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="text-xs text-ink-soft block mb-1">Fecha tentativa</label>
-            <input type="date" name="fecha_tentativa" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+            <label class="label-simple">Fecha tentativa</label>
+            <input type="date" name="fecha_tentativa" class="field-simple">
           </div>
           <div>
-            <label class="text-xs text-ink-soft block mb-1">Tipo de evento</label>
-            <select name="tipo_evento" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+            <label class="label-simple">Tipo de evento</label>
+            <select name="tipo_evento" class="field-simple">
               <option value="Boda">Boda</option>
               <option value="Civil">Civil</option>
               <option value="Quinceaneros">Quinceaneros</option>
@@ -61,24 +66,13 @@
         </div>
 
         <div>
-          <label class="text-xs text-ink-soft block mb-1">Ubicacion tentativa</label>
-          <input name="locacion" placeholder="ej: Antigua Guatemala" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+          <label class="label-simple">Ubicacion tentativa</label>
+          <input name="locacion" placeholder="ej: Antigua Guatemala" class="field-simple">
         </div>
 
         <div>
-          <label class="text-xs text-ink-soft block mb-1">Presupuesto aproximado</label>
-          <select name="presupuesto" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
-            <option value="">No estoy seguro</option>
-            <option value="Menos de Q10,000">Menos de Q10,000</option>
-            <option value="Entre Q10,000 y Q20,000">Entre Q10,000 y Q20,000</option>
-            <option value="Entre Q20,000 y Q40,000">Entre Q20,000 y Q40,000</option>
-            <option value="Mas de Q40,000">Mas de Q40,000</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Como nos encontraste?</label>
-          <select name="fuente" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+          <label class="label-simple">Como nos encontraste?</label>
+          <select name="fuente" class="field-simple">
             <option value="Instagram">Instagram</option>
             <option value="Facebook">Facebook</option>
             <option value="WhatsApp">WhatsApp</option>
@@ -88,7 +82,7 @@
           </select>
         </div>
 
-        <button type="submit" class="w-full brand text-white font-medium py-3 rounded-lg mt-6" style="background: #0284C7;">
+        <button type="submit" class="w-full text-white font-medium py-3 rounded-lg mt-6" style="background: #0A0E1A;">
           Enviar solicitud
         </button>
       </form>

@@ -40,7 +40,7 @@ tailwind.config = {
     border-color: #0A0E1A;
     box-shadow: 0 0 0 3px rgba(10, 14, 26, 0.06);
   }
-  .label-eyebrow { text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; font-weight: 500; color: #6B7280; }
+  .label-eyebrow { font-size: 14px; font-weight: 500; color: #1F2937; }
   .field-error { display: none; color: #B91C1C; font-size: 12px; margin-top: 4px; }
   .field-error.visible { display: block; }
   .required-mark { color: #B91C1C; margin-left: 2px; }
@@ -53,7 +53,12 @@ tailwind.config = {
   .btn-primary:hover:not(:disabled) { background: #1A2233; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(10, 14, 26, 0.15); }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .form-card { background: #FFFFFF; border: 1px solid #E4E7EC; }
-  .field { transition: border-color 150ms; }
+  .field {
+    background: #F3F4F6;
+    border: 1px solid transparent;
+    transition: border-color 150ms, background 150ms;
+  }
+  .field:focus { background: #FFFFFF; }
 </style>
 </head>
 <body class="bg-paper text-ink min-h-screen">
@@ -112,12 +117,12 @@ tailwind.config = {
     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
       <div>
         <label class="label-eyebrow block mb-2">Nombre<span class="required-mark">*</span></label>
-        <input type="text" name="nombre" required placeholder="Tu nombre" class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+        <input type="text" name="nombre" required placeholder="Tu nombre" class="field w-full rounded-lg px-4 py-3.5 text-sm">
         <div class="field-error">Ingresa tu nombre</div>
       </div>
       <div>
         <label class="label-eyebrow block mb-2">Apellido<span class="required-mark">*</span></label>
-        <input type="text" name="apellido" required placeholder="Tu apellido" class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+        <input type="text" name="apellido" required placeholder="Tu apellido" class="field w-full rounded-lg px-4 py-3.5 text-sm">
         <div class="field-error">Ingresa tu apellido</div>
       </div>
     </div>
@@ -125,20 +130,20 @@ tailwind.config = {
     <!-- Correo -->
     <div>
       <label class="label-eyebrow block mb-2">Correo electrónico (por acá te enviaré la información)<span class="required-mark">*</span></label>
-      <input type="email" name="email" required placeholder="tu@correo.com" class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+      <input type="email" name="email" required placeholder="tu@correo.com" class="field w-full rounded-lg px-4 py-3.5 text-sm">
       <div class="field-error">Ingresa un correo válido</div>
     </div>
 
     <!-- Celular -->
     <div>
       <label class="label-eyebrow block mb-2">Celular</label>
-      <input type="tel" name="celular" placeholder="+502 0000 0000" class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+      <input type="tel" name="celular" placeholder="+502 0000 0000" class="field w-full rounded-lg px-4 py-3.5 text-sm">
     </div>
 
     <!-- Mensaje -->
     <div>
       <label class="label-eyebrow block mb-2">Mensaje (información importante o relevante sobre tu evento)<span class="required-mark">*</span></label>
-      <textarea name="mensaje" required rows="5" maxlength="5000" placeholder="Cómo te imaginas tu boda, qué servicios te interesan, número aproximado de invitados, estilo, etc." class="field w-full border border-line rounded-md px-4 py-3 text-sm resize-y"></textarea>
+      <textarea name="mensaje" required rows="5" maxlength="5000" placeholder="Cómo te imaginas tu boda, qué servicios te interesan, número aproximado de invitados, estilo, etc." class="field w-full rounded-lg px-4 py-3.5 text-sm resize-y"></textarea>
       <div class="flex justify-between mt-1.5">
         <div class="field-error">Cuéntame algo sobre tu evento</div>
         <div class="text-xs text-mute"><span id="char-count">0</span> / 5000</div>
@@ -150,7 +155,7 @@ tailwind.config = {
     <!-- Cómo se enteró -->
     <div>
       <label class="label-eyebrow block mb-2">¿Cómo te enteraste de mis servicios?</label>
-      <select name="fuente" class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+      <select name="fuente" class="field w-full rounded-lg px-4 py-3.5 text-sm">
         <option value="">Selecciona una opción</option>
         <option value="Instagram">Instagram</option>
         <option value="Facebook">Facebook</option>
@@ -166,7 +171,7 @@ tailwind.config = {
     <!-- País -->
     <div>
       <label class="label-eyebrow block mb-2">País (donde será la boda)<span class="required-mark">*</span></label>
-      <input type="text" name="pais" required placeholder="Guatemala, México, etc." class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+      <input type="text" name="pais" required placeholder="Guatemala, México, etc." class="field w-full rounded-lg px-4 py-3.5 text-sm">
       <div class="field-error">Ingresa el país</div>
     </div>
 
@@ -174,11 +179,11 @@ tailwind.config = {
     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
       <div>
         <label class="label-eyebrow block mb-2">Ubicación de la boda</label>
-        <input type="text" name="ubicacion" placeholder="Antigua Guatemala, etc." class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+        <input type="text" name="ubicacion" placeholder="Antigua Guatemala, etc." class="field w-full rounded-lg px-4 py-3.5 text-sm">
       </div>
       <div>
         <label class="label-eyebrow block mb-2">Fecha de la boda<span class="required-mark">*</span></label>
-        <input type="date" name="fecha_boda" required class="field w-full border border-line rounded-md px-4 py-3 text-sm">
+        <input type="date" name="fecha_boda" required class="field w-full rounded-lg px-4 py-3.5 text-sm">
         <div class="field-error">Elige la fecha de la boda</div>
       </div>
     </div>

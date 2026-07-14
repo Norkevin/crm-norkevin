@@ -35,6 +35,9 @@ def _project_root() -> Path:
 
 
 def _token_path() -> Path:
+    data_dir = os.environ.get('CRM_DATA_DIR')
+    if data_dir:
+        return Path(data_dir) / 'google_token.json'
     return _project_root() / 'data' / 'google_token.json'
 
 

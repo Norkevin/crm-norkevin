@@ -909,6 +909,7 @@ def _build_recent_notifications(tenant_id):
         for lead in latest_leads:
             name = lead.get('nombre') or 'Nuevo lead'
             recent_notifications.append({
+                'id': f"lead-{lead.get('id')}",
                 'type': 'lead',
                 'title': f'New Lead from your FORMULARIO DE CONTACTO ASTRAL WEDDINGS: {name}',
                 'date': lead.get('created') or datetime.now().strftime('%d %b %Y'),
@@ -939,6 +940,7 @@ def _build_recent_notifications(tenant_id):
             else:
                 mail_url = ''
             recent_notifications.append({
+                'id': f"mail-{mail.get('id')}",
                 'type': 'mail',
                 'title': f"New Email activity: {mail.get('subject') or 'Email'}",
                 'date': (mail.get('sent_at') or '')[:10] or datetime.now().strftime('%d %b %Y'),
@@ -966,11 +968,18 @@ def inject_tenant():
     current = next((t for t in tenants if t['id'] == tenant_id), tenants[0] if tenants else {'id': 'tenant-norkevin', 'name': 'ASTRAL WEDDINGS', 'color': '#2F7D73', 'logo_letter': 'A'})
     recent_notifications = _build_recent_notifications(tenant_id)
 
+    from src import gmail_delivery
+    try:
+        gmail_connected = gmail_delivery.is_connected()
+    except Exception:
+        gmail_connected = False
+
     return {
         'current_tenant': current,
         'all_tenants': tenants,
         'recent_notifications': recent_notifications,
         'unread_notifications_count': min(len(recent_notifications), 59),
+        'gmail_connected': gmail_connected,
     }
 
 
@@ -2922,6 +2931,9 @@ def api_captacion_submit():
         'tenant_id': get_current_tenant_id(),
     }
     upsert_lead(lead)
+    client, _client_created = _ensure_client_for_lead(lead)
+    lead['client_id'] = client['id']
+    upsert_lead(lead)
 
     try:
         instance = trigger_workflow_for_lead(lead_id, lead['nombre'])
@@ -4799,6 +4811,9 @@ def crear_lead_publico():
         'tenant_id': get_current_tenant_id(),
     }
     upsert_lead(lead)
+    client, _client_created = _ensure_client_for_lead(lead)
+    lead['client_id'] = client['id']
+    upsert_lead(lead)
     try:
         instance = trigger_workflow_for_lead(lead_id, lead['nombre'])
         workflow_id = instance.id
@@ -5152,6 +5167,10 @@ def api_lead_create():
         'tenant_id': (client or {}).get('tenant_id') or get_current_tenant_id(),
     }
     upsert_lead(lead)
+    if not lead['client_id']:
+        linked_client, _client_created = _ensure_client_for_lead(lead)
+        lead['client_id'] = linked_client['id']
+        upsert_lead(lead)
 
     # AUTO-DISPARAR workflow
     instance = trigger_workflow_for_lead(lead_id, data['nombre'])
