@@ -1,165 +1,502 @@
 {% extends "base.html" %}
-{% block title %}{{ cliente['Nombre'] }} · Cliente{% endblock %}
-{% block header %}
-<a href="/clients" class="text-ink-soft hover:text-ink text-sm">← Clientes</a>
-<span class="text-ink-soft mx-2">/</span>
-<span>{{ cliente['Nombre'] }}</span>
-{% endblock %}
-{% block subtitle %}{{ cliente.get('Email') or '—' }} · {{ cliente.get('Teléfono') or '—' }}{% endblock %}
+{% block title %}{{ cliente['Nombre'] }} · Client{% endblock %}
+{% block header %}{{ cliente['Nombre'] }}{% endblock %}
+{% block subtitle %}Dashboard &gt; Clients Overview &gt; {{ cliente['Nombre'] }}{% endblock %}
+{% block topbar_title %}Client{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-3 gap-4">
-
-  <!-- COL IZQ: Info editable -->
-  <div class="col-span-2 space-y-4">
-
-    <!-- Card Datos básicos -->
-    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-4 text-gold">Datos del cliente</h3>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Nombre</label>
-          <input id="cl-nombre" value="{{ cliente.get('Nombre') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Estado</label>
-          <select id="cl-estado" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-            {% for s in ['Activo','Inactivo','Archivado'] %}
-            <option value="{{ s }}" {% if s == cliente.get('Estado') %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Teléfono</label>
-          <input id="cl-telefono" value="{{ cliente.get('Teléfono') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Teléfono secundario</label>
-          <input id="cl-telefono-sec" value="{{ cliente.get('Teléfono secundario') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-        <div class="col-span-2">
-          <label class="text-xs text-ink-soft block mb-1">Email</label>
-          <input id="cl-email" value="{{ cliente.get('Email') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-        <div class="col-span-2">
-          <label class="text-xs text-ink-soft block mb-1">Dirección facturación</label>
-          <input id="cl-direccion" value="{{ cliente.get('Dirección facturación') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-        <div class="col-span-2">
-          <label class="text-xs text-ink-soft block mb-1">Notas</label>
-          <textarea id="cl-notas" rows="3" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">{{ cliente.get('Notas') or '' }}</textarea>
-        </div>
-      </div>
-      <button onclick="saveClient()" class="mt-4 bg-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-gold-light">Guardar cambios</button>
-      <span id="client-msg" class="text-xs text-ink-soft ml-3"></span>
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">{{ cliente['Nombre'] }}</h1>
+      <div class="sn-breadcrumbs">Dashboard &gt; Clients Overview &gt; {{ cliente['Nombre'] }}</div>
     </div>
-
-    <!-- Card Portal -->
-    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-4 text-gold">Portal & Galería</h3>
-      <div class="grid grid-cols-2 gap-3">
-        <div class="col-span-2">
-          <label class="text-xs text-ink-soft block mb-1">Portal URL</label>
-          <input id="cl-portal" value="{{ cliente.get('Portal URL') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm" placeholder="https://...">
-        </div>
-        <div class="col-span-2">
-          <label class="text-xs text-ink-soft block mb-1">Galería URL</label>
-          <input id="cl-galeria" value="{{ cliente.get('Galería URL') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm" placeholder="https://...">
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Pwd cliente</label>
-          <input id="cl-pwd-cli" value="{{ cliente.get('Galería contraseña cliente') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Pwd invitado</label>
-          <input id="cl-pwd-inv" value="{{ cliente.get('Galería contraseña invitado') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-        <div class="col-span-2">
-          <label class="text-xs text-ink-soft block mb-1">Token de acceso</label>
-          <input id="cl-token" value="{{ cliente.get('Token de acceso') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm font-mono text-xs">
-        </div>
-        <div class="col-span-2">
-          <label class="text-xs text-ink-soft block mb-1">Carpeta Drive</label>
-          <input id="cl-drive" value="{{ cliente.get('Carpeta Drive') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm" placeholder="https://drive.google.com/...">
-        </div>
-      </div>
-      <button onclick="savePortal()" class="mt-4 bg-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-gold-light">Guardar portal/galería</button>
-      <span id="portal-msg" class="text-xs text-ink-soft ml-3"></span>
+    <div class="sn-actions">
+      <button class="sn-btn" type="button" onclick="openPortal()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        View Client Portal
+      </button>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="openLeadModal()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Add New
+      </button>
     </div>
   </div>
 
-  <!-- COL DER: Resumen -->
-  <div class="space-y-4">
-    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-3 text-gold">Resumen</h3>
-      <dl class="text-sm space-y-2">
-        <div class="flex justify-between"><dt class="text-ink-soft">Estado</dt><dd>
-          {% if cliente.get('Estado') == 'Activo' %}<span class="text-green-700">Activo</span>
-          {% elif cliente.get('Estado') == 'Inactivo' %}<span class="text-ink-soft">Inactivo</span>
-          {% else %}<span class="text-ink-soft">{{ cliente.get('Estado') or '—' }}</span>{% endif %}
-        </dd></div>
-        <div class="flex justify-between"><dt class="text-ink-soft">Fuente</dt><dd>{{ cliente.get('Fuente') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-ink-soft">Tags</dt><dd class="text-gold text-xs">{{ (cliente.get('Tags') or [])|join(', ') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-ink-soft">Primer contacto</dt><dd>{{ cliente.get('Fecha primer contacto') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-ink-soft">Último acceso</dt><dd>{{ cliente.get('Último acceso') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-ink-soft">Jobs</dt><dd>{{ jobs|length }}</dd></div>
-      </dl>
-    </div>
+  <div class="grid-12-9">
+    <aside class="grid-1">
+      <section class="sn-card">
+        <div class="sn-card-body">
+          <div class="flex items-center gap-3 mb-4">
+            <div style="width:54px;height:54px;border-radius:50%;background:#e2e3e6;display:grid;place-items:center;color:#4b535b;font-weight:600;">
+              {{ (cliente['Nombre'] or '?')[:1] }}
+            </div>
+            <div style="min-width:0;">
+              <div class="sn-card-title" style="margin-bottom:4px;">{{ cliente['Nombre'] }}</div>
+              <div class="sn-muted">{{ cliente.get('Estado') or 'Activo' }}</div>
+            </div>
+          </div>
+          <div class="sn-field-grid">
+            <div class="sn-field-label">Phone:</div><div class="sn-field-value">{{ cliente.get('Teléfono') or '—' }}</div>
+            <div class="sn-field-label">Email:</div><div class="sn-field-value sn-ellipsis">{{ cliente.get('Email') or '—' }}</div>
+            <div class="sn-field-label">Street Address:</div><div class="sn-field-value">{{ cliente.get('Dirección facturación') or '—' }}</div>
+            <div class="sn-field-label">Suburb/Town:</div><div class="sn-field-value">—</div>
+            <div class="sn-field-label">Postcode/Zip:</div><div class="sn-field-value">—</div>
+            <div class="sn-field-label">Country:</div><div class="sn-field-value">Guatemala</div>
+          </div>
+          <div class="sn-list-actions">
+            <button class="sn-btn sn-btn-sm" type="button" onclick="openClientEdit()">Edit Client</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Send Email</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="archiveClient()">Archive</button>
+          </div>
+        </div>
+      </section>
 
-    {% if jobs %}
-    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-3 text-gold">Bodas</h3>
-      <div class="space-y-2">
-        {% for j in jobs %}
-        <a href="/jobs/{{ j.id }}" class="block bg-ink hover:bg-paper rounded px-3 py-2 transition">
-          <div class="text-sm font-medium">{{ j.get('BODA') }}</div>
-          <div class="text-xs text-ink-soft">{{ parse_date(j.get('Fecha del evento')) }} · {{ j.get('Estado') or '—' }}</div>
-        </a>
-        {% endfor %}
+      <section class="sn-card">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
+            Client Notes
+          </div>
+          <button class="sn-btn-icon" type="button" onclick="saveClientNotes()">+</button>
+        </div>
+        <div class="sn-card-body">
+          <textarea id="client-notes" class="form-input" rows="5" placeholder="Notes">{{ cliente.get('Notas') or '' }}</textarea>
+        </div>
+      </section>
+
+      <section class="sn-card">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M12 3l8 4v6c0 5-3.5 8-8 8s-8-3-8-8V7l8-4Z"/></svg>
+            Consent
+          </div>
+          <button class="sn-btn-icon" type="button" onclick="saveConsent()">+</button>
+        </div>
+        <div class="sn-card-body">
+          <label class="flex items-center gap-2 text-sm">
+            <input id="client-consent" type="checkbox" {% if 'consent' in (cliente.get('Notas') or '')|lower %}checked{% endif %}>
+            Client has approved communication and portal access
+          </label>
+        </div>
+      </section>
+    </aside>
+
+    <main class="grid-1">
+      <section class="sn-card">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20Z"/></svg>
+            Leads
+          </div>
+          <button class="sn-btn-icon" type="button" onclick="openLeadModal()">+</button>
+        </div>
+        <div class="sn-card-body">
+          {% if leads %}
+            <div class="sn-list">
+              {% for lead in leads %}
+              <div class="sn-list-item">
+                <div class="sn-list-row">
+                  <div>
+                    <div class="sn-list-title">{{ lead.nombre }}</div>
+                    <div class="sn-list-meta">{{ lead.tipo_evento or 'BODAS' }} · {{ lead.fecha_tentativa or 'No date' }} · {{ lead.fuente or 'Manual' }}</div>
+                  </div>
+                  <span class="sn-chip {% if lead.status == 'Convertido' %}green{% elif lead.status == 'Perdido' %}red{% else %}cyan{% endif %}">{{ lead.status or 'Nuevo' }}</span>
+                </div>
+                <div class="sn-list-actions">
+                  <a class="sn-btn sn-btn-sm" href="/leads/{{ lead.id }}">View</a>
+                  {% if lead.status != 'Convertido' %}
+                  <button class="sn-btn sn-btn-sm" type="button" onclick="acceptLead('{{ lead.id }}')">Accept</button>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="sn-muted">No leads attached.</div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="sn-card">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6h4M5 8h14v11H5zM8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Jobs
+          </div>
+          <button class="sn-btn-icon" type="button" onclick="openJobModal()">+</button>
+        </div>
+        <div class="sn-card-body">
+          {% if jobs_raw %}
+            <div class="sn-list">
+              {% for job in jobs_raw %}
+              <div class="sn-list-item">
+                <div class="sn-list-row">
+                  <div>
+                    <div class="sn-list-title">{{ job.nombre }}</div>
+                    <div class="sn-list-meta">{{ job.type or 'BODAS' }} · {{ job.boda_date or 'No date' }} · {{ job.location or 'No location' }}</div>
+                  </div>
+                  <span class="sn-chip yellow">{{ job.status or 'Cotizando' }}</span>
+                </div>
+                <div class="sn-progress mt-2"><div class="sn-progress-fill" style="width: {{ job.workflow_progress or 0 }}%;"></div></div>
+                <div class="sn-list-actions">
+                  <a class="sn-btn sn-btn-sm" href="/jobs/{{ job.id }}">View Job</a>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="sn-muted">No jobs attached.</div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="sn-card">
+          <div class="sn-card-head">
+            <div class="sn-card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 3h10v18H7zM9 7h6M9 11h6M9 15h3"/></svg>
+              Invoices
+            </div>
+            <span class="sn-money">Q{{ '{:,.2f}'.format(total_due or 0) }}</span>
+          </div>
+          <div class="sn-card-body">
+            {% if payments %}
+              <div class="sn-list">
+                {% for p in payments[:4] %}
+                <div class="sn-list-item">
+                  <div class="sn-list-row">
+                    <div>
+                      <div class="sn-list-title">{{ p.invoice_id or p.id }}</div>
+                      <div class="sn-list-meta">{{ p.due_date or 'No due date' }} · {{ p.concepto or 'Invoice' }}</div>
+                    </div>
+                    <div class="sn-money">Q{{ '{:,.2f}'.format(p.amount or 0) }}</div>
+                  </div>
+                  <div class="sn-list-actions">
+                    <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ p.id }}')">Send</button>
+                    {% if p.status != 'Pagado' %}
+                    <button class="sn-btn sn-btn-sm" type="button" onclick="markPaymentPaid('{{ p.id }}')">Record Payment</button>
+                    {% else %}
+                    <span class="sn-chip green">Paid</span>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="sn-muted">No invoices attached.</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="sn-card">
+          <div class="sn-card-head">
+            <div class="sn-card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
+              Quotes
+            </div>
+            <button class="sn-btn-icon" type="button" onclick="openLeadModal()">+</button>
+          </div>
+          <div class="sn-card-body">
+            {% if quotes %}
+              <div class="sn-list">
+                {% for q in quotes[:4] %}
+                <div class="sn-list-item">
+                  <div class="sn-list-row">
+                    <div>
+                      <div class="sn-list-title">{{ q.paquete_nombre or q.id }}</div>
+                      <div class="sn-list-meta">{{ q.created or '' }} · {{ q.status or 'Draft' }}</div>
+                    </div>
+                    <div class="sn-money">Q{{ '{:,.2f}'.format(q.precio_total or 0) }}</div>
+                  </div>
+                  <div class="sn-list-actions">
+                    <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}">View</a>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="sn-muted">Quotes will appear here.</div>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="sn-card">
+          <div class="sn-card-head">
+            <div class="sn-card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6M9 16h6M8 4h8l3 3v13H5V4h3Z"/></svg>
+              Contracts
+            </div>
+          </div>
+          <div class="sn-card-body">
+            {% if contracts %}
+              <div class="sn-list">
+                {% for c in contracts %}
+                <div class="sn-list-item">
+                  <div class="sn-list-row">
+                    <div>
+                      <div class="sn-list-title">{{ c.tipo or 'Contract' }}</div>
+                      <div class="sn-list-meta">{{ c.created or '' }} · {{ c.status or 'Draft' }}</div>
+                    </div>
+                    {% if c.signed %}<span class="sn-chip green">Signed</span>{% else %}<span class="sn-chip gray">Not signed</span>{% endif %}
+                  </div>
+                  <div class="sn-list-actions">
+                    <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf">View</a>
+                    <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Send</button>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="sn-muted">No contract attached.</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="sn-card">
+          <div class="sn-card-head">
+            <div class="sn-card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5h6M9 9h6M9 13h6M7 21h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z"/></svg>
+              Files & Portal
+            </div>
+          </div>
+          <div class="sn-card-body">
+            <div class="sn-list">
+              <div class="sn-list-item">
+                <div class="sn-list-title">Client portal</div>
+                <div class="sn-list-meta">{{ cliente.get('Portal URL') or ('/portal/' ~ cliente.id) }}</div>
+                <div class="sn-list-actions">
+                  <button class="sn-btn sn-btn-sm" type="button" onclick="openPortal()">Open</button>
+                  <button class="sn-btn sn-btn-sm" type="button" onclick="copyPortal()">Copy Link</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</section>
+
+<div class="modal-overlay" id="edit-client-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Edit Client</h2>
+    <form id="edit-client-form" onsubmit="saveClient(event)">
+      <div class="form-group">
+        <label class="form-label" for="cl-nombre">Name</label>
+        <input class="form-input" id="cl-nombre" name="nombre" value="{{ cliente.get('Nombre') or '' }}">
       </div>
-    </div>
-    {% endif %}
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="cl-telefono">Phone</label>
+          <input class="form-input" id="cl-telefono" name="telefono" value="{{ cliente.get('Teléfono') or '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="cl-email">Email</label>
+          <input class="form-input" id="cl-email" name="email" type="email" value="{{ cliente.get('Email') or '' }}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="cl-direccion">Address</label>
+        <input class="form-input" id="cl-direccion" name="direccion_fact" value="{{ cliente.get('Dirección facturación') or '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="cl-estado">Status</label>
+        <select class="form-input" id="cl-estado" name="estado">
+          {% for s in ['Activo','Inactivo','Archivado'] %}
+          <option value="{{ s }}" {% if s == cliente.get('Estado') %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
+        <button class="sn-btn" type="button" onclick="closeClientEdit()">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Save Client</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="lead-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Add New Lead</h2>
+    <form id="lead-form" onsubmit="createLead(event)">
+      <input type="hidden" name="client_id" value="{{ cliente.id }}">
+      <div class="form-group">
+        <label class="form-label" for="lead-name">Lead Name</label>
+        <input class="form-input" id="lead-name" name="nombre" value="{{ cliente.get('Nombre') or '' }}" required>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="lead-email">Email</label>
+          <input class="form-input" id="lead-email" name="email" type="email" value="{{ cliente.get('Email') or '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lead-phone">Phone</label>
+          <input class="form-input" id="lead-phone" name="telefono" value="{{ cliente.get('Teléfono') or '' }}">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="lead-type">Type</label>
+          <input class="form-input" id="lead-type" name="tipo_evento" value="Boda">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lead-date">Boda Date</label>
+          <input class="form-input" id="lead-date" name="fecha_tentativa" type="date">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="lead-location">Location</label>
+        <input class="form-input" id="lead-location" name="locacion" value="{{ cliente.get('Dirección facturación') or '' }}">
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
+        <button class="sn-btn" type="button" onclick="closeLeadModal()">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Create Lead</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="job-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Add New Job</h2>
+    <form id="job-form" onsubmit="createJob(event)">
+      <input type="hidden" name="client_id" value="{{ cliente.id }}">
+      <div class="form-group">
+        <label class="form-label" for="job-name">Job Name</label>
+        <input class="form-input" id="job-name" name="nombre" value="Boda {{ cliente.get('Nombre') or '' }}" required>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="job-date">Boda Date</label>
+          <input class="form-input" id="job-date" name="boda_date" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="job-total">Total</label>
+          <input class="form-input" id="job-total" name="price_total" type="number" min="0" step="0.01">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="job-location">Location</label>
+        <input class="form-input" id="job-location" name="location" value="{{ cliente.get('Dirección facturación') or '' }}">
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
+        <button class="sn-btn" type="button" onclick="closeJobModal()">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Create Job</button>
+      </div>
+    </form>
   </div>
 </div>
 
 <script>
 const CLIENT_ID = '{{ cliente.id }}';
+const CLIENT_EMAIL = {{ (cliente.get('Email') or '')|tojson }};
+const PORTAL_URL = {{ (cliente.get('Portal URL') or ('/portal/' ~ cliente.id))|tojson }};
 
-async function api(path, body) {
-  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  return r.json();
+function openClientEdit() { document.getElementById('edit-client-modal').classList.add('open'); }
+function closeClientEdit() { document.getElementById('edit-client-modal').classList.remove('open'); }
+function openLeadModal() { document.getElementById('lead-modal').classList.add('open'); }
+function closeLeadModal() { document.getElementById('lead-modal').classList.remove('open'); }
+function openJobModal() { document.getElementById('job-modal').classList.add('open'); }
+function closeJobModal() { document.getElementById('job-modal').classList.remove('open'); }
+document.addEventListener('DOMContentLoaded', function() {
+  if (new URLSearchParams(window.location.search).get('edit') === '1') {
+    openClientEdit();
+  }
+});
+
+function saveClient(event) {
+  event.preventDefault();
+  var payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+  apiPost('/api/clients/' + CLIENT_ID + '/update', payload)
+    .then(function() { flashToast('Client updated', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-async function saveClient() {
-  const fields = {
-    nombre: document.getElementById('cl-nombre').value,
-    estado: document.getElementById('cl-estado').value,
-    telefono: document.getElementById('cl-telefono').value,
-    telefono_secundario: document.getElementById('cl-telefono-sec').value,
-    email: document.getElementById('cl-email').value,
-    direccion_fact: document.getElementById('cl-direccion').value,
-    notas: document.getElementById('cl-notas').value,
-  };
-  const r = await api(`/api/clients/${CLIENT_ID}/update`, fields);
-  const msg = document.getElementById('client-msg');
-  if (r.ok) { msg.textContent = '✓ Guardado'; msg.className = 'text-xs text-green-700 ml-3'; }
-  else { msg.textContent = '✗ ' + (r.error || 'error'); msg.className = 'text-xs text-red-700 ml-3'; }
+function saveClientNotes() {
+  apiPost('/api/clients/' + CLIENT_ID + '/update', { notas: document.getElementById('client-notes').value })
+    .then(function() { flashToast('Notes saved', 'success'); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-async function savePortal() {
-  const fields = {
-    portal_url: document.getElementById('cl-portal').value,
-    galeria_url: document.getElementById('cl-galeria').value,
-    galeria_cliente_pwd: document.getElementById('cl-pwd-cli').value,
-    galeria_invitado_pwd: document.getElementById('cl-pwd-inv').value,
-    token_acceso: document.getElementById('cl-token').value,
-    carpeta_drive: document.getElementById('cl-drive').value,
-  };
-  const r = await api(`/api/clients/${CLIENT_ID}/update`, fields);
-  const msg = document.getElementById('portal-msg');
-  if (r.ok) { msg.textContent = '✓ Guardado'; msg.className = 'text-xs text-green-700 ml-3'; }
-  else { msg.textContent = '✗ ' + (r.error || 'error'); msg.className = 'text-xs text-red-700 ml-3'; }
+function saveConsent() {
+  var notes = document.getElementById('client-notes');
+  if (document.getElementById('client-consent').checked && notes.value.toLowerCase().indexOf('consent') === -1) {
+    notes.value = (notes.value ? notes.value + '\n' : '') + 'Consent approved for communication and portal access.';
+  }
+  saveClientNotes();
 }
+
+function archiveClient() {
+  if (!confirm('Archive this client?')) return;
+  apiPost('/api/clients/' + CLIENT_ID + '/update', { estado: 'Archivado' })
+    .then(function() { flashToast('Client archived', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function createLead(event) {
+  event.preventDefault();
+  var payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+  apiPost('/api/leads/new', payload)
+    .then(function(data) { flashToast('Lead created', 'success'); window.location.href = '/leads/' + data.lead.id; })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function createJob(event) {
+  event.preventDefault();
+  var payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+  apiPost('/api/jobs/new', payload)
+    .then(function(data) { flashToast('Job created', 'success'); window.location.href = '/jobs/' + data.job_id; })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function acceptLead(leadId) {
+  if (!confirm('Accept this lead and create the job?')) return;
+  apiPost('/api/leads/' + leadId + '/accept', {})
+    .then(function(data) { flashToast('Lead accepted', 'success'); window.location.href = '/jobs/' + data.job_id; })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function sendPayment(paymentId) {
+  apiPost('/api/payments/' + paymentId + '/send', {})
+    .then(function(data) { flashToast(data.message || 'Invoice sent', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function markPaymentPaid(paymentId) {
+  apiPost('/api/payments/' + paymentId + '/pay', {})
+    .then(function() { flashToast('Payment recorded', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function sendContract(contractId) {
+  apiPost('/api/contracts/' + contractId + '/send', {})
+    .then(function(data) { flashToast(data.message || 'Contract sent', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function sendClientEmail() {
+  if (!CLIENT_EMAIL) { flashToast('Client has no email', 'error'); return; }
+  window.location.href = 'mailto:' + CLIENT_EMAIL;
+}
+
+function openPortal() {
+  window.open(PORTAL_URL, '_blank');
+}
+
+function copyPortal() {
+  navigator.clipboard.writeText(window.location.origin + PORTAL_URL)
+    .then(function() { flashToast('Portal link copied', 'success'); })
+    .catch(function() { flashToast('Could not copy link', 'error'); });
+}
+
+document.addEventListener('keydown', function(event) {
+  if (event.key !== 'Escape') return;
+  closeClientEdit();
+  closeLeadModal();
+  closeJobModal();
+});
 </script>
 {% endblock %}
-

@@ -1,249 +1,419 @@
 {% extends "base.html" %}
-{% block title %}Leads · Norkevin CRM{% endblock %}
-{% block header %}Pipeline de Leads{% endblock %}
-{% block subtitle %}
-  <span class="text-sm text-ink-soft">
-    {{ leads|length }} leads ·
-    <span class="font-semibold text-emerald-600">{{ counts.Convertido or 0 }}</span> convertidos ·
-    <span class="font-semibold text-amber-600">{{ counts.Negociando or 0 }}</span> en negociacion ·
-    <span class="font-semibold text-rose-600">{{ counts.Perdido or 0 }}</span> perdidos
-  </span>
-{% endblock %}
+{% block title %}Leads Overview · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}Leads Overview{% endblock %}
+{% block subtitle %}{{ leads|length }} leads{% endblock %}
+{% block topbar_title %}Leads{% endblock %}
 
 {% block content %}
-
-<div class="bg-paper-pure rounded-lg border border-line shadow-soft mb-5 p-4">
-  <div class="flex flex-wrap items-center gap-3">
-    <div class="flex-1 min-w-[200px]">
-      <input type="text" id="lead-search" placeholder="Buscar por nombre, email o telefono..."
-        class="w-full bg-paper-pure border border-line rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-gold" value="{{ search or '' }}">
+<style>
+.date-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  margin-left: 4px;
+  vertical-align: -3px;
+}
+.date-status-badge svg { width: 12px; height: 12px; }
+.date-status-badge.red { background: #fecaca; color: #b3263b; }
+.date-status-badge.yellow { background: #fde68a; color: #92610a; }
+</style>
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Leads Overview</h1>
+      <div class="sn-breadcrumbs">Dashboard &gt; Leads Overview</div>
     </div>
-    <select id="filter-fuente" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
-      <option value="">Todas las fuentes</option>
-      {% for f in fuentes %}<option value="{{ f }}" {% if f == fuente_filtro %}selected{% endif %}>{{ f }}</option>{% endfor %}
-    </select>
-    <select id="filter-tipo" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
-      <option value="">Todos los eventos</option>
-      {% for t in tipos_evento %}<option value="{{ t }}" {% if t == tipo_filtro %}selected{% endif %}>{{ t }}</option>{% endfor %}
-    </select>
-    <button onclick="openNewLeadModal()" class="btn-gold flex items-center gap-2">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-      Nuevo lead
-    </button>
+    <div class="sn-actions">
+      <a class="sn-btn" href="/api/leads/export.csv">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
+        Export Leads
+      </a>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="openLeadModal()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Add New Lead
+      </button>
+    </div>
   </div>
-</div>
 
-{% set columnas = [
-  ('Nuevo', 'Sin contactar aun', 'bg-ink', 'ring-ink/30'),
-  ('Contactado', 'Primer mensaje enviado', 'bg-blue-500', 'ring-blue-300'),
-  ('Cotizando', 'Esperando propuesta o cotizacion', 'bg-amber-500', 'ring-amber-300'),
-  ('Propuesta Enviada', 'Cotizacion entregada', 'bg-purple-500', 'ring-purple-300'),
-  ('Negociando', 'En discusion con el cliente', 'bg-orange-500', 'ring-orange-300'),
-  ('Convertido', 'Se convirtio en cliente', 'bg-emerald-500', 'ring-emerald-300'),
-  ('Perdido', 'Descartado o perdido', 'bg-rose-500', 'ring-rose-300')
-] %}
+  <div class="sn-toolbar">
+    <div class="sn-toolbar-left">
+      <select id="lead-status-filter" class="sn-select" onchange="filterLeads()">
+        <option value="open">Open Leads</option>
+        <option value="all">All Leads</option>
+        <option value="Nuevo">Nuevo</option>
+        <option value="Contactado">Contactado</option>
+        <option value="Cotizando">Cotizando</option>
+        <option value="Convertido">Convertido</option>
+        <option value="Perdido">Perdido</option>
+      </select>
+    </div>
+    <div class="sn-toolbar-right">
+      <input id="lead-search" class="sn-search" type="search" placeholder="Search Lead Name" oninput="filterLeads()">
+    </div>
+  </div>
 
-<div class="kanban-board overflow-x-auto pb-4">
-  <div class="flex gap-4 min-w-fit">
-    {% for nombre, descripcion, color, ring in columnas %}
-    <div class="kanban-column w-80 flex-shrink-0" data-estado="{{ nombre }}">
-      <div class="bg-paper-pure rounded-t-lg border border-line border-b-0 p-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full {{ color }}"></span>
-            <h3 class="font-semibold text-sm text-ink">{{ nombre }}</h3>
-          </div>
-          <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-line text-ink-soft column-count">{{ (leads|selectattr('Estado', 'equalto', nombre)|list|length) }}</span>
-        </div>
-        <p class="text-[10px] text-ink-soft mt-1 truncate">{{ descripcion }}</p>
-      </div>
-      <div class="kanban-dropzone bg-line/30 border border-t-0 border-line rounded-b-lg p-2 space-y-2 min-h-[200px]" data-estado="{{ nombre }}" ondragover="kanbanOnDragOver(event)" ondrop="kanbanOnDrop(event)">
-        {% for lead in leads if lead.Estado == nombre %}
-        <div class="kanban-card bg-paper-pure border border-line rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-soft transition" draggable="true"
-          data-lead-id="{{ lead.id }}" data-fuente="{{ lead.Fuente or '' }}" data-tipo="{{ lead['Tipo de evento'] or '' }}"
-          data-nombre="{{ (lead.Nombre or '')|lower }}" data-email="{{ (lead.Email or '')|lower }}" data-telefono="{{ lead.Teléfono or '' }}"
-          ondragstart="kanbanOnDragStart(event)" onclick="if(event.target.tagName !== 'svg') window.location='/leads/{{ lead.id }}'">
-          {% if lead.is_new %}
-          <div class="flex items-center gap-1 text-[10px] text-emerald-700 mb-1.5">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span><span class="font-semibold">NUEVO</span>
-          </div>
-          {% endif %}
-          <div class="flex items-start justify-between gap-2 mb-2">
-            <div class="flex-1 min-w-0">
-              <h4 class="font-medium text-sm text-ink truncate">{{ lead.Nombre or '(sin nombre)' }}</h4>
-              <p class="text-xs text-ink-soft truncate">{{ lead.Email or '' }}</p>
+  <div class="sn-table-shell">
+    <table class="sn-table" id="leads-table">
+      <thead>
+        <tr>
+          <th style="width: 170px;">Lead Created</th>
+          <th>Lead Name</th>
+          <th style="width: 160px;">Type</th>
+          <th style="width: 185px;">Boda Date</th>
+          <th style="width: 250px;">Mail Status</th>
+          <th style="width: 190px;">Next Task</th>
+          <th style="width: 44px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lead in leads %}
+        <tr class="sn-table-row"
+            data-status="{{ lead.status or 'Nuevo' }}"
+            data-text="{{ (lead.nombre ~ ' ' ~ (lead.email or '') ~ ' ' ~ (lead.tipo_evento or '') ~ ' ' ~ (lead.fuente or ''))|lower }}"
+            onclick="goLead(event, '{{ lead.id }}')">
+          <td class="sn-ellipsis">{{ lead.created_display or lead.created or '—' }}</td>
+          <td class="sn-ellipsis">
+            <div class="sn-row-name">
+              <span class="sn-row-avatar">{{ (lead.nombre or '?')[:1]|upper }}</span>
+              <span>{{ lead.nombre or 'Sin nombre' }}</span>
             </div>
-          </div>
-          <div class="space-y-1.5 text-xs text-ink-soft">
-            {% if lead.Teléfono %}
-            <div class="flex items-center gap-1.5 truncate">
-              <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 2.22a1 1 0 01-.502 1.21l-1.476.74a1 1 0 00-.587 1.213c.351 1.07 1.59 2.385 3.077 3.872s2.802 2.726 3.872 3.077a1 1 0 00.81-.272 1 1 0 00.402-.587l.74-1.476a1 1 0 011.21-.502l2.22.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
-              <span class="truncate">{{ lead.Teléfono }}</span>
-            </div>
+          </td>
+          <td class="sn-ellipsis"><span class="sn-dot"></span>{{ lead.tipo_evento or 'BODAS' }}</td>
+          <td class="sn-ellipsis">
+            {% if lead.boda_date_display %}
+              {{ lead.boda_date_display }}
+              {% if lead.date_conflict %}
+                <span class="date-status-badge red" title="Fecha ocupada: {{ lead.date_conflict }}">
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.7 7.3a1 1 0 00-1.4 1.4L8.6 10l-1.3 1.3a1 1 0 101.4 1.4L10 11.4l1.3 1.3a1 1 0 001.4-1.4L11.4 10l1.3-1.3a1 1 0 00-1.4-1.4L10 8.6 8.7 7.3z" clip-rule="evenodd"/></svg>
+                </span>
+              {% elif lead.date_available %}
+                <span class="date-status-badge yellow" title="Fecha disponible">
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.3.7l2.5 2.5a1 1 0 001.4-1.4L11 9.6V6z" clip-rule="evenodd"/></svg>
+                </span>
+              {% endif %}
+            {% else %}
+              No date <span class="sn-chip red">?</span>
             {% endif %}
-            {% if lead['Fecha tentativa del evento'] %}
-            <div class="flex items-center gap-1.5">
-              <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h1z"/></svg>
-              <span>{{ lead['Fecha tentativa del evento'] }}</span>
-            </div>
+          </td>
+          <td>
+            <div class="sn-mail-status">
+            {% if lead.last_mail_subject %}
+              <div class="sn-mail-subject">{{ lead.last_mail_subject|truncate(32) }}</div>
+              <span class="sn-chip {{ lead.last_mail_chip[0] }}">{{ lead.last_mail_chip[1] }}</span>
+            {% else %}
+              <div class="sn-mail-subject">{{ lead.fuente or 'Sin actividad reciente' }}</div>
+              <span class="sn-chip gray">NO EMAIL</span>
             {% endif %}
-            {% if lead.Fuente %}
-            <div class="flex items-center gap-1.5">
-              <span class="inline-block px-1.5 py-0.5 bg-gold-soft text-gold text-[10px] rounded font-medium">{{ lead.Fuente }}</span>
             </div>
-            {% endif %}
-          </div>
-        </div>
+          </td>
+          <td class="sn-ellipsis">{{ lead.next_task or 'Seguimiento Cliente' }}</td>
+          <td style="text-align:right;">
+            <button class="sn-menu-dots" type="button" title="Actions" onclick='openLeadActions(event, {
+              id: {{ lead.id|tojson }},
+              email: {{ (lead.email or "")|tojson }},
+              name: {{ (lead.nombre or "Cliente")|tojson }},
+              nextTask: {{ (lead.next_task or "Seguimiento Cliente")|tojson }},
+              date: {{ (lead.fecha_tentativa or "")|tojson }},
+              location: {{ (lead.locacion or "")|tojson }}
+            })'>
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+            </button>
+          </td>
+        </tr>
         {% endfor %}
-        {% if not leads|selectattr('Estado', 'equalto', nombre)|list %}
-        <div class="text-center py-8 text-xs text-ink-soft">Sin leads</div>
+        {% if not leads %}
+        <tr>
+          <td colspan="7" style="text-align:center;padding:44px;color:var(--sn-muted);">
+            No leads yet.
+            <button type="button" class="sn-btn-link" onclick="openLeadModal()">Create the first one</button>
+          </td>
+        </tr>
         {% endif %}
-      </div>
-    </div>
-    {% endfor %}
+      </tbody>
+    </table>
   </div>
-</div>
+</section>
 
-<div id="modal-new-lead" class="hidden fixed inset-0 bg-ink/50 z-50 flex items-center justify-center p-4">
-  <div class="bg-paper-pure rounded-lg shadow-lg max-w-lg w-full p-6">
-    <h3 class="font-semibold text-lg mb-4">Nuevo lead</h3>
-    <form id="form-new-lead" class="space-y-3">
-      <div><label class="text-xs text-ink-soft">Nombre *</label><input name="nombre" required class="w-full border border-line rounded px-3 py-2 text-sm"></div>
-      <div class="grid grid-cols-2 gap-3">
-        <div><label class="text-xs text-ink-soft">Email</label><input type="email" name="email" class="w-full border border-line rounded px-3 py-2 text-sm"></div>
-        <div><label class="text-xs text-ink-soft">Telefono</label><input name="telefono" class="w-full border border-line rounded px-3 py-2 text-sm"></div>
+<div class="modal-overlay" id="lead-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Add New Lead</h2>
+    <form id="lead-form" onsubmit="createLead(event)">
+      <div class="form-group">
+        <label class="form-label" for="lead-name">Lead Name *</label>
+        <input class="form-input" id="lead-name" name="nombre" required>
       </div>
-      <div><label class="text-xs text-ink-soft">Fecha tentativa del evento</label><input type="date" name="fecha_tentativa" class="w-full border border-line rounded px-3 py-2 text-sm"></div>
-      <div>
-        <label class="text-xs text-ink-soft">Como nos encontro</label>
-        <select name="fuente" class="w-full border border-line rounded px-3 py-2 text-sm">
-          <option value="Instagram">Instagram</option><option value="Facebook">Facebook</option><option value="WhatsApp">WhatsApp</option><option value="Recomendacion">Recomendacion</option><option value="Google">Google</option><option value="Otro">Otro</option>
-        </select>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="lead-email">Email</label>
+          <input class="form-input" id="lead-email" name="email" type="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lead-phone">Phone</label>
+          <input class="form-input" id="lead-phone" name="telefono">
+        </div>
       </div>
-      <div class="flex gap-2 pt-2">
-        <button type="submit" class="btn-gold flex-1">Crear lead</button>
-        <button type="button" onclick="closeNewLeadModal()" class="btn-outline">Cancelar</button>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="lead-type">Type</label>
+          <input class="form-input" id="lead-type" name="tipo_evento" value="Boda">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lead-date">Boda Date</label>
+          <input class="form-input" id="lead-date" name="fecha_tentativa" type="date">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="lead-source">Lead Source</label>
+          <select class="form-input" id="lead-source" name="fuente">
+            <option value="Instagram">Instagram</option>
+            <option value="Referido">Referido</option>
+            <option value="Web">Web</option>
+            <option value="Facebook">Facebook</option>
+            <option value="WhatsApp">WhatsApp</option>
+            <option value="Google">Google</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lead-budget">Budget</label>
+          <input class="form-input" id="lead-budget" name="presupuesto">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="lead-location">Location</label>
+        <input class="form-input" id="lead-location" name="locacion">
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
+        <button class="sn-btn" type="button" onclick="closeLeadModal()">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Create Lead</button>
       </div>
     </form>
   </div>
 </div>
 
-<style>
-  .kanban-column { transition: transform 0.1s; }
-  .kanban-column.drag-over { transform: scale(1.02); }
-  .kanban-dropzone { transition: background-color 0.15s; min-height: 300px; }
-  .kanban-dropzone.drag-over { background-color: rgba(212, 175, 55, 0.15); }
-  .kanban-card { transition: all 0.15s; user-select: none; }
-  .kanban-card:hover { border-color: rgba(212, 175, 55, 0.5); transform: translateY(-1px); }
-  .kanban-card.dragging { opacity: 0.4; }
-</style>
+<div class="modal-overlay" id="lead-email-modal">
+  <div class="modal-content" style="width:min(720px,100%);">
+    <button type="button" class="modal-close" onclick="closeLeadEmailModal()" aria-label="Close">x</button>
+    <h2 class="modal-title">Send Email</h2>
+    <form onsubmit="submitLeadEmail(event)">
+      <input type="hidden" id="lead-email-id">
+      <div class="form-group">
+        <label class="form-label">Template</label>
+        <select class="form-input" id="lead-email-template" onchange="applyLeadEmailTemplate(this.value)">
+          <option value="">Custom email</option>
+          {% for tpl in email_templates %}
+          <option value="{{ tpl.id }}">{{ tpl.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">To</label>
+        <input class="form-input" id="lead-email-to" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <input class="form-input" id="lead-email-subject" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea class="form-input" id="lead-email-body" rows="12" required></textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeLeadEmailModal()">Back</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Send Email</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <script>
-let draggedLeadId = null;
-function kanbanOnDragStart(e) {
-  draggedLeadId = e.currentTarget.dataset.leadId;
-  e.currentTarget.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', draggedLeadId);
-}
-function kanbanOnDragOver(e) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  const column = e.currentTarget.closest('.kanban-column');
-  if (column) column.classList.add('drag-over');
-  e.currentTarget.classList.add('drag-over');
-}
-function kanbanOnDrop(e) {
-  e.preventDefault();
-  const targetEstado = e.currentTarget.dataset.estado;
-  const leadId = e.dataTransfer.getData('text/plain') || draggedLeadId;
-  document.querySelectorAll('.kanban-dropzone').forEach(function(z) { z.classList.remove('drag-over'); });
-  document.querySelectorAll('.kanban-column').forEach(function(c) { c.classList.remove('drag-over'); });
-  document.querySelectorAll('.kanban-card').forEach(function(c) { c.classList.remove('dragging'); });
-  if (!leadId || !targetEstado) return;
-  const card = document.querySelector('.kanban-card[data-lead-id="' + leadId + '"]');
-  const sourceDropzone = card ? card.closest('.kanban-dropzone') : null;
-  if (card && sourceDropzone && sourceDropzone !== e.currentTarget) {
-    e.currentTarget.insertBefore(card, e.currentTarget.firstChild);
-    const emptyState = e.currentTarget.querySelector('.text-center');
-    if (emptyState) emptyState.remove();
-  }
-  updateColumnCounts();
-  fetch('/api/leads/' + leadId + '/status', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ estado: targetEstado })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    if (data.ok) flashToast('Estado actualizado', 'success');
-    else { flashToast('Error: ' + data.error, 'error'); location.reload(); }
-  })
-  .catch(function(err) { flashToast('Error de red', 'error'); location.reload(); });
-  draggedLeadId = null;
-}
-document.addEventListener('dragleave', function(e) {
-  if (!e.relatedTarget || !e.currentTarget.contains(e.relatedTarget)) {
-    document.querySelectorAll('.kanban-dropzone').forEach(function(z) { z.classList.remove('drag-over'); });
-    document.querySelectorAll('.kanban-column').forEach(function(c) { c.classList.remove('drag-over'); });
-  }
-});
-function updateColumnCounts() {
-  document.querySelectorAll('.kanban-column').forEach(function(col) {
-    var count = col.querySelectorAll('.kanban-card').length;
-    var badge = col.querySelector('.column-count');
-    if (badge) badge.textContent = count;
-  });
-}
-document.getElementById('lead-search').addEventListener('input', applyFilters);
-document.getElementById('filter-fuente').addEventListener('change', applyFilters);
-document.getElementById('filter-tipo').addEventListener('change', applyFilters);
-function applyFilters() {
-  var q = document.getElementById('lead-search').value.toLowerCase();
-  var fuente = document.getElementById('filter-fuente').value;
-  var tipo = document.getElementById('filter-tipo').value;
-  document.querySelectorAll('.kanban-card').forEach(function(card) {
-    var nombre = card.dataset.nombre || '';
-    var email = card.dataset.email || '';
-    var telefono = card.dataset.telefono || '';
-    var cardFuente = card.dataset.fuente || '';
-    var cardTipo = card.dataset.tipo || '';
-    var matchQ = !q || nombre.indexOf(q) >= 0 || email.indexOf(q) >= 0 || telefono.indexOf(q) >= 0;
-    var matchFuente = !fuente || cardFuente === fuente;
-    var matchTipo = !tipo || cardTipo === tipo;
-    card.style.display = (matchQ && matchFuente && matchTipo) ? 'block' : 'none';
-  });
-}
-function openNewLeadModal() { document.getElementById('modal-new-lead').classList.remove('hidden'); }
-function closeNewLeadModal() { document.getElementById('modal-new-lead').classList.add('hidden'); }
-document.getElementById('form-new-lead').addEventListener('submit', function(e) {
-  e.preventDefault();
-  var formData = new FormData(e.target);
-  var data = {};
-  formData.forEach(function(value, key) { data[key] = value; });
-  fetch('/api/leads/nuevo', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(result) {
-    if (result.ok || result.id) {
-      closeNewLeadModal();
-      flashToast('Lead creado. Recargando...', 'success');
-      setTimeout(function() { location.reload(); }, 800);
-    } else { flashToast('Error: ' + (result.error || 'desconocido'), 'error'); }
-  })
-  .catch(function(err) { flashToast('Error de red', 'error'); });
-});
-function flashToast(message, type) {
-  var toast = document.createElement('div');
-  toast.className = 'fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg z-50 text-sm ' +
-    (type === 'success' ? 'bg-emerald-500 text-white' : type === 'error' ? 'bg-rose-500 text-white' : 'bg-ink text-white');
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  setTimeout(function() { toast.remove(); }, 3000);
-}
-</script>
+var LEAD_EMAIL_TEMPLATES = {{ email_templates|tojson }};
+var activeLeadForEmail = null;
 
+function goLead(event, id) {
+  if (event.target.closest('button')) return;
+  window.location.href = '/leads/' + id;
+}
+
+function filterLeads() {
+  var q = (document.getElementById('lead-search').value || '').trim().toLowerCase();
+  var status = document.getElementById('lead-status-filter').value;
+  document.querySelectorAll('#leads-table tbody tr').forEach(function(row) {
+    if (!row.dataset.text) return;
+    var rowStatus = row.dataset.status || 'Nuevo';
+    var open = rowStatus !== 'Convertido' && rowStatus !== 'Perdido';
+    var statusOk = status === 'all' || (status === 'open' ? open : rowStatus === status);
+    var searchOk = !q || row.dataset.text.indexOf(q) !== -1;
+    row.style.display = statusOk && searchOk ? '' : 'none';
+  });
+}
+
+function workflowStepForTask(taskName) {
+  var text = (taskName || '').toLowerCase();
+  if (text.indexOf('levanta') !== -1) return 'levanta_muertos';
+  if (text.indexOf('final') !== -1) return 'seguimiento_final';
+  if (text.indexOf('paquete') !== -1 || text.indexOf('envio') !== -1) return 'envio_paquetes';
+  if (text.indexOf('accepted') !== -1 || text.indexOf('acept') !== -1) return 'job_accepted';
+  return 'seguimiento_cliente';
+}
+
+function leadTemplateForTask(taskName) {
+  var text = String(taskName || '').toLowerCase();
+  if (text.indexOf('levanta') !== -1) return 'tpl-levanta-muertos';
+  if (text.indexOf('final') !== -1) return 'tpl-seguimiento-final';
+  if (text.indexOf('paquete') !== -1 || text.indexOf('envio') !== -1) return 'tpl-paquetes';
+  if (text.indexOf('reserva') !== -1) return 'tpl-reserva-prod';
+  return 'tpl-seguimiento';
+}
+
+function findLeadTemplate(templateId) {
+  return LEAD_EMAIL_TEMPLATES.find(function(tpl) { return tpl.id === templateId; });
+}
+
+function renderLeadTemplate(text) {
+  // Ver nota en job_detail.html renderTemplate(): nunca escribir dos llaves
+  // de apertura seguidas en este archivo, Jinja2 las borra antes de que el
+  // navegador vea el JS.
+  var OB = String.fromCharCode(123, 123), CB = String.fromCharCode(125, 125);
+  var lead = activeLeadForEmail || {};
+  return String(text || '')
+    .replaceAll(OB + 'nombre' + CB, lead.name || 'Cliente')
+    .replaceAll(OB + ' nombre ' + CB, lead.name || 'Cliente')
+    .replaceAll(OB + 'fecha_boda' + CB, lead.date || '')
+    .replaceAll(OB + ' fecha_boda ' + CB, lead.date || '')
+    .replaceAll(OB + 'job_date' + CB, lead.date || '')
+    .replaceAll(OB + ' job_date ' + CB, lead.date || '')
+    .replaceAll(OB + 'locacion' + CB, lead.location || '')
+    .replaceAll(OB + ' locacion ' + CB, lead.location || '')
+    .replaceAll('%client_name%', lead.name || 'Cliente')
+    .replaceAll('%job_date%', lead.date || '')
+    .replaceAll('%company_name%', 'ASTRAL WEDDINGS');
+}
+
+function applyLeadEmailTemplate(templateId) {
+  var tpl = findLeadTemplate(templateId);
+  if (!tpl) return;
+  document.getElementById('lead-email-subject').value = renderLeadTemplate(tpl.asunto || '');
+  document.getElementById('lead-email-body').value = renderLeadTemplate(tpl.cuerpo || '');
+}
+
+function openLeadEmailModal(lead) {
+  if (!lead.email) {
+    flashToast('Este lead no tiene email', 'error');
+    return;
+  }
+  activeLeadForEmail = lead;
+  document.getElementById('lead-email-id').value = lead.id;
+  document.getElementById('lead-email-to').value = lead.email;
+  var templateId = leadTemplateForTask(lead.nextTask);
+  document.getElementById('lead-email-template').value = templateId;
+  if (templateId && findLeadTemplate(templateId)) {
+    applyLeadEmailTemplate(templateId);
+  } else {
+    document.getElementById('lead-email-subject').value = 'Mensaje de ASTRAL WEDDINGS';
+    document.getElementById('lead-email-body').value = 'Hola ' + (lead.name || 'Cliente') + ',\n\nTe escribo para dar seguimiento a tu boda.\n\nSaludos,\nKevin';
+  }
+  document.getElementById('lead-email-modal').classList.add('open');
+}
+
+function closeLeadEmailModal() {
+  document.getElementById('lead-email-modal').classList.remove('open');
+}
+
+function submitLeadEmail(event) {
+  event.preventDefault();
+  var leadId = document.getElementById('lead-email-id').value;
+  apiPost('/api/leads/' + leadId + '/send-email', {
+    template_id: document.getElementById('lead-email-template').value,
+    subject: document.getElementById('lead-email-subject').value,
+    body: document.getElementById('lead-email-body').value,
+    step_id: workflowStepForTask(activeLeadForEmail && activeLeadForEmail.nextTask),
+    complete_step: true
+  })
+    .then(function() { flashToast('Email sent', 'success'); setTimeout(function() { location.reload(); }, 550); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function openLeadActions(event, lead) {
+  event.stopPropagation();
+  var id = lead.id;
+  var email = lead.email;
+  var nextTask = lead.nextTask;
+  var iconCheck = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+  var iconEye = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>';
+  var iconSend = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>';
+  var iconEdit = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.5 3.5l4 4L8 20H4v-4L16.5 3.5Z"/></svg>';
+  var iconArchive = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16v13H4zM2 4h20M9 11h6"/></svg>';
+  var iconDelete = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 7h12m-9 0V5h6v2m-7 4v8m4-8v8m4-8v8"/></svg>';
+  openActionMenu(event, [
+    { label: 'Mark Task As Complete', icon: iconCheck, action: function() {
+      apiPost('/api/leads/' + id + '/trigger-step', { step_id: workflowStepForTask(nextTask), send_email: false })
+        .then(function(data) {
+          flashToast(data.message || 'Task completed', 'success');
+          if (data.job_id) {
+            setTimeout(function() { window.location.href = '/jobs/' + data.job_id; }, 450);
+          } else {
+            setTimeout(function() { location.reload(); }, 550);
+          }
+        })
+        .catch(function(err) { flashToast(err.message, 'error'); });
+    }},
+    { label: 'View Lead', icon: iconEye, href: '/leads/' + id },
+    { label: 'Send Email', icon: iconSend, disabled: !email, action: function() { openLeadEmailModal(lead); }},
+    { label: 'Edit Lead', icon: iconEdit, href: '/leads/' + id + '?edit=1' },
+    { label: 'Accept / Create Job', confirm: 'Crear cliente y job para este lead?', action: function() {
+      apiPost('/api/leads/' + id + '/accept', {})
+        .then(function(data) { flashToast('Job created', 'success'); window.location.href = '/jobs/' + data.job_id; })
+        .catch(function(err) { flashToast(err.message, 'error'); });
+    }},
+    { divider: true },
+    { label: 'Archive Lead', icon: iconArchive, confirm: 'Marcar este lead como archivado/perdido?', action: function() {
+      apiPost('/api/leads/' + id + '/status', { estado: 'Perdido' })
+        .then(function() { flashToast('Lead archived', 'success'); setTimeout(function() { location.reload(); }, 450); })
+        .catch(function(err) { flashToast(err.message, 'error'); });
+    }},
+    { label: 'Delete Lead', icon: iconDelete, danger: true, confirm: 'Eliminar este lead permanentemente?', action: function() {
+      apiPost('/api/leads/' + id + '/delete', {})
+        .then(function() { flashToast('Lead deleted', 'success'); setTimeout(function() { location.reload(); }, 450); })
+        .catch(function(err) { flashToast(err.message, 'error'); });
+    }}
+  ]);
+}
+
+function openLeadModal() {
+  document.getElementById('lead-modal').classList.add('open');
+  setTimeout(function() { document.getElementById('lead-name').focus(); }, 50);
+}
+
+function closeLeadModal() {
+  document.getElementById('lead-modal').classList.remove('open');
+}
+
+function createLead(event) {
+  event.preventDefault();
+  var payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+  apiPost('/api/leads/new', payload)
+    .then(function(data) {
+      flashToast('Lead created', 'success');
+      window.location.href = '/leads/' + data.lead.id;
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') {
+    closeLeadModal();
+    closeLeadEmailModal();
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (new URLSearchParams(window.location.search).get('new') === '1') {
+    openLeadModal();
+  }
+});
+</script>
 {% endblock %}

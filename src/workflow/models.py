@@ -1,20 +1,12 @@
 """
 Workflow models - data classes para el engine.
 
-Studio Ninja concept: cada workflow es una secuencia de steps.
-Cada step tiene un trigger (que lo activa) y una accion (que hace cuando se cumple el delay).
-
-Ejemplo:
-  Trigger: Lead created
-    Step 1: Enviar email de bienvenida
-      Delay: 0 (inmediato)
-      Accion: SEND_EMAIL ('Bienvenida', 'Gracias por contactarnos')
-    Step 2: Envio de paquetes
-      Delay: 3 horas
-      Accion: SEND_EMAIL ('Paquetes', 'Adjunto nuestros paquetes')
-    Step 3: Seguimiento cliente
-      Delay: 7 dias
-      Accion: SEND_EMAIL ('Seguimiento', 'Como va la decision?')
+ARQUITECTURA (estilo Studio Ninja):
+  - Cada workflow es una lista de TASKS
+  - Cada TASK tiene 3 partes independientes:
+    1. ACTION: que hace (send_email, send_contract, send_questionnaire, change_status, etc.)
+    2. EMAIL TEMPLATE: que email se envia (referencia a email_templates.json)
+    3. DUE DATE: cuando se dispara (auto, manual, o after X days/hours/months after Y trigger)
 """
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -24,103 +16,123 @@ import json
 
 
 class StepStatus(Enum):
-    """Estado de cada step individual dentro de un workflow instance."""
-    PENDING = "pending"          # todavia no se cumplio el delay
-    READY = "ready"              # delay cumplido, listo para ejecutar
-    RUNNING = "running"          # ejecutandose ahora
-    DONE = "done"                # ejecutado OK
-    SKIPPED = "skipped"          # saltado (ej: no cumple condicion)
-    FAILED = "failed"            # fallo la ejecucion
+    PENDING = "pending"
+    READY = "ready"
+    RUNNING = "running"
+    DONE = "done"
+    SKIPPED = "skipped"
+    FAILED = "failed"
 
 
 class WorkflowStatus(Enum):
-    """Estado global del workflow instance."""
-    ACTIVE = "active"            # ejecutandose normalmente
-    COMPLETED = "completed"      # todos los steps terminaron
-    PAUSED = "paused"            # pausado por usuario
-    CANCELLED = "cancelled"      # cancelado
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    PAUSED = "paused"
+    CANCELLED = "cancelled"
 
 
 class TriggerType(Enum):
-    """Que evento inicia este step o workflow."""
     LEAD_CREATED = "lead.created"
     QUOTE_SENT = "quote.sent"
-    QUOTE_ACCEPTED = "quote.accepted"        # <-- ESTE es el que pasa lead -> job
+    QUOTE_ACCEPTED = "quote.accepted"
     CONTRACT_SENT = "contract.sent"
     CONTRACT_SIGNED = "contract.signed"
     INVOICE_PAID = "invoice.paid"
     JOB_CREATED = "job.created"
     BODA_DATE = "wedding.date"
     BODA_PASSED = "wedding.passed"
-    SCHEDULED = "scheduled"                  # ejecutar en una fecha exacta
+    SCHEDULED = "scheduled"
 
 
 class ActionType(Enum):
-    """Que accion ejecuta el step."""
     SEND_EMAIL = "send_email"
+    SEND_CONTRACT = "send_contract"
+    SEND_QUESTIONNAIRE = "send_questionnaire"
+    SEND_INVOICE = "send_invoice"
+    SEND_GALLERY = "send_gallery"
     SEND_WHATSAPP = "send_whatsapp"
     CREATE_TASK = "create_task"
     CHANGE_STATUS = "change_status"
     NOTIFY_OWNER = "notify_owner"
-    LINK_JOB = "link_job"                   # asociar a un job existente
+    LINK_JOB = "link_job"
     ARCHIVE = "archive"
-    NOOP = "noop"                            # marcador (sin accion)
+    NOOP = "noop"
 
 
 @dataclass
-class Trigger:
-    """Cuando se dispara este step."""
-    type: TriggerType
-    offset_minutes: int = 0                  # delay desde el evento (3h, 7d, etc.)
-    condition: Optional[Dict[str, Any]] = None  # filtro adicional (ej: lead.fuente == 'Instagram')
+class DueDate:
+    """Cuando se dispara el step (3 modos):
+    - 'manual': tick manual del usuario
+    - 'after_creation': X tiempo despues de crear el subject (lead o job)
+    - 'after_event': X tiempo antes/despues del evento (boda)
+    """
+    mode: str = "manual"  # 'manual' | 'after_creation' | 'after_event'
+    amount: int = 0
+    unit: str = "days"  # 'minutes' | 'hours' | 'days' | 'weeks' | 'months'
+    # 'after' (creation): 'lead_created', 'job_created', etc.
+    # 'after_event' (boda): 'before_boda' o 'after_boda'
+    relative_to: str = "lead_created"  # 'lead_created' | 'job_created' | 'before_boda' | 'after_boda'
 
-
-@dataclass
-class Action:
-    """Que hace cuando el step se ejecuta."""
-    type: ActionType
-    template: Optional[str] = None           # template del mensaje
-    params: Dict[str, Any] = field(default_factory=dict)
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'mode': self.mode,
+            'amount': self.amount,
+            'unit': self.unit,
+            'relative_to': self.relative_to,
+        }
 
 
 @dataclass
 class Step:
-    """Un paso individual en el workflow."""
     id: str
     name: str
     description: str = ""
-    trigger: Trigger = field(default_factory=lambda: Trigger(TriggerType.SCHEDULED))
-    action: Action = field(default_factory=lambda: Action(ActionType.NOOP))
+    # 3 partes (estilo Studio Ninja)
+    action_type: ActionType = ActionType.NOOP
+    email_template_id: Optional[str] = None  # FK a email_templates.json
+    due_date: DueDate = field(default_factory=DueDate)
+    # Estado
     status: StepStatus = StepStatus.PENDING
     executed_at: Optional[datetime] = None
     result: Optional[str] = None
 
     @property
     def delay_display(self) -> str:
-        """Display humano del delay (ej: '3 horas', '7 dias')."""
-        minutes = self.trigger.offset_minutes
-        if minutes < 60:
-            return f"{minutes} min"
-        elif minutes < 1440:
-            return f"{minutes // 60} hora{'s' if minutes > 60 else ''}"
-        elif minutes < 43200:
-            days = minutes // 1440
-            return f"{days} dia{'s' if days > 1 else ''}"
-        else:
-            months = minutes // 43200
-            return f"{months} mes{'es' if months > 1 else ''}"
+        if self.due_date.mode == 'manual':
+            return 'Manual'
+        elif self.due_date.mode == 'after_creation':
+            return f"{self.due_date.amount} {self.due_date.unit} after {self.due_date.relative_to}"
+        elif self.due_date.mode == 'after_event':
+            when = 'before' if self.due_date.relative_to == 'before_boda' else 'after'
+            return f"{self.due_date.amount} {self.due_date.unit} {when} boda"
+        return 'Manual'
+
+    @property
+    def offset_minutes(self) -> int:
+        """Para compatibilidad con el scheduler. Solo 'manual' devuelve 0 --
+        'after_event' no tiene aqui la fecha real de la boda para calcular un
+        offset exacto, pero NUNCA debe reportar 0 (eso lo confundiria con un
+        step manual/inmediato y el engine lo ejecutaria solo al arrancar el
+        workflow, sin que nadie lo haya disparado de verdad)."""
+        mult = {
+            'minutes': 1, 'hours': 60, 'days': 60*24,
+            'weeks': 60*24*7, 'months': 60*24*30
+        }.get(self.due_date.unit, 60*24)
+        if self.due_date.mode == 'after_creation':
+            return self.due_date.amount * mult
+        if self.due_date.mode == 'after_event':
+            return max(self.due_date.amount, 1) * mult
+        return 0
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             'id': self.id,
             'name': self.name,
             'description': self.description,
-            'trigger_type': self.trigger.type.value,
-            'offset_minutes': self.trigger.offset_minutes,
+            'action_type': self.action_type.value,
+            'email_template_id': self.email_template_id,
+            'due_date': self.due_date.to_dict(),
             'delay_display': self.delay_display,
-            'action_type': self.action.type.value,
-            'action_template': self.action.template,
-            'action_params': self.action.params,
             'status': self.status.value,
             'executed_at': self.executed_at.isoformat() if self.executed_at else None,
             'result': self.result,
@@ -129,15 +141,10 @@ class Step:
 
 @dataclass
 class Workflow:
-    """
-    Un workflow completo (template) con sus steps.
-
-    Ejemplo: LEAD_WORKFLOW con 5 steps.
-    """
     id: str
     name: str
     description: str = ""
-    trigger: Trigger = field(default_factory=lambda: Trigger(TriggerType.LEAD_CREATED))
+    trigger: TriggerType = TriggerType.LEAD_CREATED
     steps: List[Step] = field(default_factory=list)
     is_template: bool = True
 
@@ -146,7 +153,7 @@ class Workflow:
             'id': self.id,
             'name': self.name,
             'description': self.description,
-            'trigger_type': self.trigger.type.value,
+            'trigger_type': self.trigger.value,
             'steps': [s.to_dict() for s in self.steps],
             'is_template': self.is_template,
         }
@@ -154,26 +161,20 @@ class Workflow:
 
 @dataclass
 class WorkflowInstance:
-    """
-    Instancia activa de un workflow (un workflow aplicado a un lead o job especifico).
-
-    Ejemplo: el LEAD_WORKFLOW aplicado al lead de 'Maria Lopez'.
-    """
     id: str
-    workflow_id: str                          # cual template esta siguiendo
-    subject_type: str                          # 'lead' | 'job' | 'cliente'
-    subject_id: str                            # id del lead/job en Notion
-    subject_name: str = ""                     # para UI
-    trigger_event: str = ""                    # que evento lo disparo
+    workflow_id: str
+    subject_type: str
+    subject_id: str
+    subject_name: str = ""
+    trigger_event: str = ""
     trigger_at: datetime = field(default_factory=datetime.now)
     status: WorkflowStatus = WorkflowStatus.ACTIVE
-    current_step_id: Optional[str] = None      # siguiente step a ejecutar
+    current_step_id: Optional[str] = None
     step_states: Dict[str, StepStatus] = field(default_factory=dict)
     step_results: Dict[str, str] = field(default_factory=dict)
-    notes: str = ""                            # notas adicionales
+    notes: str = ""
 
     def progress(self) -> Dict[str, Any]:
-        """Calcula el progreso (X de Y steps completados)."""
         total = len(self.step_states)
         done = sum(1 for s in self.step_states.values() if s == StepStatus.DONE)
         return {'total': total, 'done': done, 'percent': round(done * 100 / total) if total else 0}

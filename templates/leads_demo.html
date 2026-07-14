@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Leads Demo · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}Leads (Demo con datos fake){% endblock %}
+
+{% block content %}
+<div class="bg-paper-pure rounded-lg border border-line shadow-soft p-4 mb-4">
+  <div class="flex items-center gap-3">
+    <input type="text" id="lead-search" placeholder="Buscar lead..."
+           class="flex-1 border border-line rounded-lg px-3 py-2 text-sm">
+    <button class="btn btn-primary">Nuevo lead</button>
+  </div>
+</div>
+
+<div class="kanban-board overflow-x-auto pb-4">
+  <div class="flex gap-4 min-w-fit">
+    {% set columnas = [
+      ('Nuevo', 'bg-ink'), ('Contactado', 'bg-blue-500'),
+      ('Cotizando', 'bg-amber-500'), ('Propuesta Enviada', 'bg-purple-500'),
+      ('Negociando', 'bg-orange-500'), ('Convertido', 'bg-emerald-500'),
+      ('Perdido', 'bg-rose-500')
+    ] %}
+    {% for nombre, color in columnas %}
+    <div class="kanban-column w-72 flex-shrink-0">
+      <div class="bg-paper-pure rounded-t-lg border border-line border-b-0 p-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full {{ color }}"></span>
+            <h3 class="font-semibold text-sm text-ink">{{ nombre }}</h3>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-line text-ink-soft">{{ (leads|selectattr('Estado', 'equalto', nombre)|list|length) }}</span>
+        </div>
+      </div>
+      <div class="kanban-dropzone bg-line/30 border border-t-0 border-line rounded-b-lg p-2 space-y-2 min-h-[200px]">
+        {% for lead in leads if lead.Estado == nombre %}
+        <div class="bg-paper-pure border border-line rounded-lg p-3 hover:shadow-soft">
+          <div class="font-medium text-sm text-ink truncate">{{ lead.Nombre }}</div>
+          <div class="text-xs text-ink-soft truncate">{{ lead.Email }}</div>
+          {% if lead.Teléfono %}
+          <div class="text-xs text-ink-soft mt-1">{{ lead.Teléfono }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+document.getElementById('lead-search').addEventListener('input', function() {
+  var q = this.value.toLowerCase();
+  document.querySelectorAll('.kanban-card, .bg-paper-pure.border-line.rounded-lg.p-3').forEach(function(card) {
+    if (card.querySelector('.kanban-dropzone')) return;
+    var txt = card.textContent.toLowerCase();
+    card.style.display = (!q || txt.indexOf(q) >= 0) ? '' : 'none';
+  });
+});
+</script>
+
+{% endblock %}

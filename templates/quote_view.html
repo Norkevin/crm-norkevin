@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotizacion - {{ lead.nombre }} · ASTRAL WEDDINGS</title>
+{% include "_document_style.html" %}
+<style>
+  .pkg-card {
+    border: 2px solid var(--doc-line); border-radius: 14px; padding: 18px 20px; margin-bottom: 12px;
+    cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease;
+  }
+  .pkg-card:hover { border-color: #c7ccd6; }
+  .pkg-card.selected { border-color: var(--doc-accent); box-shadow: 0 0 0 3px rgba(176,141,87,.15); }
+  .pkg-card .pkg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .pkg-card .pkg-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .pkg-card .pkg-radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--doc-line); flex-shrink: 0; position: relative; }
+  .pkg-card.selected .pkg-radio { border-color: var(--doc-accent); }
+  .pkg-card.selected .pkg-radio::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--doc-accent); }
+  .pkg-card .pkg-price { font-size: 22px; font-weight: 300; margin-top: 2px; }
+  .pkg-card .pkg-includes { margin-top: 10px; }
+  .plan-options { display: flex; flex-wrap: wrap; gap: 10px; }
+  .plan-btn {
+    flex: 1 1 100px; min-width: 90px; border: 2px solid var(--doc-line); border-radius: 12px;
+    padding: 12px 10px; text-align: center; cursor: pointer; background: #fff;
+    transition: border-color .12s ease, box-shadow .12s ease;
+  }
+  .plan-btn:hover { border-color: #c7ccd6; }
+  .plan-btn.selected { border-color: var(--doc-accent); box-shadow: 0 0 0 3px rgba(176,141,87,.15); }
+  .plan-btn .plan-n { font-size: 18px; font-weight: 600; color: var(--doc-ink); }
+  .plan-btn .plan-label { font-size: 11px; color: var(--doc-mute); margin-top: 2px; }
+  .live-summary { background: var(--doc-paper); border-radius: 14px; padding: 18px 20px; }
+  .live-summary .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13.5px; color: var(--doc-ink-soft); }
+  .live-summary .row.total { border-top: 1px solid var(--doc-line); margin-top: 6px; padding-top: 12px; font-size: 16px; font-weight: 600; color: var(--doc-ink); }
+</style>
+</head>
+<body>
+
+<div class="doc-wrap">
+  <div class="doc-card">
+
+    <div class="doc-hero">
+      <div class="doc-hero-row">
+        <div class="doc-brand-mark">
+          <div class="glyph">A</div>
+          <div>
+            <div class="name">ASTRAL WEDDINGS</div>
+            <div class="tag">PHOTOGRAPHY &amp; FILMS</div>
+          </div>
+        </div>
+        <div class="doc-meta">
+          <div class="type">Cotizacion</div>
+          <div class="id">{{ quote.id }}</div>
+          <div class="date">{{ quote.created }}</div>
+        </div>
+      </div>
+      <div class="doc-hero-total">
+        <div class="label">{{ 'Total' if quote.status == 'Aceptada' else 'Cuota estimada' }}</div>
+        <div class="amount" id="hero-amount">
+          {% if quote.status == 'Aceptada' %}Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}{% else %}&mdash;{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="doc-body">
+
+      <div class="doc-section doc-parties">
+        <div class="doc-party-card">
+          <div class="doc-eyebrow">Para</div>
+          <div class="name">{{ lead.nombre }}</div>
+          <div class="line">{{ lead.email }}</div>
+          {% if lead.telefono %}<div class="line">{{ lead.telefono }}</div>{% endif %}
+        </div>
+        <div class="doc-party-card">
+          <div class="doc-eyebrow">De</div>
+          <div class="name">Astral Weddings</div>
+          <div class="line">info@astralweddings.com</div>
+          <div class="line">+502 2222 3333</div>
+        </div>
+      </div>
+
+      {% if quote.status == 'Aceptada' %}
+      <div class="doc-section">
+        <div class="doc-eyebrow">Paquete contratado</div>
+        <div class="doc-items">
+          <div class="doc-item-row">
+            <div><div class="name">{{ quote.paquete_nombre }}</div></div>
+            <div class="price">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
+          </div>
+        </div>
+      </div>
+      {% if quote.incluye %}
+      <div class="doc-section">
+        <div class="doc-eyebrow">Incluye</div>
+        <ul class="doc-list">
+          {% for item in quote.incluye %}
+          <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>{{ item }}</span></li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+      {% if quote.plan_pago and quote.plan_pago > 1 %}
+      <div class="doc-section">
+        <div class="doc-eyebrow">Plan de pago</div>
+        <table class="doc-table">
+          <thead><tr><th>Cuota</th><th style="text-align:right;">Monto</th></tr></thead>
+          <tbody>
+            {% for i in range(quote.plan_pago) %}
+            <tr><td>Pago {{ i + 1 }} de {{ quote.plan_pago }}</td><td style="text-align:right;font-weight:600;color:var(--doc-ink);">Q{{ '{:,.2f}'.format(quote.cuota_monto) }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      {% elif quote.status == 'Rechazada' %}
+      <div class="doc-section">
+        <div class="doc-eyebrow">Paquete</div>
+        <div class="doc-items">
+          <div class="doc-item-row"><div><div class="name">{{ quote.paquete_nombre }}</div></div><div class="price">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div></div>
+        </div>
+      </div>
+
+      {% else %}
+      <div class="doc-section">
+        <div class="doc-eyebrow">{{ 'Elegi tu paquete' if options|length > 1 else 'Tu paquete' }}</div>
+        <div id="pkg-options">
+          {% for opt in options %}
+          <div class="pkg-card" data-option-id="{{ opt.id }}" data-price="{{ opt.precio_total or 0 }}" onclick="selectPackage('{{ opt.id }}')">
+            <div class="pkg-head">
+              <div>
+                <div class="pkg-name">{% if options|length > 1 %}<span class="pkg-radio"></span>{% endif %}{{ opt.name }}</div>
+                <div class="pkg-price">Q{{ '{:,.2f}'.format(opt.precio_total or 0) }}</div>
+              </div>
+            </div>
+            {% if opt.incluye %}
+            <ul class="doc-list pkg-includes">
+              {% for item in opt.incluye %}
+              <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>{{ item }}</span></li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-eyebrow">En cuantos pagos queres liquidarlo?</div>
+        <div class="plan-options" id="plan-options">
+          {% for n in plan_choices %}
+          <div class="plan-btn" data-plan="{{ n }}" onclick="selectPlan({{ n }})">
+            <div class="plan-n">{{ n }}</div>
+            <div class="plan-label">{{ 'pago unico' if n == 1 else 'cuotas' }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="doc-section">
+        <div class="live-summary">
+          <div class="row"><span>Paquete</span><span id="sum-package">Elegi una opcion arriba</span></div>
+          <div class="row"><span>Plan de pago</span><span id="sum-plan">&mdash;</span></div>
+          <div class="row total"><span>Monto por cuota</span><span id="sum-cuota">Q0.00</span></div>
+        </div>
+      </div>
+
+      {% if quote.notas %}
+      <div class="doc-section">
+        <div class="doc-eyebrow">Notas</div>
+        <div class="doc-note">{{ quote.notas }}</div>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      <div class="doc-actions">
+        {% if quote.status == 'Aceptada' %}
+        <div class="doc-status-banner doc-btn full" style="cursor:default;">
+          <span class="doc-pill green">
+            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            Cotizacion aceptada
+          </span>
+        </div>
+        <p class="doc-hint">Aceptada el {{ quote.aceptada_en or '' }}</p>
+        {% elif quote.status == 'Rechazada' %}
+        <div class="doc-status-banner doc-btn full" style="cursor:default;">
+          <span class="doc-pill rose">
+            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+            Cotizacion rechazada
+          </span>
+        </div>
+        <p class="doc-hint">Rechazada el {{ quote.rechazada_en or '' }}. Contactanos si quieres revisar otras opciones.</p>
+        {% else %}
+        <form method="POST" action="/quotes/{{ quote.id }}/accept" style="display:contents;" id="accept-form">
+          <input type="hidden" name="option_id" id="accept-option-id">
+          <input type="hidden" name="plan_pago" id="accept-plan-pago">
+          <button type="submit" class="doc-btn primary" id="accept-btn" disabled>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 6 9 17l-5-5"/></svg>
+            Aceptar Cotizacion
+          </button>
+        </form>
+        <form method="POST" action="/quotes/{{ quote.id }}/decline" onsubmit="return confirm('Rechazar esta cotizacion?');" style="display:contents;">
+          <button type="submit" class="doc-btn outline">Rechazar</button>
+        </form>
+        <p class="doc-hint">Elegi tu paquete y plan de pago arriba. Al aceptar, se genera la factura correspondiente en tu portal.</p>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <div class="doc-footer">ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333</div>
+
+  </div>
+</div>
+
+<script>
+var selectedOptionId = null;
+var selectedPlan = null;
+var OPTIONS = {{ options|tojson }};
+
+function fmtMoney(n) {
+  return 'Q' + Number(n || 0).toLocaleString('es-GT', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function selectPackage(optionId) {
+  selectedOptionId = optionId;
+  document.querySelectorAll('.pkg-card').forEach(function(el) {
+    el.classList.toggle('selected', el.dataset.optionId === optionId);
+  });
+  var opt = OPTIONS.find(function(o) { return o.id === optionId; });
+  document.getElementById('sum-package').textContent = opt ? opt.name : 'Elegi una opcion arriba';
+  updateSummary();
+}
+
+function selectPlan(n) {
+  selectedPlan = n;
+  document.querySelectorAll('.plan-btn').forEach(function(el) {
+    el.classList.toggle('selected', Number(el.dataset.plan) === n);
+  });
+  document.getElementById('sum-plan').textContent = n === 1 ? 'Pago unico' : (n + ' cuotas');
+  updateSummary();
+}
+
+function updateSummary() {
+  var opt = OPTIONS.find(function(o) { return o.id === selectedOptionId; });
+  var cuota = 0;
+  if (opt && selectedPlan) {
+    cuota = (opt.precio_total || 0) / selectedPlan;
+  }
+  document.getElementById('sum-cuota').textContent = fmtMoney(cuota);
+  var heroEl = document.getElementById('hero-amount');
+  if (heroEl) heroEl.textContent = cuota ? fmtMoney(cuota) : '—';
+
+  var acceptBtn = document.getElementById('accept-btn');
+  if (acceptBtn) acceptBtn.disabled = !(opt && selectedPlan);
+  var optIdInput = document.getElementById('accept-option-id');
+  var planInput = document.getElementById('accept-plan-pago');
+  if (optIdInput) optIdInput.value = selectedOptionId || '';
+  if (planInput) planInput.value = selectedPlan || '';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (OPTIONS.length === 1) { selectPackage(OPTIONS[0].id); }
+});
+</script>
+
+</body>
+</html>

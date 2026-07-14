@@ -1,139 +1,142 @@
 {% extends "base.html" %}
-{% block title %}Pagos al Equipo · Norkevin CRM{% endblock %}
+{% block title %}Pagos al Equipo · ASTRAL WEDDINGS CRM{% endblock %}
 {% block header %}Pagos al Equipo{% endblock %}
-{% block subtitle %}Liquidaciones y pagos pendientes a fotógrafos y videógrafos{% endblock %}
+{% block subtitle %}Cuentas por pagar &middot; {{ total_pendiente }} pendiente{{ 's' if total_pendiente != 1 else '' }}{% endblock %}
+
+{% block topbar_title %}Pagos al Equipo{% endblock %}
 
 {% block content %}
 
-<!-- Resumen -->
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Pendiente</div>
-    <div class="text-3xl font-bold text-amber-700">{{ q_money(total_pendiente) }}</div>
-    <div class="text-xs text-ink-soft mt-1">{{ pendientes|length }} pagos</div>
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="card">
+    <div class="text-xs text-ink-soft uppercase tracking-wide">Total pendiente</div>
+    <div class="text-3xl font-semibold text-rose-600 mt-2">Q{{ '{:,.0f}'.format(total_pendiente) }}</div>
+    <div class="text-xs text-ink-soft mt-1">{{ count_pendiente }} pago{{ 's' if count_pendiente != 1 else '' }} sin liquidar</div>
   </div>
-  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Pagado</div>
-    <div class="text-3xl font-bold text-emerald-700">{{ q_money(total_pagado) }}</div>
-    <div class="text-xs text-ink-soft mt-1">{{ pagados|length }} pagos</div>
+  <div class="card">
+    <div class="text-xs text-ink-soft uppercase tracking-wide">Pagado este mes</div>
+    <div class="text-3xl font-semibold text-emerald-600 mt-2">Q{{ '{:,.0f}'.format(pagado_mes) }}</div>
+    <div class="text-xs text-ink-soft mt-1">{{ count_pagado_mes }} pago{{ 's' if count_pagado_mes != 1 else '' }} este mes</div>
   </div>
-  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Total</div>
-    <div class="text-3xl font-bold text-gold">{{ q_money(total_pendiente + total_pagado) }}</div>
-    <div class="text-xs text-ink-soft mt-1">{{ pendientes|length + pagados|length }} movimientos</div>
+  <div class="card">
+    <div class="text-xs text-ink-soft uppercase tracking-wide">Total pagado (historico)</div>
+    <div class="text-3xl font-semibold text-ink mt-2">Q{{ '{:,.0f}'.format(total_pagado) }}</div>
+    <div class="text-xs text-ink-soft mt-1">Todos los tiempos</div>
   </div>
 </div>
 
-<!-- Filtros -->
-<form method="get" class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-  <select name="estado" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
-    <option value="">Todos los estados</option>
-    {% for s in status_options %}
-    <option value="{{ s }}" {% if s == estado_filtro %}selected{% endif %}>{{ s }}</option>
-    {% endfor %}
-  </select>
-  <select name="persona" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
-    <option value="">Todas las personas</option>
-    {% for per in personas %}
-    <option value="{{ per }}" {% if per == persona_filtro %}selected{% endif %}>{{ per }}</option>
-    {% endfor %}
-  </select>
-  {% if estado_filtro or persona_filtro %}
-  <a href="/pagos-equipo" class="text-xs text-ink-soft hover:text-ink font-medium">Limpiar</a>
-  {% endif %}
-</form>
+<div class="bg-paper-pure rounded-lg border border-line shadow-soft p-4 mb-4">
+  <div class="flex items-center gap-3">
+    <input type="text" id="search" placeholder="Buscar pago por concepto o miembro..."
+           class="flex-1 border border-line rounded-lg px-3 py-2 text-sm">
+    <select id="filter-status" class="border border-line rounded-lg px-3 py-2 text-sm">
+      <option value="">Todos</option>
+      <option value="Pendiente">Pendiente</option>
+      <option value="Late">Late</option>
+      <option value="Pagado">Pagado</option>
+    </select>
+    <select id="filter-team" class="border border-line rounded-lg px-3 py-2 text-sm">
+      <option value="">Todos los miembros</option>
+      {% for m in team %}
+      <option value="{{ m.id }}">{{ m.first_name }} {{ m.last_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
 
-<!-- Pendientes -->
-<h3 class="text-sm font-semibold mb-3 text-amber-700">Pendientes</h3>
-{% if pendientes %}
-<div class="bg-paper-pure rounded-lg border border-line shadow-soft mb-8 crm-table-wrap">
-  <table class="w-full text-sm crm-table min-w-[860px]">
-    <thead class="bg-line/50 text-xs uppercase tracking-wider text-ink-soft">
+<div class="bg-paper-pure rounded-lg border border-line shadow-soft overflow-hidden">
+  <table class="table-responsive">
+    <thead class="bg-line/30 text-xs uppercase tracking-wide text-ink-soft">
       <tr>
-        <th class="px-4 py-3 text-left">Persona</th>
-        <th class="px-4 py-3 text-left">Evento</th>
-        <th class="px-4 py-3 text-left">Servicio</th>
-        <th class="px-4 py-3 text-left">Fecha evento</th>
-        <th class="px-4 py-3 text-right">Monto</th>
-        <th class="px-4 py-3 text-left">Estado</th>
-        <th class="px-4 py-3 text-right">Acción</th>
+        <th class="text-left px-4 py-3 font-semibold">Status</th>
+        <th class="text-left px-4 py-3 font-semibold">Due Date</th>
+        <th class="text-left px-4 py-3 font-semibold">Invoice ID</th>
+        <th class="text-left px-4 py-3 font-semibold">Miembro</th>
+        <th class="text-left px-4 py-3 font-semibold">Concepto (Job)</th>
+        <th class="text-right px-4 py-3 font-semibold">Amount</th>
+        <th class="text-right px-4 py-3 font-semibold">Action</th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-line">
-      {% for p in pendientes %}
-      <tr class="hover:bg-line/30 transition">
-        <td class="px-4 py-3 font-medium text-ink">{{ p.get('Persona') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.get('Evento específico') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.get('Servicio') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-ink-soft">{{ parse_date(p.get('Fecha del evento')) or '—' }}</td>
-        <td class="px-4 py-3 text-right font-semibold text-amber-700">{{ q_money(p.get('Monto acordado')) }}</td>
+    <tbody>
+      {% for p in payments %}
+      <tr class="border-b border-line/50 hover:bg-line/20"
+          data-status="{{ p.status }}" data-team="{{ p.team_id }}">
         <td class="px-4 py-3">
-          <span class="text-xs px-2 py-0.5 rounded
-            {% if p.get('Estado de pago') == 'Pendiente' %}bg-amber-50 text-amber-700
-            {% elif p.get('Estado de pago') == 'Mitad pagado' %}bg-orange-50 text-orange-700
-            {% elif p.get('Estado de pago') == 'En proceso' %}bg-ink-soft text-ink
-            {% else %}bg-paper text-ink-soft{% endif %}">{{ p.get('Estado de pago') }}</span>
+          {% if p.status == 'Pagado' %}
+          <span class="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700">{{ p.status }}</span>
+          {% elif p.status == 'Late' %}
+          <span class="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-rose-100 text-rose-700 font-semibold">{{ p.status }}</span>
+          {% else %}
+          <span class="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">{{ p.status }}</span>
+          {% endif %}
         </td>
+        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.due_date }}</td>
+        <td class="px-4 py-3 text-sm font-medium text-ink">{{ p.invoice_id }}</td>
+        <td class="px-4 py-3 text-sm text-ink">{{ p.team_name }}</td>
+        <td class="px-4 py-3 text-sm text-ink-soft">{{ p.concepto }}</td>
+        <td class="px-4 py-3 text-sm font-semibold text-ink text-right">Q{{ '{:,.0f}'.format(p.amount) }}</td>
         <td class="px-4 py-3 text-right">
-          <button onclick="markPaid('{{ p.id }}')" class="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded hover:bg-emerald-100">Marcar pagado</button>
+          {% if p.status != 'Pagado' %}
+          <button onclick="markPaid('{{ p.id }}')" class="text-xs px-2 py-1 bg-emerald-500 text-white rounded hover:bg-emerald-600">
+            Marcar Pagado
+          </button>
+          {% else %}
+          <span class="text-xs text-ink-soft">{{ p.paid_date or 'pagado' }}</span>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
+      {% if not payments %}
+      <tr><td colspan="7" class="text-center py-12 text-sm text-ink-soft">
+        Sin pagos. Cuando marques un Job como "Listo", se generaran automaticamente.
+      </td></tr>
+      {% endif %}
     </tbody>
   </table>
 </div>
-{% else %}
-<div class="bg-paper-pure rounded-xl p-8 border border-line shadow-soft text-center mb-8">
-  <p class="text-sm text-ink-soft">No hay pagos pendientes al equipo</p>
-</div>
-{% endif %}
-
-<!-- Pagados -->
-<h3 class="text-sm font-semibold mb-3 text-emerald-700">Pagados</h3>
-{% if pagados %}
-<div class="bg-paper-pure rounded-lg border border-line shadow-soft crm-table-wrap">
-  <table class="w-full text-sm crm-table min-w-[820px]">
-    <thead class="bg-line/50 text-xs uppercase tracking-wider text-ink-soft">
-      <tr>
-        <th class="px-4 py-3 text-left">Persona</th>
-        <th class="px-4 py-3 text-left">Evento</th>
-        <th class="px-4 py-3 text-left">Servicio</th>
-        <th class="px-4 py-3 text-left">Fecha pago</th>
-        <th class="px-4 py-3 text-right">Monto</th>
-        <th class="px-4 py-3 text-left">Estado</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-line">
-      {% for p in pagados %}
-      <tr class="hover:bg-line/30 transition">
-        <td class="px-4 py-3 font-medium text-ink">{{ p.get('Persona') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.get('Evento específico') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.get('Servicio') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.get('Fecha de pago') or '—' }}</td>
-        <td class="px-4 py-3 text-right font-semibold text-emerald-700">{{ q_money(p.get('Monto acordado')) }}</td>
-        <td class="px-4 py-3">
-          <span class="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">{{ p.get('Estado de pago') }}</span>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% else %}
-<div class="bg-paper-pure rounded-xl p-8 border border-line shadow-soft text-center">
-  <p class="text-sm text-ink-soft">Sin pagos cobrados todavía</p>
-</div>
-{% endif %}
 
 <script>
-async function markPaid(id) {
-  const btn = event.target;
-  btn.disabled = true;
-  btn.innerHTML = '⏳';
-  const r = await fetch('/api/payments/' + id + '/pay', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})});
-  const d = await r.json();
-  if (d.ok) location.reload();
-  else { alert('Error: ' + (d.error || 'desconocido')); btn.disabled = false; btn.innerHTML = 'Marcar pagado'; }
+function markPaid(payId) {
+  if (!confirm('Marcar este pago como PAGADO?')) return;
+  fetch('/api/payments/' + payId + '/pay', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        flashToast('Pago marcado como PAGADO', 'success');
+        setTimeout(function() { location.reload(); }, 800);
+      } else {
+        flashToast('Error: ' + data.error, 'error');
+      }
+    })
+    .catch(function() { flashToast('Error de red', 'error'); });
 }
+
+function flashToast(message, type) {
+  var toast = document.createElement('div');
+  toast.className = 'fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg z-50 text-sm ' +
+    (type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white');
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(function() { toast.remove(); }, 3000);
+}
+
+// Filtros
+function applyFilters() {
+  var q = document.getElementById('search').value.toLowerCase();
+  var s = document.getElementById('filter-status').value;
+  var t = document.getElementById('filter-team').value;
+  document.querySelectorAll('tbody tr').forEach(function(row) {
+    if (!row.dataset.status) return;
+    var txt = row.textContent.toLowerCase();
+    var matchQ = !q || txt.indexOf(q) >= 0;
+    var matchS = !s || row.dataset.status === s;
+    var matchT = !t || row.dataset.team === t;
+    row.style.display = (matchQ && matchS && matchT) ? '' : 'none';
+  });
+}
+document.getElementById('search').addEventListener('input', applyFilters);
+document.getElementById('filter-status').addEventListener('change', applyFilters);
+document.getElementById('filter-team').addEventListener('change', applyFilters);
 </script>
+
 {% endblock %}

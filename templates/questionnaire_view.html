@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cuestionario - {{ client.first_name if client else '' }} · ASTRAL WEDDINGS</title>
+{% include "_document_style.html" %}
+<style>
+  .q-group { margin-bottom: 26px; }
+  .q-group-title { font-size: 13px; font-weight: 600; color: var(--doc-ink); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--doc-line); }
+  .q-field { margin-bottom: 16px; }
+  .q-field label { display: block; font-size: 12.5px; font-weight: 500; color: var(--doc-ink-soft); margin-bottom: 6px; }
+  .q-field input, .q-field textarea {
+    width: 100%; border: 1px solid var(--doc-line); border-radius: 10px; padding: 13px 14px;
+    font-size: 15px; font-family: inherit; color: var(--doc-ink); background: #fff;
+  }
+  @media (max-width: 480px) {
+    .q-field input, .q-field textarea { padding: 14px; font-size: 16px; }
+  }
+  .q-field input:focus, .q-field textarea:focus { outline: none; border-color: var(--doc-brand); }
+  .q-field textarea { resize: vertical; min-height: 70px; }
+</style>
+</head>
+<body>
+
+<div class="doc-wrap">
+  <div class="doc-card">
+
+    <div class="doc-hero">
+      <div class="doc-hero-row">
+        <div class="doc-brand-mark">
+          <div class="glyph">A</div>
+          <div>
+            <div class="name">ASTRAL WEDDINGS</div>
+            <div class="tag">PHOTOGRAPHY &amp; FILMS</div>
+          </div>
+        </div>
+        <div class="doc-meta">
+          <div class="type">Cuestionario</div>
+          <div class="id">{{ questionnaire.id }}</div>
+          <div class="date">{{ questionnaire.created }}</div>
+        </div>
+      </div>
+      <div class="doc-hero-total">
+        <div class="label">{{ questionnaire.name or 'Cuestionario de boda' }}</div>
+        <div class="amount" style="font-size:20px;font-weight:500;">
+          {% if client %}{{ client.first_name }} {{ client.last_name }}{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="doc-body">
+
+      {% if questionnaire.status == 'Respondido' %}
+      <div class="doc-section" style="text-align:center;">
+        <span class="doc-pill green" style="margin-bottom:14px;">
+          <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+          Respuestas enviadas
+        </span>
+        <p style="font-size:12.5px;color:var(--doc-mute);">Gracias! Recibimos tus respuestas el {{ questionnaire.answered_at[:10] if questionnaire.answered_at else '' }}.</p>
+      </div>
+      {% endif %}
+
+      <form id="questionnaire-form" onsubmit="submitQuestionnaireForm(event)">
+        {% for group in groups %}
+        <div class="q-group">
+          <div class="q-group-title">{{ group.group }}</div>
+          {% for field in group.fields %}
+          <div class="q-field">
+            <label for="qf-{{ field.id }}">{{ field.label }}</label>
+            {% if field.type == 'textarea' %}
+            <textarea id="qf-{{ field.id }}" name="{{ field.id }}" {{ 'readonly' if questionnaire.status == 'Respondido' else '' }}>{{ answers.get(field.id, '') }}</textarea>
+            {% else %}
+            <input type="text" id="qf-{{ field.id }}" name="{{ field.id }}" value="{{ answers.get(field.id, '') }}" {{ 'readonly' if questionnaire.status == 'Respondido' else '' }}>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+
+        {% if questionnaire.status != 'Respondido' %}
+        <div class="doc-actions">
+          <button type="submit" class="doc-btn primary full">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 6 9 17l-5-5"/></svg>
+            Enviar respuestas
+          </button>
+          <p class="doc-hint">Puedes guardar y volver mas tarde si te falta informacion; solo vuelve a este enlace.</p>
+        </div>
+        {% endif %}
+      </form>
+
+    </div>
+
+    <div class="doc-footer">ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333</div>
+
+  </div>
+</div>
+
+<script>
+var QUESTIONNAIRE_ID = {{ questionnaire.id|tojson }};
+function submitQuestionnaireForm(event) {
+  event.preventDefault();
+  var form = document.getElementById('questionnaire-form');
+  var formData = new FormData(form);
+  var answers = {};
+  formData.forEach(function(value, key) { answers[key] = value; });
+
+  var btn = form.querySelector('button[type=submit]');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  fetch('/api/questionnaires/' + QUESTIONNAIRE_ID + '/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answers: answers })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        location.reload();
+      } else {
+        alert('Error: ' + (data.error || 'desconocido'));
+        btn.disabled = false;
+        btn.textContent = 'Enviar respuestas';
+      }
+    })
+    .catch(function() {
+      alert('Error de red');
+      btn.disabled = false;
+      btn.textContent = 'Enviar respuestas';
+    });
+}
+</script>
+
+</body>
+</html>

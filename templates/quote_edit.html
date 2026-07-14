@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Editar cotizacion - {{ display_name }} · ASTRAL WEDDINGS</title>
+{% include "_document_style.html" %}
+<style>
+  .opt-card { border: 1px solid var(--doc-line); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; position: relative; }
+  .opt-card .opt-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .opt-card .opt-name { font-size: 15px; font-weight: 600; }
+  .opt-card .opt-price { font-size: 20px; font-weight: 300; margin-top: 2px; }
+  .opt-card .opt-includes { margin-top: 8px; font-size: 12.5px; color: var(--doc-ink-soft); white-space: pre-line; }
+  .opt-card .opt-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .opt-empty { border: 1px dashed var(--doc-line); border-radius: 14px; padding: 32px; text-align: center; color: var(--doc-mute); font-size: 13px; }
+  .opt-form-row { display: grid; grid-template-columns: 1fr 160px; gap: 12px; }
+  @media (max-width: 560px) { .opt-form-row { grid-template-columns: 1fr; } }
+  .opt-field { margin-bottom: 14px; }
+  .opt-field label { display: block; font-size: 12px; font-weight: 600; color: var(--doc-ink-soft); margin-bottom: 5px; }
+  .opt-field input, .opt-field textarea {
+    width: 100%; border: 1px solid var(--doc-line); border-radius: 10px; padding: 11px 13px;
+    font-size: 14px; font-family: inherit; color: var(--doc-ink); background: #fff;
+  }
+  .opt-field textarea { resize: vertical; min-height: 70px; }
+  .status-banner { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #FDF1DC; color: #97620C; }
+  .plan-check-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .plan-check { display: flex; align-items: center; gap: 7px; border: 1px solid var(--doc-line); border-radius: 10px; padding: 8px 14px; font-size: 13px; cursor: pointer; user-select: none; }
+  .plan-check input { margin: 0; }
+  .send-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(20,20,25,.5); z-index: 200; align-items: center; justify-content: center; padding: 24px; }
+  .send-modal-overlay.open { display: flex; }
+  .send-modal-content { background: #fff; border-radius: 16px; width: min(640px, 94vw); max-height: 88vh; overflow: auto; padding: 24px; }
+  .send-modal-content h2 { font-size: 17px; font-weight: 600; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<div class="doc-wrap">
+  <div class="doc-card">
+
+    <div class="doc-hero">
+      <div class="doc-hero-row">
+        <div class="doc-brand-mark">
+          <div class="glyph">A</div>
+          <div>
+            <div class="name">ASTRAL WEDDINGS</div>
+            <div class="tag">PHOTOGRAPHY &amp; FILMS</div>
+          </div>
+        </div>
+        <div class="doc-meta">
+          <div class="type">Editor de cotizacion</div>
+          <div class="id">{{ quote.id }}</div>
+        </div>
+      </div>
+      <div class="doc-hero-total">
+        <div class="label">Para</div>
+        <div class="amount" style="font-size:22px;font-weight:500;">{{ display_name }}</div>
+      </div>
+    </div>
+
+    <div class="doc-body">
+
+      <div class="doc-section">
+        <span class="status-banner">
+          <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+          Borrador &mdash; el cliente no puede ver esto todavia
+        </span>
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-eyebrow">Opciones de paquete ({{ options|length }}/3)</div>
+        <div id="options-list">
+          {% for opt in options %}
+          <div class="opt-card" data-option-id="{{ opt.id }}">
+            <div class="opt-head">
+              <div>
+                <div class="opt-name">{{ opt.name }}</div>
+                <div class="opt-price">Q{{ '{:,.2f}'.format(opt.precio_total or 0) }}</div>
+                {% if opt.incluye %}<div class="opt-includes">{{ opt.incluye|join('\n') }}</div>{% endif %}
+              </div>
+              <div class="opt-actions">
+                <button type="button" class="doc-btn outline" style="padding:8px 14px;" onclick='openOptionForm({{ opt|tojson }})'>Editar</button>
+                <button type="button" class="doc-btn outline" style="padding:8px 14px;color:#B4232A;" onclick="deleteOption('{{ opt.id }}')">Quitar</button>
+              </div>
+            </div>
+          </div>
+          {% else %}
+          <div class="opt-empty" id="options-empty">Todavia no agregaste ninguna opcion de paquete.</div>
+          {% endfor %}
+        </div>
+
+        <div id="option-form" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--doc-line);">
+          <input type="hidden" id="opt-id-input">
+          <div class="opt-form-row">
+            <div class="opt-field">
+              <label>Nombre del paquete *</label>
+              <input id="opt-name-input" placeholder="Ej: Paquete Gold">
+            </div>
+            <div class="opt-field">
+              <label>Precio total (Q) *</label>
+              <input id="opt-price-input" type="number" min="0" step="0.01">
+            </div>
+          </div>
+          <div class="opt-field">
+            <label>Incluye (una linea por item)</label>
+            <textarea id="opt-includes-input" placeholder="8 horas de cobertura&#10;300 fotografias editadas&#10;Galeria online privada"></textarea>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <button type="button" class="doc-btn primary" onclick="saveOption()">Guardar opcion</button>
+            <button type="button" class="doc-btn outline" onclick="closeOptionForm()">Cancelar</button>
+          </div>
+        </div>
+
+        <button type="button" class="doc-btn outline" id="add-option-btn" style="margin-top:14px;" onclick="openOptionForm()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          Agregar opcion de paquete
+        </button>
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-eyebrow">En cuantos pagos le podes ofrecer pagar al cliente</div>
+        <div class="plan-check-row" id="plan-check-row">
+          {% for n in [1, 2, 3, 4, 5, 6] %}
+          <label class="plan-check">
+            <input type="checkbox" value="{{ n }}" {% if n in plan_pago_opciones %}checked{% endif %} onchange="savePlanOptions()">
+            {{ 'Pago unico' if n == 1 else (n ~ ' cuotas') }}
+          </label>
+          {% endfor %}
+        </div>
+        <p class="doc-hint" id="plan-save-hint" style="margin-top:8px;"></p>
+      </div>
+
+      <div class="doc-actions">
+        <a class="doc-btn outline" href="/quotes/{{ quote.id }}" target="_blank">Vista previa (como la ve el cliente)</a>
+        <button type="button" class="doc-btn primary" onclick="sendQuote()">Enviar cotizacion al cliente</button>
+        <p class="doc-hint">Una vez enviada, ya no vas a poder seguir editando las opciones.</p>
+      </div>
+
+    </div>
+
+    <div class="doc-footer">ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333</div>
+
+  </div>
+</div>
+
+<div class="send-modal-overlay" id="send-quote-modal">
+  <div class="send-modal-content">
+    <h2>Enviar cotizacion al cliente</h2>
+    <form onsubmit="submitSendQuote(event)">
+      <div class="opt-field">
+        <label>Para</label>
+        <input id="send-quote-to" readonly>
+      </div>
+      <div class="opt-field">
+        <label>Asunto</label>
+        <input id="send-quote-subject">
+      </div>
+      <div class="opt-field">
+        <label>Mensaje</label>
+        <textarea id="send-quote-body" style="min-height:160px;"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" class="doc-btn outline" onclick="closeSendQuoteModal()">Cancelar</button>
+        <button type="submit" class="doc-btn primary">Enviar cotizacion</button>
+      </div>
+      <p class="doc-hint" style="margin-top:10px;">Una vez enviada, ya no vas a poder seguir editando las opciones.</p>
+    </form>
+  </div>
+</div>
+
+<script>
+var QUOTE_ID = {{ quote.id|tojson }};
+
+function openOptionForm(opt) {
+  document.getElementById('opt-id-input').value = opt ? opt.id : '';
+  document.getElementById('opt-name-input').value = opt ? opt.name : '';
+  document.getElementById('opt-price-input').value = opt ? opt.precio_total : '';
+  document.getElementById('opt-includes-input').value = opt && opt.incluye ? opt.incluye.join('\n') : '';
+  document.getElementById('option-form').style.display = 'block';
+  document.getElementById('opt-name-input').focus();
+}
+function closeOptionForm() {
+  document.getElementById('option-form').style.display = 'none';
+}
+
+function saveOption() {
+  var name = document.getElementById('opt-name-input').value.trim();
+  var price = document.getElementById('opt-price-input').value;
+  if (!name || !price) { alert('Nombre y precio son requeridos'); return; }
+  fetch('/api/quotes/' + QUOTE_ID + '/options', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: document.getElementById('opt-id-input').value || undefined,
+      name: name,
+      precio_total: price,
+      incluye: document.getElementById('opt-includes-input').value
+    })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { location.reload(); }
+      else { alert('Error: ' + data.error); }
+    })
+    .catch(function() { alert('Error de red'); });
+}
+
+function deleteOption(id) {
+  if (!confirm('Quitar esta opcion de paquete?')) return;
+  fetch('/api/quotes/' + QUOTE_ID + '/options/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { location.reload(); }
+      else { alert('Error: ' + data.error); }
+    })
+    .catch(function() { alert('Error de red'); });
+}
+
+function savePlanOptions() {
+  var checked = Array.prototype.slice.call(document.querySelectorAll('#plan-check-row input:checked')).map(function(el) { return Number(el.value); });
+  var hint = document.getElementById('plan-save-hint');
+  if (!checked.length) { hint.textContent = 'Selecciona al menos una opcion de pago.'; hint.style.color = '#B4232A'; return; }
+  fetch('/api/quotes/' + QUOTE_ID + '/payment-options', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plan_pago_opciones: checked })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { hint.textContent = 'Guardado.'; hint.style.color = 'var(--doc-mute)'; }
+      else { hint.textContent = 'Error: ' + data.error; hint.style.color = '#B4232A'; }
+    })
+    .catch(function() { hint.textContent = 'Error de red'; hint.style.color = '#B4232A'; });
+}
+
+function sendQuote() {
+  var opts = document.querySelectorAll('.opt-card');
+  if (!opts.length) { alert('Agrega al menos 1 opcion de paquete antes de enviar'); return; }
+  document.getElementById('send-quote-to').value = {{ (display_email or '')|tojson }};
+  document.getElementById('send-quote-subject').value = 'Cotizacion ' + QUOTE_ID + ' - ASTRAL WEDDINGS';
+  var quoteUrl = window.location.origin + '/quotes/' + QUOTE_ID;
+  document.getElementById('send-quote-body').value =
+    'Hola ' + {{ (display_name or 'Cliente')|tojson }} + ',\n\n' +
+    'Tu cotizacion esta lista. Puedes verla y aceptarla en este enlace:\n' +
+    quoteUrl + '\n\nSaludos,\nASTRAL WEDDINGS';
+  document.getElementById('send-quote-modal').classList.add('open');
+}
+
+function closeSendQuoteModal() {
+  document.getElementById('send-quote-modal').classList.remove('open');
+}
+
+function submitSendQuote(event) {
+  event.preventDefault();
+  fetch('/api/quotes/' + QUOTE_ID + '/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      subject: document.getElementById('send-quote-subject').value,
+      body: document.getElementById('send-quote-body').value
+    })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { window.location.href = '/quotes/' + QUOTE_ID; }
+      else { alert('Error: ' + data.error); }
+    })
+    .catch(function() { alert('Error de red'); });
+}
+</script>
+
+</body>
+</html>

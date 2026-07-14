@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; color: #1A2233; margin: 0; padding: 0; }
+
+  .page { padding: 0; }
+  .hero { background: linear-gradient(135deg, #0284C7, #075985); color: white; padding: 40px 60px; }
+  .header-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .logo { font-size: 32px; font-weight: 200; letter-spacing: 4px; }
+  .logo-sub { font-size: 9px; letter-spacing: 6px; opacity: 0.8; margin-top: 4px; }
+
+  .quote-id-box { text-align: right; }
+  .quote-label { font-size: 8px; letter-spacing: 3px; opacity: 0.7; }
+  .quote-id { font-size: 18px; font-weight: 300; margin-top: 4px; }
+
+  .tabs { display: flex; gap: 0; margin-top: 30px; }
+  .tab { padding: 10px 20px; font-size: 9px; letter-spacing: 2px; opacity: 0.5; border-bottom: 1px solid rgba(255,255,255,0.3); }
+  .tab.active { opacity: 1; border-bottom: 2px solid white; }
+
+  .body { padding: 50px 60px; }
+  .section-label { font-size: 9px; letter-spacing: 2px; color: #6B7280; margin-bottom: 8px; text-transform: uppercase; }
+
+  .client-name { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+  .client-info { color: #4B5563; font-size: 11px; line-height: 1.6; margin-bottom: 24px; }
+
+  .contract-block { padding: 16px 20px; background: #F1F3F6; border-radius: 6px; margin: 20px 0; }
+  .contract-title { font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
+
+  .term { margin: 18px 0; }
+  .term-title { font-weight: 600; font-size: 12px; margin-bottom: 6px; }
+  .term-body { font-size: 11px; line-height: 1.7; color: #374151; text-align: justify; }
+  .term-list { font-size: 11px; line-height: 1.8; color: #374151; margin: 8px 0; padding-left: 20px; }
+  .term-list li { margin-bottom: 4px; }
+
+  .signatures { margin-top: 50px; display: flex; justify-content: space-between; gap: 40px; }
+  .sig-block { flex: 1; }
+  .sig-line { border-top: 1px solid #1A2233; padding-top: 8px; margin-top: 60px; }
+  .sig-label { font-size: 9px; letter-spacing: 2px; color: #6B7280; }
+  .sig-name { font-size: 12px; margin-top: 4px; }
+
+  .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #E4E7EC; text-align: center; color: #6B7280; font-size: 9px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="hero">
+    <div class="header-row">
+      <div>
+        <div class="logo">ASTRAL</div>
+        <div class="logo-sub">WEDDINGS</div>
+      </div>
+      <div class="quote-id-box">
+        <div class="quote-label">CONTRATO</div>
+        <div class="quote-id">{{ contract.id }}</div>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab">INICIO</div>
+      <div class="tab">COTIZACION</div>
+      <div class="tab active">CONTRATO</div>
+      <div class="tab">FACTURA</div>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <div class="section-label">CONTRATO PARA</div>
+    <div class="client-name">{{ client.first_name }} {{ client.last_name }}</div>
+    <div class="client-info">
+      {{ client.phone or '' }}<br>
+      {{ client.email or '' }}<br>
+      {{ client.address or 'Guatemala' }}
+    </div>
+
+    <div class="section-label">DE</div>
+    <div class="client-name">ASTRAL WEDDINGS</div>
+    <div class="client-info">
+      +502 2222 3333<br>
+      info@astralweddings.com<br>
+      Guatemala
+    </div>
+
+    <div class="contract-block">
+      <div class="contract-title">CONTRATO DE BODAS ASTRAL WEDDINGS</div>
+    </div>
+
+    <div class="term">
+      <div class="term-title">1. Compromiso del Fotografo</div>
+      <div class="term-body">
+        ASTRAL WEDDINGS se compromete a capturar, editar y entregar el material fotografico contratado en las fechas y plazos acordados en este contrato. La calidad del trabajo se ajustara a los estandares profesionales de la industria.
+      </div>
+    </div>
+
+    <div class="term">
+      <div class="term-title">2. Tarifas y Deposito</div>
+      <div class="term-body">
+        La tarifa total por los servicios contratados es de <strong>Q{{ '{:,.2f}'.format(job.price_total) }}</strong>.
+        {% if job.plan_pago and job.plan_pago > 1 %}
+        El pago se realizara en <strong>{{ job.plan_pago }} cuotas de Q{{ '{:,.2f}'.format(job.cuota_monto) }}</strong> segun el calendario acordado.
+        {% else %}
+        El pago se realizara en una sola exhibicion antes de la fecha del evento.
+        {% endif %}
+        Un deposito de <strong>Q{{ '{:,.2f}'.format(job.price_total * 0.3) }}</strong> es requerido para confirmar la reserva.
+      </div>
+    </div>
+
+    <div class="term">
+      <div class="term-title">3. Responsabilidades del Cliente</div>
+      <ul class="term-list">
+        <li>Proporcionar informacion veraz y oportuna sobre el evento</li>
+        <li>Realizar los pagos en las fechas acordadas</li>
+        <li>Coordinar con el fotografo los horarios y ubicaciones del evento</li>
+        <li>Notificar cualquier cambio con al menos 30 dias de anticipacion</li>
+      </ul>
+    </div>
+
+    <div class="term">
+      <div class="term-title">4. Responsabilidades del Fotografo</div>
+      <ul class="term-list">
+        <li>Asistir puntualmente a todos los eventos acordados</li>
+        <li>Entregar las fotografias editadas en un plazo maximo de 30 dias despues del evento</li>
+        <li>Mantener una copia de seguridad de todas las imagenes por 1 año</li>
+        <li>Proveer una galeria online privada para revision del cliente</li>
+      </ul>
+    </div>
+
+    <div class="term">
+      <div class="term-title">5. Cancelacion y Reembolso</div>
+      <div class="term-body">
+        En caso de cancelacion por parte del cliente con menos de 60 dias de anticipacion al evento, el deposito no sera reembolsable. Cancelaciones con mas de 60 dias tendran un reembolso del 50% del deposito.
+      </div>
+    </div>
+
+    <div class="term">
+      <div class="term-title">6. Propiedad Intelectual</div>
+      <div class="term-body">
+        ASTRAL WEDDINGS retendra los derechos de autor sobre todas las imagenes. El cliente recibira una licencia personal no comercial para uso privado. ASTRAL WEDDINGS podra utilizar las imagenes en su portafolio y material de marketing.
+      </div>
+    </div>
+
+    <!-- Firmas -->
+    <div class="signatures">
+      <div class="sig-block">
+        <div class="sig-line">
+          <div class="sig-label">FIRMA DEL FOTOGRAFO</div>
+          <div class="sig-name">Kevin Lemus - ASTRAL WEDDINGS</div>
+        </div>
+      </div>
+      <div class="sig-block">
+        <div class="sig-line">
+          <div class="sig-label">FIRMA DEL CLIENTE</div>
+          <div class="sig-name">{{ client.first_name }} {{ client.last_name }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333<br>
+      Contrato generado el {{ generated_at }}
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

@@ -1,126 +1,227 @@
 {% extends "base.html" %}
-{% block title %}Jobs · Norkevin CRM{% endblock %}
-{% block header %}Jobs{% endblock %}
-{% block subtitle %}{{ jobs|length }} jobs {% if view == 'active_upcoming' %}con shoot proximo{% elif view == 'completed' %}completados{% elif view == 'archived' %}archivados{% else %}activos{% endif %}{% if estado_filtro %} · {{ estado_filtro }}{% endif %}{% if search %} · "{{ search }}"{% endif %}{% endblock %}
+{% block title %}Jobs Overview · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}Jobs Overview{% endblock %}
+{% block subtitle %}{{ jobs|length }} jobs{% endblock %}
 
 {% block content %}
-
-<div class="bg-paper-pure rounded-lg border border-line shadow-soft mb-4">
-  <details class="group" open>
-    <summary class="px-5 py-4 cursor-pointer flex items-center justify-between hover:bg-line/30 transition">
-      <span class="text-sm font-semibold text-ink">
-        {% if view == 'active' %}Jobs activos
-        {% elif view == 'active_upcoming' %}Activos con shoot proximo
-        {% elif view == 'completed' %}Jobs completados
-        {% elif view == 'archived' %}Jobs archivados
-        {% else %}Todos los jobs{% endif %}
-      </span>
-      <svg class="w-4 h-4 text-ink-soft group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-    </summary>
-    <div class="border-t border-line grid grid-cols-1 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-line">
-      <a href="/jobs?view=active" class="px-5 py-3 hover:bg-gold-soft/60 transition flex items-center justify-between {% if view == 'active' %}bg-gold-soft/50{% endif %}">
-        <span class="text-sm font-medium">Activos</span>
-        <span class="status-pill bg-gold/15 text-gold">{{ view_counts.active or 0 }}</span>
-      </a>
-      <a href="/jobs?view=active_upcoming" class="px-5 py-3 hover:bg-line-soft transition flex items-center justify-between {% if view == 'active_upcoming' %}bg-line-soft{% endif %}">
-        <span class="text-sm font-medium">Shoots proximos</span>
-        <span class="status-pill bg-ink text-white">{{ view_counts.active_upcoming or 0 }}</span>
-      </a>
-      <a href="/jobs?view=completed" class="px-5 py-3 hover:bg-emerald-50 transition flex items-center justify-between {% if view == 'completed' %}bg-emerald-50/60{% endif %}">
-        <span class="text-sm font-medium">Completados</span>
-        <span class="status-pill bg-emerald-500 text-white">{{ view_counts.completed or 0 }}</span>
-      </a>
-      <a href="/jobs?view=archived" class="px-5 py-3 hover:bg-paper transition flex items-center justify-between {% if view == 'archived' %}bg-paper{% endif %}">
-        <span class="text-sm font-medium">Archivados</span>
-        <span class="status-pill bg-ink-soft/20 text-ink-soft">Ver</span>
-      </a>
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Jobs Overview</h1>
+      <div class="sn-breadcrumbs">Dashboard &gt; Jobs Overview</div>
     </div>
-  </details>
-</div>
-
-<form method="get" class="grid grid-cols-1 md:grid-cols-[1fr_200px_180px_auto_auto] gap-3 mb-4">
-  <input type="hidden" name="view" value="{{ view }}">
-  <input type="text" name="q" value="{{ search }}" placeholder="Buscar boda, cliente o lugar..." class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
-  <select name="estado" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
-    <option value="">Todos los estados</option>
-    {% for s in status_options %}
-    <option value="{{ s }}" {% if s == estado_filtro %}selected{% endif %}>{{ s }}</option>
-    {% endfor %}
-  </select>
-  <select name="empresa" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
-    <option value="">Todas las empresas</option>
-    <option value="NORKEVIN" {% if empresa_filtro == 'NORKEVIN' %}selected{% endif %}>Norkevin</option>
-    <option value="ASTRAL FILMS" {% if empresa_filtro == 'ASTRAL FILMS' %}selected{% endif %}>Astral</option>
-  </select>
-  <button type="submit" class="btn-gold">Buscar</button>
-  {% if estado_filtro or search or empresa_filtro or view != 'active' %}
-  <a href="/jobs" class="inline-flex items-center justify-center text-ink-soft hover:text-ink text-xs font-medium px-2">Limpiar</a>
-  {% endif %}
-</form>
-
-{% if jobs %}
-<div class="space-y-3">
-  {% for j in jobs %}
-  {% set ops = j.ops or {} %}
-  <a href="/jobs/{{ j.id }}" class="block bg-paper-pure rounded-lg border border-line shadow-soft card-hover overflow-hidden">
-    <div class="grid grid-cols-1 xl:grid-cols-[1.2fr_1fr_0.8fr] gap-4 p-4">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2 flex-wrap mb-2">
-          <span class="status-pill
-            {% if days_until(j.get('Fecha del evento')) < 0 and j.get('Estado') != 'Listo' %}bg-rose-50 text-rose-700
-            {% elif days_until(j.get('Fecha del evento')) <= 30 and view != 'completed' %}bg-amber-50 text-amber-700
-            {% elif days_until(j.get('Fecha del evento')) <= 90 and view != 'completed' %}bg-blue-50 text-blue-700
-            {% else %}bg-line-soft text-ink-soft{% endif %}">
-            {% if days_until(j.get('Fecha del evento')) == 9999 %}Sin fecha{% elif days_until(j.get('Fecha del evento')) < 0 %}Hace {{ 0 - days_until(j.get('Fecha del evento')) }}d{% else %}En {{ days_until(j.get('Fecha del evento')) }}d{% endif %}
-          </span>
-          <span class="status-pill
-            {% if j.get('Estado') == 'Confirmado' %}bg-emerald-50 text-emerald-700
-            {% elif j.get('Estado') in ('En produccion','Post produccion','En progreso') %}bg-blue-50 text-blue-700
-            {% elif j.get('Estado') == 'Listo' %}bg-paper text-ink-soft
-            {% elif j.get('Estado') in ('Cotizando','Lead') %}bg-amber-50 text-amber-700
-            {% else %}bg-violet-50 text-violet-700{% endif %}">{{ j.get('Estado') or 'Sin estado' }}</span>
-          {% if j.get('EMPRESA') == 'ASTRAL FILMS' %}<span class="status-pill bg-violet-50 text-violet-700">Astral</span>{% endif %}
-        </div>
-        <div class="text-base font-semibold text-ink truncate">{{ j.get('BODA') or '—' }}</div>
-        <div class="text-xs text-ink-soft mt-1 truncate">{{ parse_date(j.get('Fecha del evento')) or 'Fecha pendiente' }} · {{ j.get('Lugar de evento') or 'Sin lugar' }}</div>
-      </div>
-
-      <div>
-        <div class="flex items-center justify-between gap-3 mb-2">
-          <span class="status-pill
-            {% if ops.next_task_tone == 'urgent' %}bg-rose-50 text-rose-700
-            {% elif ops.next_task_tone == 'warning' %}bg-amber-50 text-amber-700
-            {% elif ops.next_task_tone == 'done' %}bg-emerald-50 text-emerald-700
-            {% else %}bg-line-soft text-ink-soft{% endif %}">{{ ops.next_task or 'Revisar proyecto' }}</span>
-          <span class="text-[10px] text-ink-soft font-mono">{{ ops.progress or 0 }}%</span>
-        </div>
-        <div class="h-2 rounded-full bg-paper overflow-hidden">
-          <div class="h-full rounded-full {% if ops.progress == 100 %}bg-emerald-500{% else %}bg-gold{% endif %}" style="width: {{ ops.progress or 0 }}%"></div>
-        </div>
-        <div class="mt-2 flex items-center gap-2 text-xs text-ink-soft">
-          <span>{{ ops.quote_count or 0 }} cotiz.</span>
-          <span>/</span>
-          <span>{{ ops.invoice_count or 0 }} invoices</span>
-          {% if j.get('origen_lead') %}<span>/ lead</span>{% endif %}
-        </div>
-      </div>
-
-      <div class="xl:text-right">
-        <div class="text-sm font-semibold text-ink">{{ q_money(ops.total or j.get('Total facturado al cliente (Q)')) }}</div>
-        <div class="text-xs {% if (ops.balance or 0) <= 0 and (ops.total or 0) > 0 %}text-emerald-700{% elif (ops.paid or 0) > 0 %}text-amber-700{% else %}text-ink-soft{% endif %}">
-          {{ q_money(ops.paid or j.get('Total pagado por cliente (Q)')) }} pagado
-        </div>
-        {% if (ops.balance or 0) > 0 %}<div class="text-[10px] text-rose-700">{{ q_money(ops.balance) }} pendiente</div>{% endif %}
-        <div class="text-[10px] text-ink-soft mt-2 truncate">{{ j.get('Primera Camara') or 'Sin foto' }} / {{ j.get('Videografo 1') or 'Sin video' }}</div>
-      </div>
+    <div class="sn-actions">
+      <a class="sn-btn" href="/api/jobs/export.csv">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
+        Export Jobs
+      </a>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="openJobModal()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Add New Job
+      </button>
     </div>
-  </a>
-  {% endfor %}
+  </div>
+
+  <div class="sn-toolbar">
+    <div class="sn-toolbar-left">
+      <select id="job-status-filter" class="sn-select" onchange="filterJobs()">
+        <option value="active">Active Jobs</option>
+        <option value="upcoming">Active Jobs with Upcoming Shoot</option>
+        <option value="completed">Completed Jobs</option>
+        <option value="archived">Archived Jobs</option>
+        <option value="all">All Jobs</option>
+      </select>
+    </div>
+    <div class="sn-toolbar-right">
+      <input id="job-search" class="sn-search" type="search" placeholder="Search Job Name" oninput="filterJobs()">
+    </div>
+  </div>
+
+  <div class="sn-table-shell">
+    <table class="sn-table" id="jobs-table">
+      <thead>
+        <tr>
+          <th style="width: 170px;">Boda Date</th>
+          <th>Job Name</th>
+          <th style="width: 120px;">Job Type</th>
+          <th style="width: 500px;">Workflow Progress</th>
+          <th style="width: 210px;">Next Task</th>
+          <th style="width: 44px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in jobs %}
+        <tr class="sn-table-row"
+            data-status="{{ job.status or '' }}"
+            data-date="{{ job.boda_date or '' }}"
+            data-name="{{ (job.nombre or '')|lower }}"
+            onclick="goJob(event, '{{ job.id }}')">
+          <td class="sn-ellipsis">
+            {% if job.boda_date %}
+              {{ job.boda_date_display or job.boda_date }}
+              {% if job.dias_restantes is not none and job.dias_restantes >= 0 %}
+                <span class="sn-chip yellow" title="Dias restantes">{{ job.dias_restantes }}d</span>
+              {% endif %}
+            {% else %}
+              <span class="sn-muted">No date</span>
+            {% endif %}
+          </td>
+          <td class="sn-ellipsis">
+            <div class="sn-row-name">
+              <span class="sn-row-avatar">{{ (job.nombre or '?')[:1]|upper }}</span>
+              <span>{{ job.nombre or 'Sin nombre' }}</span>
+            </div>
+          </td>
+          <td class="sn-ellipsis">
+            <span class="sn-dot"></span>{{ job.type or 'BODAS' }}
+          </td>
+          <td>
+            <div class="sn-progress" title="{{ job.workflow_progress }}%">
+              <div class="sn-progress-fill {% if job.type and job.type != 'Boda' %}cyan{% endif %}" style="width: {{ job.workflow_progress or 0 }}%;"></div>
+            </div>
+          </td>
+          <td class="sn-ellipsis">{{ job.next_task or 'Job complete' }}</td>
+          <td style="text-align:right;">
+            <button class="sn-menu-dots" type="button" title="Actions" onclick="openRowMenu(event, '{{ job.id }}')">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal-overlay" id="job-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Add New Job</h2>
+    <form id="job-form" onsubmit="createJob(event)">
+      <div class="form-group">
+        <label class="form-label" for="job-client">Client *</label>
+        <select class="form-input" id="job-client" name="client_id" required>
+          <option value="">Selecciona un cliente...</option>
+          {% for c in all_clients %}
+          <option value="{{ c.id }}">{{ c.first_name }} {{ c.last_name }}{% if c.email %} &middot; {{ c.email }}{% endif %}</option>
+          {% endfor %}
+        </select>
+        {% if not all_clients %}
+        <div class="sn-muted" style="font-size:11px;margin-top:6px;">No hay clientes todavia. <a href="/clients">Crea uno primero</a>.</div>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="job-nombre">Job name</label>
+        <input class="form-input" id="job-nombre" name="nombre" required placeholder="Nombre de la boda">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="job-date">Boda date</label>
+          <input class="form-input" id="job-date" name="boda_date" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="job-type">Type</label>
+          <input class="form-input" id="job-type" name="type" value="Boda">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="job-location">Location</label>
+        <input class="form-input" id="job-location" name="location" placeholder="Lugar del evento">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="job-package">Package</label>
+          <input class="form-input" id="job-package" name="package" placeholder="Paquete">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="job-price">Total</label>
+          <input class="form-input" id="job-price" name="price_total" type="number" min="0" step="0.01" placeholder="0">
+        </div>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
+        <button class="sn-btn" type="button" onclick="closeJobModal()">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Create Job</button>
+      </div>
+    </form>
+  </div>
 </div>
-{% else %}
-<div class="bg-paper-pure rounded-lg p-12 border border-line shadow-soft text-center">
-  <p class="text-sm text-ink-soft mb-4">No hay jobs que coincidan con tu vista</p>
-  <a href="/jobs?view=active" class="text-gold hover:underline text-sm font-medium">Ver jobs activos</a>
-</div>
-{% endif %}
+
+<script>
+function goJob(event, id) {
+  if (event.target.closest('button')) return;
+  window.location.href = '/jobs/' + id;
+}
+
+function filterJobs() {
+  var q = (document.getElementById('job-search').value || '').trim().toLowerCase();
+  var status = document.getElementById('job-status-filter').value;
+  var today = new Date().toISOString().slice(0, 10);
+  document.querySelectorAll('#jobs-table tbody tr').forEach(function(row) {
+    var name = row.getAttribute('data-name') || '';
+    var rowStatus = row.getAttribute('data-status') || '';
+    var active = rowStatus !== 'Archivado' && rowStatus !== 'Listo';
+    var upcoming = active && (row.getAttribute('data-date') || '') >= today;
+    var completed = rowStatus === 'Listo';
+    var archived = rowStatus === 'Archivado';
+    var statusOk =
+      status === 'all' ||
+      (status === 'active' && active) ||
+      (status === 'upcoming' && upcoming) ||
+      (status === 'completed' && completed) ||
+      (status === 'archived' && archived);
+    var searchOk = !q || name.indexOf(q) !== -1;
+    row.style.display = statusOk && searchOk ? '' : 'none';
+  });
+}
+
+function openRowMenu(event, jobId) {
+  event.stopPropagation();
+  openActionMenu(event, [
+    { label: 'View', href: '/jobs/' + jobId },
+    { label: 'Edit', href: '/jobs/' + jobId + '?edit=1' },
+    { label: 'Mark Complete', confirm: 'Marcar este job como complete?', action: function() {
+      apiPost('/api/jobs/' + jobId + '/status', { status: 'Listo' })
+        .then(function() { flashToast('Job complete', 'success'); setTimeout(function() { location.reload(); }, 450); })
+        .catch(function(err) { flashToast(err.message, 'error'); });
+    }},
+    { divider: true },
+    { label: 'Archive', danger: true, confirm: 'Archivar este job?', action: function() {
+      apiPost('/api/jobs/' + jobId + '/status', { status: 'Archivado' })
+        .then(function() { flashToast('Job archived', 'success'); setTimeout(function() { location.reload(); }, 450); })
+        .catch(function(err) { flashToast(err.message, 'error'); });
+    }}
+  ]);
+}
+
+function openJobModal() {
+  document.getElementById('job-modal').classList.add('open');
+  setTimeout(function() { document.getElementById('job-client').focus(); }, 50);
+}
+
+function closeJobModal() {
+  document.getElementById('job-modal').classList.remove('open');
+}
+
+function createJob(event) {
+  event.preventDefault();
+  var form = event.currentTarget;
+  var payload = Object.fromEntries(new FormData(form).entries());
+  apiPost('/api/jobs/new', payload)
+    .then(function(data) {
+      flashToast('Job creado', 'success');
+      window.location.href = '/jobs/' + data.job_id;
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeJobModal();
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  filterJobs();
+  if (new URLSearchParams(window.location.search).get('new') === '1') {
+    openJobModal();
+  }
+});
+</script>
 {% endblock %}

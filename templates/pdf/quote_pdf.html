@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; color: #1A2233; margin: 0; padding: 0; }
+
+  .page { padding: 0; }
+  .hero { position: relative; height: 280px; background: linear-gradient(135deg, #0284C7, #075985); color: white; padding: 40px 60px; }
+  .hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(circle at top right, rgba(255,255,255,0.1), transparent 60%); }
+
+  .header-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .logo { font-size: 32px; font-weight: 200; letter-spacing: 4px; }
+  .logo-sub { font-size: 9px; letter-spacing: 6px; opacity: 0.8; margin-top: 4px; }
+
+  .quote-id-box { text-align: right; }
+  .quote-label { font-size: 8px; letter-spacing: 3px; opacity: 0.7; }
+  .quote-id { font-size: 18px; font-weight: 300; margin-top: 4px; }
+  .quote-total-label { font-size: 8px; letter-spacing: 3px; opacity: 0.7; margin-top: 20px; }
+  .quote-total { font-size: 28px; font-weight: 300; margin-top: 4px; }
+
+  .tabs { display: flex; gap: 0; margin-top: 30px; }
+  .tab { padding: 10px 20px; font-size: 9px; letter-spacing: 2px; opacity: 0.5; border-bottom: 1px solid rgba(255,255,255,0.3); }
+  .tab.active { opacity: 1; border-bottom: 2px solid white; }
+
+  .body { padding: 50px 60px; }
+  .section-label { font-size: 9px; letter-spacing: 2px; color: #6B7280; margin-bottom: 8px; }
+  .client-name { font-size: 22px; font-weight: 300; margin-bottom: 4px; }
+  .client-info { color: #4B5563; font-size: 11px; line-height: 1.6; }
+
+  .grid-2 { display: flex; gap: 60px; margin-top: 40px; }
+  .col { flex: 1; }
+  .col-label { font-size: 9px; letter-spacing: 2px; color: #6B7280; margin-bottom: 4px; }
+  .col-value { font-size: 14px; font-weight: 500; }
+  .col-subvalue { color: #6B7280; font-size: 11px; margin-top: 2px; }
+
+  .package-section { margin-top: 40px; padding: 24px; background: #F1F3F6; border-radius: 6px; }
+  .package-name { font-size: 20px; font-weight: 300; margin-bottom: 6px; }
+  .package-desc { color: #6B7280; font-size: 11px; }
+
+  .items-table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+  .items-table th { text-align: left; padding: 12px 0; font-size: 9px; letter-spacing: 2px; color: #6B7280; border-bottom: 1px solid #E4E7EC; }
+  .items-table td { padding: 14px 0; border-bottom: 1px solid #F1F3F6; font-size: 12px; vertical-align: top; }
+  .item-name { font-weight: 500; }
+  .item-desc { color: #6B7280; font-size: 10px; margin-top: 4px; }
+  .item-qty { text-align: center; }
+  .item-price { text-align: right; font-weight: 500; }
+  .item-total { text-align: right; font-weight: 500; }
+
+  .totals { margin-top: 30px; margin-left: auto; width: 250px; }
+  .total-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 12px; }
+  .total-row.grand { border-top: 2px solid #1A2233; margin-top: 8px; padding-top: 16px; font-size: 16px; font-weight: 500; }
+
+  .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #E4E7EC; text-align: center; color: #6B7280; font-size: 9px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HERO con imagen de fondo (placeholder gradient) -->
+  <div class="hero">
+    <div class="header-row">
+      <div>
+        <div class="logo">ASTRAL</div>
+        <div class="logo-sub">WEDDINGS</div>
+      </div>
+      <div class="quote-id-box">
+        <div class="quote-label">QUOTE</div>
+        <div class="quote-id">{{ quote.id }}</div>
+        <div class="quote-total-label">TOTAL</div>
+        <div class="quote-total">Q{{ '{:,.2f}'.format(quote.precio_total) }}</div>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab">INICIO</div>
+      <div class="tab active">COTIZACION</div>
+      <div class="tab">CONTRATO</div>
+      <div class="tab">FACTURA</div>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="body">
+
+    <!-- Cliente -->
+    <div class="section-label">PARA</div>
+    <div class="client-name">{{ lead.nombre }}</div>
+    <div class="client-info">
+      {{ lead.telefono or '' }}<br>
+      {{ lead.email or '' }}<br>
+      Guatemala
+    </div>
+
+    <!-- Job info -->
+    <div class="grid-2">
+      <div class="col">
+        <div class="col-label">JOB</div>
+        <div class="col-value">{{ lead.nombre }}</div>
+        <div class="col-subvalue">Issue Date {{ quote.created or '—' }}</div>
+        <div class="col-subvalue">Boda {{ lead.fecha_tentativa or '—' }}</div>
+        <div class="col-subvalue">{{ lead.locacion or 'Guatemala' }}</div>
+      </div>
+      <div class="col">
+        <div class="col-label">PAQUETE</div>
+        <div class="col-value">{{ quote.paquete_nombre }}</div>
+        {% if quote.plan_pago and quote.plan_pago > 1 %}
+        <div class="col-subvalue">{{ quote.plan_pago }} cuotas de Q{{ '{:,.2f}'.format(quote.cuota_monto) }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Items -->
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width: 50%">PRODUCTO</th>
+          <th style="text-align: center; width: 10%">CANT.</th>
+          <th style="text-align: right; width: 20%">PRECIO UNIT.</th>
+          <th style="text-align: right; width: 20%">IMPORTE</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div class="item-name">{{ quote.paquete_nombre }}</div>
+            {% if quote.incluye %}
+            <div class="item-desc">
+              {% for item in quote.incluye %}{{ item }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+            </div>
+            {% endif %}
+          </td>
+          <td class="item-qty">1</td>
+          <td class="item-price">Q{{ '{:,.2f}'.format(quote.precio_total) }}</td>
+          <td class="item-total">Q{{ '{:,.2f}'.format(quote.precio_total) }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Totales -->
+    <div class="totals">
+      <div class="total-row">
+        <span>Subtotal</span>
+        <span>Q{{ '{:,.2f}'.format(quote.precio_total) }}</span>
+      </div>
+      <div class="total-row grand">
+        <span>Total</span>
+        <span>Q{{ '{:,.2f}'.format(quote.precio_total) }}</span>
+      </div>
+    </div>
+
+    <!-- Notas -->
+    {% if quote.notas %}
+    <div style="margin-top: 40px; padding: 16px; background: #FEF3C7; border-left: 3px solid #D97706;">
+      <div style="font-size: 9px; letter-spacing: 2px; color: #92400E; margin-bottom: 4px;">NOTAS</div>
+      <p style="font-size: 11px; color: #1F2937; margin: 0;">{{ quote.notas }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="footer">
+      ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333<br>
+      Cotizacion generada el {{ generated_at }}
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

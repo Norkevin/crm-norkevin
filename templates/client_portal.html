@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Client Portal · {{ client.first_name }}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+{% include "_tailwind_config.html" %}
+<style>
+  :root {
+    --pc-blue: #0284C7;
+    --pc-blue-dark: #075985;
+    --pc-ink: #0B1220;
+    --pc-line: #E4E7EC;
+    --pc-muted: #6B7280;
+    --pc-hero-bg: #232B3A;
+    --pc-gold: #B08D57;
+  }
+  body { background: #F6F7F9; color: var(--pc-ink); font-family: 'Inter', sans-serif; }
+  .brand { color: var(--pc-blue); }
+
+  /* Hero: plano y sobrio (sin degradado ni resplandor) */
+  .portal-hero {
+    background: var(--pc-hero-bg);
+    color: #fff;
+    border-radius: 22px;
+    padding: 32px 28px;
+    position: relative;
+    overflow: hidden;
+    border-bottom: 3px solid var(--pc-gold);
+  }
+  .portal-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; position: relative; z-index: 1; }
+  .portal-hero-greeting { font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
+  .portal-hero-sub { font-size: 13px; color: rgba(255,255,255,.65); margin-top: 4px; }
+  .portal-countdown {
+    text-align: center;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 16px;
+    padding: 14px 22px;
+    backdrop-filter: blur(2px);
+  }
+  .portal-countdown-num { font-size: 34px; font-weight: 700; line-height: 1; }
+  .portal-countdown-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.65); margin-top: 4px; }
+  .portal-hero-meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 22px; position: relative; z-index: 1; }
+  .portal-hero-meta-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,.85); }
+  .portal-hero-meta-item svg { width: 16px; height: 16px; stroke: rgba(255,255,255,.6); flex-shrink: 0; }
+
+  /* Journey stepper */
+  .portal-journey {
+    display: flex;
+    align-items: center;
+    margin-top: 26px;
+    position: relative;
+    z-index: 1;
+  }
+  .portal-journey-step { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; position: relative; }
+  .portal-journey-dot {
+    width: 26px; height: 26px; border-radius: 999px;
+    display: grid; place-items: center;
+    background: rgba(255,255,255,.14);
+    border: 1.5px solid rgba(255,255,255,.3);
+    font-size: 11px; font-weight: 700; color: rgba(255,255,255,.7);
+  }
+  .portal-journey-step.done .portal-journey-dot { background: var(--pc-blue); border-color: var(--pc-blue); color: #fff; }
+  .portal-journey-line { position: absolute; top: 13px; left: 50%; width: 100%; height: 2px; background: rgba(255,255,255,.2); z-index: -1; }
+  .portal-journey-step:last-child .portal-journey-line { display: none; }
+  .portal-journey-step.done .portal-journey-line { background: var(--pc-blue); }
+  .portal-journey-label { font-size: 10.5px; color: rgba(255,255,255,.6); text-align: center; }
+  .portal-journey-step.done .portal-journey-label { color: #fff; font-weight: 600; }
+
+  /* Payment summary */
+  .portal-payment-card {
+    background: #fff;
+    border-radius: 20px;
+    border: 1px solid var(--pc-line);
+    padding: 22px 24px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.03);
+  }
+  .portal-progress-track { height: 10px; border-radius: 999px; background: #EEF0F3; overflow: hidden; }
+  .portal-progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--pc-blue), var(--pc-blue-dark)); }
+
+  /* Nav tiles */
+  .portal-nav-tile {
+    background: #fff;
+    border-radius: 18px;
+    border: 1px solid var(--pc-line);
+    padding: 18px;
+    transition: box-shadow .15s ease, transform .15s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .portal-nav-tile:hover { box-shadow: 0 10px 26px rgba(15,23,42,.08); transform: translateY(-1px); }
+  .portal-nav-icon {
+    width: 38px; height: 38px; border-radius: 11px;
+    display: grid; place-items: center; color: #fff;
+  }
+  .portal-nav-icon svg { width: 19px; height: 19px; }
+
+  /* Section cards */
+  .portal-section {
+    background: #fff;
+    border-radius: 20px;
+    border: 1px solid var(--pc-line);
+    padding: 24px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.03);
+  }
+  .portal-item {
+    border: 1px solid var(--pc-line);
+    border-radius: 14px;
+    padding: 16px;
+    background: #FAFBFC;
+  }
+  .portal-badge {
+    display: inline-flex; align-items: center;
+    font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 999px;
+    color: #fff;
+  }
+  .portal-badge.b-green { background: #16A34A; }
+  .portal-badge.b-blue { background: var(--pc-blue); }
+  .portal-badge.b-amber { background: #B45309; }
+  .portal-badge.b-red { background: #DC2626; }
+  .portal-badge.b-gray { background: #6B7280; }
+
+  .portal-action-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+  .portal-action {
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12.5px; font-weight: 500; padding: 8px 14px; border: 1px solid var(--pc-line); border-radius: 10px;
+    color: var(--pc-ink); text-decoration: none; background: #fff; min-height: 36px;
+    white-space: nowrap; cursor: pointer;
+  }
+  .portal-action:hover { background: #F1F3F6; }
+  .portal-action.primary { background: var(--pc-blue); color: #fff; border-color: var(--pc-blue); font-weight: 600; }
+  .portal-action.primary:hover { opacity: .92; }
+  .portal-header-exit {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 40px; min-height: 40px; font-size: 12.5px; color: #4B5563; text-decoration: none;
+  }
+  @media (max-width: 480px) {
+    .portal-action { min-height: 44px; padding: 10px 16px; font-size: 13.5px; flex: 1 1 auto; }
+    .portal-action-group { gap: 10px; }
+    .portal-hero-top { flex-direction: column; }
+    .portal-countdown { align-self: stretch; }
+    .portal-journey-label { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg brand font-semibold flex items-center justify-center" style="background:#E0F2FE;">
+        A
+      </div>
+      <div>
+        <div class="font-medium text-ink">ASTRAL WEDDINGS</div>
+        <div class="text-[10px] text-ink-soft uppercase tracking-wide">Client Portal</div>
+      </div>
+    </div>
+    <a href="/" class="portal-header-exit">Salir</a>
+  </header>
+
+  <div class="max-w-5xl mx-auto px-6 py-8 space-y-6">
+
+    <!-- Hero -->
+    <div class="portal-hero">
+      <div class="portal-hero-top">
+        <div>
+          <div class="portal-hero-greeting">Hola, {{ client.first_name }} &#10024;</div>
+          <div class="portal-hero-sub">
+            {% if primary_job %}Este es el estado de tu boda con ASTRAL WEDDINGS{% else %}Tu portal personalizado ASTRAL WEDDINGS{% endif %}
+          </div>
+        </div>
+        {% if days_until_wedding is not none and days_until_wedding >= 0 %}
+        <div class="portal-countdown">
+          <div class="portal-countdown-num">{{ days_until_wedding }}</div>
+          <div class="portal-countdown-label">{{ 'Dia' if days_until_wedding == 1 else 'Dias' }} para tu boda</div>
+        </div>
+        {% elif days_until_wedding is not none %}
+        <div class="portal-countdown">
+          <div class="portal-countdown-num">&#128142;</div>
+          <div class="portal-countdown-label">Ya se celebro</div>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if primary_job %}
+      <div class="portal-hero-meta">
+        {% if wedding_date_label %}
+        <div class="portal-hero-meta-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path stroke-linecap="round" d="M16 2v4M8 2v4M3 10h18"/></svg>
+          {{ wedding_date_label }}
+        </div>
+        {% endif %}
+        {% if primary_job.location %}
+        <div class="portal-hero-meta-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          {{ primary_job.location }}
+        </div>
+        {% endif %}
+        {% if primary_job.package %}
+        <div class="portal-hero-meta-item">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.5 7.3 12 12l-8.5-4.7M12 12v9M20.5 7.3v9.4L12 21l-8.5-4.3V7.3L12 3l8.5 4.3Z"/></svg>
+          Paquete {{ primary_job.package }}
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="portal-journey">
+        <div class="portal-journey-step {{ 'done' if steps_done >= 1 else '' }}">
+          <div class="portal-journey-line"></div>
+          <div class="portal-journey-dot">{{ '✓' if steps_done >= 1 else '1' }}</div>
+          <div class="portal-journey-label">Cotizacion</div>
+        </div>
+        <div class="portal-journey-step {{ 'done' if steps_done >= 2 else '' }}">
+          <div class="portal-journey-line"></div>
+          <div class="portal-journey-dot">{{ '✓' if steps_done >= 2 else '2' }}</div>
+          <div class="portal-journey-label">Contrato</div>
+        </div>
+        <div class="portal-journey-step {{ 'done' if steps_done >= 3 else '' }}">
+          <div class="portal-journey-line"></div>
+          <div class="portal-journey-dot">{{ '✓' if steps_done >= 3 else '3' }}</div>
+          <div class="portal-journey-label">Cuestionario</div>
+        </div>
+        <div class="portal-journey-step {{ 'done' if steps_done >= 4 else '' }}">
+          <div class="portal-journey-dot">{{ '✓' if steps_done >= 4 else '4' }}</div>
+          <div class="portal-journey-label">Galeria</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Payment summary -->
+    {% if total_all > 0 %}
+    <div class="portal-payment-card">
+      <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+        <div>
+          <div class="text-xs text-ink-soft">Progreso de pago</div>
+          <div class="text-2xl font-semibold text-ink">Q{{ '{:,.0f}'.format(paid_all) }} <span class="text-sm font-normal text-ink-soft">de Q{{ '{:,.0f}'.format(total_all) }}</span></div>
+        </div>
+        {% if next_due %}
+        <div class="text-right">
+          <div class="text-xs text-ink-soft">Proximo pago</div>
+          <div class="text-sm font-semibold text-ink">Q{{ '{:,.2f}'.format(next_due.amount or 0) }} &middot; {{ next_due.due_date }}</div>
+          {% if next_due.payment_link_url %}
+          <a href="{{ next_due.payment_link_url }}" target="_blank" class="portal-action primary" style="margin-top:8px;">Pagar ahora</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="portal-progress-track">
+        <div class="portal-progress-fill" style="width:{{ payment_pct }}%;"></div>
+      </div>
+      <div class="text-[11px] text-ink-soft mt-2">{{ payment_pct }}% completado</div>
+    </div>
+    {% endif %}
+
+    <!-- Tabs / Secciones -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+
+      <a href="#quotes" class="portal-nav-tile">
+        <div class="portal-nav-icon" style="background:#0284C7;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
+        </div>
+        <div>
+          <div class="font-semibold text-ink text-sm">Cotizaciones</div>
+          <div class="text-xs text-ink-soft">{{ quotes|length }} propuesta{{ 's' if quotes|length != 1 else '' }}</div>
+        </div>
+      </a>
+
+      <a href="#contracts" class="portal-nav-tile">
+        <div class="portal-nav-icon" style="background:#111827;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.5 11 14.5l4-4.5M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
+        </div>
+        <div>
+          <div class="font-semibold text-ink text-sm">Contratos</div>
+          <div class="text-xs text-ink-soft">{{ contracts|length }} documento{{ 's' if contracts|length != 1 else '' }}</div>
+        </div>
+      </a>
+
+      <a href="#invoices" class="portal-nav-tile">
+        <div class="portal-nav-icon" style="background:#334155;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><path stroke-linecap="round" d="M1 10h22"/></svg>
+        </div>
+        <div>
+          <div class="font-semibold text-ink text-sm">Facturas</div>
+          <div class="text-xs text-ink-soft">{{ invoice_groups|length }} factura{{ 's' if invoice_groups|length != 1 else '' }}</div>
+        </div>
+      </a>
+
+      <a href="#questionnaires" class="portal-nav-tile">
+        <div class="portal-nav-icon" style="background:#075985;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
+        </div>
+        <div>
+          <div class="font-semibold text-ink text-sm">Cuestionarios</div>
+          <div class="text-xs text-ink-soft">{{ questionnaires|length }} pendiente{{ 's' if questionnaires|length != 1 else '' }}</div>
+        </div>
+      </a>
+
+      <a href="#galeria" class="portal-nav-tile">
+        <div class="portal-nav-icon" style="background:#6B7280;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="m21 15-5-5L5 21"/></svg>
+        </div>
+        <div>
+          <div class="font-semibold text-ink text-sm">Galeria</div>
+          <div class="text-xs text-ink-soft">{{ files|length }} archivo{{ 's' if files|length != 1 else '' }}</div>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- Cotizaciones -->
+    <div id="quotes" class="portal-section">
+      <h2 class="text-lg font-semibold text-ink mb-4">Cotizaciones</h2>
+      {% if quotes %}
+      <div class="space-y-3">
+        {% for q in quotes %}
+        <div class="portal-item">
+          <div class="flex items-center justify-between mb-2 gap-3 flex-wrap">
+            <div>
+              <div class="font-medium text-ink">{{ q.paquete_nombre }}</div>
+              <div class="text-xs text-ink-soft">Cotizacion #{{ q.id }}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-lg font-semibold text-ink">Q{{ '{:,.0f}'.format(q.precio_total) }}</div>
+              <div class="text-xs text-ink-soft">{{ q.created }}</div>
+            </div>
+          </div>
+          {% if q.incluye %}
+          <div class="text-xs text-ink-soft" style="margin-bottom:10px;line-height:1.6;">
+            {% for item in q.incluye %}&#10003; {{ item }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+          </div>
+          {% endif %}
+          <div class="portal-action-group">
+            {% if q.status == 'Aceptada' %}
+            <span class="portal-badge b-green">Aceptada</span>
+            {% elif q.status in ['Enviada', 'Pendiente'] %}
+            <span class="portal-badge b-blue">Pendiente</span>
+            {% endif %}
+            <a href="/quotes/{{ q.id }}" target="_blank" class="portal-action">Ver</a>
+            {% if q.status in ['Enviada', 'Pendiente'] %}
+            <form method="POST" action="/quotes/{{ q.id }}/accept" class="inline" style="flex:1 1 auto;">
+              <button type="submit" class="portal-action primary" style="width:100%;">Aceptar Cotizacion</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-ink-soft text-center py-6">Sin cotizaciones por el momento.</p>
+      {% endif %}
+    </div>
+
+    <!-- Contratos -->
+    <div id="contracts" class="portal-section">
+      <h2 class="text-lg font-semibold text-ink mb-4">Contratos</h2>
+      {% if contracts %}
+      <div class="space-y-3">
+        {% for c in contracts %}
+        <div class="portal-item">
+          <div class="flex items-center justify-between mb-2 gap-3 flex-wrap">
+            <div>
+              <div class="font-medium text-ink">Contrato #{{ c.id }}</div>
+              <div class="text-xs text-ink-soft">{{ c.created }}</div>
+            </div>
+            {% if c.signed %}
+            <span class="portal-badge b-green">Firmado</span>
+            {% else %}
+            <span class="portal-badge b-amber">Pendiente firma</span>
+            {% endif %}
+          </div>
+          <div class="portal-action-group">
+            <a href="/contracts/{{ c.id }}" target="_blank" class="portal-action">Ver contrato</a>
+            <a href="/contracts/{{ c.id }}/pdf" target="_blank" class="portal-action">Ver PDF</a>
+            {% if not c.signed %}
+            <button onclick="openSignature('{{ c.id }}')" class="portal-action primary">Firmar digitalmente</button>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-ink-soft text-center py-6">Sin contratos por el momento.</p>
+      {% endif %}
+    </div>
+
+    <!-- Facturas -->
+    <div id="invoices" class="portal-section">
+      <h2 class="text-lg font-semibold text-ink mb-4">Facturas</h2>
+      {% if invoice_groups %}
+      <div class="space-y-3">
+        {% for g in invoice_groups %}
+        <div class="portal-item" style="padding:0;overflow:hidden;">
+          <div class="p-4 flex items-center justify-between cursor-pointer gap-3 flex-wrap" onclick="toggleInvoiceGroup('{{ g.invoice_id }}')">
+            <div>
+              <div class="font-medium text-ink text-sm">{{ g.invoice_id }}</div>
+              <div class="text-xs text-ink-soft">{{ g.concepto }} &middot; {{ g.rows|length }} pago{{ 's' if g.rows|length != 1 else '' }}</div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right">
+                <div class="font-semibold text-ink">Q{{ '{:,.0f}'.format(g.total) }}</div>
+                <span class="portal-badge
+                  {% if g.status == 'Pagado' %}b-green
+                  {% elif g.status == 'Late' %}b-red
+                  {% elif g.status == 'Parcial' %}b-blue
+                  {% else %}b-amber{% endif %}" style="margin-top:2px;">
+                  {{ {'Pagado': 'Pagado', 'Late': 'Vencido', 'Parcial': 'Pago parcial', 'Pendiente': 'Pendiente'}.get(g.status, g.status) }}
+                </span>
+              </div>
+              <a href="/invoices/{{ g.invoice_id }}/pdf" target="_blank" onclick="event.stopPropagation();" class="portal-action" style="flex:none;">PDF</a>
+            </div>
+          </div>
+          {% if g.package_name %}
+          <div class="px-4 pb-3 -mt-1">
+            <div class="text-xs font-medium text-ink">Paquete: {{ g.package_name }}</div>
+            {% if g.package_incluye %}
+            <div class="text-xs text-ink-soft" style="margin-top:4px;line-height:1.6;">
+              {% for item in g.package_incluye %}&#10003; {{ item }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+          <div id="invoice-breakdown-{{ g.invoice_id }}" class="hidden border-t border-gray-200 bg-gray-50 px-4 py-3">
+            {% for r in g.rows %}
+            <div class="py-2 {{ 'border-b border-gray-200' if not loop.last else '' }}">
+              <div class="flex items-center justify-between text-xs flex-wrap gap-2">
+                <div class="text-ink-soft">Pago {{ r.cuota or (loop.index) }} &middot; vence {{ r.due_date or '-' }}</div>
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-ink">Q{{ '{:,.2f}'.format(r.amount or 0) }}</span>
+                  <span class="portal-badge {% if r.status == 'Pagado' %}b-green{% elif r.status == 'Late' %}b-red{% else %}b-amber{% endif %}">{{ r.status }}</span>
+                </div>
+              </div>
+              {% if r.status != 'Pagado' and r.payment_link_url %}
+              <a href="{{ r.payment_link_url }}" target="_blank" onclick="event.stopPropagation();" class="portal-action primary" style="width:100%;margin-top:8px;">Pagar ahora Q{{ '{:,.2f}'.format(r.amount or 0) }}</a>
+              {% endif %}
+            </div>
+            {% endfor %}
+            {% if g.rows|length > 1 %}
+            <div class="flex items-center justify-between pt-3 mt-1 border-t border-gray-300 text-xs font-semibold">
+              <span>Saldo pendiente</span>
+              <span>Q{{ '{:,.2f}'.format(g.balance) }}</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-ink-soft text-center py-6">Sin facturas por el momento.</p>
+      {% endif %}
+    </div>
+
+    <!-- Cuestionarios -->
+    <div id="questionnaires" class="portal-section">
+      <h2 class="text-lg font-semibold text-ink mb-4">Cuestionarios</h2>
+      {% if questionnaires %}
+      <div class="space-y-2">
+        {% for q in questionnaires %}
+        <div class="portal-item flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div class="font-medium text-ink text-sm">{{ q.name }}</div>
+            <div class="text-xs text-ink-soft">{{ q.created }}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="portal-badge {{ 'b-green' if q.status == 'Respondido' else ('b-blue' if q.status == 'Sent' else 'b-amber') }}">{{ q.status }}</span>
+            <a href="/questionnaires/{{ q.id }}" target="_blank" class="portal-action" style="flex:none;">{{ 'Ver respuestas' if q.status == 'Respondido' else 'Responder' }}</a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-ink-soft text-center py-6">Sin cuestionarios por el momento.</p>
+      {% endif %}
+    </div>
+
+    <!-- Galeria / Archivos -->
+    <div id="galeria" class="portal-section">
+      <h2 class="text-lg font-semibold text-ink mb-4">Galeria y Archivos</h2>
+      {% if files %}
+      <div class="space-y-2">
+        {% for f in files %}
+        <div class="portal-item flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div class="font-medium text-ink text-sm">{{ f.name }}</div>
+            <div class="text-xs text-ink-soft">{{ f.created }} &middot; {{ f.size }}</div>
+          </div>
+          {% if f.stored %}
+          <a href="/files/{{ f.id }}/download" class="portal-action" style="flex:none;">Descargar</a>
+          {% else %}
+          <span class="text-xs text-ink-soft">Sin archivo</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-ink-soft text-center py-6">Sin archivos por el momento.</p>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL: Firma digital -->
+<div id="modal-sign" class="hidden fixed inset-0 bg-ink/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-lg max-w-md w-full p-6">
+    <h3 class="font-semibold text-lg mb-2">Firma digital</h3>
+    <p class="text-xs text-ink-soft mb-4">Firma con tu mouse o dedo en el recuadro</p>
+    <canvas id="signature-canvas" width="400" height="150" class="border border-gray-300 rounded-lg w-full"></canvas>
+    <div class="flex gap-2 mt-4">
+      <button onclick="clearSignature()" class="text-sm px-3 py-2 border border-gray-200 rounded-lg">Limpiar</button>
+      <div class="flex-1"></div>
+      <button onclick="closeSignature()" class="text-sm px-3 py-2 border border-gray-200 rounded-lg">Cancelar</button>
+      <button onclick="saveSignature()" class="text-sm px-3 py-2 text-white rounded-lg font-medium" style="background: #0284C7;">Guardar firma</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleInvoiceGroup(invoiceId) {
+  var el = document.getElementById('invoice-breakdown-' + invoiceId);
+  if (el) el.classList.toggle('hidden');
+}
+
+let currentContractId = null;
+let canvas, ctx, drawing = false;
+
+function openSignature(contractId) {
+  currentContractId = contractId;
+  document.getElementById('modal-sign').classList.remove('hidden');
+  canvas = document.getElementById('signature-canvas');
+  ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#0A0E1A';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  clearSignature();
+}
+
+function closeSignature() {
+  document.getElementById('modal-sign').classList.add('hidden');
+}
+
+function clearSignature() {
+  if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function startDraw(e) {
+  drawing = true;
+  ctx.beginPath();
+  const r = canvas.getBoundingClientRect();
+  ctx.moveTo(e.clientX - r.left, e.clientY - r.top);
+}
+function draw(e) {
+  if (!drawing) return;
+  const r = canvas.getBoundingClientRect();
+  ctx.lineTo(e.clientX - r.left, e.clientY - r.top);
+  ctx.stroke();
+}
+function endDraw() { drawing = false; }
+
+function saveSignature() {
+  const dataUrl = canvas.toDataURL('image/png');
+  fetch('/api/contracts/' + currentContractId + '/sign', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ signature: dataUrl })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      closeSignature();
+      alert('Contrato firmado correctamente');
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  canvas = document.getElementById('signature-canvas');
+  if (canvas) {
+    ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#0A0E1A';
+    ctx.lineWidth = 2;
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', endDraw);
+    canvas.addEventListener('touchstart', function(e) {
+      var touch = e.touches[0];
+      startDraw(touch);
+    });
+    canvas.addEventListener('touchmove', function(e) {
+      e.preventDefault();
+      var touch = e.touches[0];
+      draw(touch);
+    });
+  }
+});
+</script>
+
+</body>
+</html>

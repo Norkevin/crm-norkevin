@@ -1,7 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Workflow Templates · Norkevin CRM{% endblock %}
+{% block title %}Workflow Templates · ASTRAL WEDDINGS CRM{% endblock %}
 {% block header %}Workflow Templates{% endblock %}
 {% block subtitle %}Configura las secuencias automaticas que se disparan segun los eventos{% endblock %}
+
+{% block topbar_title %}Workflows{% endblock %}
 
 {% block content %}
 
@@ -78,10 +80,10 @@
     </div>
 
     <!-- Workflow Steps (vertical, como Studio Ninja) -->
-    <div class="bg-paper-pure rounded-lg border border-line shadow-soft p-5">
+    <div class="card">
 
       <div class="flex items-center justify-between mb-4">
-        <h2 class="font-semibold text-ink">Steps del workflow</h2>
+        <h2 class="text-base font-semibold text-ink">Steps del workflow</h2>
         <button onclick="addStep()" class="text-sm text-gold hover:text-gold-deep font-medium">
           + Agregar step
         </button>
@@ -98,10 +100,18 @@
              ondrop="stepDrop(event)">
 
           <div class="flex items-start gap-4">
-            <!-- Drag handle + order -->
-            <div class="flex-shrink-0 text-center w-8">
+            <!-- Drag handle + order + move buttons (touch-friendly alternative a drag-and-drop) -->
+            <div class="flex-shrink-0 text-center w-8 step-order-col">
               <div class="drag-handle text-ink-soft text-xs cursor-grab">⋮⋮</div>
               <div class="text-[10px] text-ink-soft mt-1 font-mono">{{ loop.index }}</div>
+              <div class="step-move-btns" style="display:flex;flex-direction:column;gap:2px;margin-top:4px;">
+                <button type="button" class="step-move-btn" onclick="event.stopPropagation(); moveStep('{{ step.id }}', -1)" aria-label="Mover arriba" {{ 'disabled' if loop.first else '' }}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+                </button>
+                <button type="button" class="step-move-btn" onclick="event.stopPropagation(); moveStep('{{ step.id }}', 1)" aria-label="Mover abajo" {{ 'disabled' if loop.last else '' }}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+              </div>
             </div>
 
             <!-- Trigger icon -->
@@ -115,12 +125,13 @@
                 'boda': '💍',
                 'scheduled': '⏰'
               } %}
+              {% set step_trigger = selected.trigger.value %}
               <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg
-                {% if step.trigger_type == 'lead.created' %}bg-blue-100 text-blue-700
-                {% elif step.trigger_type == 'quote.accepted' %}bg-emerald-100 text-emerald-700
-                {% elif 'boda' in step.trigger_type %}bg-rose-100 text-rose-700
+                {% if step_trigger == 'lead.created' %}bg-blue-100 text-blue-700
+                {% elif step_trigger == 'quote.accepted' %}bg-emerald-100 text-emerald-700
+                {% elif 'boda' in step_trigger or 'wedding' in step_trigger %}bg-rose-100 text-rose-700
                 {% else %}bg-line text-ink-soft{% endif %}">
-                {{ icons.get(step.trigger_type, '⚙️') }}
+                {{ icons.get(step_trigger, '⚙️') }}
               </div>
             </div>
 
@@ -128,7 +139,7 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-baseline gap-2 mb-1">
                 <h3 class="font-medium text-ink">{{ step.name }}</h3>
-                <span class="text-[10px] px-1.5 py-0.5 bg-line text-ink-soft rounded uppercase tracking-wide">{{ step.action_type }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 bg-line text-ink-soft rounded uppercase tracking-wide">{{ (step.action_type.value if step.action_type.value is defined else step.action_type)|replace('_', ' ') }}</span>
               </div>
               <p class="text-xs text-ink-soft mb-2">{{ step.description }}</p>
 
@@ -256,7 +267,7 @@
       </div>
 
       <div class="flex gap-2 pt-4 border-t border-line">
-        <button type="submit" class="btn-gold flex-1">Guardar step</button>
+        <button type="submit" class="btn btn-primary flex-1">Guardar step</button>
         <button type="button" onclick="closeStepEditor()" class="btn-outline">Cancelar</button>
       </div>
     </form>
@@ -265,9 +276,22 @@
 
 <style>
   .step-card.dragging { opacity: 0.4; }
-  .step-card.drag-over { border-color: #2F7D73; background: rgba(47, 125, 115, 0.05); }
+  .step-card.drag-over { border-color: #0284C7; background: rgba(2, 132, 199, 0.05); }
   .btn-outline { padding: 0.5em 1em; border: 1px solid #E4E7EC; border-radius: 0.375rem; font-size: 0.875rem; }
   .btn-outline:hover { background: #F1F3F6; }
+  .step-move-btn {
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #E4E7EC; border-radius: 6px;
+    background: #fff; color: #71717a; cursor: pointer;
+    margin: 0 auto;
+  }
+  .step-move-btn:hover:not(:disabled) { background: #F1F3F6; color: #18181b; }
+  .step-move-btn:disabled { opacity: .3; cursor: not-allowed; }
+  @media (max-width: 640px) {
+    .drag-handle { display: none; }
+    .step-move-btn { width: 32px; height: 32px; }
+  }
 </style>
 
 <script>
@@ -334,10 +358,43 @@ function stepDrop(e) {
       return aIdx - bIdx;
     });
     cards.forEach(c => container.appendChild(c));
+    renumberSteps();
   }
 
   draggedStepEl.classList.remove('dragging');
   draggedStepEl = null;
+}
+
+// Alternativa a drag-and-drop para mobile (HTML5 DnD no funciona con touch)
+function moveStep(stepId, direction) {
+  const idx = workflowData.steps.findIndex(s => s.id === stepId);
+  const newIdx = idx + direction;
+  if (idx < 0 || newIdx < 0 || newIdx >= workflowData.steps.length) return;
+
+  const [removed] = workflowData.steps.splice(idx, 1);
+  workflowData.steps.splice(newIdx, 0, removed);
+
+  const container = document.getElementById('steps-container');
+  const cards = Array.from(container.querySelectorAll('.step-card'));
+  cards.sort((a, b) => {
+    const aIdx = workflowData.steps.findIndex(s => s.id === a.dataset.stepId);
+    const bIdx = workflowData.steps.findIndex(s => s.id === b.dataset.stepId);
+    return aIdx - bIdx;
+  });
+  cards.forEach(c => container.appendChild(c));
+  renumberSteps();
+}
+function renumberSteps() {
+  const container = document.getElementById('steps-container');
+  const cards = Array.from(container.querySelectorAll('.step-card'));
+  cards.forEach((card, i) => {
+    const orderEl = card.querySelector('.step-order-col > div:nth-child(2)');
+    if (orderEl) orderEl.textContent = i + 1;
+    const upBtn = card.querySelectorAll('.step-move-btn')[0];
+    const downBtn = card.querySelectorAll('.step-move-btn')[1];
+    if (upBtn) upBtn.disabled = i === 0;
+    if (downBtn) downBtn.disabled = i === cards.length - 1;
+  });
 }
 
 document.querySelectorAll('.step-card').forEach(card => {
@@ -419,12 +476,24 @@ function addStep() {
 function newTemplate() {
   const name = prompt('Nombre del template:');
   if (!name) return;
-  // TODO: POST a /api/workflow/template
-  alert('Crear template: ' + name + '\n(Proximamente con el POST endpoint)');
+  fetch('/api/workflow/template', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      flashToast('Template creado');
+      setTimeout(() => window.location.href = '/workflow-editor?id=' + data.template_id, 400);
+    } else {
+      flashToast('Error: ' + data.error, 'error');
+    }
+  })
+  .catch(() => flashToast('Error de red', 'error'));
 }
 
 function saveTemplate() {
-  // TODO: POST workflowData al backend
   fetch('/api/workflow/template/' + workflowData.id, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

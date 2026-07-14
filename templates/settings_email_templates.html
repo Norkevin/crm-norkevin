@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Email Templates · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}Email Templates{% endblock %}
+{% block subtitle %}Dashboard &gt; Settings &gt; Email Templates{% endblock %}
+{% block topbar_title %}Settings{% endblock %}
+
+{% block content %}
+<section class="sn-page">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Email Templates</h1>
+      <div class="sn-breadcrumbs"><a href="/settings">Settings</a> &gt; Email Templates</div>
+    </div>
+    <div class="sn-actions">
+      <button class="sn-btn sn-btn-primary" type="button" onclick="openTemplateModal()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Nueva Plantilla
+      </button>
+    </div>
+  </div>
+
+  <div class="sn-table-shell stack-mobile" style="margin-top:18px;">
+    <table class="sn-table">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Asunto</th>
+          <th style="width:90px;">Estado</th>
+          <th style="width:160px;text-align:right;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in templates %}
+        <tr>
+          <td data-label="Nombre">{{ t.name }}</td>
+          <td data-label="Asunto" class="sn-ellipsis">{{ t.asunto }}</td>
+          <td data-label="Estado">
+            {% if t.activo %}<span class="sn-chip green">Activa</span>{% else %}<span class="sn-chip gray">Inactiva</span>{% endif %}
+          </td>
+          <td class="stack-actions" style="text-align:right;">
+            <button class="sn-btn sn-btn-sm" type="button" onclick='openTemplateModal({{ t|tojson }})'>Edit</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="deleteTemplate('{{ t.id }}')" style="color:#b3263b;">Delete</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="sn-muted" style="text-align:center;padding:24px;">No hay plantillas todavia.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal-overlay" id="template-modal">
+  <div class="modal-content" style="width:min(720px,94vw);">
+    <button type="button" class="modal-close" onclick="closeModal('template-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title" id="template-modal-title">Nueva Plantilla</h2>
+    <form onsubmit="submitTemplate(event)">
+      <input type="hidden" id="tpl-id">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Nombre *</label>
+          <input class="form-input" id="tpl-name" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estado</label>
+          <select class="form-input" id="tpl-activo">
+            <option value="true">Activa</option>
+            <option value="false">Inactiva</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Asunto *</label>
+        <input class="form-input" id="tpl-asunto" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cuerpo * <span class="sn-muted" style="font-weight:400;">(usa {{ '{{nombre}}' }} para el nombre del cliente)</span></label>
+        <textarea class="form-input" id="tpl-cuerpo" rows="12" required></textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeModal('template-modal')">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function openTemplateModal(tpl) {
+  document.getElementById('template-modal-title').textContent = tpl ? 'Editar Plantilla' : 'Nueva Plantilla';
+  document.getElementById('tpl-id').value = tpl ? tpl.id : '';
+  document.getElementById('tpl-name').value = tpl ? tpl.name : '';
+  document.getElementById('tpl-asunto').value = tpl ? tpl.asunto : '';
+  document.getElementById('tpl-cuerpo').value = tpl ? tpl.cuerpo : '';
+  document.getElementById('tpl-activo').value = tpl ? String(tpl.activo !== false) : 'true';
+  openModal('template-modal');
+}
+function submitTemplate(event) {
+  event.preventDefault();
+  apiPost('/api/settings/email-templates', {
+    id: document.getElementById('tpl-id').value || undefined,
+    name: document.getElementById('tpl-name').value,
+    asunto: document.getElementById('tpl-asunto').value,
+    cuerpo: document.getElementById('tpl-cuerpo').value,
+    activo: document.getElementById('tpl-activo').value === 'true'
+  })
+    .then(function() { flashToast('Plantilla guardada', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function deleteTemplate(id) {
+  if (!confirm('Eliminar esta plantilla permanentemente?')) return;
+  fetch('/api/settings/email-templates/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { flashToast('Plantilla eliminada', 'success'); setTimeout(function(){ location.reload(); }, 450); }
+      else { flashToast(data.error || 'Error', 'error'); }
+    })
+    .catch(function() { flashToast('Error de red', 'error'); });
+}
+</script>
+{% endblock %}

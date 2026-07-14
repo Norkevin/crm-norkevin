@@ -1,660 +1,1080 @@
 {% extends "base.html" %}
-{% block title %}{{ job['BODA'] }} · Job{% endblock %}
-{% block header %}{{ job['BODA'] }}{% endblock %}
-{% block subtitle %}{{ parse_date(job.get('Fecha del evento')) }} · {{ job.get('Lugar de evento') or '—' }}{% endblock %}
-
-{% block header_actions %}
-<a href="/jobs" class="text-xs font-medium text-ink-soft hover:text-ink px-3 py-1.5 rounded-lg hover:bg-paper transition">Volver a Jobs</a>
-{% if job.get('cliente') and job['cliente'].get('Portal URL') %}
-<a href="{{ job['cliente']['Portal URL'] }}" target="_blank" class="text-xs font-medium bg-ink text-white px-3 py-1.5 rounded-lg hover:bg-ink/90 transition flex items-center gap-1.5">
-  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-  Portal cliente
-</a>
-{% endif %}
-{% endblock %}
+{% block title %}{{ job.nombre }} · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}{{ job.nombre }}{% endblock %}
 
 {% block content %}
-<!-- Breadcrumb -->
-<nav class="flex items-center gap-2 text-xs text-ink-soft mb-6">
-  <a href="/dashboard" class="hover:text-ink">Dashboard</a>
-  <span>/</span>
-  <a href="/jobs" class="hover:text-ink">Jobs</a>
-  <span>/</span>
-  <span class="text-ink font-medium">{{ job['BODA'] }}</span>
-</nav>
-
-<!-- OPERATION SNAPSHOT -->
-<div class="bg-paper-pure rounded-lg border border-line shadow-soft mb-6 overflow-hidden">
-  <div class="p-5 border-b border-line flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-    <div class="min-w-0">
-      <div class="flex items-center gap-2 flex-wrap mb-2">
-        <span class="status-pill
-          {% if job.get('Estado') == 'Confirmado' %}bg-emerald-50 text-emerald-700
-          {% elif job.get('Estado') in ('En produccion','Post produccion','En progreso') %}bg-blue-50 text-blue-700
-          {% elif job.get('Estado') == 'Listo' %}bg-paper text-ink-soft
-          {% elif job.get('Estado') in ('Cotizando','Lead') %}bg-amber-50 text-amber-700
-          {% else %}bg-violet-50 text-violet-700{% endif %}">{{ job.get('Estado') or 'Sin estado' }}</span>
-        <span class="status-pill
-          {% if job_ops.next_task_tone == 'urgent' %}bg-rose-50 text-rose-700
-          {% elif job_ops.next_task_tone == 'warning' %}bg-amber-50 text-amber-700
-          {% elif job_ops.next_task_tone == 'done' %}bg-emerald-50 text-emerald-700
-          {% else %}bg-line-soft text-ink-soft{% endif %}">{{ job_ops.next_task }}</span>
-      </div>
-      <div class="text-sm text-ink-soft">Todo el expediente vive aqui: cliente, workflow, cotizaciones, facturas, equipo, notas y pagos.</div>
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">{{ job.nombre }}</h1>
+      <div class="sn-breadcrumbs">Dashboard &gt; Jobs &gt; {{ job.nombre }}</div>
     </div>
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full xl:w-auto">
-      <div class="rounded-lg border border-line bg-paper px-3 py-2 min-w-[120px]">
-        <div class="label-uppercase mb-1">Progreso</div>
-        <div class="text-lg font-semibold text-ink">{{ job_ops.progress }}%</div>
-      </div>
-      <div class="rounded-lg border border-line bg-paper px-3 py-2 min-w-[120px]">
-        <div class="label-uppercase mb-1">Pendiente</div>
-        <div class="text-lg font-semibold {% if job_ops.balance > 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">{{ q_money(job_ops.balance) }}</div>
-      </div>
-      <div class="rounded-lg border border-line bg-paper px-3 py-2 min-w-[120px]">
-        <div class="label-uppercase mb-1">Cotiz.</div>
-        <div class="text-lg font-semibold text-ink">{{ job_ops.quote_count }}</div>
-      </div>
-      <div class="rounded-lg border border-line bg-paper px-3 py-2 min-w-[120px]">
-        <div class="label-uppercase mb-1">Invoices</div>
-        <div class="text-lg font-semibold text-ink">{{ job_ops.invoice_count }}</div>
-      </div>
-    </div>
-  </div>
-  <div class="px-5 py-3 border-b border-line flex flex-wrap items-center gap-2">
-    <button onclick="openNewQuote()" class="btn-gold !py-2 !px-3 !text-xs">Nueva cotizacion</button>
-    <button onclick="openNewInvoice()" class="btn-primary !py-2 !px-3 !text-xs">Nueva factura</button>
-    {% if job.get('cliente') and job['cliente'].get('Email') %}
-    <button onclick="sendEmail('{{ job['cliente']['Email'] }}', '{{ job['cliente']['Nombre'] }}')" class="inline-flex items-center justify-center rounded-lg border border-line bg-paper-pure px-3 py-2 text-xs font-semibold text-ink hover:bg-line-soft">Email cliente</button>
-    {% endif %}
-    {% if job.get('cliente') and job['cliente'].get('Portal URL') %}
-    <a href="{{ job['cliente']['Portal URL'] }}" target="_blank" class="inline-flex items-center justify-center rounded-lg border border-line bg-paper-pure px-3 py-2 text-xs font-semibold text-ink hover:bg-line-soft">Portal</a>
-    {% endif %}
-  </div>
-  <div class="h-2 bg-paper">
-    <div class="h-full {% if job_ops.progress == 100 %}bg-emerald-500{% else %}bg-gold{% endif %}" style="width: {{ job_ops.progress }}%"></div>
-  </div>
-</div>
-
-<!-- ================================================================ -->
-<!-- TOP: Job card + Workflow timeline -->
-<!-- ================================================================ -->
-<div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
-
-  <!-- JOB CARD -->
-  <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="label-uppercase">Job</h3>
-      <button onclick="openJobEdit()" class="text-xs text-ink-soft hover:text-ink">Editar</button>
-    </div>
-    <div class="space-y-2.5 text-sm">
-      <div class="flex justify-between"><span class="text-ink-soft">Type</span><span class="font-medium">{{ job.get('Tipo de evento') or '—' }}</span></div>
-      <div class="flex justify-between"><span class="text-ink-soft">Workflow</span>
-        <span class="text-xs px-2 py-0.5 rounded
-          {% if job.get('Estado') == 'Confirmado' %}bg-emerald-50 text-emerald-700
-          {% elif job.get('Estado') == 'En produccion' %}bg-ink-soft text-ink
-          {% elif job.get('Estado') == 'Listo' %}bg-paper text-ink-soft
-          {% elif job.get('Estado') in ('Cotizando','Lead') %}bg-amber-50 text-amber-700
-          {% else %}bg-violet-50 text-violet-700{% endif %}">{{ job.get('Estado') or '—' }}</span>
-      </div>
-      <div class="flex justify-between"><span class="text-ink-soft">Fecha</span><span class="font-medium">{{ parse_date(job.get('Fecha del evento')) or '—' }}</span></div>
-      <div class="flex justify-between"><span class="text-ink-soft">Días</span><span class="font-medium {% if days_until(job.get('Fecha del evento')) <= 30 %}text-amber-700{% endif %}">{{ days_until(job.get('Fecha del evento')) }}d</span></div>
-      <div class="flex justify-between"><span class="text-ink-soft">Lugar</span><span class="font-medium text-right max-w-[60%]">{{ job.get('Lugar de evento') or '—' }}</span></div>
-      <div class="flex justify-between"><span class="text-ink-soft">Empresa</span><span class="font-medium">{{ job.get('EMPRESA') or '—' }}</span></div>
-      <div class="flex justify-between"><span class="text-ink-soft">Facturado</span><span class="font-medium text-ink">{{ q_money(job.get('Total facturado al cliente (Q)')) }}</span></div>
-      <div class="flex justify-between"><span class="text-ink-soft">Pagado</span><span class="font-medium text-emerald-700">{{ q_money(job.get('Total pagado por cliente (Q)')) }}</span></div>
-    </div>
-  </div>
-
-  <!-- WORKFLOW TIMELINE -->
-  <div class="xl:col-span-2 bg-paper-pure rounded-xl border border-line p-5 shadow-soft">
-    <div class="flex items-center justify-between mb-5">
-      <h3 class="label-uppercase">Workflow</h3>
-      <select id="status-select" onchange="updateStatus()" class="text-xs bg-white border border-line rounded-lg px-2 py-1 font-medium">
-        {% for s in status_options %}
-        <option value="{{ s }}" {% if s == job.get('Estado') %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="relative">
-      <div class="absolute top-4 left-4 right-4 h-0.5 bg-line"></div>
-      <div class="absolute top-4 left-4 h-0.5 bg-emerald-500" style="width: {{ workflow_progress }}%;"></div>
-      <div class="relative flex justify-between">
-        {% set steps = [
-          ('Lead', 'Creado', 'lead'),
-          ('Cotizando', 'Enviada', 'cotizando'),
-          ('Propuesta', 'Aceptada', 'propuesta'),
-          ('Confirmado', 'Aceptado', 'confirmado'),
-          ('En producción', 'En producción', 'produccion'),
-          ('Listo', 'Entregado', 'listo'),
-        ] %}
-        {% for label, sub, key in steps %}
-        <div class="flex flex-col items-center" style="width: 14%;">
-          <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold
-            {% if workflow_done[key] %}bg-emerald-500 text-white
-            {% elif workflow_current[key] %}bg-gold text-white ring-4 ring-gold/20
-            {% else %}bg-paper text-ink-soft{% endif %}">
-            {% if workflow_done[key] %}✓{% else %}{{ loop.index }}{% endif %}
-          </div>
-          <div class="mt-2 text-[10px] text-center font-medium {% if workflow_done[key] or workflow_current[key] %}text-ink{% else %}text-ink-soft{% endif %}">{{ label }}</div>
-          <div class="text-[9px] text-ink-soft mt-0.5">
-            {% if workflow_dates[key] %}{{ workflow_dates[key] }}{% else %}—{% endif %}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-
-    <!-- Checkboxes de confirmación -->
-    <div class="mt-6 pt-5 border-t border-line grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-      <label class="flex items-center gap-2 text-xs"><input type="checkbox" id="chk-confirmado" {% if job.get('Confirmado') %}checked{% endif %} class="accent-ink"><span>Foto confirmada</span></label>
-      <label class="flex items-center gap-2 text-xs"><input type="checkbox" id="chk-confirmado-video" {% if job.get('Confirmado video') %}checked{% endif %} class="accent-ink"><span>Video confirmado</span></label>
-      <label class="flex items-center gap-2 text-xs"><input type="checkbox" id="chk-confirmado-video-2" {% if job.get('Confirmado video 2') %}checked{% endif %} class="accent-ink"><span>Video 2 confirmado</span></label>
-      <button onclick="updateConfirm()" class="text-xs bg-paper text-ink-soft px-2 py-1 rounded hover:bg-line">Guardar checks</button>
-    </div>
-  </div>
-</div>
-
-<!-- ================================================================ -->
-<!-- CLIENTES + EQUIPO -->
-<!-- ================================================================ -->
-<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
-
-  <!-- CLIENTE PRIMARIO -->
-  <div class="bg-paper-pure rounded-xl border border-line shadow-soft card-hover">
-    {% if job.get('cliente') %}
-    <div class="p-5">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="label-uppercase">Cliente principal</h3>
-        <div class="flex items-center gap-2">
-          <a href="/clients/{{ job['cliente']['id'] }}" class="text-xs text-ink-soft hover:text-ink">Editar cliente</a>
-          {% if job['cliente'].get('Email') %}
-           <button onclick="sendEmail('{{ job['cliente']['Email'] }}', '{{ job['cliente']['Nombre'] }}')" class="text-xs text-ink hover:underline">Enviar email</button>
-          {% endif %}
-        </div>
-      </div>
-      <a href="/clients/{{ job['cliente']['id'] }}" class="block hover:bg-paper/50 -mx-2 px-2 py-2 rounded-lg transition">
-        <div class="font-semibold text-ink">{{ job['cliente']['Nombre'] }}</div>
-        <div class="text-xs text-ink-soft mt-1 space-y-0.5">
-          <div>{{ job['cliente'].get('Teléfono') or '—' }}</div>
-          <div>{{ job['cliente'].get('Email') or '—' }}</div>
-        </div>
+    <div class="sn-actions" style="position:relative;">
+      {% if client %}
+      <a class="sn-btn" href="/portal/{{ client.id }}" target="_blank">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>
+        View Client Portal
       </a>
-      {% if job['cliente'].get('Portal URL') %}
-      <div class="mt-3 pt-3 border-t border-line">
-        <a href="{{ job['cliente']['Portal URL'] }}" target="_blank" class="text-xs text-ink hover:underline flex items-center gap-1.5">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-          Portal cliente
-        </a>
-      </div>
       {% endif %}
-    </div>
-    {% else %}
-    <div class="p-5">
-      <h3 class="label-uppercase mb-3">Cliente principal</h3>
-      <p class="text-sm text-ink-soft mb-3">No hay cliente asignado</p>
-      <a href="/clients" class="text-xs bg-ink text-white px-3 py-1.5 rounded-lg inline-flex">Buscar cliente</a>
-    </div>
-    {% endif %}
-  </div>
-
-  <!-- PAREJA / CLIENTE SECUNDARIO -->
-  <div class="bg-paper-pure rounded-xl border border-line shadow-soft card-hover p-5">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="label-uppercase">Pareja</h3>
-      {% if job.get('cliente') %}<a href="/clients/{{ job['cliente']['id'] }}" class="text-xs text-ink-soft hover:text-ink">Editar en cliente</a>{% endif %}
-    </div>
-    {% if job.get('cliente') and job['cliente'].get('partner_name') %}
-    <div class="font-semibold text-ink">{{ job['cliente']['partner_name'] }}</div>
-    <div class="text-xs text-ink-soft mt-1">Mismo contacto que cliente principal</div>
-    {% else %}
-    <p class="text-sm text-ink-soft mb-3">No hay pareja registrada</p>
-    {% if job.get('cliente') %}<a href="/clients/{{ job['cliente']['id'] }}" class="text-xs bg-paper text-ink-soft px-3 py-1.5 rounded-lg hover:bg-line inline-flex">Editar cliente</a>{% endif %}
-    {% endif %}
-  </div>
-</div>
-
-<!-- EQUIPO (dropdowns) -->
-<div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft mb-6">
-  <h3 class="label-uppercase mb-4">Equipo</h3>
-  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-    <div>
-      <label class="text-[10px] uppercase tracking-wider text-ink-soft font-semibold block mb-1.5">Primera Camara</label>
-      <select id="team-primera" class="w-full bg-white border border-line rounded-lg px-3 py-2 text-sm font-medium">
-        {% for n in partner_foto %}
-        <option value="{{ n }}" {% if n == job.get('Primera Camara') %}selected{% endif %}>{{ n }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label class="text-[10px] uppercase tracking-wider text-ink-soft font-semibold block mb-1.5">Segunda Camara</label>
-      <select id="team-segunda" class="w-full bg-white border border-line rounded-lg px-3 py-2 text-sm font-medium">
-        {% for n in partner_foto %}
-        <option value="{{ n }}" {% if n == job.get('Segunda Camara') %}selected{% endif %}>{{ n }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label class="text-[10px] uppercase tracking-wider text-ink-soft font-semibold block mb-1.5">Videografo 1</label>
-      <select id="team-v1" class="w-full bg-white border border-line rounded-lg px-3 py-2 text-sm font-medium">
-        {% for n in partner_video %}
-        <option value="{{ n }}" {% if n == job.get('Videografo 1') %}selected{% endif %}>{{ n }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label class="text-[10px] uppercase tracking-wider text-ink-soft font-semibold block mb-1.5">Videografo 2</label>
-      <select id="team-v2" class="w-full bg-white border border-line rounded-lg px-3 py-2 text-sm font-medium">
-        {% for n in partner_video %}
-        <option value="{{ n }}" {% if n == job.get('Videografo 2') %}selected{% endif %}>{{ n }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label class="text-[10px] uppercase tracking-wider text-ink-soft font-semibold block mb-1.5">Asistencia</label>
-      <select id="team-asistencia" class="w-full bg-white border border-line rounded-lg px-3 py-2 text-sm font-medium">
-        <option value="">—</option>
-        {% for n in partner_nombres %}
-        <option value="{{ n }}" {% if n == job.get('Asistencia') %}selected{% endif %}>{{ n }}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </div>
-  <div class="mt-3 flex items-center gap-3">
-    <button onclick="updateTeam()" class="text-xs bg-gold text-white px-3 py-1.5 rounded-lg font-medium hover:bg-gold/90">Guardar equipo</button>
-    <span id="team-msg" class="text-xs text-ink-soft"></span>
-  </div>
-</div>
-
-<!-- ================================================================ -->
-<!-- QUOTES & INVOICES -->
-<!-- ================================================================ -->
-<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
-
-  <!-- QUOTES -->
-  <div class="bg-paper-pure rounded-xl border border-line shadow-soft">
-    <div class="p-5 border-b border-line flex items-center justify-between">
-      <h3 class="label-uppercase">Quotes · {{ quotes|length }}</h3>
-      <button onclick="openNewQuote()" class="text-xs bg-gold text-white px-3 py-1.5 rounded-lg font-medium hover:bg-gold/90 flex items-center gap-1">
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        Crear Cotización
+      <button class="sn-btn sn-btn-primary" type="button" onclick="toggleAddMenu(event)">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Add New
       </button>
-    </div>
-    <div class="divide-y divide-line">
-      {% for q in quotes %}
-      <div class="px-5 py-3 hover:bg-paper/30 transition">
-        <div class="flex items-start justify-between">
-          <div>
-            <div class="text-sm font-medium text-ink">{{ q.get('Cotización') }}</div>
-            <div class="text-xs text-ink-soft mt-0.5">{{ q.get('Paquete') or '—' }} · {{ parse_date(q.get('Fecha de envío')) or '—' }}</div>
-          </div>
-          <div class="text-right">
-            <div class="text-sm font-semibold text-ink">{{ q_money(q.get('Monto total (Q)')) }}</div>
-            <span class="text-[10px] px-2 py-0.5 rounded mt-1 inline-block
-              {% if q.get('Estado') == 'Pagada' %}bg-emerald-50 text-emerald-700
-              {% elif q.get('Estado') == 'Aceptada' %}bg-ink-soft text-ink
-              {% elif q.get('Estado') in ('Enviada','Vista por cliente') %}bg-amber-50 text-amber-700
-              {% elif q.get('Estado') == 'Rechazada' %}bg-rose-50 text-rose-700
-              {% else %}bg-paper text-ink-soft{% endif %}">{{ q.get('Estado') or '—' }}</span>
-          </div>
-        </div>
-        <div class="mt-2 flex items-center gap-2 text-xs">
-          {% if q.get('Link Smart File') %}<a href="{{ q['Link Smart File'] }}" target="_blank" class="text-ink hover:underline">View Smart File</a>{% endif %}
-          {% if q.get('Link Recurrente anticipo') %}<a href="{{ q['Link Recurrente anticipo'] }}" target="_blank" class="text-gold hover:underline">Pagar</a>{% endif %}
-        </div>
+      <div id="add-menu" class="tenant-menu" style="right:0;top:38px;">
+        <button class="tenant-menu-item" type="button" onclick="createMultiOptionQuote()">Quote</button>
+        <button class="tenant-menu-item" type="button" onclick="openModal('invoice-modal')">Invoice</button>
+        <button class="tenant-menu-item" type="button" onclick="createContract()">Contract</button>
+        <button class="tenant-menu-item" type="button" onclick="openQuestionnaireModal()">Questionnaire</button>
+        <button class="tenant-menu-item" type="button" onclick="openModal('file-modal')">File</button>
+        <button class="tenant-menu-item" type="button" onclick="openModal('notes-modal')">Note</button>
       </div>
-      {% endfor %}
-      {% if not quotes %}
-      <div class="px-5 py-8 text-center">
-        <p class="text-xs text-ink-soft">No hay cotizaciones todavía</p>
+    </div>
+  </div>
+
+  <div class="workflow-shell">
+    <div>
+      <div class="workflow-title">
+        <span style="display:flex;align-items:center;gap:8px;">
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4m6-12h4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4M8 12h8"/></svg>
+          Workflow
+        </span>
+        <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="openModal('workflow-task-modal')" title="Add workflow step">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        </button>
+      </div>
+
+      {% if lead_steps %}
+      <div class="workflow-list mb-3">
+        <div class="workflow-rail lead">LEAD</div>
+        <div class="workflow-steps">
+          {% for step in lead_steps %}
+          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }}">
+            <div class="workflow-check {{ 'done' if step.status == 'done' else '' }}">
+              {% if step.status == 'done' %}
+              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+              {% endif %}
+            </div>
+            <div class="sn-ellipsis">
+              <div class="workflow-step-name">{{ step.name }}</div>
+              <span class="sn-chip pink">Auto send email</span>
+              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:10] }}</span>{% endif %}
+            </div>
+            <div class="workflow-step-tools">
+              <button class="sn-menu-dots" type="button" onclick="flashToast('Este paso pertenece al lead original', 'success')">
+                <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
       </div>
       {% endif %}
-    </div>
-  </div>
 
-  <!-- INVOICES -->
-  <div class="bg-paper-pure rounded-xl border border-line shadow-soft">
-    <div class="p-5 border-b border-line flex items-center justify-between">
-      <h3 class="label-uppercase">Invoices · {{ invoices|length }}</h3>
-      <button onclick="openNewInvoice()" class="text-xs bg-gold text-white px-3 py-1.5 rounded-lg font-medium hover:bg-gold/90 flex items-center gap-1">
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        Crear Factura
-      </button>
-    </div>
-    <div class="divide-y divide-line">
-      {% for inv in invoices %}
-      <div class="px-5 py-3 hover:bg-paper/30 transition">
-        <div class="flex items-start justify-between">
-          <div>
-            <div class="text-sm font-medium text-ink">{{ inv.get('Cotización') }}</div>
-            <div class="text-xs text-ink-soft mt-0.5">{{ parse_date(inv.get('Fecha aceptación')) or parse_date(inv.get('Fecha de envío')) or '—' }}</div>
+      {% set delivery_ids = ['envio_galeria', 'pedir_review', 'google_comments', 'job_complete'] %}
+      <div class="workflow-list mb-3">
+        <div class="workflow-rail production">PRODUCTION</div>
+        <div class="workflow-steps">
+          <div class="workflow-step done">
+            <div class="workflow-check done">
+              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+            </div>
+            <div>
+              <div class="workflow-step-name">Job accepted</div>
+              <span class="workflow-step-desc">This checks automatically when a quote is accepted OR a contract is signed OR an invoice is paid. Once checked this lead becomes a job.</span>
+            </div>
+            <div class="workflow-step-tools"></div>
           </div>
-          <div class="text-right">
-            <div class="text-sm font-semibold text-ink">{{ q_money(inv.get('Monto total (Q)')) }}</div>
-            <span class="text-[10px] px-2 py-0.5 rounded mt-1 inline-block
-              {% if inv.get('Estado') == 'Pagada' %}bg-emerald-50 text-emerald-700
-              {% else %}bg-amber-50 text-amber-700{% endif %}">{{ inv.get('Estado') or '—' }}</span>
+          {% for step in workflow_steps if step.id not in delivery_ids and step.id != 'job_accepted' %}
+          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }}">
+            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status != 'done' %}onclick='triggerJobStep({{ step.id|tojson }}, {{ step.name|tojson }})'{% endif %} title="Completar paso">
+              {% if step.status == 'done' %}
+              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+              {% endif %}
+            </button>
+            <div class="sn-ellipsis">
+              <div class="workflow-step-name">{{ step.name }}</div>
+              <span class="sn-chip yellow">
+                {% if 'contract' in (step.description or '')|lower %}Auto send contract
+                {% elif 'question' in (step.description or '')|lower or 'cuestionario' in (step.name or '')|lower %}Auto send questionnaire
+                {% else %}Auto send email{% endif %}
+              </span>
+              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:10] }}</span>{% endif %}
+            </div>
+            <div class="workflow-step-tools">
+              <button class="sn-menu-dots" type="button" onclick='triggerJobStep({{ step.id|tojson }}, {{ step.name|tojson }})' title="Completar ahora">
+                <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+              </button>
+            </div>
           </div>
-        </div>
-        <div class="mt-2 flex items-center gap-2 text-xs">
-          {% if inv.get('Link Recurrente anticipo') %}<a href="{{ inv['Link Recurrente anticipo'] }}" target="_blank" class="text-ink hover:underline">Ver invoice</a>{% endif %}
+          {% endfor %}
+          {% for task in job.manual_workflow_tasks or [] %}
+          <div class="workflow-step {{ 'done' if task.status == 'done' else '' }}">
+            <button class="workflow-check {{ 'done' if task.status == 'done' else '' }}" type="button" {% if task.status != 'done' %}onclick="completeManualTask('{{ task.id }}')"{% endif %} title="Completar tarea">
+              {% if task.status == 'done' %}
+              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+              {% endif %}
+            </button>
+            <div class="sn-ellipsis">
+              <div class="workflow-step-name">{{ task.name }}</div>
+              <span class="sn-chip green">{{ task.type }}</span>
+              <span class="sn-chip gray">{{ task.created }}</span>
+            </div>
+            <div class="workflow-step-tools"></div>
+          </div>
+          {% endfor %}
+          <div class="workflow-step">
+            <div></div>
+            <div>
+              <div class="workflow-step-name">{{ job.nombre }}</div>
+              {% if job.boda_date %}<span class="sn-chip green">Boda</span><span class="sn-chip gray">{{ job.boda_date }}</span>{% endif %}
+            </div>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('job-edit-modal')">Edit</button>
+          </div>
         </div>
       </div>
-      {% endfor %}
-      {% if not invoices %}
-      <div class="px-5 py-8 text-center">
-        <p class="text-xs text-ink-soft">No hay invoices todavía</p>
+
+      <div class="workflow-list mb-3">
+        <div class="workflow-rail delivery">DELIVERY</div>
+        <div class="workflow-steps">
+          {% for step in workflow_steps if step.id in delivery_ids %}
+          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }}">
+            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status != 'done' %}onclick='triggerJobStep({{ step.id|tojson }}, {{ step.name|tojson }})'{% endif %}>
+              {% if step.status == 'done' %}
+              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+              {% endif %}
+            </button>
+            <div class="sn-ellipsis">
+              <div class="workflow-step-name">{{ step.name }}</div>
+              <span class="sn-chip cyan">Auto send email</span>
+              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:10] }}</span>{% endif %}
+            </div>
+            <button class="sn-menu-dots" type="button" onclick='triggerJobStep({{ step.id|tojson }}, {{ step.name|tojson }})'>
+              <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+            </button>
+          </div>
+          {% endfor %}
+        </div>
       </div>
-      {% endif %}
+
+      <button class="sn-btn sn-btn-sm" type="button" onclick="openHistoryLog()">History Log</button>
+
+      <div class="sn-card mt-4">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
+            Mail
+          </div>
+          <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="sendClientEmail()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          </button>
+        </div>
+        <div class="sn-table-shell">
+          <table class="sn-table">
+            <thead><tr><th style="width:110px;">Date</th><th style="width:160px;">To</th><th>Subject</th><th style="width:70px;"></th></tr></thead>
+            <tbody>
+            {% for mail in mail_log %}
+              <tr>
+                <td>{{ (mail.sent_at or '')[:10] }}</td>
+                <td class="sn-ellipsis">{{ mail.to or 'me' }}</td>
+                <td>
+                  <div class="sn-ellipsis">{{ mail.subject or 'Email' }}</div>
+                  {% if mail.status == 'opened' %}<span class="sn-chip cyan">EMAIL OPENED</span>{% elif mail.status %}<span class="sn-chip gray">{{ mail.status|upper }}</span>{% endif %}
+                </td>
+                <td>
+                  <button class="sn-btn sn-btn-sm" type="button"
+                    data-subject="{{ mail.subject or 'Email' }}"
+                    data-to="{{ mail.to or '' }}"
+                    data-date="{{ (mail.sent_at or '')[:10] }}"
+                    data-body-ref="mail-body-{{ mail.id }}"
+                    onclick="openMailDetails(this)">View</button>
+                  <script type="application/json" id="mail-body-{{ mail.id }}">{{ (mail.body or mail.body_preview or '')|tojson }}</script>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="4" class="sn-muted">No mail registered for this job.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<!-- ================================================================ -->
-<!-- NOTAS + PAGOS -->
-<!-- ================================================================ -->
-<div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-  <div class="bg-paper-pure rounded-xl border border-line shadow-soft p-5">
-    <h3 class="label-uppercase mb-3">Notas</h3>
-    <label class="text-[10px] uppercase tracking-wider text-ink-soft font-semibold block mb-1">Notas internas</label>
-    <textarea id="notas" rows="3" class="w-full bg-white border border-line rounded-lg px-3 py-2 text-sm mb-3">{{ job.get('NOTAS') or '' }}</textarea>
-    <label class="text-[10px] uppercase tracking-wider text-ink-soft font-semibold block mb-1">Notas de producción</label>
-    <textarea id="notas_prod" rows="3" class="w-full bg-white border border-line rounded-lg px-3 py-2 text-sm mb-3">{{ job.get('Notas de producción') or '' }}</textarea>
-    <button onclick="updateNotes()" class="text-xs bg-gold text-white px-3 py-1.5 rounded-lg font-medium hover:bg-gold/90">Guardar notas</button>
-    <span id="notes-msg" class="text-xs text-ink-soft ml-3"></span>
-  </div>
+    <aside class="detail-grid-right">
+      <div class="sn-card entity-card">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 6V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1m-9 0h12v13H6V6Z"/></svg>
+            Job
+          </div>
+        </div>
+        <div class="sn-field-grid">
+          <div class="sn-field-label">Name</div><div class="sn-field-value">{{ job.nombre }}</div>
+          <div class="sn-field-label">Type</div><div class="sn-field-value">{{ job.type or 'BODAS' }}</div>
+          <div class="sn-field-label">Workflow</div><div class="sn-field-value">{{ workflow_name }}</div>
+          <div class="sn-field-label">Boda</div><div class="sn-field-value">{{ job.boda_date or 'Fixed' }}</div>
+          <div class="sn-field-label">Location</div><div class="sn-field-value">{{ job.location or '-' }}</div>
+          <div class="sn-field-label">Lead Source</div><div class="sn-field-value">{{ lead.fuente if lead else '-' }}</div>
+        </div>
+        <div class="sn-list-actions">
+          <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('job-edit-modal')">Edit</button>
+          <button class="sn-btn sn-btn-sm" type="button" onclick="archiveJob()">Archive</button>
+        </div>
+      </div>
 
-  <div class="bg-paper-pure rounded-xl border border-line shadow-soft p-5">
-    <h3 class="label-uppercase mb-3">Pagos del equipo</h3>
-    {% if pagos_rel %}
-    <div class="space-y-2 max-h-[250px] overflow-y-auto">
-      {% for p in pagos_rel %}
-      <div class="bg-paper rounded-lg px-3 py-2 text-xs">
-        <div class="flex justify-between mb-1">
-          <span class="font-medium text-ink">{{ p.get('Persona') }}</span>
-          <span class="font-semibold text-gold">{{ q_money(p.get('Monto acordado')) }}</span>
+      <div class="sn-card entity-card">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20c0-2.2-2.7-4-6-4s-6 1.8-6 4M11 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8"/></svg>
+            Client
+          </div>
         </div>
-        <div class="flex justify-between text-[10px]">
-          <span class="text-ink-soft">{{ p.get('Servicio') }}</span>
-          <span class="{% if p.get('Estado de pago') == 'Pagado' %}text-emerald-700{% else %}text-amber-700{% endif %}">{{ p.get('Estado de pago') }}</span>
+        {% if client %}
+        <div class="sn-card-body">
+          <div class="entity-primary">
+            <div>
+              <div class="sn-list-title">{{ client.first_name }} {{ client.last_name }}</div>
+              <div class="sn-list-meta">(Primary)</div>
+              <div class="sn-list-meta" style="margin-top:12px;">{{ client.phone or '-' }}</div>
+              <div class="sn-list-meta">{{ client.email or '-' }}</div>
+            </div>
+            <div class="entity-avatar">{{ (client.first_name or 'C')[:1] }}{{ (client.last_name or '')[:1] }}</div>
+          </div>
+          <div class="sn-list-meta">{{ client.address or 'GT' }}</div>
+          <div class="sn-list-actions">
+            <a class="sn-btn sn-btn-sm" href="/clients/{{ client.id }}">Edit Client</a>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Send Email</button>
+          </div>
         </div>
-        {% if p.get('Estado de pago') != 'Pagado' %}
-        <button onclick="markPagoPaid('{{ p.id }}')" class="mt-1 text-[10px] bg-emerald-500/10 text-emerald-700 px-2 py-0.5 rounded hover:bg-emerald-500/20">Marcar pagado</button>
+        {% else %}
+        <div class="sn-card-body sn-muted">No client attached.</div>
         {% endif %}
       </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="text-xs text-ink-soft text-center py-4">No hay pagos asignados</p>
-    {% endif %}
-  </div>
-</div>
 
-<!-- ================================================================ -->
-<!-- MODAL: EDITAR JOB -->
-<!-- ================================================================ -->
-<div id="modal-job" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-card max-w-2xl w-full p-6">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-bold text-ink">Editar Job</h3>
-      <button onclick="closeModal('modal-job')" class="text-ink-soft hover:text-ink">Cerrar</button>
-    </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div>
-        <label class="text-xs font-medium text-ink-soft block mb-1">Fecha del evento</label>
-        <input id="job-fecha-evento" type="date" value="{{ job.get('Fecha del evento') or '' }}" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm">
-      </div>
-      <div>
-        <label class="text-xs font-medium text-ink-soft block mb-1">Lugar</label>
-        <input id="job-lugar-evento" value="{{ job.get('Lugar de evento') or '' }}" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm">
-      </div>
-      <div>
-        <label class="text-xs font-medium text-ink-soft block mb-1">Fecha anticipo</label>
-        <input id="job-fecha-anticipo" type="date" value="{{ job.get('Fecha anticipo recibido') or '' }}" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm">
-      </div>
-      <div>
-        <label class="text-xs font-medium text-ink-soft block mb-1">Fecha contrato</label>
-        <input id="job-fecha-contrato" type="date" value="{{ job.get('Fecha contrato firmado') or '' }}" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm">
-      </div>
-      <div>
-        <label class="text-xs font-medium text-ink-soft block mb-1">Total facturado (Q)</label>
-        <input id="job-total-facturado" type="number" value="{{ job.get('Total facturado al cliente (Q)') or '' }}" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm">
-      </div>
-      <div>
-        <label class="text-xs font-medium text-ink-soft block mb-1">Total pagado (Q)</label>
-        <input id="job-total-pagado" type="number" value="{{ job.get('Total pagado por cliente (Q)') or '' }}" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm">
-      </div>
-      <div class="sm:col-span-2">
-        <label class="text-xs font-medium text-ink-soft block mb-1">Smart File URL</label>
-        <input id="job-smart-file-url" value="{{ job.get('Smart File URL') or '' }}" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm">
-      </div>
-    </div>
-    <div class="mt-5 flex items-center justify-end gap-2">
-      <span id="job-edit-msg" class="text-xs text-ink-soft mr-auto"></span>
-      <button onclick="closeModal('modal-job')" class="px-3 py-1.5 text-sm text-ink-soft hover:text-ink">Cancelar</button>
-      <button onclick="saveJobEdit()" class="btn-gold">Guardar Job</button>
-    </div>
-  </div>
-</div>
-
-<!-- ================================================================ -->
-<!-- MODAL: CREAR COTIZACIÓN -->
-<!-- ================================================================ -->
-<div id="modal-quote" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-card max-w-md w-full p-6">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-bold text-ink">Nueva Cotización</h3>
-      <button onclick="closeModal('modal-quote')" class="text-ink-soft hover:text-ink">✕</button>
-    </div>
-    <div class="space-y-3">
-      <div>
-        <label class="text-xs font-medium text-ink-soft block mb-1">Paquete</label>
-        <select id="quote-paquete" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm">
-          {% for pkg, precio in [('Foto Silver',9500),('Foto Gold',13500),('Foto Platinum',17500),('Video Silver',9500),('Video Gold',13500),('Video Platinum',17500),('Mix Gold',20500),('Mix Platinum',29500)] %}
-          <option value="{{ pkg }}" data-precio="{{ precio }}">{{ pkg }} — Q{{ '{:,}'.format(precio) }}</option>
+      <div class="sn-card wide">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 3h10v18H7zM9 7h6M9 11h6M9 15h4"/></svg>
+            Invoices
+          </div>
+          <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="openModal('invoice-modal')" title="Add invoice">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          </button>
+        </div>
+        <div class="sn-list">
+          {% for p in payments %}
+          <div class="sn-list-item">
+            <div class="sn-list-row">
+              <div>
+                <div class="sn-list-title">{{ p.invoice_id or p.id }}</div>
+                <div class="sn-list-meta">Due {{ p.due_date or '-' }}</div>
+                <div class="sn-list-meta">{{ p.concepto or '' }}</div>
+              </div>
+              <div style="text-align:right;">
+                <div class="sn-money">Q{{ '{:,.2f}'.format(p.get('amount') or 0) }}</div>
+                <span class="sn-chip {% if p.status == 'Pagado' %}green{% elif p.status == 'Late' %}red{% else %}gray{% endif %}">{{ p.status or 'Unpaid' }}</span>
+              </div>
+            </div>
+            <div class="sn-list-actions">
+              <a class="sn-btn sn-btn-sm" href="/invoices/{{ p.invoice_id }}">View</a>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ p.id }}')">Send</button>
+              {% if p.status != 'Pagado' %}<button class="sn-btn sn-btn-sm" type="button" onclick="openRecordPayment('{{ p.id }}', '{{ p.amount or 0 }}')">Record Payment</button>{% endif %}
+            </div>
+          </div>
+          {% else %}
+          <div class="sn-list-item sn-muted">No invoices yet.</div>
           {% endfor %}
-        </select>
+        </div>
       </div>
-      <div>
-        <label class="text-xs font-medium text-ink-soft block mb-1">Monto total (Q)</label>
-        <input id="quote-monto" type="number" value="20500" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm font-semibold">
+
+      <div class="sn-card wide">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5h14v14H5zM8 9h8M8 13h6"/></svg>
+            Quotes
+          </div>
+          <button class="sn-btn sn-btn-sm sn-btn-primary" type="button" onclick="createMultiOptionQuote()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+            Create Quote
+          </button>
+        </div>
+        <div class="sn-list">
+          {% for q in quotes %}
+          <div class="sn-list-item">
+            <div class="sn-list-row">
+              <div>
+                <div class="sn-list-title">{{ q.paquete_nombre or 'Quote' }}</div>
+                <div class="sn-list-meta">Sent {{ q.sent_at or q.created or '-' }}</div>
+                <div class="sn-list-meta">{{ q.status or 'Draft' }}</div>
+              </div>
+              <div class="sn-money">Q{{ '{:,.2f}'.format(q.get('precio_total') or 0) }}</div>
+            </div>
+            <div class="sn-list-actions">
+              <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}" target="_blank">View</a>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="sendQuote('{{ q.id }}')">Send</button>
+            </div>
+          </div>
+          {% else %}
+          <div class="sn-list-item sn-muted">No quotes yet.</div>
+          {% endfor %}
+        </div>
       </div>
-      <div>
-        <label class="text-xs font-medium text-ink-soft block mb-1">Cantidad de cuotas</label>
-        <select id="quote-cuotas" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm">
-          <option value="1 (total al reservar)">1 (total al reservar)</option>
-          <option value="2 (50% + 50%)" selected>2 (50% + 50%)</option>
-          <option value="3 (33% + 33% + 34%)">3 (33% + 33% + 34%)</option>
-          <option value="4 (25% c/u)">4 (25% c/u)</option>
-        </select>
+
+      <div class="sn-card wide">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 3h8l4 4v14H4V3h4Zm8 0v5h4"/></svg>
+            Contracts
+          </div>
+          <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="createContract()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          </button>
+        </div>
+        <div class="sn-list">
+          {% for c in contracts %}
+          <div class="sn-list-item">
+            <div class="sn-list-row">
+              <div>
+                <div class="sn-list-title">CONTRATO DE BODAS ASTRAL WEDDINGS</div>
+                <div class="sn-list-meta">Sent on {{ c.sent_at or c.created or '-' }}</div>
+                <div class="sn-list-meta">
+                  {{ c.status or 'Draft' }}
+                  {% if c.signed %} &middot; Cliente firmo{% endif %}
+                  {% if c.photographer_signed %} &middot; Fotografo firmo{% endif %}
+                </div>
+              </div>
+            </div>
+            <div class="sn-list-actions">
+              <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}" target="_blank">View</a>
+              <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf" target="_blank">PDF</a>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Send</button>
+              {% if not c.photographer_signed %}
+              <button class="sn-btn sn-btn-sm sn-btn-primary" type="button" onclick="openPhotographerSignature('{{ c.id }}')">Firmar (fotografo)</button>
+              {% endif %}
+            </div>
+          </div>
+          {% else %}
+          <div class="sn-list-item sn-muted">No contracts yet.</div>
+          {% endfor %}
+        </div>
       </div>
-      <div class="bg-ink-soft rounded-lg p-3 text-xs text-ink">
-        Se creará un registro en Cotizaciones con link Smart File + link Recurrente.
+
+      <div class="sn-card wide">
+        <div class="sn-card-head">
+          <div class="sn-card-title">Questionnaires</div>
+          <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="openQuestionnaireModal()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          </button>
+        </div>
+        <div class="sn-list">
+          {% for q in questionnaires %}
+          <div class="sn-list-item">
+            <div class="sn-list-row">
+              <div>
+                <div class="sn-list-title">{{ q.name or q.id }}</div>
+                <div class="sn-list-meta">Sent on {{ q.created or '-' }}</div>
+              </div>
+              <span class="sn-chip {% if q.status == 'Sent' %}cyan{% else %}gray{% endif %}">{{ q.status or 'Draft' }}</span>
+            </div>
+            <div class="sn-list-actions">
+              <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnairePreview({{ (q.name or "Questionnaire")|tojson }}, {{ (q.status or "Draft")|tojson }})'>View</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnaireModal({{ (q.name or "CUESTIONARIO BODAS ASTRAL WEDDINGS")|tojson }})'>Send</button>
+            </div>
+          </div>
+          {% else %}
+          <div class="sn-list-item sn-muted">No questionnaires yet.</div>
+          {% endfor %}
+        </div>
       </div>
-    </div>
-    <div class="mt-5 flex justify-end gap-2">
-      <button onclick="closeModal('modal-quote')" class="px-3 py-1.5 text-sm text-ink-soft hover:text-ink">Cancelar</button>
-      <button onclick="createQuote()" class="px-4 py-2 text-sm bg-gold text-white rounded-lg font-medium hover:bg-gold/90">Crear Cotización</button>
+
+      <div class="sn-card wide">
+        <div class="sn-card-head">
+          <div class="sn-card-title">Files <span class="sn-chip gray">UP TO 50MB</span></div>
+          <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="openModal('file-modal')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          </button>
+        </div>
+        <div class="sn-list">
+          {% for f in files %}
+          <div class="sn-list-item">
+            <div class="sn-list-row">
+              <div>
+                <div class="sn-list-title">{{ f.name or f.id }}</div>
+                <div class="sn-list-meta">Uploaded on {{ f.created or '-' }} · {{ f.size or '0.00 MB' }}</div>
+              </div>
+              <span class="sn-chip gray">{{ f.status or 'Attached' }}</span>
+            </div>
+            <div class="sn-list-actions">
+              {% if f.stored %}
+              <a class="sn-btn sn-btn-sm" href="/files/{{ f.id }}/download">Download</a>
+              {% else %}
+              <button class="sn-btn sn-btn-sm" type="button" onclick="flashToast('Este registro no tiene archivo adjunto. Sube el archivo de nuevo con +.', 'error')" title="Registro antiguo sin archivo fisico">Download</button>
+              {% endif %}
+            </div>
+          </div>
+          {% else %}
+          <div class="sn-list-item sn-muted">No files uploaded.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="sn-card wide">
+        <div class="sn-card-head">
+          <div class="sn-card-title">Notes</div>
+          <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="openModal('notes-modal')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          </button>
+        </div>
+        <div class="sn-list-item">
+          <div style="white-space:pre-wrap;">{{ job.notas or job.notes or 'Sin notas del job.' }}</div>
+          <div class="sn-list-actions">
+            <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('notes-modal')">View / Edit</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<div class="modal-overlay" id="workflow-task-modal">
+  <div class="modal-content" style="width:min(720px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('workflow-task-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title" style="font-size:20px;margin-bottom:22px;">Add a New Workflow Task</h2>
+    <div class="sn-choice-grid">
+      <button class="sn-choice-card" type="button" onclick="createManualTask('to-do', 'To-do')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12l3 3 5-6M5 4h14v16H5z"/></svg>
+        <strong>To-do</strong>
+        <span>Add a to-do task that can be checked when you get it done.</span>
+      </button>
+      <button class="sn-choice-card" type="button" onclick="createManualTask('automation', 'Automation')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-5v3m0 12v3m9-9h-3M6 12H3"/></svg>
+        <strong>Automation</strong>
+        <span>Add a task that automatically sends an email, questionnaire or contract.</span>
+      </button>
+      <button class="sn-choice-card" type="button" onclick="createManualTask('extra-event', 'Evento extr')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M4 9h16v11H4zM12 13v4m-2-2h4"/></svg>
+        <strong>Extra Event</strong>
+        <span>Add an additional shoot that appears in your workflow and calendar.</span>
+      </button>
+      <button class="sn-choice-card" type="button" onclick="createManualTask('appointment', 'Appointment')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 0 1-6 0"/></svg>
+        <strong>Appointment</strong>
+        <span>Add an appointment that appears in your workflow and calendar.</span>
+      </button>
     </div>
   </div>
 </div>
 
-<!-- MODAL: CREAR FACTURA -->
-<div id="modal-invoice" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-card max-w-md w-full p-6">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-bold text-ink">Nueva Factura</h3>
-      <button onclick="closeModal('modal-invoice')" class="text-ink-soft hover:text-ink">✕</button>
+<div class="modal-overlay" id="job-edit-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Edit Job</h2>
+    <form onsubmit="saveJob(event)">
+      <div class="form-group"><label class="form-label">Job name</label><input class="form-input" name="nombre" value="{{ job.nombre }}"></div>
+      <div class="grid-2">
+        <div class="form-group"><label class="form-label">Boda date</label><input class="form-input" name="boda_date" type="date" value="{{ job.boda_date or '' }}"></div>
+        <div class="form-group"><label class="form-label">Status</label><select class="form-input" name="status"><option>{{ job.status }}</option><option>Cotizando</option><option>Confirmado</option><option>En produccion</option><option>Listo</option><option>Archivado</option></select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Location</label><input class="form-input" name="location" value="{{ job.location or '' }}"></div>
+      <div class="grid-2">
+        <div class="form-group"><label class="form-label">Package</label><input class="form-input" name="package" value="{{ job.package or '' }}"></div>
+        <div class="form-group"><label class="form-label">Total</label><input class="form-input" name="price_total" type="number" step="0.01" value="{{ job.price_total or 0 }}"></div>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('job-edit-modal')">Cancel</button><button class="sn-btn sn-btn-primary" type="submit">Save</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="invoice-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Add Invoice</h2>
+    <form onsubmit="createInvoice(event)">
+      <div class="form-group"><label class="form-label">Concept</label><input class="form-input" name="concepto" required value="Invoice - {{ job.nombre }}"></div>
+      <div class="grid-2">
+        <div class="form-group"><label class="form-label">Amount</label><input class="form-input" name="monto" type="number" step="0.01" required></div>
+        <div class="form-group"><label class="form-label">Due date</label><input class="form-input" name="due_date" type="date"></div>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('invoice-modal')">Cancel</button><button class="sn-btn sn-btn-primary" type="submit">Create</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="notes-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Notes</h2>
+    <form onsubmit="saveNotes(event)">
+      <div class="form-group"><textarea class="form-input" name="notas">{{ job.notas or job.notes or '' }}</textarea></div>
+      <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('notes-modal')">Cancel</button><button class="sn-btn sn-btn-primary" type="submit">Save</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="email-modal">
+  <div class="modal-content" style="width:min(880px,94vw);">
+    <button type="button" class="modal-close" onclick="closeModal('email-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Send Email</h2>
+    <form onsubmit="submitJobEmail(event)">
+      <input type="hidden" id="email-step-id">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Template</label>
+          <select class="form-input" id="email-template" onchange="applyEmailTemplate(this.value)">
+            <option value="">Custom email</option>
+            {% for tpl in email_templates %}
+            <option value="{{ tpl.id }}">{{ tpl.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">To</label>
+          <input class="form-input" id="email-to" value="{{ (client.email if client else (lead.email if lead else '')) or '' }}" readonly>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <input class="form-input" id="email-subject" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea class="form-input" id="email-body" rows="14" required></textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeModal('email-modal')">Back</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Send Email</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="contract-send-modal">
+  <div class="modal-content" style="width:min(880px,94vw);">
+    <button type="button" class="modal-close" onclick="closeModal('contract-send-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Send Contract</h2>
+    <form onsubmit="submitContractSend(event)">
+      <input type="hidden" id="contract-send-id">
+      <input type="hidden" id="contract-send-step-id">
+      <div class="form-group">
+        <label class="form-label">To</label>
+        <input class="form-input" id="contract-send-to" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <input class="form-input" id="contract-send-subject" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea class="form-input" id="contract-send-body" rows="12" required></textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeModal('contract-send-modal')">Back</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Send Contract</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="questionnaire-modal">
+  <div class="modal-content" style="width:min(880px,94vw);">
+    <button type="button" class="modal-close" onclick="closeModal('questionnaire-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Send Questionnaire</h2>
+    <form onsubmit="submitQuestionnaire(event)">
+      <input type="hidden" id="questionnaire-step-id">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Questionnaire</label>
+          <input class="form-input" id="questionnaire-name" value="CUESTIONARIO BODAS ASTRAL WEDDINGS" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Subject</label>
+          <input class="form-input" id="questionnaire-subject" value="¡Esto es importante para tu boda!" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea class="form-input" id="questionnaire-body" rows="13" required>Hola %client_name%,
+
+Espero que estés bien. Quería informarte sobre la importancia de un paso clave para nuestra preparación de la boda.
+
+He creado un cuestionario que nos ayudará a recopilar los detalles esenciales para el gran día. Te agradecería mucho si pudieras dedicar unos minutos a completarlo.
+
+Llenar este formulario nos permitirá tener todos los datos necesarios para garantizar que todo esté perfectamente organizado y personalizado según tus deseos. Puedes acceder al cuestionario en línea haciendo Please view the questionnaire online by clicking here
+
+Si tienes alguna pregunta o necesitas asistencia en el proceso, por favor no dudes en contactarme.
+
+Quedo a tu disposición para cualquier consulta adicional.</textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeModal('questionnaire-modal')">Back</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Send Questionnaire</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="history-log-modal">
+  <div class="modal-content" style="width:min(560px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('history-log-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">History Log</h2>
+    <div class="sn-list" id="history-log-list" style="max-height:420px;overflow:auto;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="photographer-sign-modal">
+  <div class="modal-content" style="width:min(460px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('photographer-sign-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Firma del fotografo</h2>
+    <p class="sn-muted" style="margin:-8px 0 14px;font-size:12.5px;">Firma con tu mouse o dedo para completar el contrato como ASTRAL WEDDINGS.</p>
+    <canvas id="photog-sig-canvas" width="400" height="150" style="border:1px solid var(--sn-line);border-radius:10px;width:100%;background:#fcfcfb;touch-action:none;"></canvas>
+    <div class="sn-actions" style="justify-content:flex-start;margin-top:14px;">
+      <button class="sn-btn" type="button" onclick="clearPhotogSig()">Limpiar</button>
+      <div style="flex:1;"></div>
+      <button class="sn-btn" type="button" onclick="closeModal('photographer-sign-modal')">Cancelar</button>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="savePhotogSig()">Guardar firma</button>
     </div>
-    <div class="space-y-3">
-      <div>
-        <label class="text-xs font-medium text-ink-soft block mb-1">Concepto</label>
-        <input id="inv-concepto" value="Anticipo 50% — {{ job['BODA'] }}" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm">
+  </div>
+</div>
+
+<div class="modal-overlay" id="file-modal">
+  <div class="modal-content">
+    <button type="button" class="modal-close" onclick="closeModal('file-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Add File</h2>
+    <form onsubmit="submitFile(event)">
+      <div class="form-group">
+        <label class="form-label">File (hasta 50MB)</label>
+        <input class="form-input" id="file-input" type="file" required style="padding-top:6px;">
       </div>
-      <div>
-        <label class="text-xs font-medium text-ink-soft block mb-1">Monto (Q)</label>
-        <input id="inv-monto" type="number" value="{{ (job.get('Total facturado al cliente (Q)') or 20000) // 2 }}" class="w-full bg-paper border border-line rounded-lg px-3 py-2 text-sm font-semibold">
+      <div class="sn-actions" style="justify-content:flex-end;">
+        <button class="sn-btn" type="button" onclick="closeModal('file-modal')">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Upload File</button>
       </div>
-      <div class="bg-ink-soft rounded-lg p-3 text-xs text-ink">
-        Se generará invoice con link Recurrente para cobrar al cliente.
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="payment-modal">
+  <div class="modal-content" style="width:min(420px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('payment-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Record Payment</h2>
+    <form onsubmit="submitRecordPayment(event)">
+      <input type="hidden" id="payment-id">
+      <div class="form-group">
+        <label class="form-label">Amount*</label>
+        <input class="form-input" id="payment-amount" type="number" step="0.01" required>
       </div>
+      <div class="form-group">
+        <label class="form-label">Paid On*</label>
+        <input class="form-input" id="payment-date" type="date" required>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-start;">
+        <button class="sn-btn sn-btn-primary" type="submit">Save Payment</button>
+        <button class="sn-btn" type="button" onclick="closeModal('payment-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="mail-detail-modal">
+  <div class="modal-content" style="width:min(720px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('mail-detail-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Mail details</h2>
+    <div class="sn-field-grid" style="margin-bottom:16px;">
+      <div class="sn-field-label">To</div><div class="sn-field-value" id="mail-detail-to"></div>
+      <div class="sn-field-label">Date</div><div class="sn-field-value" id="mail-detail-date"></div>
+      <div class="sn-field-label">Subject</div><div class="sn-field-value" id="mail-detail-subject"></div>
     </div>
-    <div class="mt-5 flex justify-end gap-2">
-      <button onclick="closeModal('modal-invoice')" class="px-3 py-1.5 text-sm text-ink-soft hover:text-ink">Cancelar</button>
-      <button onclick="createInvoice()" class="px-4 py-2 text-sm bg-gold text-white rounded-lg font-medium hover:bg-gold/90">Crear Factura</button>
+    <div class="sn-card white">
+      <div id="mail-detail-body" style="white-space:pre-wrap;line-height:1.6;"></div>
+    </div>
+    <div class="sn-actions" style="margin-top:16px;">
+      <button class="sn-btn" type="button" onclick="closeModal('mail-detail-modal')">Cancel</button>
     </div>
   </div>
 </div>
 
 <script>
-const JOB_ID = '{{ job.id }}';
-const JOB_NOMBRE = '{{ job["BODA"]|e }}';
+var JOB_ID = '{{ job.id }}';
+var EMAIL_TEMPLATES = {{ email_templates|tojson }};
+var CLIENT_EMAIL = {{ ((client.email if client else (lead.email if lead else '')) or '')|tojson }};
+var CLIENT_NAME = {{ (((client.first_name ~ ' ' ~ client.last_name) if client else (lead.nombre if lead else job.nombre)) or 'Cliente')|trim|tojson }};
+var JOB_DATE = {{ (job.boda_date or (lead.fecha_tentativa if lead else '') or '')|tojson }};
+var JOB_LOCATION = {{ (job.location or (lead.locacion if lead else '') or '')|tojson }};
 
-async function api(path, body) {
-  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  return r.json();
+function openModal(id) {
+  var add = document.getElementById('add-menu');
+  if (add) add.classList.remove('open');
+  var modal = document.getElementById(id);
+  if (modal) modal.classList.add('open');
 }
-
-function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-
-async function updateStatus() {
-  const status = document.getElementById('status-select').value;
-  const r = await api(`/api/jobs/${JOB_ID}/status`, {status});
-  if (r.ok) location.reload();
-  else alert('Error: ' + (r.error || 'desconocido'));
+function closeModal(id) {
+  var modal = document.getElementById(id);
+  if (modal) modal.classList.remove('open');
 }
-
-async function updateConfirm() {
-  const fields = {
-    confirmado: document.getElementById('chk-confirmado').checked,
-    confirmado_video: document.getElementById('chk-confirmado-video').checked,
-    confirmado_video_2: document.getElementById('chk-confirmado-video-2').checked,
-  };
-  const r = await api(`/api/jobs/${JOB_ID}/confirm`, fields);
-  if (r.ok) location.reload();
-  else alert('Error');
+function createMultiOptionQuote() {
+  fetch('/api/quotes/draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_id: JOB_ID })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { window.location.href = data.edit_url; }
+      else { flashToast(data.error || 'Error', 'error'); }
+    })
+    .catch(function() { flashToast('Error de red', 'error'); });
 }
-
-async function updateTeam() {
-  const fields = {
-    primera_camara: document.getElementById('team-primera').value,
-    segunda_camara: document.getElementById('team-segunda').value,
-    videografo_1: document.getElementById('team-v1').value,
-    videografo_2: document.getElementById('team-v2').value,
-    asistencia: document.getElementById('team-asistencia').value,
-  };
-  const r = await api(`/api/jobs/${JOB_ID}/team`, fields);
-  const msg = document.getElementById('team-msg');
-  if (r.ok) { msg.textContent = '✓ Guardado'; msg.className = 'text-xs text-emerald-700 ml-3'; }
-  else { msg.textContent = '✗ ' + (r.error || 'error'); msg.className = 'text-xs text-rose-700 ml-3'; }
+function toggleAddMenu(event) {
+  event.stopPropagation();
+  document.getElementById('add-menu').classList.toggle('open');
 }
-
-async function updateNotes() {
-  const notas = document.getElementById('notas').value;
-  const notas_prod = document.getElementById('notas_prod').value;
-  const r1 = await api(`/api/jobs/${JOB_ID}/notes`, {notas});
-  const r2 = await api(`/api/jobs/${JOB_ID}/notes_produccion`, {notas: notas_prod});
-  const msg = document.getElementById('notes-msg');
-  if (r1.ok && r2.ok) { msg.textContent = '✓ Guardado'; msg.className = 'text-xs text-emerald-700 ml-3'; }
-  else { msg.textContent = '✗ Error'; msg.className = 'text-xs text-rose-700 ml-3'; }
-}
-
-async function markPagoPaid(pagoId) {
-  const r = await api(`/api/payments/${pagoId}/pay`, {});
-  if (r.ok) location.reload();
-  else alert('Error');
-}
-
-// Sincronizar monto del paquete
-document.getElementById('quote-paquete')?.addEventListener('change', function() {
-  const opt = this.options[this.selectedIndex];
-  document.getElementById('quote-monto').value = opt.getAttribute('data-precio');
+document.addEventListener('DOMContentLoaded', function() {
+  if (new URLSearchParams(window.location.search).get('edit') === '1') {
+    openModal('job-edit-modal');
+  }
+});
+document.addEventListener('click', function(e) {
+  var menu = document.getElementById('add-menu');
+  if (menu && !menu.contains(e.target)) menu.classList.remove('open');
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay').forEach(function(m) { m.classList.remove('open'); });
 });
 
-function openNewQuote() { openModal('modal-quote'); }
-function openNewInvoice() { openModal('modal-invoice'); }
-function openJobEdit() { openModal('modal-job'); }
+function renderTemplate(text) {
+  // OJO: nunca escribir dos llaves de apertura seguidas en este archivo --
+  // Jinja2 las interpreta como su propia sintaxis (incluso dentro de un
+  // comentario o string de JS) y las borra, rompiendo estos placeholders.
+  // Por eso las armamos en runtime con fromCharCode.
+  var OB = String.fromCharCode(123, 123), CB = String.fromCharCode(125, 125);
+  return String(text || '')
+    .replaceAll(OB + 'nombre' + CB, CLIENT_NAME)
+    .replaceAll(OB + ' nombre ' + CB, CLIENT_NAME)
+    .replaceAll(OB + 'fecha_boda' + CB, JOB_DATE)
+    .replaceAll(OB + ' fecha_boda ' + CB, JOB_DATE)
+    .replaceAll(OB + 'job_date' + CB, JOB_DATE)
+    .replaceAll(OB + ' job_date ' + CB, JOB_DATE)
+    .replaceAll(OB + 'locacion' + CB, JOB_LOCATION)
+    .replaceAll(OB + ' locacion ' + CB, JOB_LOCATION)
+    .replaceAll('%client_name%', CLIENT_NAME)
+    .replaceAll('%job_date%', JOB_DATE)
+    .replaceAll('%company_name%', 'ASTRAL WEDDINGS');
+}
 
-async function saveJobEdit() {
-  const msg = document.getElementById('job-edit-msg');
-  msg.textContent = 'Guardando...';
-  const fields = {
-    fecha_evento: document.getElementById('job-fecha-evento').value,
-    lugar_evento: document.getElementById('job-lugar-evento').value,
-    fecha_anticipo: document.getElementById('job-fecha-anticipo').value,
-    fecha_contrato: document.getElementById('job-fecha-contrato').value,
-    total_facturado: document.getElementById('job-total-facturado').value,
-    total_pagado: document.getElementById('job-total-pagado').value,
-    smart_file_url: document.getElementById('job-smart-file-url').value,
-  };
-  const r = await api(`/api/jobs/${JOB_ID}/update`, fields);
-  if (r.ok) {
-    msg.textContent = 'Guardado';
-    location.reload();
+function findTemplate(id) {
+  return EMAIL_TEMPLATES.find(function(tpl) { return tpl.id === id; });
+}
+
+function templateForStep(stepName) {
+  var text = String(stepName || '').toLowerCase();
+  if (text.includes('cuestion')) return 'tpl-cuestionario-prod';
+  if (text.includes('firma') || text.includes('contract') || text.includes('contrato')) return 'tpl-contrato-prod';
+  if (text.includes('reserva')) return 'tpl-reserva-prod';
+  if (text.includes('google') || text.includes('review') || text.includes('comment')) return 'tpl-review';
+  if (text.includes('galeria') || text.includes('gallery')) return 'tpl-galeria';
+  if (text.includes('paquete')) return 'tpl-paquetes';
+  if (text.includes('levanta')) return 'tpl-levanta-muertos';
+  if (text.includes('seguimiento')) return 'tpl-seguimiento';
+  return '';
+}
+
+function applyEmailTemplate(templateId) {
+  var tpl = findTemplate(templateId);
+  if (!tpl) return;
+  document.getElementById('email-subject').value = renderTemplate(tpl.asunto || '');
+  document.getElementById('email-body').value = renderTemplate(tpl.cuerpo || '');
+}
+
+function openEmailModal(options) {
+  options = options || {};
+  if (!CLIENT_EMAIL) {
+    flashToast('Este job no tiene email de cliente', 'error');
+    return;
+  }
+  document.getElementById('email-step-id').value = options.stepId || '';
+  document.getElementById('email-template').value = options.templateId || '';
+  if (options.templateId) {
+    applyEmailTemplate(options.templateId);
   } else {
-    msg.textContent = r.error || 'Error al guardar';
-    msg.className = 'text-xs text-rose-700 mr-auto';
+    document.getElementById('email-subject').value = options.subject || 'Mensaje de ASTRAL WEDDINGS';
+    document.getElementById('email-body').value = options.body || ('Hola ' + CLIENT_NAME + ',\n\nTe escribo de ASTRAL WEDDINGS.\n\nSaludos,\nKevin');
+  }
+  openModal('email-modal');
+}
+
+function triggerJobStep(stepId, stepName) {
+  var lower = String(stepName || '').toLowerCase();
+  if (lower.includes('cuestion')) {
+    openQuestionnaireModal('CUESTIONARIO BODAS ASTRAL WEDDINGS', stepId);
+    return;
+  }
+  if (lower.includes('firma') || lower.includes('contract') || lower.includes('contrato')) {
+    createContractForStep(stepId);
+    return;
+  }
+  if (lower.includes('reserva') || lower.includes('google') || lower.includes('galeria') || lower.includes('seguimiento') || lower.includes('levanta')) {
+    openEmailModal({ stepId: stepId, templateId: templateForStep(stepName) });
+    return;
+  }
+  apiPost('/api/jobs/' + JOB_ID + '/trigger-step', { step_id: stepId })
+    .then(function(data) {
+      flashToast(data.message || ('Step completado: ' + stepName), 'success');
+      setTimeout(function() { location.reload(); }, 650);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function createManualTask(type, label) {
+  apiPost('/api/jobs/' + JOB_ID + '/workflow-task', { type: type, name: label })
+    .then(function() {
+      flashToast(type === 'appointment' || type === 'extra-event' ? 'Workflow task and calendar event added' : 'Workflow task added', 'success');
+      setTimeout(function() { location.reload(); }, 500);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function completeManualTask(taskId) {
+  apiPost('/api/jobs/' + JOB_ID + '/workflow-task/' + taskId + '/complete', {})
+    .then(function() {
+      flashToast('Task completed', 'success');
+      setTimeout(function() { location.reload(); }, 500);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function saveJob(event) {
+  event.preventDefault();
+  apiPost('/api/jobs/' + JOB_ID + '/update', Object.fromEntries(new FormData(event.currentTarget).entries()))
+    .then(function() { flashToast('Job actualizado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function archiveJob() {
+  if (!confirm('Archivar este job?')) return;
+  apiPost('/api/jobs/' + JOB_ID + '/status', { status: 'Archivado' })
+    .then(function() { flashToast('Job archivado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function saveNotes(event) {
+  event.preventDefault();
+  apiPost('/api/jobs/' + JOB_ID + '/notes', Object.fromEntries(new FormData(event.currentTarget).entries()))
+    .then(function() { flashToast('Notas guardadas', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function createInvoice(event) {
+  event.preventDefault();
+  apiPost('/api/jobs/' + JOB_ID + '/invoices', Object.fromEntries(new FormData(event.currentTarget).entries()))
+    .then(function() { flashToast('Invoice creado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function createContract() {
+  apiPost('/api/contracts/new', { job_id: JOB_ID })
+    .then(function() { flashToast('Contrato creado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function createContractForStep(stepId) {
+  if (!CLIENT_EMAIL) {
+    flashToast('Este job no tiene email de cliente', 'error');
+    return;
+  }
+  apiPost('/api/contracts/new', { job_id: JOB_ID })
+    .then(function(data) { openContractSendModal(data.contract_id, stepId); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function openContractSendModal(contractId, stepId) {
+  document.getElementById('contract-send-id').value = contractId;
+  document.getElementById('contract-send-step-id').value = stepId || '';
+  document.getElementById('contract-send-to').value = CLIENT_EMAIL || '';
+  document.getElementById('contract-send-subject').value = 'Tu contrato de servicios fotograficos - ASTRAL WEDDINGS';
+  var contractUrl = window.location.origin + '/contracts/' + contractId;
+  document.getElementById('contract-send-body').value =
+    'Hola ' + CLIENT_NAME + ',\n\n' +
+    'Aqui esta el contrato de servicios. Puedes leerlo y firmarlo electronicamente desde este link:\n' +
+    contractUrl + '\n\n' +
+    'Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\nASTRAL WEDDINGS';
+  openModal('contract-send-modal');
+}
+
+function submitContractSend(event) {
+  event.preventDefault();
+  var contractId = document.getElementById('contract-send-id').value;
+  var stepId = document.getElementById('contract-send-step-id').value;
+  apiPost('/api/contracts/' + contractId + '/send', {
+    subject: document.getElementById('contract-send-subject').value,
+    body: document.getElementById('contract-send-body').value
+  })
+    .then(function() {
+      if (!stepId) return null;
+      return apiPost('/api/jobs/' + JOB_ID + '/trigger-step', { step_id: stepId });
+    })
+    .then(function() { flashToast('Contract sent', 'success'); setTimeout(function(){ location.reload(); }, 650); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function sendPayment(id) {
+  apiPost('/api/payments/' + id + '/send', {})
+    .then(function(data) { flashToast(data.message || 'Invoice enviado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function openRecordPayment(id, amount) {
+  document.getElementById('payment-id').value = id;
+  document.getElementById('payment-amount').value = Number(amount || 0).toFixed(2);
+  document.getElementById('payment-date').value = new Date().toISOString().slice(0, 10);
+  openModal('payment-modal');
+}
+function submitRecordPayment(event) {
+  event.preventDefault();
+  var id = document.getElementById('payment-id').value;
+  apiPost('/api/payments/' + id + '/pay', {
+    amount: document.getElementById('payment-amount').value,
+    fecha_pago: document.getElementById('payment-date').value
+  })
+    .then(function() { flashToast('Pago registrado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function sendQuote(id) {
+  apiPost('/api/quotes/' + id + '/send', {})
+    .then(function(data) { flashToast(data.message || 'Quote enviado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function sendContract(id) {
+  apiPost('/api/contracts/' + id + '/send', {})
+    .then(function(data) { flashToast(data.message || 'Contrato enviado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+var photogSigCanvas, photogSigCtx, photogSigDrawing = false, photogSigContractId = null;
+function openPhotographerSignature(contractId) {
+  photogSigContractId = contractId;
+  openModal('photographer-sign-modal');
+  photogSigCanvas = document.getElementById('photog-sig-canvas');
+  photogSigCtx = photogSigCanvas.getContext('2d');
+  photogSigCtx.strokeStyle = '#18181b';
+  photogSigCtx.lineWidth = 2;
+  photogSigCtx.lineCap = 'round';
+  photogSigCtx.lineJoin = 'round';
+  clearPhotogSig();
+  if (!photogSigCanvas.dataset.bound) {
+    photogSigCanvas.dataset.bound = '1';
+    function pos(e) {
+      var r = photogSigCanvas.getBoundingClientRect();
+      var sx = photogSigCanvas.width / r.width, sy = photogSigCanvas.height / r.height;
+      var cx = e.touches ? e.touches[0].clientX : e.clientX;
+      var cy = e.touches ? e.touches[0].clientY : e.clientY;
+      return { x: (cx - r.left) * sx, y: (cy - r.top) * sy };
+    }
+    function start(e) { photogSigDrawing = true; var p = pos(e); photogSigCtx.beginPath(); photogSigCtx.moveTo(p.x, p.y); }
+    function move(e) { if (!photogSigDrawing) return; e.preventDefault(); var p = pos(e); photogSigCtx.lineTo(p.x, p.y); photogSigCtx.stroke(); }
+    function end() { photogSigDrawing = false; }
+    photogSigCanvas.addEventListener('mousedown', start);
+    photogSigCanvas.addEventListener('mousemove', move);
+    photogSigCanvas.addEventListener('mouseup', end);
+    photogSigCanvas.addEventListener('mouseleave', end);
+    photogSigCanvas.addEventListener('touchstart', start);
+    photogSigCanvas.addEventListener('touchmove', move);
+    photogSigCanvas.addEventListener('touchend', end);
   }
 }
-
-async function createQuote() {
-  const paquete = document.getElementById('quote-paquete').value;
-  const monto = parseFloat(document.getElementById('quote-monto').value);
-  const cuotas = document.getElementById('quote-cuotas').value;
-  const r = await api(`/api/jobs/${JOB_ID}/quotes`, {paquete, monto, cuotas});
-  if (r.ok) { closeModal('modal-quote'); location.reload(); }
-  else alert('Error: ' + (r.error || 'desconocido'));
+function clearPhotogSig() {
+  if (photogSigCtx) photogSigCtx.clearRect(0, 0, photogSigCanvas.width, photogSigCanvas.height);
+}
+function savePhotogSig() {
+  var dataUrl = photogSigCanvas.toDataURL('image/png');
+  apiPost('/api/contracts/' + photogSigContractId + '/sign-photographer', { signature: dataUrl })
+    .then(function() { flashToast('Firma del fotografo guardada', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function sendClientEmail() {
+  openEmailModal({ templateId: 'tpl-seguimiento' });
 }
 
-async function createInvoice() {
-  const concepto = document.getElementById('inv-concepto').value;
-  const monto = parseFloat(document.getElementById('inv-monto').value);
-  const r = await api(`/api/jobs/${JOB_ID}/invoices`, {concepto, monto});
-  if (r.ok) { closeModal('modal-invoice'); location.reload(); }
-  else alert('Error: ' + (r.error || 'desconocido'));
+function submitJobEmail(event) {
+  event.preventDefault();
+  var templateId = document.getElementById('email-template').value;
+  apiPost('/api/jobs/' + JOB_ID + '/send-email', {
+    template_id: templateId,
+    subject: document.getElementById('email-subject').value,
+    body: document.getElementById('email-body').value,
+    step_id: document.getElementById('email-step-id').value
+  })
+    .then(function() { flashToast('Email sent', 'success'); setTimeout(function(){ location.reload(); }, 600); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-function sendEmail(email, nombre) {
-  if (confirm('Abrir cliente de email para ' + nombre + ' (' + email + ')?')) {
-    window.location.href = 'mailto:' + email + '?subject=' + encodeURIComponent('Sobre tu boda - ' + JOB_NOMBRE);
+function openQuestionnaireModal(name, stepId) {
+  document.getElementById('questionnaire-name').value = name || 'CUESTIONARIO BODAS ASTRAL WEDDINGS';
+  document.getElementById('questionnaire-step-id').value = stepId || '';
+  var bodyEl = document.getElementById('questionnaire-body');
+  bodyEl.value = renderTemplate(bodyEl.value);
+  var subjEl = document.getElementById('questionnaire-subject');
+  if (subjEl) subjEl.value = renderTemplate(subjEl.value);
+  openModal('questionnaire-modal');
+}
+
+function submitQuestionnaire(event) {
+  event.preventDefault();
+  apiPost('/api/jobs/' + JOB_ID + '/questionnaires', {
+    name: document.getElementById('questionnaire-name').value,
+    subject: document.getElementById('questionnaire-subject').value,
+    body: document.getElementById('questionnaire-body').value,
+    step_id: document.getElementById('questionnaire-step-id').value,
+    send_email: true
+  })
+    .then(function() { flashToast('Questionnaire sent', 'success'); setTimeout(function(){ location.reload(); }, 650); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function openQuestionnairePreview(name, status) {
+  document.getElementById('mail-detail-to').textContent = CLIENT_EMAIL || '-';
+  document.getElementById('mail-detail-date').textContent = status || 'Draft';
+  document.getElementById('mail-detail-subject').textContent = name || 'Questionnaire';
+  document.getElementById('mail-detail-body').textContent = 'Cuestionario asociado al job. El cliente lo ve desde su portal y el envio queda registrado en Mail.';
+  openModal('mail-detail-modal');
+}
+
+function submitFile(event) {
+  event.preventDefault();
+  var input = document.getElementById('file-input');
+  if (!input.files.length) { flashToast('Selecciona un archivo', 'error'); return; }
+  var fd = new FormData();
+  fd.append('file', input.files[0]);
+  fetch('/api/jobs/' + JOB_ID + '/files', { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) throw new Error(data.error || 'No se pudo subir el archivo');
+      flashToast('Archivo subido', 'success');
+      setTimeout(function(){ location.reload(); }, 500);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function openHistoryLog() {
+  fetch('/api/jobs/' + JOB_ID + '/history')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) throw new Error(data.error || 'No se pudo cargar el historial');
+      var list = document.getElementById('history-log-list');
+      if (!data.history.length) {
+        list.innerHTML = '<div class="sn-list-item sn-muted">Sin eventos de workflow todavia.</div>';
+      } else {
+        list.innerHTML = data.history.slice().reverse().map(function(h) {
+          var ts = (h.timestamp || '').replace('T', ' ').slice(0, 16);
+          return '<div class="sn-list-item"><div class="sn-list-title">' + (h.message || h.event || '') +
+            '</div><div class="sn-list-meta">' + ts + ' · ' + (h.event || '') + '</div></div>';
+        }).join('');
+      }
+      openModal('history-log-modal');
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function openMailDetails(button) {
+  var body = button.dataset.body || '';
+  var ref = button.dataset.bodyRef ? document.getElementById(button.dataset.bodyRef) : null;
+  if (ref) {
+    try {
+      body = JSON.parse(ref.textContent || '""');
+    } catch (e) {
+      body = ref.textContent || body;
+    }
   }
+  document.getElementById('mail-detail-to').textContent = button.dataset.to || '-';
+  document.getElementById('mail-detail-date').textContent = button.dataset.date || '-';
+  document.getElementById('mail-detail-subject').textContent = button.dataset.subject || 'Email';
+  document.getElementById('mail-detail-body').textContent = body || 'No message body saved for this older email.';
+  openModal('mail-detail-modal');
 }
-
 </script>
-
-<!-- Timeline del proyecto -->
-<div class="bg-paper-pure rounded-lg border border-line p-5 shadow-soft mt-6">
-  <div class="flex items-center justify-between mb-4">
-    <h3 class="text-sm label-eyebrow">Timeline del proyecto</h3>
-    <span class="text-xs text-mute">Ordenado del más reciente al más antiguo</span>
-  </div>
-  {% if timeline %}
-  <ol class="relative border-l border-line ml-2 space-y-4">
-    {% for e in timeline %}
-    <li class="ml-6">
-      <span class="absolute -left-2 flex items-center justify-center w-4 h-4 rounded-full
-        {% if e.icono == 'crear' %}bg-gold text-paper
-        {% elif e.icono == 'cliente' %}bg-ink text-paper
-        {% elif e.icono == 'lead' %}bg-ink text-paper
-        {% elif e.icono == 'cotizacion' %}bg-ink text-paper
-        {% elif e.icono == 'pago' %}bg-ink text-paper
-        {% elif e.icono == 'liquidado' %}bg-ink text-paper
-        {% else %}bg-gold-soft text-gold-deep{% endif %}">
-        <span class="w-1.5 h-1.5 rounded-full bg-paper-pure"></span>
-      </span>
-      <div class="flex items-baseline justify-between gap-4">
-        <div class="font-medium text-ink text-sm">{{ e.titulo }}</div>
-        <time class="text-xs text-mute shrink-0 font-mono">{{ e.fecha }}</time>
-      </div>
-      <div class="text-xs text-mute mt-0.5">{{ e.detalle }}</div>
-      {% if e.quien %}<div class="text-[10px] text-mute-soft mt-1">por {{ e.quien }}</div>{% endif %}
-    </li>
-    {% endfor %}
-  </ol>
-  {% else %}
-  <p class="text-sm text-mute py-6 text-center">No hay eventos registrados todavía</p>
-  {% endif %}
-</div>
-
 {% endblock %}

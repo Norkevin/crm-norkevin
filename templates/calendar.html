@@ -1,119 +1,371 @@
 {% extends "base.html" %}
-{% block title %}Calendar · Norkevin CRM{% endblock %}
+{% block title %}Calendar · ASTRAL WEDDINGS CRM{% endblock %}
 {% block header %}Calendar{% endblock %}
-{% block subtitle %}{{ nombre_mes }} {{ anio_actual }} · {{ jobs_mes }} bodas este mes{% endblock %}
+{% block subtitle %}Dashboard &gt; Calendar &gt; Month View{% endblock %}
+{% block topbar_title %}Calendar{% endblock %}
 
 {% block content %}
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Calendar</h1>
+      <div class="sn-breadcrumbs">Dashboard &gt; Calendar &gt; Month View</div>
+    </div>
+    <div class="sn-actions">
+      <a class="sn-btn" href="/api/calendar/export.ics">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
+        Export iCal
+      </a>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="openEventModal()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Add New
+      </button>
+    </div>
+  </div>
 
-<!-- Header del mes con nav -->
-<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-  <div class="flex items-center gap-2">
-    <a href="/?month={{ prev_month }}" class="px-3 py-2 bg-paper-pure border border-line rounded-lg hover:bg-paper transition">
-      <svg class="w-4 h-4 text-ink-soft" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    </a>
-    <h2 class="text-xl font-bold text-ink px-4">{{ nombre_mes }} {{ anio_actual }}</h2>
-    <a href="/?month={{ next_month }}" class="px-3 py-2 bg-paper-pure border border-line rounded-lg hover:bg-paper transition">
-      <svg class="w-4 h-4 text-ink-soft" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-    </a>
-    {% if anio_actual != hoy.year or mes_actual != hoy.month %}
-    <a href="/" class="ml-2 text-xs text-gold hover:underline">Ir a hoy</a>
+  {% if upcoming_events %}
+  <div class="upcoming-events">
+    <div class="upcoming-events-head">Proximos eventos</div>
+    <div class="upcoming-events-grid">
+      {% for e in upcoming_events %}
+      <button class="upcoming-event-card {{ e.type }}" type="button" onclick="openCalendarEvent('{{ e.url or '' }}')">
+        <span class="upcoming-event-badge {{ e.type }}">{{ e.type|capitalize }}</span>
+        <div class="upcoming-event-title">{{ e.title }}</div>
+        <div class="upcoming-event-date">{{ e.date_label }}</div>
+        {% if e.days_away is not none %}
+        <div class="upcoming-event-days">{% if e.days_away == 0 %}Hoy{% elif e.days_away == 1 %}Manana{% else %}En {{ e.days_away }} dias{% endif %}</div>
+        {% endif %}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="sn-toolbar">
+    <div class="sn-toolbar-left">
+      <a class="sn-btn sn-btn-sm" href="/calendar?year={{ prev_year }}&month={{ prev_month }}">‹</a>
+      <span class="sn-btn sn-btn-sm" style="background:#fff;">{{ month_name }} {{ year }}</span>
+      <a class="sn-btn sn-btn-sm" href="/calendar?year={{ next_year }}&month={{ next_month }}">›</a>
+      <a class="sn-btn sn-btn-sm" href="/calendar">Today</a>
+      <select id="calendar-view" class="sn-select" onchange="changeCalendarView()">
+        <option value="month">Month</option>
+        <option value="week">Week</option>
+        <option value="day">Day</option>
+      </select>
+    </div>
+    <div class="sn-toolbar-right">
+      <span class="sn-muted">Filter by:</span>
+      <select id="calendar-filter" class="sn-select" onchange="filterCalendar()">
+        <option value="all">All</option>
+        <option value="lead">Leads</option>
+        <option value="job">Jobs</option>
+        <option value="event">Events</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="calendar-shell">
+    <div class="calendar-head">
+      {% for day_name in day_names %}
+      <div>{{ day_name }}</div>
+      {% endfor %}
+    </div>
+    <div class="calendar-grid">
+      {% for week in calendar_grid %}
+        {% for cell in week %}
+        <div class="calendar-cell {% if not cell.in_month %}muted{% endif %}">
+          <div class="calendar-day {% if cell.today %}today{% endif %}">{{ cell.day }}</div>
+          <div class="calendar-events">
+            {% for evt in cell.events[:3] %}
+            <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" onclick="openCalendarEvent('{{ evt.url or '' }}')">
+              <span class="calendar-event-badge {{ evt.type }}">{{ evt.type|capitalize }}</span>
+              <span class="calendar-event-title">{{ evt.title }}</span>
+            </button>
+            {% endfor %}
+            {% if cell.events|length > 3 %}
+            <button class="calendar-event-more" type="button" onclick="toggleMoreEvents(this)">+{{ cell.events|length - 3 }} more events</button>
+            <div class="calendar-events-hidden" style="display:none;">
+              {% for evt in cell.events[3:] %}
+              <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" onclick="openCalendarEvent('{{ evt.url or '' }}')">
+                <span class="calendar-event-badge {{ evt.type }}">{{ evt.type|capitalize }}</span>
+                <span class="calendar-event-title">{{ evt.title }}</span>
+              </button>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Vista de agenda: solo visible en mobile (la cuadricula de 7 columnas
+       no cabe comoda en un telefono, una lista cronologica se usa mejor). -->
+  <div class="calendar-agenda">
+    {% set ns = namespace(has_any_event=false) %}
+    {% for week in calendar_grid %}
+      {% for cell in week %}
+        {% if cell.in_month and cell.events %}
+          {% set ns.has_any_event = true %}
+          <div class="agenda-day {{ 'today' if cell.today else '' }}">
+            <div class="agenda-day-head">
+              <span class="agenda-day-num">{{ cell.day }}</span>
+              <span class="agenda-day-label">{{ month_name }} {{ cell.day }}{{ ', Hoy' if cell.today else '' }}</span>
+            </div>
+            <div class="agenda-events">
+              {% for evt in cell.events %}
+              <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" onclick="openCalendarEvent('{{ evt.url or '' }}')">
+                <span class="calendar-event-badge {{ evt.type }}">{{ evt.type|capitalize }}</span>
+                <span class="calendar-event-title">{{ evt.title }}</span>
+              </button>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+    {% if not ns.has_any_event %}
+    <p class="sn-muted" style="text-align:center;padding:32px 0;">Sin eventos este mes.</p>
     {% endif %}
   </div>
-  <div class="text-xs text-ink-soft">{{ jobs_mes }} bodas · {{ proximas|length }} próximas 90d</div>
-</div>
+</section>
 
-<!-- Grid del mes -->
-<div class="bg-paper-pure rounded-xl border border-line overflow-hidden shadow-soft mb-8 crm-table-wrap">
-  <div class="min-w-[760px]">
-  <!-- Headers de días -->
-  <div class="grid grid-cols-7 bg-line/50 border-b border-line">
-    {% set days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'] %}
-    {% for day in days %}
-    <div class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider text-ink-soft">{{ day }}</div>
-    {% endfor %}
-  </div>
-
-  <!-- Semanas -->
-  {% for week in weeks %}
-  <div class="grid grid-cols-7 border-b border-line last:border-b-0">
-    {% for day in week %}
-    <div class="min-h-[110px] p-2 border-r border-line last:border-r-0
-      {% if day == 0 %}bg-paper/40
-      {% elif day == hoy_dia %}bg-ink-soft/30
-      {% else %}bg-paper-pure hover:bg-paper/50{% endif %} transition">
-      {% if day > 0 %}
-      <div class="text-xs mb-1 {% if day == hoy_dia %}font-bold text-ink bg-ink text-white w-6 h-6 rounded-full flex items-center justify-center{% else %}text-ink-soft{% endif %}">{{ day }}</div>
-      {% for event in eventos_mes_dia.get(day, [])[:3] %}
-      <a href="/jobs/{{ event.id }}" class="block text-[10px] bg-gold/15 hover:bg-gold/30 text-gold rounded px-1.5 py-1 mb-1 truncate transition border-l-2 border-gold">
-        <div class="font-medium truncate">{{ event.get('BODA') or '' }}</div>
-        {% if event.get('Lugar de evento') %}<div class="text-ink-soft truncate">{{ event.get('Lugar de evento') }}</div>{% endif %}
-      </a>
-      {% endfor %}
-      {% if eventos_mes_dia.get(day, [])|length > 3 %}
-      <div class="text-[10px] text-ink-soft">+{{ eventos_mes_dia[day]|length - 3 }} más</div>
-      {% endif %}
-      {% endif %}
-    </div>
-    {% endfor %}
-  </div>
-  {% endfor %}
-</div>
-</div>
-
-<!-- KPIs del mes -->
-<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Bodas este mes</div>
-    <div class="text-3xl font-bold text-gold">{{ jobs_mes }}</div>
-    <div class="text-xs text-ink-soft mt-1">{{ nombre_mes }} {{ anio_actual }}</div>
-  </div>
-  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Confirmadas</div>
-    <div class="text-3xl font-bold text-emerald-700">{{ jobs_activos }}</div>
-    <div class="text-xs text-ink-soft mt-1">Activas en producción</div>
-  </div>
-  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Clientes</div>
-    <div class="text-3xl font-bold text-ink">{{ clients_count }}</div>
-    <div class="text-xs text-ink-soft mt-1">Activos en sistema</div>
-  </div>
-  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Por cobrar</div>
-    <div class="text-3xl font-bold text-rose-700">{{ q_money(total_por_cobrar) }}</div>
-    <div class="text-xs text-ink-soft mt-1">Facturado - pagado</div>
-  </div>
-</div>
-
-<!-- Próximas 90 días -->
-<h3 class="text-sm font-semibold mb-3 text-ink">Próximas 90 días</h3>
-{% if proximas %}
-<div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
-  {% for j in proximas[:6] %}
-  <a href="/jobs/{{ j.id }}" class="block bg-paper-pure rounded-xl border border-line p-4 hover:border-gold transition shadow-soft">
-    <div class="flex items-start justify-between mb-2">
-      <div class="flex-1 min-w-0">
-        <div class="font-medium text-ink truncate">{{ j.get('BODA') }}</div>
-        <div class="text-xs text-ink-soft truncate">{{ j.get('Lugar de evento') or '—' }}</div>
+<div class="modal-overlay" id="event-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Add New Event</h2>
+    <form id="event-form" onsubmit="createEvent(event)">
+      <div class="form-group">
+        <label class="form-label" for="event-title">Title *</label>
+        <input class="form-input" id="event-title" name="title" required>
       </div>
-      <div class="text-xs font-bold ml-2
-        {% if j.days_until <= 30 %}text-amber-700
-        {% elif j.days_until <= 60 %}text-ink
-        {% else %}text-ink-soft{% endif %}">{{ j.days_until }}d</div>
-    </div>
-    <div class="flex items-center justify-between text-xs">
-      <span class="px-2 py-0.5 rounded
-        {% if j.get('Estado') == 'Confirmado' %}bg-emerald-50 text-emerald-700
-        {% elif j.get('Estado') == 'En produccion' %}bg-ink-soft text-ink
-        {% elif j.get('Estado') == 'Listo' %}bg-paper text-ink-soft
-        {% else %}bg-amber-50 text-amber-700{% endif %}">{{ j.get('Estado') }}</span>
-      <span class="text-ink-soft">{{ parse_date(j.get('Fecha del evento')) }}</span>
-    </div>
-  </a>
-  {% endfor %}
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="event-date">Date *</label>
+          <input class="form-input" id="event-date" name="date" type="date" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="event-type">Type</label>
+          <select class="form-input" id="event-type" name="type">
+            <option value="event">Event</option>
+            <option value="lead">Lead</option>
+            <option value="job">Job</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="event-notes">Notes</label>
+        <textarea class="form-input" id="event-notes" name="notes" rows="4"></textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
+        <button class="sn-btn" type="button" onclick="closeEventModal()">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Create Event</button>
+      </div>
+    </form>
+  </div>
 </div>
-{% else %}
-<div class="bg-paper-pure rounded-xl p-12 border border-line shadow-soft text-center">
-  <p class="text-sm text-ink-soft">No hay bodas en los próximos 90 días</p>
-</div>
-{% endif %}
+
+<style>
+.upcoming-events { margin-bottom: 16px; }
+.upcoming-events-head { font-size: 13px; font-weight: 600; color: var(--sn-muted); margin-bottom: 10px; }
+.upcoming-events-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.upcoming-event-card {
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--sn-line);
+  border-radius: 14px;
+  padding: 16px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(20, 23, 31, .03);
+  transition: box-shadow .15s ease, border-color .15s ease;
+}
+.upcoming-event-card:hover { box-shadow: 0 8px 22px rgba(15, 23, 42, .08); border-color: var(--sn-line-dark); }
+.upcoming-event-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 10px;
+}
+.upcoming-event-badge.lead { background: #0284C7; }
+.upcoming-event-badge.job { background: #111827; }
+.upcoming-event-badge.event { background: #6B7280; }
+.upcoming-event-title { font-size: 15px; font-weight: 600; color: var(--sn-ink); margin-bottom: 4px; }
+.upcoming-event-date { font-size: 12.5px; color: var(--sn-muted); }
+.upcoming-event-days { font-size: 11.5px; color: var(--sn-green-dark); font-weight: 600; margin-top: 6px; }
+@media (max-width: 760px) {
+  .upcoming-events-grid { grid-template-columns: 1fr; }
+}
+.calendar-shell {
+  background: #fff;
+  border: 1px solid var(--sn-line);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+}
+.calendar-head,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.calendar-head > div {
+  background: #FAFBFC;
+  border-bottom: 1px solid var(--sn-line);
+  padding: 11px;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--sn-muted);
+}
+.calendar-cell {
+  min-height: 126px;
+  border-right: 1px solid var(--sn-line);
+  border-bottom: 1px solid var(--sn-line);
+  padding: 8px;
+  background: #fff;
+  transition: background .12s ease;
+}
+.calendar-cell:hover { background: #FAFBFC; }
+.calendar-cell.muted { background: #FAFBFC; color: #a0a6ad; }
+.calendar-day {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--sn-muted);
+}
+.calendar-day.today {
+  border-radius: 999px;
+  background: var(--sn-green);
+  color: #fff;
+  font-weight: 700;
+}
+.calendar-events { display: flex; flex-direction: column; gap: 4px; margin-top: 5px; }
+.calendar-event {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: 1px solid var(--sn-line);
+  background: #FAFBFC;
+  border-radius: 8px;
+  padding: 4px 7px;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow .12s ease;
+}
+.calendar-event:hover { box-shadow: 0 2px 6px rgba(15, 23, 42, .08); }
+.calendar-event-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: none;
+  color: #fff;
+}
+.calendar-event-badge.lead { background: #0284C7; }
+.calendar-event-badge.job { background: #111827; }
+.calendar-event-badge.event { background: #6B7280; }
+.calendar-event-title {
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #20242a;
+}
+.calendar-event.lead { background: #F0F9FF; border-color: #BAE6FD; }
+.calendar-event.job { background: #F6F7F9; border-color: #E4E7EC; }
+.calendar-event.event { background: #F6F7F9; border-color: #E4E7EC; }
+.calendar-event-more {
+  width: 100%;
+  text-align: left;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--sn-muted);
+  cursor: pointer;
+}
+.calendar-event-more:hover { color: var(--sn-ink); text-decoration: underline; }
+.calendar-events-hidden { display: flex; flex-direction: column; gap: 4px; }
+.calendar-agenda { display: none; }
+.agenda-day { background: #fff; border: 1px solid var(--sn-line); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+.agenda-day.today { border-color: var(--sn-green); box-shadow: 0 0 0 1px var(--sn-green); }
+.agenda-day-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.agenda-day-num { font-size: 20px; font-weight: 700; color: var(--sn-ink); }
+.agenda-day-label { font-size: 12.5px; color: var(--sn-muted); font-weight: 600; }
+.agenda-day.today .agenda-day-label { color: var(--sn-green); }
+.agenda-events { display: flex; flex-direction: column; gap: 8px; }
+.agenda-events .calendar-event { font-size: 13px; padding: 10px 12px; border-radius: 8px; min-height: 44px; display: flex; align-items: center; gap: 8px; }
+.agenda-events .calendar-event-badge { font-size: 10px; padding: 3px 8px; flex-shrink: 0; }
+@media (max-width: 760px) {
+  .calendar-shell { display: none; }
+  .calendar-agenda { display: block; }
+}
+</style>
+
+<script>
+function openEventModal() {
+  document.getElementById('event-modal').classList.add('open');
+  setTimeout(function() { document.getElementById('event-title').focus(); }, 50);
+}
+
+function closeEventModal() {
+  document.getElementById('event-modal').classList.remove('open');
+}
+
+function createEvent(event) {
+  event.preventDefault();
+  var payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+  apiPost('/api/calendar/events', payload)
+    .then(function() { flashToast('Event created', 'success'); setTimeout(function() { location.reload(); }, 600); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function filterCalendar() {
+  var value = document.getElementById('calendar-filter').value;
+  document.querySelectorAll('.calendar-event').forEach(function(evt) {
+    evt.style.display = value === 'all' || evt.dataset.type === value ? '' : 'none';
+  });
+}
+
+function openCalendarEvent(url) {
+  if (url) window.location.href = url;
+}
+
+function toggleMoreEvents(btn) {
+  var hidden = btn.nextElementSibling;
+  if (!hidden || !hidden.classList.contains('calendar-events-hidden')) return;
+  if (!btn.dataset.moreLabel) btn.dataset.moreLabel = btn.textContent;
+  var showing = hidden.style.display !== 'none';
+  hidden.style.display = showing ? 'none' : 'flex';
+  btn.textContent = showing ? btn.dataset.moreLabel : 'Show less';
+}
+
+function changeCalendarView() {
+  var view = document.getElementById('calendar-view').value;
+  if (view !== 'month') {
+    flashToast('Month view is active. Week/day views are next.', 'success');
+    document.getElementById('calendar-view').value = 'month';
+  }
+}
+
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') closeEventModal();
+});
+</script>
 {% endblock %}

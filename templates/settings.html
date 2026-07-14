@@ -1,89 +1,229 @@
 {% extends "base.html" %}
-{% block title %}Settings · Norkevin CRM{% endblock %}
+{% block title %}Settings · ASTRAL WEDDINGS CRM{% endblock %}
 {% block header %}Settings{% endblock %}
-{% block subtitle %}Configuración del CRM{% endblock %}
+{% block subtitle %}Empresa, sistema, captacion y templates{% endblock %}
+
+{% block topbar_title %}Settings{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-2 gap-6">
-  <div class="bg-paper-pure rounded-lg p-6 border border-line">
-    <h3 class="text-sm font-semibold mb-4">📊 Info del sistema</h3>
-    <div class="space-y-3 text-sm">
-      <div class="flex justify-between">
-        <span class="text-ink-soft">Versión</span>
-        <span>v0.1</span>
+<section class="sn-page">
+<style>
+.settings-tile {
+  background: #fff;
+  border: 1px solid var(--sn-line-dark);
+  border-radius: 6px;
+  padding: 16px;
+  display: block;
+}
+.settings-tile.clickable { cursor: pointer; transition: box-shadow .15s ease, border-color .15s ease; }
+.settings-tile.clickable:hover { box-shadow: 0 6px 18px rgba(15,23,42,.08); border-color: #b9bec4; }
+.settings-tile.disabled { opacity: .55; cursor: default; }
+.settings-tile svg { width: 22px; height: 22px; color: var(--sn-green); margin-bottom: 8px; }
+.settings-tile h4 { font-size: 13px; font-weight: 600; color: var(--sn-ink); margin: 0 0 4px; }
+.settings-tile p { font-size: 11px; color: var(--sn-muted); margin: 0; }
+.settings-soon {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f4f4f5;
+  color: #71717a;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.settings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.settings-section-title { font-size: 15px; font-weight: 600; color: var(--sn-ink); margin: 0 0 12px; }
+@media (max-width: 760px) { .settings-grid { grid-template-columns: 1fr; } }
+</style>
+
+<!-- Company card (destacado arriba) -->
+<div class="sn-card white mb-5" style="padding:18px;">
+  <div class="flex items-center justify-between" style="flex-wrap:wrap;gap:12px;">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 rounded-lg flex items-center justify-center text-white text-xs font-medium" style="background:#101112;">
+        {{ company.logo_letter|default('A') }}
       </div>
-      <div class="flex justify-between">
-        <span class="text-ink-soft">Database</span>
-        <span class="text-xs text-green-700">SQLite local</span>
-      </div>
-      <div class="flex justify-between">
-        <span class="text-ink-soft">Storage</span>
-        <span>C:\Users\fotov\.openclaw\workspace\crm_norkevin\data\crm.db</span>
+      <div>
+        <h2 style="font-size:17px;font-weight:600;margin:0;">{{ company.name or 'ASTRAL WEDDINGS' }}</h2>
+        <p class="sn-muted text-xs" style="margin-top:2px;">{{ company.email or 'Sin email configurado' }} &middot; {{ company.currency or 'GTQ' }}</p>
       </div>
     </div>
+    <button class="sn-btn sn-btn-primary" type="button" onclick="openEditCompanyModal()">
+      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+      Edit Company
+    </button>
   </div>
+</div>
 
-  <div class="bg-paper-pure rounded-lg p-6 border border-line">
-    <h3 class="text-sm font-semibold mb-4">💰 Paquetes Norkevin</h3>
-    <div class="space-y-2 text-xs">
-      <div class="flex justify-between p-2 bg-paper rounded">
-        <span>Foto Gold</span>
-        <span class="text-gold font-medium">Q13,500</span>
-      </div>
-      <div class="flex justify-between p-2 bg-paper rounded">
-        <span>Mix Gold</span>
-        <span class="text-gold font-medium">Q20,500</span>
-      </div>
-      <div class="flex justify-between p-2 bg-paper rounded">
-        <span>Mix Platinum</span>
-        <span class="text-gold font-medium">Q29,500</span>
-      </div>
-      <div class="flex justify-between p-2 bg-paper rounded">
-        <span>Signature</span>
-        <span class="text-gold font-medium">Q35,500</span>
-      </div>
+<!-- ============================================================
+     FUNDAMENTALS
+     ============================================================ -->
+<div class="mb-8">
+  <h3 class="settings-section-title">Fundamentals</h3>
+  <div class="settings-grid">
+    <button type="button" class="settings-tile clickable" style="text-align:left;" onclick="openEditCompanyModal()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4a1 1 0 011-1h2a1 1 0 011 1v4h12v-4a1 1 0 011-1h2a1 1 0 011 1v4M5 3h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+      <h4>Company Details</h4>
+      <p>Edit company name, email, phone and currency.</p>
+    </button>
+    <div class="settings-tile clickable" style="cursor:default;">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+      <h4>Email Settings</h4>
+      {% if gmail_connected %}
+        <p style="color:var(--sn-green);font-weight:600;">Gmail conectado: {{ gmail_email }}</p>
+        <button class="sn-btn sn-btn-sm mt-2" type="button" onclick="disconnectGmail()">Disconnect</button>
+      {% elif gmail_configured %}
+        <p>No conectado. Usando modo prueba (local outbox).</p>
+        <a class="sn-btn sn-btn-primary sn-btn-sm mt-2" href="/auth/google/start">Connect Gmail</a>
+      {% else %}
+        <p>Falta configurar <code>GOOGLE_CLIENT_ID</code> / <code>GOOGLE_CLIENT_SECRET</code> en el <code>.env</code>.</p>
+        <p class="sn-muted" style="margin-top:6px;font-size:10px;">Redirect URI a autorizar en Google Cloud Console:<br><code>{{ gmail_redirect_uri }}</code></p>
+      {% endif %}
     </div>
-  </div>
-
-  <div class="bg-paper-pure rounded-lg p-6 border border-line">
-    <h3 class="text-sm font-semibold mb-4">🏦 Cuentas bancarias</h3>
-    <div class="space-y-2 text-xs">
-      <div class="p-2 bg-paper rounded">
-        <div class="text-ink-soft text-[10px] uppercase">Banco Industrial</div>
-        <div class="font-mono">214-008308-6 · Monetaria</div>
-      </div>
-      <div class="p-2 bg-paper rounded">
-        <div class="text-ink-soft text-[10px] uppercase">Banrural</div>
-        <div class="font-mono">039-68500356-0-45 · Monetaria</div>
-      </div>
-      <div class="p-2 bg-paper rounded">
-        <div class="text-ink-soft text-[10px] uppercase">Promerica</div>
-        <div class="font-mono">323-12060435-58-6 · Ahorro</div>
-      </div>
-      <div class="text-[10px] text-ink-soft mt-2">A nombre de Kevin Lemus</div>
-    </div>
-  </div>
-
-  <div class="bg-paper-pure rounded-lg p-6 border border-line">
-    <h3 class="text-sm font-semibold mb-4">🔌 Integraciones</h3>
-    <div class="space-y-2 text-xs">
-      <div class="flex justify-between items-center p-2 bg-paper rounded">
-        <span>Notion</span>
-        <span class="text-green-700">✓ Conectado</span>
-      </div>
-      <div class="flex justify-between items-center p-2 bg-paper rounded">
-        <span>Recurrente</span>
-        <span class="text-green-700">✓ Conectado</span>
-      </div>
-      <div class="flex justify-between items-center p-2 bg-paper rounded">
-        <span>Obsidian</span>
-        <span class="text-green-700">✓ Conectado</span>
-      </div>
-      <div class="flex justify-between items-center p-2 bg-paper rounded">
-        <span>WhatsApp</span>
-        <span class="text-ink-soft">○ Pendiente</span>
-      </div>
+    <div class="settings-tile clickable" style="cursor:default;">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+      <h4>Payment Links (Recurrente)</h4>
+      {% if recurrente_configured %}
+        <p style="color:var(--sn-green);font-weight:600;">Conectado. Ya podes generar links de pago.</p>
+        {% if recurrente_test_mode %}
+        <p style="margin-top:6px;"><span class="sn-chip" style="background:#FEF3C7;color:#92400E;">MODO PRUEBA</span></p>
+        <p class="sn-muted" style="margin-top:6px;font-size:10px;">Los links que generes ahora son de prueba (no cobran de verdad). Para volver a modo real, quita <code>RECURRENTE_MODE=test</code> del <code>.env</code>.</p>
+        {% endif %}
+      {% else %}
+        <p>Falta configurar <code>RECURRENTE_SECRET_KEY</code> en el <code>.env</code>.</p>
+        <p class="sn-muted" style="margin-top:6px;font-size:10px;">Obtene tu llave en Recurrente &gt; Configuracion &gt; Llaves API.</p>
+      {% endif %}
     </div>
   </div>
 </div>
+
+<!-- ============================================================
+     CLIENT EXPERIENCE
+     ============================================================ -->
+<div class="mb-8">
+  <h3 class="settings-section-title">Client Experience</h3>
+  <div class="settings-grid">
+    <a href="/captacion" class="settings-tile clickable">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <h4>Contact Form <span class="sn-green">&rarr;</span></h4>
+      <p>Create and embed contact forms. {{ captacion_url }}</p>
+    </a>
+  </div>
+</div>
+
+<!-- ============================================================
+     TEMPLATES
+     ============================================================ -->
+<div class="mb-8">
+  <h3 class="settings-section-title">Templates</h3>
+  <div class="settings-grid">
+    <a href="/settings/email-templates" class="settings-tile clickable">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+      <h4>Email Templates <span class="sn-green">&rarr;</span></h4>
+      <p>{{ email_templates_count }} plantillas. Click para ver, crear y editar.</p>
+    </a>
+    <a href="/settings/packages" class="settings-tile clickable">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      <h4>Products &amp; Packages <span class="sn-green">&rarr;</span></h4>
+      <p>{{ packages_count }} paquetes. Click para ver, crear y editar.</p>
+    </a>
+    <a href="/workflow-editor" class="settings-tile clickable">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      <h4>Workflow Templates <span class="sn-green">&rarr;</span></h4>
+      <p>{{ templates|length }} configurados. Click para editar.</p>
+    </a>
+  </div>
+</div>
+
+<!-- ============================================================
+     STORAGE (Stats locales)
+     ============================================================ -->
+<div class="mb-8">
+  <h3 class="settings-section-title">Almacenamiento Local</h3>
+  <div class="sn-card white" style="padding:18px;">
+    <p class="sn-muted text-sm mb-4">Datos guardados en archivos JSON dentro de <code>data/</code>.</p>
+    <div class="grid grid-cols-5 gap-3" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;">
+      {% for t in tables %}
+      <div style="padding:12px;background:var(--sn-row);border-radius:6px;text-align:center;">
+        <div style="font-size:22px;font-weight:700;color:var(--sn-ink);">{{ t.count }}</div>
+        <div class="sn-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-top:4px;">{{ t.name }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+</section>
+
+<div class="modal-overlay" id="edit-company-modal">
+  <div class="modal-content" style="width:min(480px,100%);">
+    <button type="button" class="modal-close" onclick="closeGlobalModal('edit-company-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Edit Company</h2>
+    <form onsubmit="submitEditCompany(event)">
+      <div class="form-group">
+        <label class="form-label">Company Name *</label>
+        <input class="form-input" id="company-name" value="{{ company.name or '' }}" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" id="company-email" type="email" value="{{ company.email or '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone</label>
+        <input class="form-input" id="company-phone" value="{{ company.phone or '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Currency</label>
+        <input class="form-input" id="company-currency" value="{{ company.currency or 'GTQ' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Datos de transferencia bancaria <span class="sn-muted" style="font-weight:400;">(se incluyen en los recordatorios de pago)</span></label>
+        <textarea class="form-input" id="company-bank-info" rows="3" placeholder="Banco Industrial, Cuenta 000-000000-0, A nombre de Kevin Lemus">{{ company.bank_info or '' }}</textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-start;">
+        <button class="sn-btn sn-btn-primary" type="submit">Save</button>
+        <button class="sn-btn" type="button" onclick="closeGlobalModal('edit-company-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openEditCompanyModal() {
+  document.getElementById('edit-company-modal').classList.add('open');
+}
+function submitEditCompany(event) {
+  event.preventDefault();
+  apiPost('/api/settings/company', {
+    name: document.getElementById('company-name').value,
+    email: document.getElementById('company-email').value,
+    phone: document.getElementById('company-phone').value,
+    currency: document.getElementById('company-currency').value,
+    bank_info: document.getElementById('company-bank-info').value
+  })
+    .then(function() {
+      flashToast('Company details saved', 'success');
+      closeGlobalModal('edit-company-modal');
+      setTimeout(function() { location.reload(); }, 500);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function disconnectGmail() {
+  if (!confirm('Desconectar Gmail? Los correos volveran a modo prueba (local outbox).')) return;
+  apiPost('/api/settings/google/disconnect', {})
+    .then(function() { flashToast('Gmail desconectado', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+{% if google_status == 'connected' %}
+flashToast('Gmail conectado: {{ google_email_param }}', 'success');
+{% elif google_status == 'error' %}
+flashToast('No se pudo conectar Gmail: {{ google_msg }}', 'error');
+{% elif google_status == 'not_configured' %}
+flashToast('Falta configurar GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en el .env', 'error');
+{% endif %}
+</script>
 {% endblock %}

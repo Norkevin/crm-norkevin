@@ -1,276 +1,830 @@
 {% extends "base.html" %}
-{% block title %}{{ lead['Nombre'] }} · Lead{% endblock %}
-{% block header %}
-<a href="/leads" class="text-ink-soft hover:text-ink text-sm">← Leads</a>
-<span class="text-ink-soft mx-2">/</span>
-<span>{{ lead['Nombre'] }}</span>
-{% endblock %}
-{% block subtitle %}{{ lead.get('Email') or '—' }} · {{ lead.get('Teléfono') or '—' }}{% endblock %}
+{% block title %}{{ lead.nombre }} · Lead{% endblock %}
+{% block header %}{{ lead.nombre }}{% endblock %}
+{% block subtitle %}Dashboard &gt; Leads &gt; {{ lead.nombre }}{% endblock %}
+{% block topbar_title %}Lead{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-3 gap-4">
-
-  <div class="col-span-2 space-y-4">
-
-    <!-- Workflow -->
-    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-sm font-semibold text-gold">Estado</h3>
-        <span id="lead-estado-badge" class="text-xs px-3 py-1 rounded font-medium bg-ink-soft text-ink">{{ lead.get('Estado') or 'Nuevo' }}</span>
-      </div>
-      <div class="flex items-center gap-2 mb-3">
-        <span class="text-xs text-ink-soft w-24">Cambiar a:</span>
-        <select id="estado-select" class="flex-1 bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-          {% for s in status_options %}
-          <option value="{{ s }}" {% if s == lead.get('Estado') %}selected{% endif %}>{{ s }}</option>
-          {% endfor %}
-        </select>
-        <button onclick="updateEstado()" class="bg-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-gold-light">Aplicar</button>
-      </div>
-
-      {% if lead.get('Estado') in ('Negociando','Propuesta Enviada','Cotizando') %}
-      <div class="mt-4 pt-4 border-t border-line">
-        <div class="bg-ink-soft rounded-lg p-3 mb-3">
-          <p class="text-xs text-ink font-medium">¿El cliente aceptó el shoot?</p>
-          <p class="text-xs text-ink-soft mt-1">Al aceptar, se crea automáticamente un Cliente + Job en el sistema con todos los datos del lead.</p>
-        </div>
-        <button onclick="acceptShoot()" class="w-full bg-gold text-white text-sm px-4 py-3 rounded-lg font-semibold hover:bg-gold/90 flex items-center justify-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-          Aceptar Shoot (Crear Cliente + Job)
-        </button>
-      </div>
-      {% elif lead.get('Estado') == 'Convertido' %}
-      <div class="mt-4 pt-4 border-t border-line">
-        <div class="bg-emerald-50 rounded-lg p-3">
-          <p class="text-xs text-emerald-700 font-medium flex items-center gap-1.5">
-            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 00-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg>
-            Lead convertido
-          </p>
-          {% if lead.get('Cliente generado') %}
-          <p class="text-xs text-emerald-700 mt-1">Cliente creado y vinculado. Ver abajo.</p>
-          {% endif %}
-        </div>
-      </div>
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">{{ lead.nombre }}</h1>
+      <div class="sn-breadcrumbs">Dashboard &gt; Leads &gt; {{ lead.nombre }}</div>
+    </div>
+    <div class="sn-actions">
+      {% if client %}
+      <a class="sn-btn" href="/portal/{{ client.id }}" target="_blank">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        View Client Portal
+      </a>
       {% endif %}
-    </div>
-
-    <!-- Datos -->
-    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-4 text-gold">Datos del lead</h3>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Nombre</label>
-          <input id="ld-nombre" value="{{ lead.get('Nombre') or '' }}" disabled class="w-full bg-paper border border-line rounded px-3 py-2 text-sm text-ink-soft">
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Fuente</label>
-          <select id="ld-fuente" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-            {% for f in ['Instagram','WhatsApp','Web','Recomendación','Facebook','Email','Llamada','Otro'] %}
-            <option value="{{ f }}" {% if f == lead.get('Fuente') %}selected{% endif %}>{{ f }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Email</label>
-          <input id="ld-email" value="{{ lead.get('Email') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Teléfono</label>
-          <input id="ld-telefono" value="{{ lead.get('Teléfono') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Fecha tentativa evento</label>
-          <input id="ld-fecha" type="date" value="{{ lead.get('Fecha tentativa del evento') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Próximo follow-up</label>
-          <input id="ld-followup" type="date" value="{{ lead.get('Próximo follow-up') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Presupuesto</label>
-          <select id="ld-presupuesto" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-            <option value="">—</option>
-            {% for p in ['Menos de Q5000','Q5000 a Q10000','Q10000 a Q20000','Q20000 a Q35000','Mas de Q35000','No definido'] %}
-            <option value="{{ p }}" {% if p == lead.get('Presupuesto estimado') %}selected{% endif %}>{{ p }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="text-xs text-ink-soft block mb-1">Tipo de evento</label>
-          <select id="ld-tipo" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-            <option value="">—</option>
-            {% for t in ['Boda','Save the date','Boda civil','Compromiso','Aniversario','Otro'] %}
-            <option value="{{ t }}" {% if t == lead.get('Tipo de evento') %}selected{% endif %}>{{ t }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-span-2">
-          <label class="text-xs text-ink-soft block mb-1">Locación tentativa</label>
-          <input id="ld-ubicacion" value="{{ lead.get('Locación tentativa') or '' }}" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm">
-        </div>
-      </div>
-      <button onclick="saveDatos()" class="mt-4 bg-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-gold-light">Guardar datos</button>
-      <span id="datos-msg" class="text-xs text-ink-soft ml-3"></span>
-    </div>
-
-    <!-- Notas -->
-    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-4 text-gold">Notas & Historial</h3>
-      <label class="text-xs text-ink-soft block mb-1">Notas</label>
-      <textarea id="ld-notas" rows="3" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm mb-3">{{ lead.get('Notas') or '' }}</textarea>
-      <label class="text-xs text-ink-soft block mb-1">Historial de interacciones</label>
-      <textarea id="ld-historial" rows="5" class="w-full bg-paper-pure border border-line rounded px-3 py-2 text-sm mb-3" placeholder="15/06 - Llamada: pidió info&#10;18/06 - Envíe cotización Mix Gold...">{{ lead.get('Historial interacciones') or '' }}</textarea>
-      <button onclick="saveNotas()" class="bg-gold text-white text-sm px-4 py-2 rounded font-medium hover:bg-gold-light">Guardar notas</button>
-      <span id="notas-msg" class="text-xs text-ink-soft ml-3"></span>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="openAddMenu()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Add New
+      </button>
     </div>
   </div>
 
-  <!-- DER -->
-  <div class="space-y-4">
-    <div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
-      <h3 class="text-sm font-semibold mb-3 text-gold">Resumen</h3>
-      <dl class="text-sm space-y-2">
-        <div class="flex justify-between"><dt class="text-ink-soft">Estado</dt><dd class="text-blue-700">{{ lead.get('Estado') }}</dd></div>
-        <div class="flex justify-between"><dt class="text-ink-soft">Fuente</dt><dd>{{ lead.get('Fuente') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-ink-soft">Tags</dt><dd class="text-gold text-xs">{{ (lead.get('Tags') or [])|join(', ') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-ink-soft">Presupuesto</dt><dd>{{ lead.get('Presupuesto estimado') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-ink-soft">Tipo evento</dt><dd>{{ lead.get('Tipo de evento') or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-ink-soft">Fecha</dt><dd>{{ parse_date(lead.get('Fecha tentativa del evento')) or '—' }}</dd></div>
-        <div class="flex justify-between"><dt class="text-ink-soft">Próximo follow-up</dt><dd class="{% if lead.get('Próximo follow-up') and lead['Próximo follow-up'] < '2026-07-07' %}text-red-700{% endif %}">{{ lead.get('Próximo follow-up') or '—' }}</dd></div>
-      </dl>
+  <div class="lead-grid">
+    <aside>
+      <div class="workflow-title">
+        <span>Workflow</span>
+        <button class="sn-btn-icon" type="button" title="Create quote" onclick="createMultiOptionQuote()">+</button>
+      </div>
+      <div class="workflow-list">
+        <div class="workflow-rail lead">LEAD</div>
+        <div class="workflow-steps">
+          {% for step in workflow_steps[:4] %}
+          <div class="workflow-step {% if step.status == 'done' %}done{% endif %} {% if step.locked %}locked{% endif %}">
+            <button class="workflow-check {% if step.status == 'done' %}done{% endif %}" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="Run step">
+              {% if step.status == 'done' %}
+              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+              {% endif %}
+            </button>
+            <div style="min-width:0;">
+              <div class="workflow-step-name">{{ step.name }}</div>
+              <div>
+                {% if step.email_template_id %}<span class="workflow-step-desc">Auto send email</span>{% endif %}
+                {% if step.scheduled %}<span class="sn-chip pink">{{ step.scheduled[:10] }}</span>{% endif %}
+              </div>
+            </div>
+            <button class="sn-menu-dots" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="{% if step.locked %}Complete Job accepted first{% else %}Run now{% endif %}">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+            </button>
+          </div>
+          {% endfor %}
+        </div>
+
+        {% if workflow_steps|length > 4 %}
+        <div class="workflow-rail production">PRODUCTION</div>
+        <div class="workflow-steps">
+          {% for step in workflow_steps[4:] %}
+          <div class="workflow-step {% if step.status == 'done' %}done{% endif %}">
+            <button class="workflow-check {% if step.status == 'done' %}done{% endif %}" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="Run step">
+              {% if step.status == 'done' %}
+              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+              {% endif %}
+            </button>
+            <div style="min-width:0;">
+              <div class="workflow-step-name">{{ step.name }}</div>
+              <div>
+                {% if step.email_template_id %}<span class="workflow-step-desc">Auto send email</span>{% endif %}
+                {% if step.scheduled %}<span class="sn-chip yellow">{{ step.scheduled[:10] }}</span>{% endif %}
+              </div>
+            </div>
+            <button class="sn-menu-dots" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="Run now">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+            </button>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      <button class="sn-btn sn-btn-sm mt-3" type="button" onclick="showHistory()">History Log</button>
+    </aside>
+
+    <main class="grid-1">
+      <section class="sn-card">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20Z"/></svg>
+            Lead
+          </div>
+          <div class="sn-actions">
+            <button class="sn-btn sn-btn-sm" type="button" onclick="openLeadEdit()">Edit</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="archiveLead()">Archive</button>
+          </div>
+        </div>
+        <div class="sn-card-body">
+          <div class="entity-primary">
+            <div style="min-width:0;">
+              <div class="sn-list-title">{{ lead.nombre }}</div>
+              <div class="sn-list-meta">{{ lead.email or 'No email' }} · {{ lead.telefono or 'No phone' }}</div>
+            </div>
+            <span class="sn-chip {% if lead.status == 'Convertido' %}green{% elif lead.status == 'Perdido' %}red{% else %}cyan{% endif %}">{{ lead.status or 'Nuevo' }}</span>
+          </div>
+          <div class="sn-field-grid">
+            <div class="sn-field-label">Type:</div><div class="sn-field-value">{{ lead.tipo_evento or 'BODAS' }}</div>
+            <div class="sn-field-label">Workflow:</div><div class="sn-field-value">{{ workflow_name }}</div>
+            <div class="sn-field-label">Boda:</div><div class="sn-field-value">{{ lead.fecha_tentativa or '—' }}</div>
+            <div class="sn-field-label">Location:</div><div class="sn-field-value">{{ lead.locacion or '—' }}</div>
+            <div class="sn-field-label">Lead Source:</div><div class="sn-field-value">{{ lead.fuente or '—' }}</div>
+            <div class="sn-field-label">Budget:</div><div class="sn-field-value">{{ lead.presupuesto or '—' }}</div>
+          </div>
+          <div class="sn-list-actions">
+            <button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick="createMultiOptionQuote()">Create Quote</button>
+            {% if lead.status != 'Convertido' %}
+            <button class="sn-btn sn-btn-sm" type="button" onclick="openAcceptJobModal('accept')">Accept / Create Job</button>
+            {% endif %}
+            {% if job_vinculado %}
+            <a class="sn-btn sn-btn-sm" href="/jobs/{{ job_vinculado.id }}">View Job</a>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="sn-card">
+          <div class="sn-card-head">
+            <div class="sn-card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 3h10v18H7zM9 7h6M9 11h6M9 15h3"/></svg>
+              Invoices
+            </div>
+          </div>
+          <div class="sn-card-body">
+            {% if payments %}
+            <div class="sn-list">
+              {% for p in payments %}
+              <div class="sn-list-item">
+                <div class="sn-list-row">
+                  <div>
+                    <div class="sn-list-title">{{ p.invoice_id or p.id }}</div>
+                    <div class="sn-list-meta">{{ p.due_date or 'No due date' }} · {{ p.status or 'Pendiente' }}</div>
+                  </div>
+                  <div class="sn-money">Q{{ '{:,.2f}'.format(p.amount or 0) }}</div>
+                </div>
+                <div class="sn-list-actions">
+                  <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ p.id }}')">Send</button>
+                  {% if p.status != 'Pagado' %}<button class="sn-btn sn-btn-sm" type="button" onclick="markPaymentPaid('{{ p.id }}')">Record Payment</button>{% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="sn-muted">No invoices yet.</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="sn-card">
+          <div class="sn-card-head">
+            <div class="sn-card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
+              Quotes
+            </div>
+            <button class="sn-btn-icon" type="button" onclick="createMultiOptionQuote()">+</button>
+          </div>
+          <div class="sn-card-body">
+            {% if quotes %}
+            <div class="sn-list">
+              {% for q in quotes %}
+              <div class="sn-list-item">
+                <div class="sn-list-row">
+                  <div>
+                    <div class="sn-list-title">{{ q.paquete_nombre or q.id }}</div>
+                    <div class="sn-list-meta">{{ q.created or '' }} · {{ q.status or 'Draft' }}</div>
+                  </div>
+                  <div class="sn-money">Q{{ '{:,.2f}'.format(q.precio_total or 0) }}</div>
+                </div>
+                <div class="sn-list-actions">
+                  <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}">View</a>
+                  {% if q.status != 'Aceptada' and lead.status != 'Convertido' %}
+                  <button class="sn-btn sn-btn-sm" type="button" onclick="acceptQuote()">Accept</button>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="sn-muted">Quotes will appear here.</div>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="sn-card">
+          <div class="sn-card-head">
+            <div class="sn-card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6M9 16h6M8 4h8l3 3v13H5V4h3Z"/></svg>
+              Contracts
+            </div>
+          </div>
+          <div class="sn-card-body">
+            {% if contracts %}
+            <div class="sn-list">
+              {% for c in contracts %}
+              <div class="sn-list-item">
+                <div class="sn-list-row">
+                  <div>
+                    <div class="sn-list-title">{{ c.tipo or 'Contract' }}</div>
+                    <div class="sn-list-meta">{{ c.created or '' }} · {{ c.status or 'Draft' }}</div>
+                  </div>
+                  {% if c.signed %}<span class="sn-chip green">Signed</span>{% else %}<span class="sn-chip gray">Not signed</span>{% endif %}
+                </div>
+                <div class="sn-list-actions">
+                  <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf">View</a>
+                  <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Send</button>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="sn-muted">No contracts yet.</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="sn-card">
+          <div class="sn-card-head">
+            <div class="sn-card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5h6M9 9h6M9 13h6M7 21h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z"/></svg>
+              Questionnaires
+            </div>
+            <button class="sn-btn-icon" type="button" onclick="createQuestionnaire()">+</button>
+          </div>
+          <div class="sn-card-body">
+            {% if questionnaires %}
+            <div class="sn-list">
+              {% for q in questionnaires %}
+              <div class="sn-list-item">
+                <div class="sn-list-row">
+                  <div>
+                    <div class="sn-list-title">{{ q.name or q.id }}</div>
+                    <div class="sn-list-meta">{{ q.created or '' }} · {{ q.status or 'Sent' }}</div>
+                  </div>
+                  <span class="sn-chip cyan">{{ q.status or 'Sent' }}</span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="sn-muted">Questionnaires will appear here.</div>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="sn-card">
+          <div class="sn-card-head">
+            <div class="sn-card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h6l2 2h8v10H4z"/></svg>
+              Files
+            </div>
+            <button class="sn-btn-icon" type="button" onclick="uploadFile()">+</button>
+          </div>
+          <div class="sn-card-body">
+            {% if files %}
+            <div class="sn-list">
+              {% for f in files %}
+              <div class="sn-list-item">
+                <div class="sn-list-row">
+                  <div>
+                    <div class="sn-list-title">{{ f.name or f.id }}</div>
+                    <div class="sn-list-meta">{{ f.created or '' }} · {{ f.size or '0 MB' }}</div>
+                  </div>
+                  <span class="sn-chip gray">{{ f.status or 'Attached' }}</span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="sn-muted">No files uploaded.</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="sn-card">
+          <div class="sn-card-head">
+            <div class="sn-card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
+              Notes
+            </div>
+            <button class="sn-btn-icon" type="button" onclick="saveLeadNotes()">+</button>
+          </div>
+          <div class="sn-card-body">
+            <textarea id="lead-notes" class="form-input" rows="5">{{ lead.notas or lead.notes or '' }}</textarea>
+          </div>
+        </div>
+      </section>
+
+      <section class="sn-card">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m4 6 8 5 8-5M4 6h16v12H4z"/></svg>
+            Mail
+          </div>
+          <button class="sn-btn-icon" type="button" onclick="sendEmailToLead()">+</button>
+        </div>
+        <div class="sn-card-body">
+          {% if mail_log %}
+          <div class="sn-table-shell" style="border-radius:0;border:0;">
+            <table class="sn-table">
+              <thead><tr><th>Date</th><th>To</th><th>Subject</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                {% for m in mail_log %}
+                <tr>
+                  <td>{{ m.sent_at[:10] if m.sent_at else '' }}</td>
+                  <td class="sn-ellipsis">{{ m.to }}</td>
+                  <td class="sn-ellipsis">{{ m.subject }}</td>
+                  <td>
+                    {% if m.status == 'opened' %}<span class="sn-chip cyan">EMAIL OPENED</span>
+                    {% elif m.status == 'clicked' %}<span class="sn-chip green">LINK CLICKED</span>
+                    {% else %}<span class="sn-chip yellow">EMAIL SENT</span>{% endif %}
+                  </td>
+                  <td><button class="sn-btn sn-btn-sm" type="button" onclick="simulateOpen('{{ m.id }}')">View</button></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="sn-muted">No mail yet.</div>
+          {% endif %}
+        </div>
+      </section>
+    </main>
+
+    <aside class="grid-1">
+      <section class="sn-card entity-card">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20a5 5 0 0 0-10 0M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/></svg>
+            Client
+          </div>
+        </div>
+        <div class="sn-card-body">
+          <div class="entity-primary">
+            <div style="min-width:0;">
+              <div class="sn-list-title">{{ (client.first_name ~ ' ' ~ client.last_name) if client else lead.nombre }}</div>
+              <div class="sn-list-meta">{{ 'Primary' if client else 'Not converted yet' }}</div>
+            </div>
+            <div class="entity-avatar">{{ (client.first_name[:1] if client else lead.nombre[:1]) }}</div>
+          </div>
+          <div class="sn-field-grid">
+            <div class="sn-field-label">Phone:</div><div class="sn-field-value">{{ (client.phone if client else lead.telefono) or '—' }}</div>
+            <div class="sn-field-label">Email:</div><div class="sn-field-value sn-ellipsis">{{ (client.email if client else lead.email) or '—' }}</div>
+            <div class="sn-field-label">Address:</div><div class="sn-field-value">{{ (client.address if client else lead.locacion) or '—' }}</div>
+          </div>
+          <div class="sn-list-actions">
+            {% if client %}<a class="sn-btn sn-btn-sm" href="/clients/{{ client.id }}">Edit Client</a>{% endif %}
+            <button class="sn-btn sn-btn-sm" type="button" onclick="sendEmailToLead()">Send Email</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="sn-card">
+        <div class="sn-card-head">
+          <div class="sn-card-title">Quick Actions</div>
+        </div>
+        <div class="sn-card-body">
+          <div class="grid-1">
+            <button class="sn-btn sn-btn-primary" type="button" onclick="createMultiOptionQuote()">Create Quote</button>
+            {% if lead.status != 'Convertido' %}<button class="sn-btn" type="button" onclick="openAcceptJobModal('accept')">Accept / Create Job</button>{% endif %}
+            <button class="sn-btn" type="button" onclick="checkDate()">Check Date</button>
+            <button class="sn-btn" type="button" onclick="sendEmailToLead()">Send Email</button>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</section>
+
+<div class="modal-overlay" id="lead-email-modal">
+  <div class="modal-content" style="width:min(880px,94vw);">
+    <button type="button" class="modal-close" onclick="closeModal('lead-email-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Send Email</h2>
+    <form onsubmit="submitLeadEmail(event)">
+      <input type="hidden" id="lead-email-step-id">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Template</label>
+          <select class="form-input" id="lead-email-template" onchange="applyLeadEmailTemplate(this.value)">
+            <option value="">Custom email</option>
+            {% for tpl in email_templates %}
+            <option value="{{ tpl.id }}">{{ tpl.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">To</label>
+          <input class="form-input" id="lead-email-to" value="{{ lead.email or '' }}" readonly>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <input class="form-input" id="lead-email-subject" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea class="form-input" id="lead-email-body" rows="14" required></textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeModal('lead-email-modal')">Back</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Send Email</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="contract-send-modal">
+  <div class="modal-content" style="width:min(880px,94vw);">
+    <button type="button" class="modal-close" onclick="closeModal('contract-send-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Send Contract</h2>
+    <form onsubmit="submitContractSend(event)">
+      <input type="hidden" id="contract-send-id">
+      <div class="form-group">
+        <label class="form-label">To</label>
+        <input class="form-input" id="contract-send-to" value="{{ lead.email or '' }}" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <input class="form-input" id="contract-send-subject" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea class="form-input" id="contract-send-body" rows="12" required></textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeModal('contract-send-modal')">Back</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Send Contract</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="edit-lead-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Edit Lead</h2>
+    <form id="edit-lead-form" onsubmit="saveLead(event)">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="lead-email">Email</label>
+          <input class="form-input" id="lead-email" name="email" type="email" value="{{ lead.email or '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lead-phone">Phone</label>
+          <input class="form-input" id="lead-phone" name="telefono" value="{{ lead.telefono or '' }}">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="lead-event-type">Type</label>
+          <input class="form-input" id="lead-event-type" name="tipo_evento" value="{{ lead.tipo_evento or '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lead-date">Boda Date</label>
+          <input class="form-input" id="lead-date" name="fecha_evento" type="date" value="{{ lead.fecha_tentativa or '' }}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="lead-location">Location</label>
+        <input class="form-input" id="lead-location" name="ubicacion" value="{{ lead.locacion or '' }}">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="lead-source">Lead Source</label>
+          <input class="form-input" id="lead-source" name="fuente" value="{{ lead.fuente or '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lead-budget">Budget</label>
+          <input class="form-input" id="lead-budget" name="presupuesto" value="{{ lead.presupuesto or '' }}">
+        </div>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
+        <button class="sn-btn" type="button" onclick="closeLeadEdit()">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Save Lead</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="add-menu-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Add New</h2>
+    <div class="grid-1">
+      <button class="sn-btn" type="button" onclick="closeAddMenu(); createMultiOptionQuote();">Quote</button>
+      <button class="sn-btn" type="button" onclick="closeAddMenu(); sendEmailToLead();">Email</button>
+      <button class="sn-btn" type="button" onclick="closeAddMenu(); createQuestionnaire();">Questionnaire</button>
+      <button class="sn-btn" type="button" onclick="closeAddMenu(); uploadFile();">File</button>
     </div>
   </div>
 </div>
+
+<div class="modal-overlay" id="accept-job-modal">
+  <div class="modal-content accept-job-modal">
+    <button class="modal-x" type="button" onclick="closeAcceptJobModal()" aria-label="Close">×</button>
+    <h2 class="modal-title accept-job-title">Mark as “Job Accepted”?</h2>
+    <p class="accept-job-copy">This will convert the lead into a job and move it to Jobs.</p>
+    <div class="sn-actions accept-job-actions">
+      <button class="sn-btn sn-btn-primary" id="accept-job-confirm" type="button" onclick="confirmAcceptJob()">Mark as “Job Accepted”</button>
+      <button class="sn-btn" type="button" onclick="closeAcceptJobModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.workflow-step.locked { opacity: .58; }
+.workflow-step.locked .workflow-check { cursor: not-allowed; }
+.accept-job-modal {
+  width: min(440px, 100%);
+  text-align: center;
+  padding: 46px 36px 28px;
+  position: relative;
+}
+.modal-x {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  border: 0;
+  background: transparent;
+  color: #c8c8c8;
+  font-size: 32px;
+  line-height: 1;
+  cursor: pointer;
+}
+.accept-job-title {
+  font-size: 26px;
+  margin: 8px 0 26px;
+}
+.accept-job-copy {
+  color: #3e4148;
+  font-size: 16px;
+  line-height: 1.55;
+  max-width: 300px;
+  margin: 0 auto 34px;
+}
+.accept-job-actions {
+  justify-content: center;
+}
+</style>
 
 <script>
 const LEAD_ID = '{{ lead.id }}';
+const LEAD_EMAIL = {{ (lead.email or '')|tojson }};
+const LEAD_NAME = {{ (lead.nombre or 'Cliente')|tojson }};
+const LEAD_DATE = {{ (lead.fecha_tentativa or '')|tojson }};
+const LEAD_LOCATION = {{ (lead.locacion or '')|tojson }};
+const JOB_LINKED_ID = {{ (job_vinculado.id if job_vinculado else '')|tojson }};
+const LEAD_WORKFLOW_STEP_IDS = new Set(['envio_paquetes', 'seguimiento_cliente', 'levanta_muertos', 'seguimiento_final']);
+var EMAIL_TEMPLATES = {{ email_templates|tojson }};
+var STEP_TEMPLATE_MAP = {
+  {% for step in workflow_steps %}{{ step.id|tojson }}: {{ (step.email_template_id or '')|tojson }}{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+let acceptJobMode = 'accept';
+let acceptJobBusy = false;
 
-async function api(path, body) {
-  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  return r.json();
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openLeadEdit() { document.getElementById('edit-lead-modal').classList.add('open'); }
+function closeLeadEdit() { document.getElementById('edit-lead-modal').classList.remove('open'); }
+function openAddMenu() { document.getElementById('add-menu-modal').classList.add('open'); }
+function closeAddMenu() { document.getElementById('add-menu-modal').classList.remove('open'); }
+function createMultiOptionQuote() {
+  fetch('/api/quotes/draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lead_id: LEAD_ID })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { window.location.href = data.edit_url; }
+      else { flashToast(data.error || 'Error', 'error'); }
+    })
+    .catch(function() { flashToast('Error de red', 'error'); });
 }
-
-async function updateEstado() {
-  const estado = document.getElementById('estado-select').value;
-  const r = await api(`/api/leads/${LEAD_ID}/status`, {estado});
-  if (r.ok) location.reload();
-  else alert('Error: ' + (r.error || 'desconocido'));
-}
-
-async function saveDatos() {
-  const fields = {
-    email: document.getElementById('ld-email').value,
-    telefono: document.getElementById('ld-telefono').value,
-    fecha_evento: document.getElementById('ld-fecha').value,
-    proximo_followup: document.getElementById('ld-followup').value,
-    presupuesto: document.getElementById('ld-presupuesto').value,
-    tipo_evento: document.getElementById('ld-tipo').value,
-    ubicacion: document.getElementById('ld-ubicacion').value,
-    fuente: document.getElementById('ld-fuente').value,
-  };
-  const r = await api(`/api/leads/${LEAD_ID}/update`, fields);
-  const msg = document.getElementById('datos-msg');
-  if (r.ok) { msg.textContent = '✓ Guardado'; msg.className = 'text-xs text-green-700 ml-3'; }
-  else { msg.textContent = '✗ ' + (r.error || 'error'); msg.className = 'text-xs text-red-700 ml-3'; }
-}
-
-async function saveNotas() {
-  const fields = {
-    notas: document.getElementById('ld-notas').value,
-    historial: document.getElementById('ld-historial').value,
-  };
-  const r = await api(`/api/leads/${LEAD_ID}/update`, fields);
-  const msg = document.getElementById('notas-msg');
-  if (r.ok) { msg.textContent = '✓ Guardado'; msg.className = 'text-xs text-green-700 ml-3'; }
-  else { msg.textContent = '✗ ' + (r.error || 'error'); msg.className = 'text-xs text-red-700 ml-3'; }
-}
-
-<!-- PAQUETES desde DB CONFIG (M2 ↔ M8) -->
-<div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft card-hover">
-  <div class="flex items-center justify-between mb-3">
-    <h3 class="text-sm label-eyebrow">Generar Cotización (paquetes del catálogo)</h3>
-    <span class="text-xs text-mute">{{ paquetes|length }} paquetes</span>
-  </div>
-  {% if paquetes %}
-  <div class="grid grid-cols-3 gap-2 mb-3">
-    {% for p in paquetes %}
-    <label class="cursor-pointer border border-line rounded-md p-3 hover:border-gold hover:bg-gold-soft transition block">
-      <input type="radio" name="paquete_sel" value="{{ p.Name }}" class="mr-1.5">
-      <span class="text-sm font-medium text-ink">{{ p.Name }}</span>
-      <div class="text-base font-mono font-bold text-gold-deep mt-1">Q{{ (p['Precio Q'] or 0)|int }}</div>
-    </label>
-    {% endfor %}
-  </div>
-  <button onclick="crearCotizacion()" class="bg-ink hover:bg-ink-soft text-paper px-4 py-2 rounded-md text-sm font-medium w-full">
-    + Crear cotización rápida (50% anticipo)
-  </button>
-  <div id="cotiz-msg" class="text-xs text-center text-mute mt-2"></div>
-  {% else %}
-  <p class="text-xs text-mute text-center py-2">Sin paquetes activos en el catálogo.
-    <a href="/configuracion" class="text-gold hover:underline">Agregar paquete →</a>
-  </p>
-  {% endif %}
-</div>
-
-<!-- Cotizaciones previas del lead -->
-{% if cotizaciones %}
-<div class="bg-paper-pure rounded-xl border border-line p-5 shadow-soft">
-  <h3 class="text-sm label-eyebrow mb-3">Cotizaciones previas de este lead</h3>
-  <ul class="space-y-2">
-    {% for c in cotizaciones %}
-    <li class="flex items-center gap-3 px-3 py-2 bg-paper rounded-md text-sm">
-      <span class="text-mute">{{ parse_date(c.get('Fecha de envío')) }}</span>
-      <span class="font-medium flex-1">{{ c.get('Cotización') or '—' }}</span>
-      <span class="font-mono text-gold-deep font-semibold">Q{{ (c.get('Monto total (Q)') or 0)|int }}</span>
-      <span class="text-xs px-2 py-0.5 rounded
-        {% if c.get('Estado') == 'Aceptada' %}bg-emerald-50 text-emerald-700
-        {% elif c.get('Estado') == 'Pagada' %}bg-blue-50 text-blue-700
-        {% else %}bg-amber-50 text-amber-700{% endif %}">{{ c.get('Estado') }}</span>
-    </li>
-    {% endfor %}
-  </ul>
-</div>
-{% endif %}
-
-<script>
-async function crearCotizacion() {
-  const checked = document.querySelector('input[name="paquete_sel"]:checked');
-  if (!checked) { alert('Elegí un paquete'); return; }
-  const msg = document.getElementById('cotiz-msg');
-  msg.textContent = '⏳ Creando cotización...';
-  const r = await api('/api/leads/' + LEAD_ID + '/cotizar', {paquete: checked.value});
-  if (r.ok) {
-    msg.textContent = '✓ Cotización creada: ' + (r.nombre || '');
-    msg.className = 'text-xs text-center text-emerald-700 mt-2';
-    setTimeout(() => location.reload(), 1200);
-  } else {
-    msg.textContent = '✗ ' + (r.error || 'error');
-    msg.className = 'text-xs text-center text-red-700 mt-2';
+function openAcceptJobModal(mode) {
+  acceptJobMode = mode || 'accept';
+  acceptJobBusy = false;
+  var button = document.getElementById('accept-job-confirm');
+  if (button) {
+    button.disabled = false;
+    button.textContent = 'Mark as “Job Accepted”';
   }
+  document.getElementById('accept-job-modal').classList.add('open');
+}
+function closeAcceptJobModal() {
+  if (acceptJobBusy) return;
+  document.getElementById('accept-job-modal').classList.remove('open');
+}
+document.addEventListener('DOMContentLoaded', function() {
+  if (new URLSearchParams(window.location.search).get('edit') === '1') {
+    openLeadEdit();
+  }
+});
+
+function saveLead(event) {
+  event.preventDefault();
+  var payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+  apiPost('/api/leads/' + LEAD_ID + '/update', payload)
+    .then(function() { flashToast('Lead updated', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-async function acceptShoot() {
-  if (!confirm('¿Confirmas que el cliente ACEPTÓ el shoot?\n\nEsto va a:\n1. Crear un Cliente nuevo en Notion\n2. Crear un Job vinculado al cliente\n3. Marcar este lead como Convertido')) return;
-  const btn = event.target.closest('button');
-  btn.disabled = true;
-  btn.innerHTML = '⏳ Creando Cliente + Job...';
-  try {
-    const r = await api(`/api/leads/${LEAD_ID}/accept_shoot`, {});
-    if (r.ok) {
-      btn.innerHTML = '✓ ¡Listo! Redirigiendo...';
-      btn.className = btn.className.replace('bg-gold', 'bg-emerald-500');
-      setTimeout(() => location.href = '/jobs/' + r.job_id, 1200);
-    } else {
-      alert('Error: ' + (r.error || 'desconocido'));
-      btn.disabled = false;
-      btn.innerHTML = 'Aceptar Shoot (Crear Cliente + Job)';
+function saveLeadNotes() {
+  apiPost('/api/leads/' + LEAD_ID + '/update', { notas: document.getElementById('lead-notes').value })
+    .then(function() { flashToast('Notes saved', 'success'); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function archiveLead() {
+  if (!confirm('Archive this lead?')) return;
+  apiPost('/api/leads/' + LEAD_ID + '/status', { estado: 'Perdido' })
+    .then(function() { flashToast('Lead archived', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function acceptLead() {
+  openAcceptJobModal('accept');
+}
+
+function confirmAcceptJob() {
+  if (acceptJobBusy) return;
+  acceptJobBusy = true;
+  var button = document.getElementById('accept-job-confirm');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Moving to Jobs...';
+  }
+  var request = acceptJobMode === 'step'
+    ? apiPost('/api/leads/' + LEAD_ID + '/trigger-step', { step_id: 'job_accepted', send_email: false })
+    : apiPost('/api/leads/' + LEAD_ID + '/accept', {});
+
+  request
+    .then(function(data) {
+      flashToast(data.message || 'Lead moved to Jobs', 'success');
+      window.location.href = '/jobs/' + data.job_id;
+    })
+    .catch(function(err) {
+      acceptJobBusy = false;
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Mark as “Job Accepted”';
+      }
+      flashToast(err.message, 'error');
+    });
+}
+
+function acceptQuote() {
+  if (!confirm('Accept the latest quote and create invoices?')) return;
+  apiPost('/api/leads/' + LEAD_ID + '/accept-quote', {})
+    .then(function(data) { flashToast('Quote accepted', 'success'); window.location.href = '/jobs/' + data.job_id; })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function triggerStep(stepId, stepName) {
+  if (stepId === 'job_accepted') {
+    openAcceptJobModal('step');
+    return;
+  }
+
+  if (!LEAD_WORKFLOW_STEP_IDS.has(stepId)) {
+    if (!JOB_LINKED_ID) {
+      flashToast('Primero completa Job accepted para crear el job', 'error');
+      return;
     }
-  } catch (e) {
-    alert('Error: ' + e.message);
-    btn.disabled = false;
-    btn.innerHTML = 'Aceptar Shoot (Crear Cliente + Job)';
+    flashToast('Ejecutando "' + stepName + '"...', 'success');
+    apiPost('/api/jobs/' + JOB_LINKED_ID + '/trigger-step', { step_id: stepId })
+      .then(function(data) {
+        flashToast(data.message || 'Production step completed', 'success');
+        setTimeout(function() { location.reload(); }, 700);
+      })
+      .catch(function(err) { flashToast(err.message, 'error'); });
+    return;
   }
+
+  openEmailModal({ stepId: stepId, templateId: STEP_TEMPLATE_MAP[stepId] || '' });
 }
+
+function renderLeadTemplate(text) {
+  // Ver nota en job_detail.html renderTemplate(): nunca escribir dos llaves
+  // de apertura seguidas en este archivo, Jinja2 las borra antes de que el
+  // navegador vea el JS.
+  var OB = String.fromCharCode(123, 123), CB = String.fromCharCode(125, 125);
+  return String(text || '')
+    .replaceAll(OB + 'nombre' + CB, LEAD_NAME).replaceAll(OB + ' nombre ' + CB, LEAD_NAME)
+    .replaceAll(OB + 'fecha_boda' + CB, LEAD_DATE).replaceAll(OB + ' fecha_boda ' + CB, LEAD_DATE)
+    .replaceAll(OB + 'locacion' + CB, LEAD_LOCATION).replaceAll(OB + ' locacion ' + CB, LEAD_LOCATION)
+    .replaceAll('%client_name%', LEAD_NAME).replaceAll('%company_name%', 'ASTRAL WEDDINGS');
+}
+
+function findEmailTemplate(id) {
+  return EMAIL_TEMPLATES.find(function(tpl) { return tpl.id === id; });
+}
+
+function applyLeadEmailTemplate(templateId) {
+  var tpl = findEmailTemplate(templateId);
+  if (!tpl) return;
+  document.getElementById('lead-email-subject').value = renderLeadTemplate(tpl.asunto || '');
+  document.getElementById('lead-email-body').value = renderLeadTemplate(tpl.cuerpo || '');
+}
+
+function openEmailModal(options) {
+  options = options || {};
+  if (!LEAD_EMAIL) { flashToast('Este lead no tiene email', 'error'); return; }
+  document.getElementById('lead-email-step-id').value = options.stepId || '';
+  document.getElementById('lead-email-template').value = options.templateId || '';
+  if (options.templateId) {
+    applyLeadEmailTemplate(options.templateId);
+  } else {
+    document.getElementById('lead-email-subject').value = options.subject || 'Mensaje de ASTRAL WEDDINGS';
+    document.getElementById('lead-email-body').value = options.body || ('Hola ' + LEAD_NAME + ',\n\nTe escribo de ASTRAL WEDDINGS.\n\nSaludos,\nKevin');
+  }
+  openModal('lead-email-modal');
+}
+
+function submitLeadEmail(event) {
+  event.preventDefault();
+  var stepId = document.getElementById('lead-email-step-id').value;
+  var subject = document.getElementById('lead-email-subject').value;
+  var body = document.getElementById('lead-email-body').value;
+  var payload = { subject: subject, body: body, send_email: true };
+  if (stepId) payload.step_id = stepId;
+  var request = stepId
+    ? apiPost('/api/leads/' + LEAD_ID + '/trigger-step', payload)
+    : apiPost('/api/leads/' + LEAD_ID + '/send-email', payload);
+  request
+    .then(function(data) {
+      flashToast(data.message || 'Email enviado', 'success');
+      closeModal('lead-email-modal');
+      setTimeout(function() { location.reload(); }, 700);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function sendEmailToLead() {
+  openEmailModal({});
+}
+
+function simulateOpen(mailId) {
+  apiPost('/api/mail/' + mailId + '/opened', {})
+    .then(function() { flashToast('Email opened', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function sendPayment(paymentId) {
+  apiPost('/api/payments/' + paymentId + '/send', {})
+    .then(function(data) { flashToast(data.message || 'Invoice sent', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function markPaymentPaid(paymentId) {
+  apiPost('/api/payments/' + paymentId + '/pay', {})
+    .then(function() { flashToast('Payment recorded', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function sendContract(contractId) {
+  if (!LEAD_EMAIL) {
+    flashToast('Este lead no tiene email', 'error');
+    return;
+  }
+  document.getElementById('contract-send-id').value = contractId;
+  document.getElementById('contract-send-to').value = LEAD_EMAIL;
+  document.getElementById('contract-send-subject').value = 'Tu contrato de servicios fotograficos - ASTRAL WEDDINGS';
+  var contractUrl = window.location.origin + '/contracts/' + contractId;
+  document.getElementById('contract-send-body').value =
+    'Hola ' + LEAD_NAME + ',\n\n' +
+    'Aqui esta el contrato de servicios. Puedes leerlo y firmarlo electronicamente desde este link:\n' +
+    contractUrl + '\n\n' +
+    'Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\nASTRAL WEDDINGS';
+  openModal('contract-send-modal');
+}
+
+function submitContractSend(event) {
+  event.preventDefault();
+  var contractId = document.getElementById('contract-send-id').value;
+  apiPost('/api/contracts/' + contractId + '/send', {
+    subject: document.getElementById('contract-send-subject').value,
+    body: document.getElementById('contract-send-body').value
+  })
+    .then(function(data) { flashToast(data.message || 'Contract sent', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function checkDate() {
+  apiPost('/api/leads/' + LEAD_ID + '/check-date', {})
+    .then(function(data) {
+      flashToast(data.disponible ? 'Date available' : 'Date has conflicts', data.disponible ? 'success' : 'error');
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function createQuestionnaire() {
+  var name = prompt('Questionnaire name', 'Cuestionario bodas Astral');
+  if (!name) return;
+  apiPost('/api/leads/' + LEAD_ID + '/questionnaires', { name: name })
+    .then(function() { flashToast('Questionnaire created', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function uploadFile() {
+  var name = prompt('File name', 'resumen_reunion.pdf');
+  if (!name) return;
+  apiPost('/api/leads/' + LEAD_ID + '/files', { name: name })
+    .then(function() { flashToast('File attached', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function showHistory() { flashToast('History is recorded in workflow and mail logs', 'success'); }
+
+document.addEventListener('keydown', function(event) {
+  if (event.key !== 'Escape') return;
+  closeLeadEdit();
+  closeAddMenu();
+  closeQuoteWizard();
+  closeAcceptJobModal();
+});
 </script>
 {% endblock %}
-

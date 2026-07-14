@@ -2,3 +2,5 @@ flask>=3.0
 gunicorn>=21.0
 notion-client>=2.0
 python-dotenv>=1.0
+reportlab>=4.0
+pytest>=8.0

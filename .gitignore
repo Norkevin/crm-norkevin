@@ -49,3 +49,11 @@ dist/
 # SQLite local
 *.db
 data/*.db
+
+# Datos reales del negocio -- nombres, emails, telefonos, pagos de clientes.
+# Este repo es publico, esto NUNCA debe subirse.
+data/
+
+# Secrets de OAuth / archivos subidos por usuarios (nunca deben commitearse)
+data/google_token.json
+data/uploads/

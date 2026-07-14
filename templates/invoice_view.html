@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+{% block title %}Invoice {{ invoice.invoice_id }} · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}Invoice {{ invoice.invoice_id }}{% endblock %}
+{% block subtitle %}Dashboard &gt; Jobs &gt; {{ job.nombre if job else 'Job' }} &gt; Payments &gt; Invoice {{ invoice.invoice_id }}{% endblock %}
+{% block topbar_title %}Payments{% endblock %}
+
+{% block content %}
+<style>
+.invoice-total-panel {
+  margin-left: auto;
+  max-width: 380px;
+  display: grid;
+  gap: 12px;
+}
+.invoice-total-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  font-size: 16px;
+}
+.invoice-total-line.total {
+  border-top: 1px solid var(--sn-line);
+  padding-top: 14px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.sn-table tr.is-selected td {
+  background: #fbfffd;
+}
+.invoice-doc-card {
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--sn-line);
+}
+.invoice-doc-hero {
+  position: relative;
+  padding: 28px 28px 22px;
+  background: linear-gradient(135deg, #0284C7 0%, #075985 100%);
+  color: #fff;
+  overflow: hidden;
+}
+.invoice-doc-hero::after {
+  content: '';
+  position: absolute;
+  right: -50px; top: -50px;
+  width: 180px; height: 180px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.06);
+}
+.invoice-doc-head {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.invoice-doc-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 18px;
+}
+.invoice-doc-meta { margin-top: 12px; font-size: 11.5px; color: rgba(255,255,255,.8); }
+.invoice-stamp {
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.invoice-stamp.sent { background: rgba(255,255,255,.16); color: #fff; }
+.invoice-stamp.not-sent { background: rgba(255,255,255,.1); color: rgba(255,255,255,.75); }
+.invoice-doc-parties { text-align: right; font-size: 12px; color: rgba(255,255,255,.85); }
+.invoice-doc-parties strong { display: block; margin-bottom: 2px; color: #fff; }
+.invoice-doc-parties .block { margin-bottom: 14px; }
+.invoice-doc-body { padding: 26px 28px; }
+</style>
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Invoice {{ invoice.invoice_id }}</h1>
+      <div class="sn-breadcrumbs">
+        Dashboard &gt;
+        {% if job %}<a href="/jobs/{{ job.id }}">Jobs</a> &gt; {{ job.nombre }} &gt;{% endif %}
+        Payments &gt; Invoice {{ invoice.invoice_id }}
+      </div>
+    </div>
+    <div class="sn-actions">
+      <div style="text-align:right;min-width:160px;">
+        <div class="sn-money" style="font-size:24px;">Q{{ '{:,.2f}'.format(total) }}</div>
+        <div class="sn-list-meta">Total</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:1px;background:var(--sn-line);margin:24px 0 32px;"></div>
+
+  <div class="sn-page-head" style="align-items:flex-end;">
+    <div>
+      <h2 class="sn-page-title" style="font-size:22px;">Payment Schedule</h2>
+      <div class="sn-muted">
+        {% if quote %}Generated from accepted quote {{ quote.id }}{% else %}Manual invoice{% endif %}
+      </div>
+    </div>
+    <div class="sn-actions">
+      <button class="sn-btn" type="button" onclick='sendInvoice({{ invoice.id|tojson }})'>
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>
+        Send Invoice
+      </button>
+      <a class="sn-btn" href="/invoices/{{ invoice.invoice_id }}/pdf" target="_blank">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 2h9l5 5v15H6zM14 2v6h6M9 15h6"/></svg>
+        PDF
+      </a>
+      {% if client %}<a class="sn-btn" href="/portal/{{ client.id }}" target="_blank">Open in Client Portal</a>{% endif %}
+    </div>
+  </div>
+
+  <div class="sn-table-shell" style="margin-top:18px;">
+    <table class="sn-table">
+      <thead>
+        <tr>
+          <th style="width:130px;">Status</th>
+          <th style="width:200px;">Due</th>
+          <th>Last Action</th>
+          <th style="width:150px;text-align:right;">Amount</th>
+          <th style="width:180px;text-align:right;"></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in schedule %}
+        <tr class="{{ 'is-selected' if row.is_selected else '' }}">
+          <td>
+            {% if row.status == 'Pagado' %}
+              <span class="sn-chip green">Paid</span>
+            {% elif row.status == 'Late' %}
+              <span class="sn-chip red">Late</span>
+            {% else %}
+              <span class="sn-chip gray">Unpaid</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span>{{ row.due_date or '-' }}</span>
+              {% if row.status != 'Pagado' %}
+              <button type="button" class="sn-btn-link" style="font-size:11px;" onclick='openEditDueDate({{ row.id|tojson }}, {{ (row.due_date or "")|tojson }})' title="Editar fecha">✎</button>
+              {% endif %}
+            </div>
+            {% if row.relative_due %}<div class="sn-list-meta">{{ row.relative_due }}</div>{% endif %}
+          </td>
+          <td>{{ row.last_action or ('Paid on ' ~ row.fecha_pago if row.fecha_pago else '-') }}</td>
+          <td style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(row.amount or 0) }}</span></td>
+          <td style="text-align:right;">
+            <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;">
+            {% if row.status == 'Pagado' %}
+              <button class="sn-btn sn-btn-sm" type="button" onclick='sendInvoice({{ row.id|tojson }})'>Send Receipt</button>
+            {% else %}
+              <button class="sn-btn sn-btn-sm" type="button" onclick='openRecordPayment({{ row.id|tojson }}, {{ (row.amount or 0)|tojson }})'>Record Payment</button>
+              {% if row.payment_link_url %}
+              <button class="sn-btn sn-btn-sm" type="button" onclick='navigator.clipboard && navigator.clipboard.writeText({{ row.payment_link_url|tojson }}); flashToast("Link copiado", "success")'>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                Copiar link
+              </button>
+              {% else %}
+              <button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick='createPaymentLink({{ row.id|tojson }})'>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 14.5 14.5 9.5M8 12l-2.5 2.5a3 3 0 0 0 4.24 4.24L12 16.5M16 12l2.5-2.5a3 3 0 0 0-4.24-4.24L12 7.5"/></svg>
+                Generar link de pago
+              </button>
+              {% endif %}
+            {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="invoice-total-panel" style="margin-top:28px;">
+    <div class="invoice-total-line"><span>Subtotal</span><span>Q{{ '{:,.2f}'.format(total) }}</span></div>
+    <div class="invoice-total-line"><span>Paid</span><span>Q{{ '{:,.2f}'.format(paid) }}</span></div>
+    <div class="invoice-total-line total"><span>Balance due</span><span>Q{{ '{:,.2f}'.format(balance) }}</span></div>
+  </div>
+
+  <div class="invoice-doc-card" style="margin-top:34px;">
+    <div class="invoice-doc-hero">
+      <div class="invoice-doc-head">
+        <div>
+          <div class="invoice-doc-logo">{{ current_tenant.logo_letter|default('A') }}</div>
+          <div class="invoice-doc-meta">
+            <div>Invoice ID &nbsp; {{ invoice.invoice_id }}</div>
+            <div>Issue Date &nbsp; {{ invoice.due_date_display or invoice.due_date or '-' }}</div>
+          </div>
+        </div>
+        <div class="invoice-stamp {{ 'sent' if invoice.sent_at else 'not-sent' }}">
+          {{ 'Sent' if invoice.sent_at else 'Not Sent' }}
+        </div>
+        <div class="invoice-doc-parties">
+          <div class="block">
+            <div class="sn-list-meta" style="color:rgba(255,255,255,.65);">From</div>
+            <strong>{{ current_tenant.name|default('ASTRAL WEDDINGS') }}</strong>
+            {{ company_email or '' }}
+          </div>
+          <div class="block">
+            <div class="sn-list-meta" style="color:rgba(255,255,255,.65);">Invoice for</div>
+            <strong>{{ job.nombre if job else 'Client' }}</strong>
+            {% if client %}{{ client.first_name }} {{ client.last_name }}<br>{{ client.email }}{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="invoice-doc-body">
+      <div class="sn-list-row" style="align-items:flex-start;">
+        <div>
+          <div class="sn-list-title">{{ quote.paquete_nombre if quote else invoice.concepto }}</div>
+          {% if quote and quote.get('items') %}
+            <div class="sn-muted" style="margin-top:10px;">
+              {% for item in quote.get('items') %}
+                <div>{{ item.name }} · Q{{ '{:,.2f}'.format(item.price or 0) }}</div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="sn-muted" style="margin-top:10px;">{{ invoice.concepto or 'Invoice payment' }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="modal-overlay" id="payment-record-modal">
+  <div class="modal-content" style="width:min(420px,100%);">
+    <button type="button" class="modal-close" onclick="closeRecordPayment()" aria-label="Close">x</button>
+    <h2 class="modal-title">Record Payment</h2>
+    <form onsubmit="submitRecordPayment(event)">
+      <input type="hidden" id="record-payment-id">
+      <div class="form-group">
+        <label class="form-label">Amount*</label>
+        <input class="form-input" id="record-payment-amount" type="number" min="0" step="0.01" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Paid On*</label>
+        <input class="form-input" id="record-payment-date" type="date" required>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-start;">
+        <button class="sn-btn sn-btn-primary" type="submit">Save Payment</button>
+        <button class="sn-btn" type="button" onclick="closeRecordPayment()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="due-date-modal">
+  <div class="modal-content" style="width:min(360px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('due-date-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Editar fecha de pago</h2>
+    <form onsubmit="submitDueDate(event)">
+      <input type="hidden" id="due-date-payment-id">
+      <div class="form-group">
+        <label class="form-label">Fecha de vencimiento*</label>
+        <input class="form-input" id="due-date-value" type="date" required>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-start;">
+        <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
+        <button class="sn-btn" type="button" onclick="closeModal('due-date-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="reminder-preview-modal">
+  <div class="modal-content" style="width:min(640px,94vw);">
+    <button type="button" class="modal-close" onclick="closeReminderPreview()" aria-label="Close">x</button>
+    <h2 class="modal-title">Enviar correo</h2>
+    <p class="sn-muted" style="font-size:12px;margin-top:-6px;margin-bottom:14px;">Revisa o edita el mensaje antes de enviarlo. No se ha enviado nada todavia.</p>
+    <div class="form-group">
+      <label class="form-label">Para</label>
+      <input class="form-input" id="reminder-preview-to">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Asunto</label>
+      <input class="form-input" id="reminder-preview-subject">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mensaje</label>
+      <textarea class="form-input" id="reminder-preview-body" rows="12"></textarea>
+    </div>
+    <div class="sn-actions" style="justify-content:space-between;">
+      <button class="sn-btn" type="button" onclick="closeReminderPreview()">Cerrar sin enviar</button>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="sendReminderNow()">Enviar correo ahora</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openEditDueDate(paymentId, currentDate) {
+  document.getElementById('due-date-payment-id').value = paymentId;
+  document.getElementById('due-date-value').value = currentDate || '';
+  openModal('due-date-modal');
+}
+function submitDueDate(event) {
+  event.preventDefault();
+  var paymentId = document.getElementById('due-date-payment-id').value;
+  apiPost('/api/payments/' + paymentId + '/update', {
+    due_date: document.getElementById('due-date-value').value
+  })
+    .then(function() { flashToast('Fecha actualizada', 'success'); setTimeout(function() { location.reload(); }, 450); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function openRecordPayment(paymentId, amount) {
+  document.getElementById('record-payment-id').value = paymentId;
+  document.getElementById('record-payment-amount').value = Number(amount || 0).toFixed(2);
+  document.getElementById('record-payment-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('payment-record-modal').classList.add('open');
+}
+function closeRecordPayment() {
+  document.getElementById('payment-record-modal').classList.remove('open');
+}
+function submitRecordPayment(event) {
+  event.preventDefault();
+  var paymentId = document.getElementById('record-payment-id').value;
+  apiPost('/api/payments/' + paymentId + '/pay', {
+    amount: document.getElementById('record-payment-amount').value,
+    fecha_pago: document.getElementById('record-payment-date').value
+  })
+    .then(function() { flashToast('Payment recorded', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function sendInvoice(paymentId) {
+  apiPost('/api/payments/' + paymentId + '/send', {})
+    .then(function(data) { flashToast(data.message || 'Invoice sent', 'success'); setTimeout(function() { location.reload(); }, 450); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+var currentReminderPaymentId = null;
+
+function createPaymentLink(paymentId) {
+  apiPost('/api/payments/' + paymentId + '/payment-link', {})
+    .then(function(data) {
+      if (navigator.clipboard) { navigator.clipboard.writeText(data.payment_link_url).catch(function(){}); }
+      flashToast('Link de pago generado y copiado', 'success');
+      showReminderPreview(paymentId);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function showReminderPreview(paymentId) {
+  currentReminderPaymentId = paymentId;
+  fetch('/api/payments/' + paymentId + '/reminder-preview')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) { flashToast(data.error || 'No se pudo generar la vista previa', 'error'); return; }
+      document.getElementById('reminder-preview-to').value = data.to_email;
+      document.getElementById('reminder-preview-subject').value = data.subject;
+      document.getElementById('reminder-preview-body').value = data.body;
+      openModal('reminder-preview-modal');
+    });
+}
+
+function closeReminderPreview() {
+  closeModal('reminder-preview-modal');
+  location.reload();
+}
+
+function sendReminderNow() {
+  apiPost('/api/payments/' + currentReminderPaymentId + '/send-reminder', {
+    to_email: document.getElementById('reminder-preview-to').value,
+    subject: document.getElementById('reminder-preview-subject').value,
+    body: document.getElementById('reminder-preview-body').value
+  })
+    .then(function(data) {
+      flashToast(data.message || 'Correo enviado', 'success');
+      closeModal('reminder-preview-modal');
+      setTimeout(function() { location.reload(); }, 600);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') closeRecordPayment();
+});
+</script>
+{% endblock %}

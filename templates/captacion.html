@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contacto · ASTRAL WEDDINGS</title>
+<script src="https://cdn.tailwindcss.com"></script>
+{% include "_tailwind_config.html" %}
+<style>
+  body { background: #FAFAF7; color: #0A0E1A; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+  .brand { color: #0284C7; }
+  .brand-bg { background: #E8F4F2; }
+</style>
+</head>
+<body>
+
+<div class="min-h-screen flex items-center justify-center px-4 py-12">
+  <div class="max-w-xl w-full">
+
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-light tracking-tight text-ink mb-2">ASTRAL</h1>
+      <p class="text-sm text-ink-soft">WEDDINGS</p>
+    </div>
+
+    <div class="bg-white rounded-xl border border-line shadow-soft p-8">
+      <h2 class="text-xl font-medium text-ink mb-2">Cuentanos sobre tu boda</h2>
+      <p class="text-sm text-ink-soft mb-6">Completa el formulario y te contactaremos en menos de 24 horas.</p>
+
+      <form id="form-captacion" class="space-y-4">
+        <div>
+          <label class="text-xs text-ink-soft block mb-1">Nombre completo *</label>
+          <input name="nombre" required class="w-full border border-line rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-brand">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-ink-soft block mb-1">Email *</label>
+            <input type="email" name="email" required class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+          </div>
+          <div>
+            <label class="text-xs text-ink-soft block mb-1">Telefono</label>
+            <input name="telefono" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-ink-soft block mb-1">Fecha tentativa</label>
+            <input type="date" name="fecha_tentativa" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+          </div>
+          <div>
+            <label class="text-xs text-ink-soft block mb-1">Tipo de evento</label>
+            <select name="tipo_evento" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+              <option value="Boda">Boda</option>
+              <option value="Civil">Civil</option>
+              <option value="Quinceaneros">Quinceaneros</option>
+              <option value="Evento corporativo">Evento corporativo</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs text-ink-soft block mb-1">Ubicacion tentativa</label>
+          <input name="locacion" placeholder="ej: Antigua Guatemala" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+        </div>
+
+        <div>
+          <label class="text-xs text-ink-soft block mb-1">Presupuesto aproximado</label>
+          <select name="presupuesto" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+            <option value="">No estoy seguro</option>
+            <option value="Menos de Q10,000">Menos de Q10,000</option>
+            <option value="Entre Q10,000 y Q20,000">Entre Q10,000 y Q20,000</option>
+            <option value="Entre Q20,000 y Q40,000">Entre Q20,000 y Q40,000</option>
+            <option value="Mas de Q40,000">Mas de Q40,000</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-xs text-ink-soft block mb-1">Como nos encontraste?</label>
+          <select name="fuente" class="w-full border border-line rounded-lg px-4 py-2.5 text-sm">
+            <option value="Instagram">Instagram</option>
+            <option value="Facebook">Facebook</option>
+            <option value="WhatsApp">WhatsApp</option>
+            <option value="Recomendacion">Recomendacion</option>
+            <option value="Google">Google</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+
+        <button type="submit" class="w-full brand text-white font-medium py-3 rounded-lg mt-6" style="background: #0284C7;">
+          Enviar solicitud
+        </button>
+      </form>
+
+      <div id="success-msg" class="hidden mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
+        <svg class="w-12 h-12 text-emerald-600 mx-auto mb-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+        <p class="font-medium text-emerald-700">Gracias por contactarnos!</p>
+        <p class="text-xs text-emerald-600 mt-1">Te responderemos en menos de 24 horas.</p>
+      </div>
+    </div>
+
+    <div class="text-center mt-6 text-xs text-ink-soft">
+      ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('form-captacion').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var formData = new FormData(e.target);
+  var data = {};
+  formData.forEach(function(value, key) { data[key] = value; });
+
+  var btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  fetch('/api/captacion', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(result) {
+    if (result.ok) {
+      document.getElementById('form-captacion').classList.add('hidden');
+      document.getElementById('success-msg').classList.remove('hidden');
+    } else {
+      alert('Error: ' + (result.error || 'desconocido'));
+      btn.disabled = false;
+      btn.textContent = 'Enviar solicitud';
+    }
+  })
+  .catch(function() {
+    alert('Error de red');
+    btn.disabled = false;
+    btn.textContent = 'Enviar solicitud';
+  });
+});
+</script>
+
+</body>
+</html>

@@ -1,206 +1,129 @@
 """
 Workflow templates - los workflows pre-configurados.
 
-Para Kevin: arrancamos con 2 templates (lo que el pidio):
-  1. LEAD_WORKFLOW - secuencia de emails automaticos despues de crear lead
-  2. PRODUCTION_WORKFLOW - secuencia desde que se acepta el quote hasta la boda + post
-
-El trigger clave: QUOTE_ACCEPTED pasa automaticamente al PRODUCTION_WORKFLOW
-y crea el Job asociado.
+ARQUITECTURA NUEVA (estilo Studio Ninja):
+  - Cada step tiene 3 partes: ACTION + EMAIL_TEMPLATE + DUE_DATE
+  - EMAIL_TEMPLATE referencia un ID de email_templates.json
+  - DUE_DATE configura cuando se dispara el step
 """
-from .models import Workflow, Step, Trigger, Action, TriggerType, ActionType
+from .models import Workflow, Step, DueDate, ActionType, TriggerType
 
 
 def LEAD_WORKFLOW() -> Workflow:
-    """
-    Workflow que se aplica cuando se crea un LEAD.
-
-    Pasos:
-      1. Lead created (marcador inmediato)
-      2. Envio de paquetes - 3 horas despues
-      3. Seguimiento cliente - 7 dias despues
-      4. Levanta muertos - 1 mes despues
-      5. Seguimiento final - 3 meses despues
-    """
+    """Workflow que se aplica cuando se crea un LEAD."""
     return Workflow(
         id='lead_workflow_v1',
         name='Lead Follow-up',
-        description='Secuencia automatica de emails de seguimiento despues de crear un lead',
-        trigger=Trigger(type=TriggerType.LEAD_CREATED),
+        description='Secuencia automatica de emails de seguimiento',
+        trigger=TriggerType.LEAD_CREATED,
         is_template=True,
         steps=[
-            Step(
-                id='lead_created',
-                name='Lead created',
-                description='Marcador: lead registrado en el CRM',
-                trigger=Trigger(TriggerType.LEAD_CREATED, offset_minutes=0),
-                action=Action(ActionType.NOOP, template='marcador'),
-            ),
             Step(
                 id='envio_paquetes',
                 name='Envio de paquetes',
                 description='Email automatico con nuestros paquetes de bodas',
-                trigger=Trigger(TriggerType.LEAD_CREATED, offset_minutes=3 * 60),  # 3h
-                action=Action(
-                    ActionType.SEND_EMAIL,
-                    template='envio_paquetes',
-                    params={'asunto': 'Nuestros paquetes para tu boda', 'adjuntos': ['paquete_basico.pdf', 'paquete_premium.pdf']},
-                ),
+                action_type=ActionType.SEND_EMAIL,
+                email_template_id='tpl-paquetes',
+                due_date=DueDate(mode='after_creation', amount=3, unit='hours', relative_to='lead_created'),
             ),
             Step(
                 id='seguimiento_cliente',
                 name='Seguimiento cliente',
-                description='Email para ver si tienen dudas sobre los paquetes',
-                trigger=Trigger(TriggerType.LEAD_CREATED, offset_minutes=7 * 24 * 60),  # 7d
-                action=Action(
-                    ActionType.SEND_EMAIL,
-                    template='seguimiento',
-                    params={'asunto': 'Tuviste chance de revisar los paquetes?'},
-                ),
+                description='Email de seguimiento',
+                action_type=ActionType.SEND_EMAIL,
+                email_template_id='tpl-seguimiento',
+                due_date=DueDate(mode='after_creation', amount=7, unit='days', relative_to='lead_created'),
             ),
             Step(
                 id='levanta_muertos',
                 name='Levanta muertos',
-                description='Email para re-enganchar leads que no respondieron',
-                trigger=Trigger(TriggerType.LEAD_CREATED, offset_minutes=30 * 24 * 60),  # 30d
-                action=Action(
-                    ActionType.SEND_EMAIL,
-                    template='levanta_muertos',
-                    params={'asunto': 'Tu boda sigue siendo importante para nosotros'},
-                ),
+                description='Email para re-enganchar leads sin respuesta',
+                action_type=ActionType.SEND_EMAIL,
+                email_template_id='tpl-levanta-muertos',
+                due_date=DueDate(mode='after_creation', amount=30, unit='days', relative_to='lead_created'),
             ),
             Step(
                 id='seguimiento_final',
                 name='Seguimiento final',
-                description='Ultimo intento - email de cierre',
-                trigger=Trigger(TriggerType.LEAD_CREATED, offset_minutes=90 * 24 * 60),  # 90d
-                action=Action(
-                    ActionType.SEND_EMAIL,
-                    template='seguimiento_final',
-                    params={'asunto': 'Ultima oportunidad - que decidiste?'},
-                ),
+                description='Ultimo intento de cierre',
+                action_type=ActionType.SEND_EMAIL,
+                email_template_id='tpl-levanta-muertos',  # reusamos template
+                due_date=DueDate(mode='after_creation', amount=90, unit='days', relative_to='lead_created'),
             ),
         ],
     )
 
 
 def PRODUCTION_WORKFLOW() -> Workflow:
-    """
-    Workflow que se aplica cuando se ACEPTA el QUOTE (lead -> job).
-
-    Trigger: QUOTE_ACCEPTED
-
-    Pasos:
-      1. Job accepted (marcador - dispara conversion lead -> job)
-      2. Reserva confirmada - 1 dia despues
-      3. Firma de contrato - 3 dias despues
-      4. Pago de reserva (invoice.paid)
-      5. Cuestionario cliente - 1 mes antes de la boda
-      6. Boda (marcador el dia del evento)
-      7. Google Comments - 2 meses despues de la boda
-      8. Job complete
-    """
+    """Workflow que se aplica cuando se ACEPTA el quote (lead -> job)."""
     return Workflow(
         id='production_workflow_v1',
         name='Production',
         description='Workflow completo desde aceptar el quote hasta despues de la boda',
-        trigger=Trigger(type=TriggerType.QUOTE_ACCEPTED),
+        trigger=TriggerType.QUOTE_ACCEPTED,
         is_template=True,
         steps=[
             Step(
                 id='job_accepted',
                 name='Job accepted',
-                description='El cliente acepto el quote - CONVERTIR LEAD A JOB',
-                trigger=Trigger(TriggerType.QUOTE_ACCEPTED, offset_minutes=0),
-                action=Action(
-                    ActionType.LINK_JOB,
-                    template='crear_job_desde_lead',
-                    params={'empresa_default': 'NORKEVIN'},
-                ),
+                description='Crea el job desde el lead',
+                action_type=ActionType.LINK_JOB,
+                email_template_id=None,
+                due_date=DueDate(mode='manual', amount=0, unit='days'),
             ),
             Step(
                 id='reserva_confirmada',
                 name='Reserva confirmada',
-                description='Email de bienvenida + instrucciones de reserva',
-                trigger=Trigger(TriggerType.QUOTE_ACCEPTED, offset_minutes=1 * 24 * 60),  # 1d
-                action=Action(
-                    ActionType.SEND_EMAIL,
-                    template='reserva_confirmada',
-                    params={'asunto': 'Reserva confirmada - Bienvenido!'},
-                ),
+                description='Email de bienvenida y reserva',
+                action_type=ActionType.SEND_EMAIL,
+                email_template_id='tpl-reserva',
+                due_date=DueDate(mode='after_creation', amount=1, unit='days', relative_to='job_created'),
             ),
             Step(
                 id='firma_contrato',
                 name='Firma de contrato',
-                description='Enviar contrato para firma digital',
-                trigger=Trigger(TriggerType.QUOTE_ACCEPTED, offset_minutes=3 * 24 * 60),  # 3d
-                action=Action(
-                    ActionType.SEND_EMAIL,
-                    template='firma_contrato',
-                    params={'asunto': 'Tu contrato de servicios fotograficos', 'adjunto': 'contrato_boda.pdf'},
-                ),
-            ),
-            Step(
-                id='pago_reserva',
-                name='Pago de reserva (50%)',
-                description='Recordatorio del pago de reserva - vincula a invoice',
-                trigger=Trigger(TriggerType.QUOTE_ACCEPTED, offset_minutes=7 * 24 * 60),  # 7d
-                action=Action(
-                    ActionType.NOTIFY_OWNER,
-                    template='owner_reminder',
-                    params={'mensaje': 'Cliente aun no ha pagado la reserva'},
-                ),
+                description='Enviar contrato para firma',
+                action_type=ActionType.SEND_CONTRACT,
+                email_template_id='tpl-contrato',
+                due_date=DueDate(mode='after_creation', amount=3, unit='days', relative_to='job_created'),
             ),
             Step(
                 id='cuestionario_cliente',
                 name='Cuestionario cliente',
-                description='Cuestionario pre-boda: contactos, momentos clave, etc.',
-                trigger=Trigger(TriggerType.QUOTE_ACCEPTED, offset_minutes=60 * 24 * 60),  # 60d antes (asumimos boda ~60d)
-                action=Action(
-                    ActionType.SEND_EMAIL,
-                    template='cuestionario_pre_boda',
-                    params={'asunto': 'Cuestionario para tu boda', 'link': '/cuestionario'},
-                ),
+                description='Cuestionario pre-boda',
+                action_type=ActionType.SEND_QUESTIONNAIRE,
+                email_template_id='tpl-cuestionario',
+                due_date=DueDate(mode='after_event', amount=1, unit='months', relative_to='before_boda'),
             ),
             Step(
-                id='boda',
-                name='Boda',
-                description='Marcador: dia del evento. Cambia status del job a En produccion',
-                trigger=Trigger(TriggerType.QUOTE_ACCEPTED, offset_minutes=90 * 24 * 60),  # 90d (ajustar dinamicamente)
-                action=Action(
-                    ActionType.CHANGE_STATUS,
-                    template='cambiar_a_produccion',
-                    params={'new_status': 'En produccion'},
-                ),
+                id='envio_galeria',
+                name='Envio de galeria',
+                description='Enviar galeria de fotos al cliente',
+                action_type=ActionType.SEND_GALLERY,
+                email_template_id='tpl-galeria',
+                due_date=DueDate(mode='after_event', amount=2, unit='months', relative_to='after_boda'),
             ),
             Step(
-                id='google_comments',
-                name='Google Comments',
-                description='Pedir review en Google despues de la boda',
-                trigger=Trigger(TriggerType.QUOTE_ACCEPTED, offset_minutes=150 * 24 * 60),  # 60d post-boda
-                action=Action(
-                    ActionType.SEND_EMAIL,
-                    template='pedir_review',
-                    params={'asunto': 'Tu opinion nos importa - review Google?'},
-                ),
+                id='pedir_review',
+                name='Pedir review Google',
+                description='Pedir review en Google',
+                action_type=ActionType.SEND_EMAIL,
+                email_template_id='tpl-review',
+                due_date=DueDate(mode='after_event', amount=1, unit='months', relative_to='after_boda'),
             ),
             Step(
                 id='job_complete',
                 name='Job complete',
-                description='Marcador final: archivo fotografico entregado, pagos completados',
-                trigger=Trigger(TriggerType.QUOTE_ACCEPTED, offset_minutes=180 * 24 * 60),  # 90d post-boda
-                action=Action(
-                    ActionType.CHANGE_STATUS,
-                    template='cambiar_a_listo',
-                    params={'new_status': 'Listo'},
-                ),
+                description='Cambia el status del job a Listo',
+                action_type=ActionType.CHANGE_STATUS,
+                email_template_id=None,
+                due_date=DueDate(mode='manual', amount=0, unit='days'),
             ),
         ],
     )
 
 
 def BODAS_NORKEVIN_TEMPLATE() -> dict:
-    """Template nombre para aplicar por defecto (Studio Ninja style)."""
     return {
         'name': 'BODAS NORKEVIN',
         'lead_workflow': 'lead_workflow_v1',

@@ -1,80 +1,238 @@
 {% extends "base.html" %}
-{% block title %}Clients · Norkevin CRM{% endblock %}
-{% block header %}Clients{% endblock %}
-{% block subtitle %}{{ clients|length }} clientes confirmados{% endblock %}
+{% block title %}Clients Overview · {{ current_tenant.name }}{% endblock %}
+{% block header %}Clients Overview{% endblock %}
+{% block subtitle %}{{ clients|length }} clients{% endblock %}
+{% block topbar_title %}Clients{% endblock %}
 
 {% block content %}
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Clients Overview</h1>
+      <div class="sn-breadcrumbs">Dashboard &gt; Clients Overview</div>
+    </div>
+    <div class="sn-actions">
+      <button class="sn-btn" type="button" onclick="importClients()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 16V4m0 0 4 4m-4-4-4 4M4 20h16"/></svg>
+        Import Clients
+      </button>
+      <input type="file" id="import-clients-input" accept=".csv,text/csv" style="display:none;" onchange="handleImportFile(this)">
+      <a class="sn-btn" href="/api/clients/export.csv">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
+        Export Clients
+      </a>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="openClientModal()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Add New Client
+      </button>
+    </div>
+  </div>
 
-<!-- Filtros -->
-<form method="get" class="grid grid-cols-1 md:grid-cols-[1fr_200px_auto_auto] gap-3 mb-4">
-  <input type="text" name="q" value="{{ search }}" placeholder="Buscar cliente o email..." class="flex-1 bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
-  <select name="estado" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
-    <option value="">Todos los estados</option>
-    {% for s in estado_options %}
-    <option value="{{ s }}" {% if s == estado %}selected{% endif %}>{{ s }}</option>
-    {% endfor %}
-  </select>
-  <button type="submit" class="btn-gold">Buscar</button>
-  {% if estado or search %}
-  <a href="/clients" class="inline-flex items-center justify-center text-ink-soft hover:text-ink text-xs font-medium px-2">Limpiar</a>
-  {% endif %}
-</form>
+  <div class="sn-toolbar">
+    <div class="sn-toolbar-left"></div>
+    <div class="sn-toolbar-right">
+      <input id="client-search" class="sn-search" type="search" placeholder="Search" oninput="filterClients()">
+    </div>
+  </div>
 
-<div class="bg-paper-pure rounded-lg border border-line shadow-soft crm-table-wrap">
-  <table class="w-full text-sm crm-table min-w-[900px]">
-    <thead class="bg-line/50 text-xs uppercase tracking-wider text-ink-soft">
-      <tr>
-        <th class="px-4 py-3 text-left">Cliente</th>
-        <th class="px-4 py-3 text-left">Contacto</th>
-        <th class="px-4 py-3 text-left">Boda</th>
-        <th class="px-4 py-3 text-left">Paquete</th>
-        <th class="px-4 py-3 text-right">Precio</th>
-        <th class="px-4 py-3 text-right">Pagado</th>
-        <th class="px-4 py-3 text-left">Estado</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-line">
-      {% for c in clients %}
-      <tr class="hover:bg-line/30 transition cursor-pointer" onclick="{% if c.job_id %}window.location='/jobs/{{ c.job_id }}'{% elif c.id %}window.location='/clients/{{ c.id }}'{% endif %}">
-        <td class="px-4 py-3">
-          <div class="font-medium text-ink">{{ c.nombre or '—' }}</div>
-          {% if c.tags %}<div class="text-xs mt-0.5">{% for t in c.tags[:2] %}<span class="text-[10px] bg-gold/15 text-gold px-1.5 py-0.5 rounded mr-1">{{ t }}</span>{% endfor %}</div>{% endif %}
-        </td>
-        <td class="px-4 py-3 text-xs">
-          <div class="text-ink">{{ c.email or '—' }}</div>
-          <div class="text-ink-soft">{{ c.telefono or '—' }}</div>
-        </td>
-        <td class="px-4 py-3 text-xs">
-          {% if c.job_nombre %}
-          <a href="/jobs/{{ c.job_id }}" class="text-ink font-medium hover:text-ink" onclick="event.stopPropagation()">{{ c.job_nombre }}</a>
-          <div class="text-ink-soft text-[10px]">{{ parse_date(c.boda_fecha) or '—' }} · {{ c.boda_lugar or '—' }}</div>
-          {% else %}
-          <span class="text-ink-soft">Sin boda asignada</span>
-          {% endif %}
-        </td>
-        <td class="px-4 py-3">
-          {% if c.paquete %}
-          <span class="text-xs text-gold font-medium">{{ c.paquete }}</span>
-          {% if c.total_cotizaciones > 1 %}<div class="text-[10px] text-ink-soft">{{ c.total_cotizaciones }} cotizaciones</div>{% endif %}
-          {% else %}
-          <span class="text-ink-soft text-xs">—</span>
-          {% endif %}
-        </td>
-        <td class="px-4 py-3 text-right text-xs font-medium text-ink">{{ q_money(c.precio) }}</td>
-        <td class="px-4 py-3 text-right text-xs">
-          <span class="{% if c.precio and c.pagado >= c.precio %}text-emerald-700 font-medium{% elif c.pagado > 0 %}text-amber-700 font-medium{% else %}text-ink-soft{% endif %}">{{ q_money(c.pagado) }}</span>
-          {% if c.precio and c.pagado < c.precio %}
-          <div class="text-[10px] text-rose-700">Falta: {{ q_money(c.precio - c.pagado) }}</div>
-          {% endif %}
-        </td>
-        <td class="px-4 py-3">
-          <span class="text-xs px-2 py-0.5 rounded {% if c.estado == 'Activo' %}bg-emerald-50 text-emerald-700{% elif c.estado == 'Inactivo' %}bg-paper text-ink-soft{% else %}bg-rose-50 text-rose-700{% endif %}">{{ c.estado or 'Activo' }}</span>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="7" class="px-4 py-12 text-center text-ink-soft">No hay clientes que coincidan</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="sn-table-shell">
+    <table class="sn-table" id="clients-table">
+      <thead>
+        <tr>
+          <th style="width: 150px;">Date Created</th>
+          <th>First Name</th>
+          <th>Last Name</th>
+          <th>Company</th>
+          <th style="width: 140px;">Phone</th>
+          <th>Email</th>
+          <th style="width: 44px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clients %}
+        <tr class="sn-table-row"
+            data-text="{{ (c.first_name ~ ' ' ~ c.last_name ~ ' ' ~ (c.company or '') ~ ' ' ~ (c.phone or '') ~ ' ' ~ (c.email or ''))|lower }}"
+            data-status="{{ c.estado or 'Activo' }}"
+            data-jobs="{{ c.jobs_count or 0 }}"
+            data-balance="{{ c.balance_due or 0 }}"
+            data-email="{{ c.email or '' }}"
+            onclick="goClient(event, '{{ c.id }}')">
+          <td class="sn-ellipsis">{{ c.created_display or c.created or '—' }}</td>
+          <td class="sn-ellipsis">
+            <div class="sn-row-name">
+              <span class="sn-row-avatar">{{ (c.first_name or '?')[:1]|upper }}{{ (c.last_name or '')[:1]|upper }}</span>
+              <span>{{ c.first_name or '—' }}</span>
+            </div>
+          </td>
+          <td class="sn-ellipsis">{{ c.last_name or '—' }}</td>
+          <td class="sn-ellipsis">{{ c.company or '—' }}</td>
+          <td class="sn-ellipsis">{{ c.phone or '—' }}</td>
+          <td class="sn-ellipsis">{{ c.email or '—' }}</td>
+          <td style="text-align:right;">
+            <button class="sn-menu-dots" type="button" title="Actions" onclick="openClientActions(event, '{{ c.id }}', this.closest('tr').dataset.email)">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not clients %}
+        <tr>
+          <td colspan="7" style="text-align:center;padding:44px;color:var(--sn-muted);">
+            No clients yet.
+            <button type="button" class="sn-btn-link" onclick="openClientModal()">Create the first one</button>
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal-overlay" id="client-modal">
+  <div class="modal-content">
+    <h2 class="modal-title">Add New Client</h2>
+    <form id="client-form" onsubmit="createClient(event)">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="client-first">First Name *</label>
+          <input class="form-input" id="client-first" name="first_name" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="client-last">Last Name *</label>
+          <input class="form-input" id="client-last" name="last_name" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="client-company">Company</label>
+        <input class="form-input" id="client-company" name="company">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="client-phone">Phone</label>
+          <input class="form-input" id="client-phone" name="phone">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="client-email">Email</label>
+          <input class="form-input" id="client-email" name="email" type="email">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="client-address">Address</label>
+        <input class="form-input" id="client-address" name="address">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="client-source">Source</label>
+          <select class="form-input" id="client-source" name="source">
+            <option value="Manual">Manual</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Referido">Referido</option>
+            <option value="Web">Web</option>
+            <option value="WhatsApp">WhatsApp</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="client-status">Status</label>
+          <select class="form-input" id="client-status" name="estado">
+            <option value="Activo">Active</option>
+            <option value="Inactivo">Inactive</option>
+            <option value="Archivado">Archived</option>
+          </select>
+        </div>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
+        <button class="sn-btn" type="button" onclick="closeClientModal()">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Create Client</button>
+      </div>
+    </form>
+  </div>
 </div>
+
+<script>
+function goClient(event, id) {
+  if (event.target.closest('button')) return;
+  window.location.href = '/clients/' + id;
+}
+
+function filterClients() {
+  var q = (document.getElementById('client-search').value || '').trim().toLowerCase();
+  var filterEl = document.getElementById('client-filter');
+  var filter = filterEl ? filterEl.value : 'active';
+  document.querySelectorAll('#clients-table tbody tr').forEach(function(row) {
+    if (!row.dataset.text) return;
+    var jobs = Number(row.dataset.jobs || 0);
+    var balance = Number(row.dataset.balance || 0);
+    var status = row.dataset.status || 'Activo';
+    var filterOk = filter === 'all'
+      || (filter === 'active' && status !== 'Archivado' && status !== 'Inactivo')
+      || (filter === 'with-jobs' && jobs > 0)
+      || (filter === 'balance' && balance > 0)
+      || status === filter;
+    var searchOk = !q || row.dataset.text.indexOf(q) !== -1;
+    row.style.display = filterOk && searchOk ? '' : 'none';
+  });
+}
+
+function openClientActions(event, id, email) {
+  event.stopPropagation();
+  openActionMenu(event, [
+    { label: 'View', href: '/clients/' + id },
+    { label: 'Edit', href: '/clients/' + id + '?edit=1' },
+    email ? { label: 'Send Email', href: 'mailto:' + email } : { label: 'Send Email', disabled: true },
+    { divider: true },
+    { label: 'Archive', danger: true, confirm: 'Archivar este cliente?', action: function() {
+      apiPost('/api/clients/' + id + '/update', { estado: 'Archivado' })
+        .then(function() { flashToast('Client archived', 'success'); setTimeout(function() { location.reload(); }, 450); })
+        .catch(function(err) { flashToast(err.message, 'error'); });
+    }}
+  ]);
+}
+
+function importClients() {
+  var input = document.getElementById('import-clients-input');
+  input.value = '';
+  input.click();
+}
+
+function handleImportFile(input) {
+  if (!input.files.length) return;
+  var reader = new FileReader();
+  reader.onload = function() {
+    apiPost('/api/clients/import', { csv: reader.result })
+      .then(function(data) {
+        flashToast(data.message || 'Clientes importados', 'success');
+        setTimeout(function() { location.reload(); }, 700);
+      })
+      .catch(function(err) { flashToast(err.message, 'error'); });
+  };
+  reader.readAsText(input.files[0]);
+}
+
+function openClientModal() {
+  document.getElementById('client-modal').classList.add('open');
+  setTimeout(function() { document.getElementById('client-first').focus(); }, 50);
+}
+
+function closeClientModal() {
+  document.getElementById('client-modal').classList.remove('open');
+}
+
+function createClient(event) {
+  event.preventDefault();
+  var form = event.currentTarget;
+  var payload = Object.fromEntries(new FormData(form).entries());
+  apiPost('/api/clients/new', payload)
+    .then(function(data) {
+      flashToast('Client created', 'success');
+      window.location.href = '/clients/' + data.client_id;
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') closeClientModal();
+});
+</script>
 {% endblock %}

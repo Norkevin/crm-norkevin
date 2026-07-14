@@ -1,94 +1,263 @@
 {% extends "base.html" %}
-{% block title %}Cobros · Norkevin CRM{% endblock %}
-{% block header %}Cobros a Clientes{% endblock %}
-{% block subtitle %}Pagos recibidos y pendientes de clientes{% endblock %}
+{% block title %}Payments Overview · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}Payments Overview{% endblock %}
+{% block subtitle %}Dashboard &gt; Payments Overview{% endblock %}
+{% block topbar_title %}Payments{% endblock %}
 
 {% block content %}
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Payments Overview</h1>
+      <div class="sn-breadcrumbs">Dashboard &gt; Payments Overview</div>
+    </div>
+    <div class="sn-actions">
+      <a class="sn-btn" href="/api/payments/export.csv">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
+        Export Payments
+      </a>
+      <div style="text-align:right;min-width:155px;">
+        <div class="sn-money" style="font-size:22px;">Q{{ '{:,.2f}'.format(total_due) }}</div>
+        <div class="sn-list-meta">Total Due</div>
+      </div>
+    </div>
+  </div>
 
-<!-- Resumen -->
-<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Total facturado</div>
-    <div class="text-3xl font-bold text-ink">{{ q_money(total_facturado) }}</div>
-    <div class="text-xs text-ink-soft mt-1">{{ cotizaciones|length }} cotizaciones</div>
+  <div class="sn-toolbar">
+    <div class="sn-toolbar-left">
+      <select id="payment-status-filter" class="sn-select" onchange="filterPayments()">
+        <option value="Pendiente">Unpaid</option>
+        <option value="all">All</option>
+        <option value="Late">Late</option>
+        <option value="Pagado">Paid</option>
+      </select>
+    </div>
+    <div class="sn-toolbar-right">
+      <input id="payment-search" class="sn-search" type="search" placeholder="Search" oninput="filterPayments()">
+    </div>
   </div>
-  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Cobrado</div>
-    <div class="text-3xl font-bold text-emerald-700">{{ q_money(total_pagado) }}</div>
-    <div class="text-xs text-ink-soft mt-1">recibido de clientes</div>
+
+  <div class="sn-table-shell">
+    <table class="sn-table" id="payments-table">
+      <thead>
+        <tr>
+          <th style="width:120px;">Status</th>
+          <th style="width:180px;">Due</th>
+          <th style="width:150px;">Invoice ID</th>
+          <th>Client</th>
+          <th>Job</th>
+          <th style="width:135px;text-align:right;">Amount</th>
+          <th style="width:44px;text-align:right;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+        <tr class="sn-table-row"
+            data-status="{{ p.status }}"
+            data-text="{{ (p.invoice_id ~ ' ' ~ p.client_name ~ ' ' ~ p.job_name ~ ' ' ~ (p.concepto or ''))|lower }}"
+            onclick="goPayment(event, '{{ p.job_id }}', '{{ p.client_id }}')">
+          <td>
+            {% if p.status == 'Late' %}
+              <span class="sn-chip red">Late</span>
+            {% elif p.status == 'Pagado' %}
+              <span class="sn-chip green">Paid</span>
+            {% else %}
+              <span class="sn-chip gray">Unpaid</span>
+            {% endif %}
+          </td>
+          <td>
+            <div>{{ p.due_date_display or p.due_date or 'No due date' }}</div>
+            {% if p.days_ago %}
+              <div class="sn-list-meta" style="color:#b3263b;">{{ p.days_ago }} days ago</div>
+            {% elif p.days_until %}
+              <div class="sn-list-meta">in {{ p.days_until }} days</div>
+            {% endif %}
+          </td>
+          <td class="sn-ellipsis">{{ p.invoice_id or p.id }}</td>
+          <td class="sn-ellipsis">{{ p.client_name }}</td>
+          <td class="sn-ellipsis">{{ p.job_name }}</td>
+          <td style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(p.amount) }}</span></td>
+          <td style="text-align:right;" onclick="event.stopPropagation()">
+            <button class="sn-menu-dots" type="button" title="Actions" onclick='openPaymentActions(event, {{ p.id|tojson }}, {{ (p.invoice_id or p.id)|tojson }}, {{ (p.job_id or "")|tojson }}, {{ (p.client_id or "")|tojson }}, {{ (p.status or "")|tojson }}, {{ (p.amount or 0)|tojson }})'>
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not payments %}
+        <tr><td colspan="7" style="text-align:center;padding:44px;color:var(--sn-muted);">No payments registered.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
   </div>
-  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Por cobrar</div>
-    <div class="text-3xl font-bold text-amber-700">{{ q_money(total_saldo) }}</div>
-    <div class="text-xs text-ink-soft mt-1">saldo pendiente</div>
+
+  <div class="sn-toolbar" style="margin-top:14px;">
+    <div class="sn-muted">Total: {{ payments|length }} invoices</div>
+    <div class="sn-toolbar-right">
+      <span class="sn-muted">Unpaid:</span><span class="sn-money">Q{{ '{:,.2f}'.format(total_unpaid) }}</span>
+      <span class="sn-muted">Late:</span><span style="color:#b3263b;font-weight:600;">Q{{ '{:,.2f}'.format(total_late) }}</span>
+      <span class="sn-muted">Paid:</span><span class="sn-money">Q{{ '{:,.2f}'.format(total_paid) }}</span>
+    </div>
   </div>
-  <div class="bg-paper-pure rounded-xl p-5 border border-line shadow-soft card-hover">
-    <div class="label-uppercase mb-2">Anticipos</div>
-    <div class="text-3xl font-bold text-ink">{{ q_money(total_anticipo) }}</div>
-    <div class="text-xs text-ink-soft mt-1">recibido al reservar</div>
+</section>
+
+<div class="modal-overlay" id="payment-record-modal">
+  <div class="modal-content" style="width:min(420px,100%);">
+    <button type="button" class="modal-close" onclick="closeRecordPaymentModal()" aria-label="Close">x</button>
+    <h2 class="modal-title">Record Payment</h2>
+    <form onsubmit="submitRecordPayment(event)">
+      <input type="hidden" id="record-payment-id">
+      <div class="form-group">
+        <label class="form-label">Amount*</label>
+        <input class="form-input" id="record-payment-amount" name="amount" type="number" min="0" step="0.01" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Paid On*</label>
+        <input class="form-input" id="record-payment-date" name="fecha_pago" type="date" required>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-start;">
+        <button class="sn-btn sn-btn-primary" type="submit">Save Payment</button>
+        <button class="sn-btn" type="button" onclick="closeRecordPaymentModal()">Cancel</button>
+      </div>
+    </form>
   </div>
 </div>
 
-<!-- Filtros -->
-<form method="get" class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-  <select name="estado" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
-    <option value="">Todos los estados</option>
-    {% for s in status_options %}
-    <option value="{{ s }}" {% if s == estado_filtro %}selected{% endif %}>{{ s }}</option>
-    {% endfor %}
-  </select>
-  {% if estado_filtro %}
-  <a href="/payments" class="text-xs text-ink-soft hover:text-ink font-medium">Limpiar</a>
-  {% endif %}
-</form>
-
-<!-- Tabla de cotizaciones -->
-{% if cotizaciones %}
-<div class="bg-paper-pure rounded-lg border border-line shadow-soft crm-table-wrap">
-  <table class="w-full text-sm crm-table min-w-[880px]">
-    <thead class="bg-line/50 text-xs uppercase tracking-wider text-ink-soft">
-      <tr>
-        <th class="px-4 py-3 text-left">Cliente / Boda</th>
-        <th class="px-4 py-3 text-left">Paquete</th>
-        <th class="px-4 py-3 text-left">Fecha evento</th>
-        <th class="px-4 py-3 text-right">Total</th>
-        <th class="px-4 py-3 text-right">Pagado</th>
-        <th class="px-4 py-3 text-right">Saldo</th>
-        <th class="px-4 py-3 text-left">Estado</th>
-        <th class="px-4 py-3 text-center">Cuotas</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-line">
-      {% for c in cotizaciones %}
-      <tr class="hover:bg-line/30 transition">
-        <td class="px-4 py-3 font-medium text-ink">{{ c.get('Cotización') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-ink-soft">{{ c.get('Paquete') or '—' }}</td>
-        <td class="px-4 py-3 text-xs text-ink-soft">{{ parse_date(c.get('Fecha aceptación')) or '—' }}</td>
-        <td class="px-4 py-3 text-right font-semibold text-ink">{{ q_money(c.get('Monto total (Q)')) }}</td>
-        <td class="px-4 py-3 text-right font-semibold text-emerald-700">{{ q_money(c.get('Pagado (Q)')) }}</td>
-        <td class="px-4 py-3 text-right font-semibold text-amber-700">{{ q_money(c.get('Saldo (Q)')) }}</td>
-        <td class="px-4 py-3">
-          <span class="text-xs px-2 py-0.5 rounded
-            {% if c.get('Estado') in ('Aceptada','Pagada') %}bg-emerald-50 text-emerald-700
-            {% elif c.get('Estado') == 'Cotizando' %}bg-ink-soft text-ink
-            {% elif c.get('Estado') == 'Perdida' %}bg-red-50 text-red-700
-            {% else %}bg-paper text-ink-soft{% endif %}">{{ c.get('Estado') or '—' }}</span>
-        </td>
-        <td class="px-4 py-3 text-center text-xs text-ink-soft">{{ c.get('Cantidad de cuotas') or '—' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="modal-overlay" id="reminder-preview-modal">
+  <div class="modal-content" style="width:min(640px,94vw);">
+    <button type="button" class="modal-close" onclick="closeReminderPreview()" aria-label="Close">x</button>
+    <h2 class="modal-title">Enviar correo</h2>
+    <p class="sn-muted" style="font-size:12px;margin-top:-6px;margin-bottom:14px;">Revisa o edita el mensaje antes de enviarlo. No se ha enviado nada todavia.</p>
+    <div class="form-group">
+      <label class="form-label">Para</label>
+      <input class="form-input" id="reminder-preview-to">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Asunto</label>
+      <input class="form-input" id="reminder-preview-subject">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mensaje</label>
+      <textarea class="form-input" id="reminder-preview-body" rows="12"></textarea>
+    </div>
+    <div class="sn-actions" style="justify-content:space-between;">
+      <button class="sn-btn" type="button" onclick="closeReminderPreview()">Cerrar sin enviar</button>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="sendReminderNow()">Enviar correo ahora</button>
+    </div>
+  </div>
 </div>
-{% else %}
-<div class="bg-paper-pure rounded-xl p-8 border border-line shadow-soft text-center">
-  <p class="text-sm text-ink-soft">No hay cotizaciones registradas</p>
-</div>
-{% endif %}
 
-<!-- Botón flotante a pagos al equipo -->
-<a href="/pagos-equipo" class="fixed bottom-6 right-6 btn-gold shadow-card">
-  Pagos al equipo
-</a>
+<script>
+function filterPayments() {
+  var q = (document.getElementById('payment-search').value || '').trim().toLowerCase();
+  var status = document.getElementById('payment-status-filter').value;
+  document.querySelectorAll('#payments-table tbody tr').forEach(function(row) {
+    if (!row.dataset.text) return;
+    var rowStatus = row.dataset.status || '';
+    var statusOk = status === 'all' || rowStatus === status || (status === 'Pendiente' && rowStatus !== 'Pagado' && rowStatus !== 'Late');
+    var searchOk = !q || row.dataset.text.indexOf(q) !== -1;
+    row.style.display = statusOk && searchOk ? '' : 'none';
+  });
+}
 
+function goPayment(event, jobId, clientId) {
+  if (event.target.closest('a,button')) return;
+  window.location.href = jobId ? '/jobs/' + jobId : '/clients/' + clientId;
+}
+
+function openPaymentActions(event, paymentId, invoiceId, jobId, clientId, status, amount) {
+  openActionMenu(event, [
+    jobId ? { label: 'View Job', href: '/jobs/' + jobId } : null,
+    clientId ? { label: 'View Client', href: '/clients/' + clientId } : null,
+    invoiceId ? { label: 'View Invoice', href: '/invoices/' + invoiceId } : null,
+    { divider: true },
+    { label: 'Send Invoice', action: function() { sendPayment(paymentId); } },
+    status !== 'Pagado' ? { label: 'Generar link de pago', action: function() { createPaymentLink(paymentId); } } : null,
+    status !== 'Pagado' ? { label: 'Record Payment', action: function() { openRecordPaymentModal(paymentId, amount); } } : { label: 'Record Payment', disabled: true },
+    status !== 'Late' && status !== 'Pagado' ? { label: 'Mark Late', danger: true, confirm: 'Marcar este pago como late?', action: function() {
+      apiPost('/api/payments/' + paymentId + '/status', { status: 'Late' })
+        .then(function() { flashToast('Payment marked late', 'success'); setTimeout(function() { location.reload(); }, 450); })
+        .catch(function(err) { flashToast(err.message, 'error'); });
+    }} : null
+  ]);
+}
+
+function sendPayment(paymentId) {
+  apiPost('/api/payments/' + paymentId + '/send', {})
+    .then(function(data) { flashToast(data.message || 'Invoice sent', 'success'); setTimeout(function() { location.reload(); }, 450); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+var currentReminderPaymentId = null;
+
+function createPaymentLink(paymentId) {
+  apiPost('/api/payments/' + paymentId + '/payment-link', {})
+    .then(function(data) {
+      if (navigator.clipboard) { navigator.clipboard.writeText(data.payment_link_url).catch(function(){}); }
+      flashToast('Link de pago generado y copiado', 'success');
+      showReminderPreview(paymentId);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function showReminderPreview(paymentId) {
+  currentReminderPaymentId = paymentId;
+  fetch('/api/payments/' + paymentId + '/reminder-preview')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) { flashToast(data.error || 'No se pudo generar la vista previa', 'error'); return; }
+      document.getElementById('reminder-preview-to').value = data.to_email;
+      document.getElementById('reminder-preview-subject').value = data.subject;
+      document.getElementById('reminder-preview-body').value = data.body;
+      document.getElementById('reminder-preview-modal').classList.add('open');
+    })
+    .catch(function() { flashToast('No se pudo generar la vista previa', 'error'); });
+}
+
+function closeReminderPreview() {
+  document.getElementById('reminder-preview-modal').classList.remove('open');
+  location.reload();
+}
+
+function sendReminderNow() {
+  apiPost('/api/payments/' + currentReminderPaymentId + '/send-reminder', {
+    to_email: document.getElementById('reminder-preview-to').value,
+    subject: document.getElementById('reminder-preview-subject').value,
+    body: document.getElementById('reminder-preview-body').value
+  })
+    .then(function(data) {
+      flashToast(data.message || 'Correo enviado', 'success');
+      document.getElementById('reminder-preview-modal').classList.remove('open');
+      setTimeout(function() { location.reload(); }, 600);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function openRecordPaymentModal(paymentId, amount) {
+  document.getElementById('record-payment-id').value = paymentId;
+  document.getElementById('record-payment-amount').value = Number(amount || 0).toFixed(2);
+  document.getElementById('record-payment-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('payment-record-modal').classList.add('open');
+}
+
+function closeRecordPaymentModal() {
+  document.getElementById('payment-record-modal').classList.remove('open');
+}
+
+function submitRecordPayment(event) {
+  event.preventDefault();
+  var paymentId = document.getElementById('record-payment-id').value;
+  apiPost('/api/payments/' + paymentId + '/pay', {
+    amount: document.getElementById('record-payment-amount').value,
+    fecha_pago: document.getElementById('record-payment-date').value
+  })
+    .then(function() { flashToast('Payment recorded', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') closeRecordPaymentModal();
+});
+document.addEventListener('DOMContentLoaded', filterPayments);
+</script>
 {% endblock %}

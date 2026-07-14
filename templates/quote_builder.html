@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% block title %}{{ quote_kind_label }} · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}{{ quote_kind_label }}{% endblock %}
+{% block subtitle %}Dashboard &gt; Jobs &gt; {{ job.nombre }} &gt; New Quote{% endblock %}
+{% block topbar_title %}Jobs{% endblock %}
+
+{% block content %}
+<style>
+.quote-builder-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 430px;
+  gap: 36px;
+  align-items: start;
+}
+.quote-builder-side {
+  display: grid;
+  gap: 18px;
+}
+.quote-textarea {
+  width: 100%;
+  min-height: 100px;
+  border: 1px solid var(--sn-line);
+  padding: 14px;
+  resize: vertical;
+  outline: none;
+}
+.quote-empty {
+  min-height: 310px;
+  border: 1px solid #86efac;
+  background: #f5fff9;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 34px;
+}
+.quote-selected-list {
+  display: grid;
+  gap: 12px;
+}
+.quote-package-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid var(--sn-line);
+  padding: 16px;
+  background: #fff;
+}
+.quote-package-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+.quote-package-desc {
+  color: var(--sn-muted);
+  margin-top: 4px;
+}
+.quote-total-panel {
+  margin-top: 20px;
+  display: grid;
+  gap: 10px;
+  justify-content: end;
+}
+.quote-total-line {
+  min-width: 260px;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  font-size: 16px;
+}
+.quote-total-line.total {
+  font-size: 20px;
+  font-weight: 600;
+  padding-top: 10px;
+}
+.quote-package-picker {
+  display: grid;
+  gap: 10px;
+  max-height: 430px;
+  overflow: auto;
+  padding-right: 4px;
+}
+.quote-catalog-card {
+  width: 100%;
+  border: 1px solid var(--sn-line);
+  background: #fff;
+  text-align: left;
+  padding: 14px;
+  cursor: pointer;
+}
+.quote-catalog-card:hover {
+  border-color: #07844f;
+  background: var(--sn-mint-soft);
+}
+.quote-catalog-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--sn-muted);
+}
+.quote-info-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 0;
+}
+.quote-info-row + .quote-info-row { border-top: 1px solid var(--sn-line); }
+.quote-info-row svg { width: 18px; height: 18px; margin-top: 1px; }
+@media (max-width: 980px) {
+  .quote-builder-grid { grid-template-columns: 1fr; }
+}
+</style>
+
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">{{ quote_kind_label }}</h1>
+      <div class="sn-breadcrumbs">Dashboard &gt; Jobs &gt; {{ job.nombre }} &gt; New Quote</div>
+    </div>
+    <div class="sn-actions">
+      <a class="sn-btn" href="/jobs/{{ job.id }}">Back to Job</a>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="submitQuote()">Create Quote</button>
+    </div>
+  </div>
+
+  <div class="quote-builder-grid">
+    <div>
+      <div class="form-group">
+        <label class="form-label">Introduction</label>
+        <textarea id="quote-introduction" class="quote-textarea" maxlength="1000" oninput="updateIntroCount()" placeholder="E.g. Thank you for considering me as your photographer! Please choose from the list of packages and products and click Accept."></textarea>
+        <div class="sn-list-meta" style="text-align:right;"><span id="intro-count">0</span>/1000</div>
+      </div>
+
+      <div style="height:1px;background:var(--sn-line);margin:32px 0;"></div>
+
+      <div class="sn-page-head" style="margin-bottom:16px;">
+        <div>
+          <h2 class="sn-page-title" style="font-size:22px;">Packages</h2>
+          <div class="sn-muted">Create a list of packages which your client can choose between. Multiple packages can be chosen.</div>
+        </div>
+        <button class="sn-btn sn-btn-primary" type="button" onclick="openPackageModal()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/></svg>
+          Add Packages
+        </button>
+      </div>
+
+      <div id="quote-empty" class="quote-empty">
+        <div>
+          <h3 style="font-size:22px;font-weight:500;margin:0 0 12px;">Start Adding Packages to your Quote</h3>
+          <p class="sn-muted" style="max-width:390px;margin:0 auto 24px;">You currently don't have any package added to your quote. Click the button below to start adding them.</p>
+          <button class="sn-btn sn-btn-primary" type="button" onclick="openPackageModal()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/></svg>
+            Add Packages
+          </button>
+        </div>
+      </div>
+
+      <div id="quote-selected" class="quote-selected-list" style="display:none;"></div>
+
+      <div class="quote-total-panel">
+        <div class="quote-total-line"><span>Subtotal</span><span id="quote-subtotal">Q0.00</span></div>
+        <div class="quote-total-line total"><span>Total Due</span><span id="quote-total">Q0.00</span></div>
+        <select id="quote-schedule" class="sn-select" style="width:260px;max-width:none;">
+          <option>2 (50% + 50%)</option>
+          <option>1 (total al reservar)</option>
+          <option>3 (33% + 33% + 34%)</option>
+          <option>4 (25% c/u)</option>
+        </select>
+      </div>
+    </div>
+
+    <aside class="quote-builder-side">
+      <div class="sn-card white">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M4 9h16v11H4z"/></svg>
+            Event details
+          </div>
+        </div>
+        <div class="sn-card-body">
+          <div class="quote-info-row">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z"/></svg>
+            <div><strong>Boda</strong><br>{{ job.boda_date or 'No date confirmed' }}{% if job.time %}<br>{{ job.time }}{% endif %}</div>
+          </div>
+          <div class="quote-info-row">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2"/></svg>
+            <div><strong>Location</strong><br>{{ job.location or (lead.locacion if lead else '') or 'Sin ubicacion' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sn-card white">
+        <div class="sn-card-head">
+          <div class="sn-card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2m18 0v-2a4 4 0 0 0-3-3.87M12 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"/></svg>
+            Contact details
+          </div>
+        </div>
+        <div class="sn-card-body">
+          <div class="quote-info-row"><span></span><div><strong>{{ ((client.first_name ~ ' ' ~ client.last_name) if client else (lead.nombre if lead else job.nombre))|trim }}</strong></div></div>
+          <div class="quote-info-row">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h16v16H4zM4 7l8 6 8-6"/></svg>
+            <div><strong>Email</strong><br>{{ (client.email if client else (lead.email if lead else '')) or 'Sin email' }}</div>
+          </div>
+          <div class="quote-info-row">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.18 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.77.62 2.6a2 2 0 0 1-.45 2.11L8 9.7a16 16 0 0 0 6.3 6.3l1.27-1.27a2 2 0 0 1 2.11-.45c.83.29 1.7.5 2.6.62A2 2 0 0 1 22 16.92Z"/></svg>
+            <div><strong>Phone</strong><br>{{ (client.phone if client else (lead.telefono if lead else '')) or 'Sin telefono' }}</div>
+          </div>
+          <div class="quote-info-row">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2"/></svg>
+            <div><strong>Address</strong><br>{{ (client.address if client else '') or job.location or 'Sin direccion' }}</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<div class="modal-overlay" id="package-modal">
+  <div class="modal-content" style="width:min(760px,100%);">
+    <button type="button" class="modal-close" onclick="closePackageModal()" aria-label="Close">x</button>
+    <h2 class="modal-title">Add Packages</h2>
+    <p class="sn-muted" style="margin-top:-8px;margin-bottom:18px;">Choose from the configured catalog.</p>
+    <div class="quote-package-picker" id="catalog-list"></div>
+    <div class="sn-actions" style="justify-content:flex-end;margin-top:18px;">
+      <button class="sn-btn" type="button" onclick="closePackageModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var JOB_ID = {{ job.id|tojson }};
+var QUOTE_KIND = {{ quote_kind|tojson }};
+var PACKAGES = {{ packages|tojson }};
+var selectedPackages = [];
+
+function money(value) {
+  return 'Q' + Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function updateIntroCount() {
+  document.getElementById('intro-count').textContent = document.getElementById('quote-introduction').value.length;
+}
+function openPackageModal() {
+  renderCatalog();
+  document.getElementById('package-modal').classList.add('open');
+}
+function closePackageModal() {
+  document.getElementById('package-modal').classList.remove('open');
+}
+function renderCatalog() {
+  var list = document.getElementById('catalog-list');
+  if (!PACKAGES.length) {
+    list.innerHTML = '<div class="sn-muted" style="padding:28px;text-align:center;">No packages configured.</div>';
+    return;
+  }
+  list.innerHTML = PACKAGES.map(function(pkg) {
+    return '<button class="quote-catalog-card" type="button" onclick="addPackage(' + JSON.stringify(pkg.id).replace(/"/g, '&quot;') + ')">' +
+      '<div class="quote-package-name">' + escapeHtml(pkg.name) + '</div>' +
+      '<div class="quote-package-desc">' + escapeHtml(pkg.description || pkg.category || '') + '</div>' +
+      '<div class="quote-catalog-meta"><span>' + escapeHtml(pkg.category || 'Package') + '</span><strong>' + money(pkg.price) + '</strong></div>' +
+      '</button>';
+  }).join('');
+}
+function addPackage(id) {
+  var pkg = PACKAGES.find(function(item) { return item.id === id; });
+  if (!pkg) return;
+  if (QUOTE_KIND === 'fixed') {
+    selectedPackages = [pkg];
+  } else if (!selectedPackages.some(function(item) { return item.id === id; })) {
+    selectedPackages.push(pkg);
+  }
+  closePackageModal();
+  renderSelected();
+}
+function removePackage(id) {
+  selectedPackages = selectedPackages.filter(function(item) { return item.id !== id; });
+  renderSelected();
+}
+function renderSelected() {
+  var empty = document.getElementById('quote-empty');
+  var selected = document.getElementById('quote-selected');
+  var subtotal = selectedPackages.reduce(function(sum, item) { return sum + Number(item.price || 0); }, 0);
+  document.getElementById('quote-subtotal').textContent = money(subtotal);
+  document.getElementById('quote-total').textContent = money(subtotal);
+  empty.style.display = selectedPackages.length ? 'none' : 'grid';
+  selected.style.display = selectedPackages.length ? 'grid' : 'none';
+  selected.innerHTML = selectedPackages.map(function(pkg) {
+    return '<div class="quote-package-row">' +
+      '<div><div class="quote-package-name">' + escapeHtml(pkg.name) + '</div><div class="quote-package-desc">' + escapeHtml(pkg.description || '') + '</div></div>' +
+      '<strong>' + money(pkg.price) + '</strong>' +
+      '<button class="sn-btn" type="button" onclick="removePackage(' + JSON.stringify(pkg.id).replace(/"/g, '&quot;') + ')">Remove</button>' +
+      '</div>';
+  }).join('');
+}
+function submitQuote() {
+  if (!selectedPackages.length) {
+    flashToast('Agrega al menos un paquete', 'error');
+    return;
+  }
+  var subtotal = selectedPackages.reduce(function(sum, item) { return sum + Number(item.price || 0); }, 0);
+  apiPost('/api/jobs/' + JOB_ID + '/quotes', {
+    tipo_cotizacion: QUOTE_KIND,
+    paquete: selectedPackages.map(function(item) { return item.name; }).join(' + '),
+    monto: subtotal,
+    cuotas: document.getElementById('quote-schedule').value,
+    introduction: document.getElementById('quote-introduction').value,
+    items: selectedPackages
+  }).then(function(data) {
+    flashToast('Quote creado', 'success');
+    setTimeout(function() { window.location.href = data.quote_url || ('/jobs/' + JOB_ID); }, 500);
+  }).catch(function(err) {
+    flashToast(err.message, 'error');
+  });
+}
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, function(char) {
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]);
+  });
+}
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') closePackageModal();
+});
+</script>
+{% endblock %}

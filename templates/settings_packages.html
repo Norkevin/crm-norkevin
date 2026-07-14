@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Products & Packages · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}Products &amp; Packages{% endblock %}
+{% block subtitle %}Dashboard &gt; Settings &gt; Products &amp; Packages{% endblock %}
+{% block topbar_title %}Settings{% endblock %}
+
+{% block content %}
+<section class="sn-page">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Products &amp; Packages</h1>
+      <div class="sn-breadcrumbs"><a href="/settings">Settings</a> &gt; Products &amp; Packages</div>
+    </div>
+    <div class="sn-actions">
+      <button class="sn-btn sn-btn-primary" type="button" onclick="openPackageModal()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Nuevo Paquete
+      </button>
+    </div>
+  </div>
+
+  <div class="sn-table-shell stack-mobile" style="margin-top:18px;">
+    <table class="sn-table">
+      <thead>
+        <tr>
+          <th>Paquete</th>
+          <th style="width:130px;">Categoria</th>
+          <th style="width:90px;">Horas</th>
+          <th style="width:100px;">Fotos</th>
+          <th style="width:120px;text-align:right;">Precio</th>
+          <th style="width:160px;text-align:right;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in packages %}
+        <tr>
+          <td data-label="Paquete">
+            <div class="sn-list-title">{{ p.name }}</div>
+            <div class="sn-list-meta">{{ p.description }}</div>
+          </td>
+          <td data-label="Categoria">{{ p.category }}</td>
+          <td data-label="Horas">{{ p.duration_hours }}h</td>
+          <td data-label="Fotos">{{ p.num_photos }}</td>
+          <td data-label="Precio" style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(p.price or 0) }}</span></td>
+          <td class="stack-actions" style="text-align:right;">
+            <button class="sn-btn sn-btn-sm" type="button" onclick='openPackageModal({{ p|tojson }})'>Edit</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="deletePackage('{{ p.id }}')" style="color:#b3263b;">Delete</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="sn-muted" style="text-align:center;padding:24px;">No hay paquetes todavia.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal-overlay" id="package-modal">
+  <div class="modal-content" style="width:min(680px,94vw);">
+    <button type="button" class="modal-close" onclick="closeModal('package-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title" id="package-modal-title">Nuevo Paquete</h2>
+    <form onsubmit="submitPackage(event)">
+      <input type="hidden" id="pkg-id">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Nombre *</label>
+          <input class="form-input" id="pkg-name" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Categoria</label>
+          <input class="form-input" id="pkg-category" placeholder="Fotografia, Video, Mix, Especial...">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descripcion</label>
+        <input class="form-input" id="pkg-description">
+      </div>
+      <div class="grid-3">
+        <div class="form-group">
+          <label class="form-label">Precio (Q) *</label>
+          <input class="form-input" id="pkg-price" type="number" min="0" step="0.01" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Horas de cobertura</label>
+          <input class="form-input" id="pkg-hours" type="number" min="0" step="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Num. de fotos</label>
+          <input class="form-input" id="pkg-photos" type="number" min="0" step="1">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Incluye <span class="sn-muted" style="font-weight:400;">(una linea por item)</span></label>
+        <textarea class="form-input" id="pkg-includes" rows="5" placeholder="1 Fotografo profesional&#10;300 fotografias editadas&#10;Galeria online privada"></textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeModal('package-modal')">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function openPackageModal(pkg) {
+  document.getElementById('package-modal-title').textContent = pkg ? 'Editar Paquete' : 'Nuevo Paquete';
+  document.getElementById('pkg-id').value = pkg ? pkg.id : '';
+  document.getElementById('pkg-name').value = pkg ? pkg.name : '';
+  document.getElementById('pkg-category').value = pkg ? pkg.category : '';
+  document.getElementById('pkg-description').value = pkg ? pkg.description : '';
+  document.getElementById('pkg-price').value = pkg ? pkg.price : '';
+  document.getElementById('pkg-hours').value = pkg ? pkg.duration_hours : '';
+  document.getElementById('pkg-photos').value = pkg ? pkg.num_photos : '';
+  document.getElementById('pkg-includes').value = pkg && pkg.includes ? pkg.includes.join('\n') : '';
+  openModal('package-modal');
+}
+function submitPackage(event) {
+  event.preventDefault();
+  apiPost('/api/settings/packages', {
+    id: document.getElementById('pkg-id').value || undefined,
+    name: document.getElementById('pkg-name').value,
+    category: document.getElementById('pkg-category').value,
+    description: document.getElementById('pkg-description').value,
+    price: document.getElementById('pkg-price').value,
+    duration_hours: document.getElementById('pkg-hours').value,
+    num_photos: document.getElementById('pkg-photos').value,
+    includes: document.getElementById('pkg-includes').value
+  })
+    .then(function() { flashToast('Paquete guardado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function deletePackage(id) {
+  if (!confirm('Eliminar este paquete permanentemente?')) return;
+  fetch('/api/settings/packages/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { flashToast('Paquete eliminado', 'success'); setTimeout(function(){ location.reload(); }, 450); }
+      else { flashToast(data.error || 'Error', 'error'); }
+    })
+    .catch(function() { flashToast('Error de red', 'error'); });
+}
+</script>
+{% endblock %}
