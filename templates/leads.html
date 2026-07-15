@@ -169,12 +169,9 @@
         <div class="form-group">
           <label class="form-label" for="lead-source">Lead Source</label>
           <select class="form-input" id="lead-source" name="fuente">
-            <option value="Instagram">Instagram</option>
-            <option value="Referido">Referido</option>
-            <option value="Web">Web</option>
-            <option value="Facebook">Facebook</option>
-            <option value="WhatsApp">WhatsApp</option>
-            <option value="Google">Google</option>
+            {% for source in lead_sources %}
+            <option value="{{ source.name }}">{{ source.label }}</option>
+            {% endfor %}
           </select>
         </div>
         <div class="form-group">

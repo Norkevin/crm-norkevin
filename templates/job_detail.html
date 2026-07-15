@@ -986,8 +986,10 @@ function openRecordPayment(id, amount) {
 }
 function submitRecordPayment(event) {
   event.preventDefault();
-  var id = document.getElementById('payment-id').value;
-  apiPost('/api/payments/' + id + '/pay', {
+  // Se manda el monto recibido para el JOB completo, no una cuota
+  // especifica -- el backend lo reparte solo entre las cuotas pendientes
+  // en orden (llena la mas vieja, el resto pasa a la siguiente).
+  apiPost('/api/jobs/' + JOB_ID + '/record-payment', {
     amount: document.getElementById('payment-amount').value,
     fecha_pago: document.getElementById('payment-date').value
   })

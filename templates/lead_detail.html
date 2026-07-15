@@ -381,6 +381,45 @@
   </div>
 </section>
 
+<div class="modal-overlay" id="lead-questionnaire-modal">
+  <div class="modal-content" style="width:min(880px,94vw);">
+    <button type="button" class="modal-close" onclick="closeModal('lead-questionnaire-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Send Questionnaire</h2>
+    <form onsubmit="submitLeadQuestionnaire(event)">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Questionnaire</label>
+          <input class="form-input" id="lead-questionnaire-name" value="Cuestionario de Bodas Generico" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Subject</label>
+          <input class="form-input" id="lead-questionnaire-subject" value="¡Esto es importante para tu boda!" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea class="form-input" id="lead-questionnaire-body" rows="13" required>Hola %client_name%,
+
+Espero que estés bien. Quería informarte sobre la importancia de un paso clave para nuestra preparación de la boda.
+
+He creado un cuestionario que nos ayudará a recopilar los detalles esenciales para el gran día. Te agradecería mucho si pudieras dedicar unos minutos a completarlo.
+
+Llenar este formulario nos permitirá tener todos los datos necesarios para garantizar que todo esté perfectamente organizado y personalizado según tus deseos. Puedes acceder al cuestionario en este enlace:
+
+[LINK AL CUESTIONARIO]
+
+Si tienes alguna pregunta o necesitas asistencia en el proceso, por favor no dudes en contactarme.
+
+Quedo a tu disposición para cualquier consulta adicional.</textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeModal('lead-questionnaire-modal')">Back</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Send Questionnaire</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="lead-email-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
     <button type="button" class="modal-close" onclick="closeModal('lead-email-modal')" aria-label="Close">x</button>
@@ -803,10 +842,28 @@ function checkDate() {
 }
 
 function createQuestionnaire() {
-  var name = prompt('Questionnaire name', 'Cuestionario de Bodas Generico');
-  if (!name) return;
-  apiPost('/api/leads/' + LEAD_ID + '/questionnaires', { name: name, send_email: true })
+  // Mismo modal (y mismo endpoint /questionnaires) que usa Jobs -- antes
+  // esto usaba un prompt() nativo del navegador que Chrome puede bloquear
+  // en silencio despues de un par de dialogos, dando la sensacion de que
+  // "no aparece nada" al presionar el boton.
+  var bodyEl = document.getElementById('lead-questionnaire-body');
+  bodyEl.value = renderLeadTemplate(bodyEl.value);
+  var subjEl = document.getElementById('lead-questionnaire-subject');
+  if (subjEl) subjEl.value = renderLeadTemplate(subjEl.value);
+  openModal('lead-questionnaire-modal');
+}
+
+function submitLeadQuestionnaire(event) {
+  event.preventDefault();
+  var name = document.getElementById('lead-questionnaire-name').value;
+  apiPost('/api/leads/' + LEAD_ID + '/questionnaires', {
+    name: name,
+    subject: document.getElementById('lead-questionnaire-subject').value,
+    body: document.getElementById('lead-questionnaire-body').value,
+    send_email: true
+  })
     .then(function(data) {
+      closeModal('lead-questionnaire-modal');
       flashToast('Questionnaire created', 'success');
       if (data.questionnaire_path) {
         setTimeout(function() { window.location.href = data.questionnaire_path; }, 500);

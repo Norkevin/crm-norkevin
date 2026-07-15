@@ -157,13 +157,9 @@ tailwind.config = {
       <label class="label-eyebrow block mb-2">¿Cómo te enteraste de mis servicios?</label>
       <select name="fuente" class="field w-full rounded-lg px-4 py-3.5 text-sm">
         <option value="">Selecciona una opción</option>
-        <option value="Instagram">Instagram</option>
-        <option value="Facebook">Facebook</option>
-        <option value="TikTok">TikTok</option>
-        <option value="Google">Google</option>
-        <option value="Recomendación">Recomendación</option>
-        <option value="Boda anterior">Los vi en una boda</option>
-        <option value="Wedding Planner">Wedding Planner</option>
+        {% for source in lead_sources %}
+        <option value="{{ source.name }}">{{ source.label }}</option>
+        {% endfor %}
         <option value="Otro">Otro</option>
       </select>
     </div>

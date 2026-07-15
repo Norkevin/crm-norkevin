@@ -1962,7 +1962,8 @@ def leads_list():
 
     leads.sort(key=lambda l: l.get('created', ''), reverse=True)
     email_templates = [tpl for tpl in store.list('email_templates') if tpl.get('activo', True)]
-    return render_template('leads.html', leads=leads, email_templates=email_templates)
+    return render_template('leads.html', leads=leads, email_templates=email_templates,
+                          lead_sources=_configured_lead_sources())
 
 
 @app.route('/api/leads/export.csv')
@@ -3602,6 +3603,85 @@ def pagos_equipo_list():
                            count_pagado_mes=sum(1 for p in pagados if p.get('paid_date', '').startswith(datetime.now().strftime('%Y-%m'))))
 
 
+def _apply_payment_sequentially(job_id, amount_received, paid_date):
+    """Distribuye un pago recibido entre las cuotas pendientes del job, en
+    orden de vencimiento: llena la primera cuota pendiente, y si sobra
+    dinero lo aplica a la siguiente, y asi sucesivamente. Una cuota que no
+    se termina de cubrir queda Pendiente pero con su monto reducido al
+    saldo real que falta -- Kevin no tiene que recalcular nada a mano.
+    Devuelve la lista de filas de pago que se tocaron."""
+    from datetime import datetime as _dt
+
+    amount_received = round(float(amount_received or 0), 2)
+    if amount_received <= 0:
+        return []
+
+    pending = sorted(
+        [p for p in store.list('payments') if p.get('job_id') == job_id and p.get('status') != 'Pagado'
+         and p.get('tipo') != 'team_payment'],
+        key=lambda p: p.get('due_date') or ''
+    )
+
+    touched = []
+    remaining = amount_received
+    for row in pending:
+        if remaining <= 0:
+            break
+        row_amount = round(float(row.get('amount') or 0), 2)
+        if remaining >= row_amount:
+            row['status'] = 'Pagado'
+            row['paid_date'] = paid_date
+            row['fecha_pago'] = paid_date
+            row['paid_at'] = _dt.now().isoformat()
+            row['last_action'] = f'Paid on {paid_date} (distribucion automatica)'
+            remaining = round(remaining - row_amount, 2)
+        else:
+            row['amount'] = round(row_amount - remaining, 2)
+            row['last_action'] = f'Abono parcial de Q{remaining:,.2f} el {paid_date}'
+            remaining = 0
+        store.upsert('payments', row)
+        touched.append(row)
+
+    return touched
+
+
+@app.route('/api/jobs/<job_id>/record-payment', methods=['POST'])
+def api_job_record_payment(job_id):
+    """Kevin: 'no quiero tener que modificar manualmente los pagos'. Recibe
+    UN monto para el job entero (no una cuota especifica) y lo reparte
+    automaticamente entre las cuotas pendientes en orden."""
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    data = request.json or request.form or {}
+    try:
+        amount = float(data.get('amount') or 0)
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'monto invalido'}), 400
+    if amount <= 0:
+        return jsonify({'ok': False, 'error': 'El monto debe ser mayor a 0'}), 400
+
+    paid_date = data.get('fecha_pago') or data.get('paid_date') or date.today().isoformat()
+    touched = _apply_payment_sequentially(job_id, amount, paid_date)
+    if not touched:
+        return jsonify({'ok': False, 'error': 'No hay cuotas pendientes para este job'}), 400
+
+    paid_total = sum(
+        float(p.get('amount') or 0) for p in store.list('payments')
+        if p.get('job_id') == job_id and p.get('status') == 'Pagado'
+    )
+    job['price_paid'] = paid_total
+    upsert_job(job)
+
+    return jsonify({
+        'ok': True,
+        'amount_applied': amount,
+        'rows_touched': [{'id': r['id'], 'status': r['status'], 'amount': r['amount']} for r in touched],
+        'message': f'Q{amount:,.2f} distribuido automaticamente entre las cuotas pendientes',
+    })
+
+
 @app.route('/api/payments/<pay_id>/pay', methods=['POST'])
 def api_payment_mark_paid(pay_id):
     """Marca un pago como PAGADO (tanto para clientes como para equipo)."""
@@ -5077,7 +5157,7 @@ def _notify_new_lead(lead, source_label):
 @app.route('/contacto')
 def formulario_lead():
     """Formulario público para captar leads."""
-    return render_template('formulario.html')
+    return render_template('formulario.html', lead_sources=_configured_lead_sources())
 
 
 @app.route('/api/leads/nuevo', methods=['POST'])
