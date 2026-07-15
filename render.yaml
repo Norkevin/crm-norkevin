@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: astral-weddings-crm
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT wsgi:app
+    envVars:
+      - key: CRM_DATA_DIR
+        value: /var/data
+      - key: PYTHON_VERSION
+        value: 3.11.9
+    disk:
+      name: astral-crm-data
+      mountPath: /var/data
+      sizeGB: 1
