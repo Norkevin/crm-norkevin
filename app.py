@@ -314,6 +314,17 @@ def _get_email_template(template_id):
     return next((tpl for tpl in store.list('email_templates') if tpl.get('id') == template_id), None)
 
 
+def _inject_link(body, url, placeholders, fallback_label):
+    """Garantiza que un correo lleve SIEMPRE su link (cuestionario, contrato,
+    etc): reemplaza el primer placeholder que encuentre, y si el usuario
+    edito el mensaje y borro el placeholder, lo agrega al final igual --
+    nunca debe salir un correo sin el link que lo justifica."""
+    for ph in placeholders:
+        if ph in body:
+            return body.replace(ph, url)
+    return f"{body}\n\n{fallback_label}:\n{url}"
+
+
 def _render_message_template(text, *, client=None, lead=None, job=None):
     text = text or ''
     name = _client_name(client=client, lead=lead, job=job)
@@ -2431,15 +2442,15 @@ def api_lead_create_questionnaire(lead_id):
                 job=job,
             )
             body = _render_message_template(
-                data.get('body') or 'Hola %client_name%,\n\nTe comparto el cuestionario para preparar todos los detalles de tu boda.\n\nPlease view the questionnaire online by clicking here\n\nSaludos,\nKevin',
+                data.get('body') or 'Hola %client_name%,\n\nTe comparto el cuestionario para preparar todos los detalles de tu boda:\n\n[LINK AL CUESTIONARIO]\n\nSaludos,\nKevin',
                 client=client,
                 lead=lead,
                 job=job,
             )
-            body = body.replace(
-                'Please view the questionnaire online by clicking here',
-                questionnaire_url
-            )
+            body = _inject_link(body, questionnaire_url,
+                                placeholders=['[LINK AL CUESTIONARIO]',
+                                              'Please view the questionnaire online by clicking here'],
+                                fallback_label='Completa el cuestionario aqui')
             entry = get_tracker().log_email(
                 to_email=to_email,
                 subject=subject,
@@ -3940,15 +3951,15 @@ def api_job_create_questionnaire(job_id):
                 job=job,
             )
             body = _render_message_template(
-                data.get('body') or 'Hola %client_name%,\n\nTe comparto el cuestionario para preparar todos los detalles de tu boda.\n\nPlease view the questionnaire online by clicking here\n\nSaludos,\nKevin',
+                data.get('body') or 'Hola %client_name%,\n\nTe comparto el cuestionario para preparar todos los detalles de tu boda:\n\n[LINK AL CUESTIONARIO]\n\nSaludos,\nKevin',
                 client=client,
                 lead=lead,
                 job=job,
             )
-            body = body.replace(
-                'Please view the questionnaire online by clicking here',
-                questionnaire_url
-            )
+            body = _inject_link(body, questionnaire_url,
+                                placeholders=['[LINK AL CUESTIONARIO]',
+                                              'Please view the questionnaire online by clicking here'],
+                                fallback_label='Completa el cuestionario aqui')
             entry = get_tracker().log_email(
                 to_email=to_email,
                 subject=subject,
