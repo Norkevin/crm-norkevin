@@ -6393,6 +6393,36 @@ def client_portal(client_id):
     payments = [p for p in list_payments() if p.get('client_id') == client_id]
     payments.sort(key=lambda p: p.get('due_date', ''))
 
+    # El boton "Pagar ahora" solo aparece si el pago ya tiene un
+    # payment_link_url -- pero las cuotas recien generadas por la
+    # calendarizacion automatica (_ensure_payments_for_quote) nunca pasan
+    # por el flujo de recordatorio ni por "Generar link de pago" del admin,
+    # asi que el cliente entraba a su portal y no tenia como pagar. Genera
+    # el link on-demand aqui, igual que ya se hacia para los recordatorios.
+    from src import recurrente
+    if recurrente.is_configured():
+        host = request.host_url.rstrip('/')
+        for p in payments:
+            if p.get('status') == 'Pagado' or p.get('payment_link_url'):
+                continue
+            amount = float(p.get('amount') or 0)
+            if amount <= 0:
+                continue
+            invoice_id = p.get('invoice_id') or p['id']
+            redirect_url = _client_facing_invoice_url(host, client, invoice_id)
+            result = recurrente.create_checkout(
+                name=f"ASTRAL WEDDINGS - {p.get('concepto') or invoice_id}",
+                amount_in_cents=round(amount * 100),
+                currency='GTQ',
+                success_url=redirect_url,
+                cancel_url=redirect_url,
+            )
+            if result.get('ok'):
+                p['payment_link_url'] = result.get('checkout_url')
+                p['payment_link_id'] = result.get('id')
+                p['payment_link_created_at'] = datetime.now().isoformat()
+                store.upsert('payments', p)
+
     invoice_groups = []
     seen_group_keys = set()
     for p in payments:
