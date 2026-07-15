@@ -717,9 +717,7 @@ function drawRevenueComparisonChart() {
         + ' L ' + pts[pts.length - 1].x.toFixed(1) + ',' + (height - paddingBottom) + ' Z';
       html += '<path d="' + areaPath + '" fill="url(#' + gradId + ')"/>';
     }
-    var dashPattern = sIdx % 3 === 1 ? '6 5' : (sIdx % 3 === 2 ? '2 5' : '');
     html += '<path d="' + linePath + '" fill="none" stroke="' + series.color + '" stroke-width="' + (isLast ? '2.5' : '2') + '"'
-      + (dashPattern ? ' stroke-dasharray="' + dashPattern + '"' : '')
       + ' stroke-linecap="round" stroke-linejoin="round"/>';
     pts.forEach(function(p) {
       html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3" fill="#fff" stroke="' + series.color + '" stroke-width="2"/>';

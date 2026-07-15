@@ -1866,7 +1866,7 @@ def dashboard():
                 revenue_by_year[due_day.year][due_day.month - 1] += amount
                 projected_by_year[due_day.year][due_day.month - 1] += amount
 
-    year_palette = ['#0284C7', '#111827', '#94A3B8', '#075985', '#6B7280', '#334155']
+    year_palette = ['#2563EB', '#7C3AED', '#F59E0B', '#DC2626', '#059669', '#0891B2']
     sorted_years = sorted(set(revenue_by_year.keys()) | set(paid_by_year.keys()) | set(projected_by_year.keys()))
     revenue_comparison_series = []
     for idx, yr in enumerate(sorted_years):
