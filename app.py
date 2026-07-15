@@ -5719,11 +5719,18 @@ def workflow_editor():
     selected = workflow_engine.get_template(selected_id)
     if not selected:
         selected = templates[0] if templates else LEAD_WORKFLOW()
+    email_templates = store.list('email_templates')
+    # Se lee en vivo de email_templates.json (misma fuente que usan los
+    # modales de Send Email/Send Contract en Jobs y Leads) para que el
+    # preview de aca siempre este sincronizado -- no se guarda ninguna
+    # copia del texto en el workflow template, solo el email_template_id.
+    email_template_map = {tpl.get('id'): tpl for tpl in email_templates}
     return render_template('workflow_editor.html',
                           templates=templates,
                           selected=selected,
                           selected_id=selected.id,
-                          email_templates=store.list('email_templates'))
+                          email_templates=email_templates,
+                          email_template_map=email_template_map)
 
 
 @app.route('/api/workflow/templates')

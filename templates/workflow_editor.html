@@ -155,13 +155,21 @@
                   <svg width="11" height="11" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
                   {{ step.delay_display }}
                 </span>
-                {% if step.action_template %}
-                <span class="wfe-meta-item">
-                  <svg width="11" height="11" fill="currentColor" viewBox="0 0 20 20"><path d="M2.94 6.5l6.493 6.493a1 1 0 001.414 0L17.34 6.5H14a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V7.66l-6.493 6.493a3 3 0 01-4.242 0L2.94 7.66V11a1 1 0 11-2 0V6a1 1 0 011-1h5a1 1 0 010 2H2.94z"/></svg>
-                  {{ step.action_template }}
-                </span>
-                {% endif %}
               </div>
+              {% set linked_tpl = email_template_map.get(step.email_template_id) if step.email_template_id else None %}
+              {% if linked_tpl %}
+              <div class="wfe-tpl-preview">
+                <div class="wfe-tpl-preview-head">
+                  <svg width="11" height="11" fill="currentColor" viewBox="0 0 20 20"><path d="M2.94 6.5l6.493 6.493a1 1 0 001.414 0L17.34 6.5H14a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V7.66l-6.493 6.493a3 3 0 01-4.242 0L2.94 7.66V11a1 1 0 11-2 0V6a1 1 0 011-1h5a1 1 0 010 2H2.94z"/></svg>
+                  <span>{{ linked_tpl.name }}</span>
+                  <a href="/settings/email-templates?edit={{ linked_tpl.id }}" target="_blank" rel="noopener" onclick="event.stopPropagation();" class="sn-btn-link" style="margin-left:auto;font-size:10.5px;">Editar plantilla &rarr;</a>
+                </div>
+                <div class="wfe-tpl-preview-subject">{{ linked_tpl.asunto or '' }}</div>
+                <div class="wfe-tpl-preview-body">{{ (linked_tpl.cuerpo or '')|truncate(160) }}</div>
+              </div>
+              {% elif action_key in ['send_email', 'send_contract', 'send_questionnaire', 'send_gallery'] %}
+              <div class="wfe-tpl-missing">Sin plantilla vinculada -- este step no enviara texto real</div>
+              {% endif %}
             </div>
 
             <div class="workflow-step-tools">
@@ -347,6 +355,23 @@
   .wfe-step-meta { display: flex; align-items: center; gap: 12px; margin-top: 5px; font-size: 10.5px; color: var(--sn-soft); }
   .wfe-meta-item { display: inline-flex; align-items: center; gap: 4px; }
   .wfe-danger-btn:hover { background: #FCE8E8; border-color: #f3c6c6; color: #B4232A; }
+  .wfe-tpl-preview {
+    margin-top: 7px; padding: 8px 10px; border-radius: 8px;
+    background: var(--sn-row); border: 1px solid var(--sn-line);
+  }
+  .wfe-tpl-preview-head {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 600; color: var(--sn-ink);
+  }
+  .wfe-tpl-preview-subject { margin-top: 4px; font-size: 11px; font-weight: 600; color: #41474e; }
+  .wfe-tpl-preview-body {
+    margin-top: 2px; font-size: 11px; color: var(--sn-muted);
+    white-space: pre-line; line-height: 1.4;
+  }
+  .wfe-tpl-missing {
+    margin-top: 7px; padding: 6px 10px; border-radius: 8px;
+    background: #FDF1DC; color: #97620C; font-size: 11px; font-weight: 500;
+  }
   .wfe-empty { text-align: center; padding: 48px 16px; color: var(--sn-muted); }
   .wfe-empty svg { margin: 0 auto 10px; color: var(--sn-line-dark); }
   .wfe-empty p { font-size: 13px; margin: 0; }

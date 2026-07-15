@@ -89,6 +89,16 @@
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
+// Deep-link desde el Workflow Editor: /settings/email-templates?edit=<id>
+// abre directo el modal de edicion de esa plantilla.
+(function() {
+  const editId = new URLSearchParams(window.location.search).get('edit');
+  if (!editId) return;
+  const templates = {{ templates | tojson }};
+  const tpl = templates.find(t => t.id === editId);
+  if (tpl) openTemplateModal(tpl);
+})();
+
 function openTemplateModal(tpl) {
   document.getElementById('template-modal-title').textContent = tpl ? 'Editar Plantilla' : 'Nueva Plantilla';
   document.getElementById('tpl-id').value = tpl ? tpl.id : '';
