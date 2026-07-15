@@ -160,7 +160,46 @@
   </div>
 </div>
 
+<!-- ============================================================
+     ZONA DE RIESGO (reiniciar datos de prueba)
+     ============================================================ -->
+<div class="mb-8">
+  <h3 class="settings-section-title" style="color:var(--sn-red,#DC2626);">Zona de riesgo</h3>
+  <div class="sn-card white" style="padding:18px;border-color:#FCA5A5;">
+    <p class="sn-muted text-sm mb-4">
+      Vacia leads, clientes, jobs, cotizaciones, pagos, contratos, cuestionarios,
+      archivos, correos y calendario para volver a empezar con el CRM vacio.
+      No toca tu configuracion (plantillas de correo, paquetes, equipo, conexion
+      de Gmail/Recurrente). Cada tabla queda respaldada automaticamente antes
+      de borrarse.
+    </p>
+    <button class="sn-btn" type="button" style="border-color:#DC2626;color:#DC2626;" onclick="openModal('reset-data-modal')">
+      Vaciar datos de prueba
+    </button>
+  </div>
+</div>
+
 </section>
+
+<div class="modal-overlay" id="reset-data-modal">
+  <div class="modal-content" style="width:min(460px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('reset-data-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Vaciar datos de prueba</h2>
+    <p class="sn-muted" style="font-size:13px;margin-top:-6px;margin-bottom:14px;">
+      Esto borra TODOS los leads, clientes, jobs, cotizaciones, pagos, contratos,
+      cuestionarios, archivos, correos y eventos de calendario. No se puede
+      deshacer desde la interfaz (aunque queda un respaldo automatico en el
+      servidor). Escribe <strong>BORRAR</strong> para confirmar.
+    </p>
+    <div class="form-group">
+      <input class="form-input" id="reset-data-confirm" placeholder="Escribe BORRAR" autocomplete="off">
+    </div>
+    <div class="sn-actions" style="justify-content:space-between;">
+      <button class="sn-btn" type="button" onclick="closeModal('reset-data-modal')">Cancelar</button>
+      <button class="sn-btn" type="button" style="background:#DC2626;color:#fff;border-color:#DC2626;" onclick="confirmResetTestData()">Vaciar todo</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="edit-company-modal">
   <div class="modal-content" style="width:min(480px,100%);">
@@ -220,6 +259,21 @@ function disconnectGmail() {
   if (!confirm('Desconectar Gmail? Los correos volveran a modo prueba (local outbox).')) return;
   apiPost('/api/settings/google/disconnect', {})
     .then(function() { flashToast('Gmail desconectado', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function confirmResetTestData() {
+  var typed = document.getElementById('reset-data-confirm').value.trim();
+  if (typed !== 'BORRAR') {
+    flashToast('Escribe BORRAR (en mayusculas) para confirmar', 'error');
+    return;
+  }
+  apiPost('/api/admin/reset-test-data', { confirm: typed })
+    .then(function(data) {
+      closeModal('reset-data-modal');
+      flashToast('Datos de prueba vaciados', 'success');
+      setTimeout(function() { location.reload(); }, 700);
+    })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 

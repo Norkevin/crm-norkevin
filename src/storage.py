@@ -89,6 +89,11 @@ class JsonStore:
         self._save(table, records)
         return True
 
+    def clear(self, table):
+        """Vacia una tabla por completo (el registro anterior queda
+        respaldado automaticamente por _save/_backup_existing_file)."""
+        self._save(table, [])
+
     def _save(self, table, records):
         path = self._path(table)
         self._backup_existing_file(table, path)

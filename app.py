@@ -3152,6 +3152,37 @@ def settings():
                           google_email_param=request.args.get('google_email'))
 
 
+@app.route('/api/admin/reset-test-data', methods=['POST'])
+def api_admin_reset_test_data():
+    """Kevin: 'borra todos los datos para seguir haciendo pruebas, prefiero
+    que este vacio'. Vacia leads/clientes/jobs/cotizaciones/pagos/contratos/
+    cuestionarios/archivos/mail/calendario para volver a un CRM vacio.
+    NO toca configuracion (plantillas de correo, paquetes, equipo, fuentes,
+    workflow templates guardados, conexion de Gmail/Recurrente, tenants) --
+    eso costo tiempo configurarlo y no es "dato de prueba". Cada tabla se
+    respalda automaticamente en data/backups/ antes de vaciarse (JsonStore),
+    asi que esto es recuperable si algo sale mal."""
+    data = request.get_json(silent=True) or {}
+    if data.get('confirm') != 'BORRAR':
+        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
+
+    tables_to_wipe = [
+        'leads', 'clients', 'jobs', 'quotes', 'payments', 'contracts',
+        'questionnaires', 'files', 'mail_log', 'mail_outbox', 'calendar',
+    ]
+    wiped = {}
+    for table in tables_to_wipe:
+        wiped[table] = len(store.list(table))
+        store.clear(table)
+
+    workflow_engine.instances = {}
+    workflow_engine.history = []
+    workflow_engine._save_to_storage()
+
+    logger.info(f"Datos de prueba reiniciados por {session.get('user_email')}: {wiped}")
+    return jsonify({'ok': True, 'wiped': wiped})
+
+
 @app.route('/settings/email-templates')
 def settings_email_templates():
     return render_template('settings_email_templates.html', templates=store.list('email_templates'))
