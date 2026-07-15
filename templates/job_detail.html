@@ -314,7 +314,7 @@
                   <span class="sn-chip green">Pagado</span>
                   {% elif p.status == 'Late' %}
                   <span class="sn-chip red">Late</span>
-                  {% elif p.paid_amount %}
+                  {% elif p.original_amount and p.amount is not none and p.amount|float < p.original_amount|float %}
                   <span class="sn-chip blue">Parcial</span>
                   {% else %}
                   <span class="sn-chip gray">{{ p.status or 'Unpaid' }}</span>

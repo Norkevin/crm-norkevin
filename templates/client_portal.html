@@ -438,18 +438,15 @@
                   <span class="portal-badge b-green">Pagado</span>
                   {% elif r.status == 'Late' %}
                   <span class="portal-badge b-red">Late</span>
-                  {% elif r.balance and r.balance < r.amount %}
+                  {% elif r.original_amount and r.amount is not none and r.amount|float < r.original_amount|float %}
                   <span class="portal-badge b-blue">Parcial</span>
                   {% else %}
                   <span class="portal-badge b-amber">{{ r.status }}</span>
                   {% endif %}
                 </div>
               </div>
-              {% if r.status != 'Pagado' and r.balance and r.balance < r.amount %}
-              <div class="text-xs text-ink-soft" style="margin-top:4px;">Abono recibido &middot; saldo Q{{ '{:,.2f}'.format(r.balance) }}</div>
-              {% endif %}
               {% if r.status != 'Pagado' and r.payment_link_url %}
-              <a href="{{ r.payment_link_url }}" target="_blank" onclick="event.stopPropagation();" class="portal-action primary" style="width:100%;margin-top:8px;">Pagar ahora Q{{ '{:,.2f}'.format(r.balance if r.balance is not none else r.amount or 0) }}</a>
+              <a href="{{ r.payment_link_url }}" target="_blank" onclick="event.stopPropagation();" class="portal-action primary" style="width:100%;margin-top:8px;">Pagar ahora Q{{ '{:,.2f}'.format(r.amount or 0) }}</a>
               {% endif %}
             </div>
             {% endfor %}

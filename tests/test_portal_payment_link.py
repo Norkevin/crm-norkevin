@@ -59,14 +59,16 @@ def test_portal_skips_link_generation_when_recurrente_not_configured(auth_client
 
 def test_portal_payment_link_charges_remaining_balance_not_full_cuota(auth_client):
     """Kevin: 'si pago mas en un pago se deberia reducir la cuota en todos
-    los demas, no bajar el total'. amount se queda fijo (Q5,000), pero un
-    abono parcial de Q2,000 debe hacer que el link de pago cobre solo el
-    saldo (Q3,000), no los Q5,000 completos -- si no, se le cobraria de mas
-    al cliente."""
+    los demas, no bajar el total'. Una cuota con un abono parcial de
+    Q2,000 (original Q5,000) tiene 'amount' ya reducido a su saldo actual
+    (Q3,000) -- el link de pago debe cobrar exactamente eso, no el monto
+    original completo, o se le cobraria de mas al cliente."""
     import app as app_module
     client_id, pay_id = _make_client_with_pending_payment(app_module, 'd')
     pay = app_module.store.get('payments', pay_id)
+    pay['original_amount'] = 5000
     pay['paid_amount'] = 2000
+    pay['amount'] = 3000
     app_module.store.upsert('payments', pay)
 
     captured = {}

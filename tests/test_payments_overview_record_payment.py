@@ -61,7 +61,6 @@ def test_overpayment_from_payments_overview_flow_redistributes_surplus(auth_clie
         key=lambda p: p.get('due_date') or ''
     )
     row1, row2 = rows
-    assert row1['status'] == 'Pagado' and row1['amount'] == 4125.0
+    assert row1['status'] == 'Pagado' and row1['amount'] == 7000.0, 'la cuota pagada muestra el monto REAL recibido'
     assert row2['status'] == 'Pendiente', 'la segunda cuota NO debe quedarse intacta -- debe recibir el sobrante'
-    assert row2['amount'] == 4125.0, 'amount fijo, nunca se reduce'
-    assert row2['paid_amount'] == 2875.0, '7000 - 4125 = 2875 de sobrante aplicado a la cuota 2'
+    assert row2['amount'] == 1250.0, '4125 - (7000-4125) = 1250 de saldo tras el credito'
