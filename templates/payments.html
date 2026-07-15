@@ -110,6 +110,7 @@
     <h2 class="modal-title">Record Payment</h2>
     <form onsubmit="submitRecordPayment(event)">
       <input type="hidden" id="record-payment-id">
+      <input type="hidden" id="record-payment-job-id">
       <div class="form-group">
         <label class="form-label">Amount*</label>
         <input class="form-input" id="record-payment-amount" name="amount" type="number" min="0" step="0.01" required>
@@ -176,7 +177,7 @@ function openPaymentActions(event, paymentId, invoiceId, jobId, clientId, status
     { divider: true },
     { label: 'Send Invoice', action: function() { sendPayment(paymentId); } },
     status !== 'Pagado' ? { label: 'Generar link de pago', action: function() { createPaymentLink(paymentId); } } : null,
-    status !== 'Pagado' ? { label: 'Record Payment', action: function() { openRecordPaymentModal(paymentId, amount); } } : { label: 'Record Payment', disabled: true },
+    status !== 'Pagado' ? { label: 'Record Payment', action: function() { openRecordPaymentModal(paymentId, amount, jobId); } } : { label: 'Record Payment', disabled: true },
     status !== 'Late' && status !== 'Pagado' ? { label: 'Mark Late', danger: true, confirm: 'Marcar este pago como late?', action: function() {
       apiPost('/api/payments/' + paymentId + '/status', { status: 'Late' })
         .then(function() { flashToast('Payment marked late', 'success'); setTimeout(function() { location.reload(); }, 450); })
@@ -236,8 +237,9 @@ function sendReminderNow() {
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-function openRecordPaymentModal(paymentId, amount) {
+function openRecordPaymentModal(paymentId, amount, jobId) {
   document.getElementById('record-payment-id').value = paymentId;
+  document.getElementById('record-payment-job-id').value = jobId || '';
   document.getElementById('record-payment-amount').value = Number(amount || 0).toFixed(2);
   document.getElementById('record-payment-date').value = new Date().toISOString().slice(0, 10);
   document.getElementById('payment-record-modal').classList.add('open');
@@ -249,11 +251,21 @@ function closeRecordPaymentModal() {
 
 function submitRecordPayment(event) {
   event.preventDefault();
-  var paymentId = document.getElementById('record-payment-id').value;
-  apiPost('/api/payments/' + paymentId + '/pay', {
-    amount: document.getElementById('record-payment-amount').value,
-    fecha_pago: document.getElementById('record-payment-date').value
-  })
+  var amount = document.getElementById('record-payment-amount').value;
+  var fechaPago = document.getElementById('record-payment-date').value;
+  var jobId = document.getElementById('record-payment-job-id').value;
+  var promise;
+  if (jobId) {
+    // Reparte el monto entre las cuotas pendientes del job en orden de
+    // vencimiento (igual que en Jobs e Invoices) -- si el cliente paga
+    // mas de lo que debe esta cuota, el sobrante abona a las siguientes
+    // en vez de perderse.
+    promise = apiPost('/api/jobs/' + jobId + '/record-payment', { amount: amount, fecha_pago: fechaPago });
+  } else {
+    var paymentId = document.getElementById('record-payment-id').value;
+    promise = apiPost('/api/payments/' + paymentId + '/pay', { amount: amount, fecha_pago: fechaPago });
+  }
+  promise
     .then(function() { flashToast('Payment recorded', 'success'); setTimeout(function() { location.reload(); }, 500); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
