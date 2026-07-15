@@ -724,6 +724,7 @@ function drawRevenueComparisonChart() {
       html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="14" fill="transparent" stroke="none"'
         + ' class="chart-hit" data-label="' + series.year + ' - ' + p.month + '" data-value="' + p.value + '"/>';
     });
+
   });
 
   MONTH_LABELS.forEach(function(m, i) {
@@ -733,12 +734,18 @@ function drawRevenueComparisonChart() {
 
   svg.innerHTML = html;
 
-  document.getElementById('dashboard-chart-legend').innerHTML = REVENUE_SERIES.map(function(s) {
+  var legendHtml = REVENUE_SERIES.map(function(s) {
     var isHidden = hiddenRevenueYears.has(String(s.year));
+    var projectedNote = s.total_projected > 0 ? ' · incluye ' + money(s.total_projected) + ' pendiente' : '';
     return '<button type="button" class="chart-legend-toggle" style="opacity:' + (isHidden ? '.4' : '1') + ';" onclick="toggleRevenueYear(\'' + s.year + '\')">'
-      + '<i class="legend-dot" style="background:' + s.color + ';"></i>' + s.year + ' (' + money(s.total) + ')'
+      + '<i class="legend-dot" style="background:' + s.color + ';"></i>' + s.year + ' (' + money(s.total) + projectedNote + ')'
       + '<span class="chart-legend-toggle-hint">' + (isHidden ? 'Mostrar' : 'Ocultar') + '</span></button>';
   }).join('');
+  if (REVENUE_SERIES.some(function(s) { return s.total_projected > 0; })) {
+    legendHtml += '<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#9AA1AB;margin-left:8px;">'
+      + 'Proyectado (pagos agendados, sin cobrar): Revenue incluye pagos cobrados y pagos pendientes por fecha de cobro.</span>';
+  }
+  document.getElementById('dashboard-chart-legend').innerHTML = legendHtml;
 
   wireChartTooltips(svg, money);
 }

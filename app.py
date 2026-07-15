@@ -25,6 +25,37 @@ from src.storage import store
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+MONTH_NAMES_ES = {
+    1: 'enero',
+    2: 'febrero',
+    3: 'marzo',
+    4: 'abril',
+    5: 'mayo',
+    6: 'junio',
+    7: 'julio',
+    8: 'agosto',
+    9: 'septiembre',
+    10: 'octubre',
+    11: 'noviembre',
+    12: 'diciembre',
+}
+
+
+def _parse_iso_day(value):
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except Exception:
+        return None
+
+
+def _format_date_es(value):
+    day = value if isinstance(value, date) else _parse_iso_day(value)
+    if not day:
+        return ''
+    return f"{day.day} {MONTH_NAMES_ES.get(day.month, '')} {day.year}"
+
 
 def _log_storage_safety_status():
     status = store.status()
@@ -226,7 +257,7 @@ def _visible_billable_payments(tenant_id=None):
         if payment.get('tipo') == 'team_payment':
             continue
         quote_id = payment.get('quote_id')
-        if quote_id and quotes.get(quote_id, {}).get('status') != 'Aceptada':
+        if quote_id in quotes and quotes.get(quote_id, {}).get('status') != 'Aceptada':
             continue
         visible.append(payment)
     return visible
@@ -702,6 +733,16 @@ def _ensure_job_for_lead(lead, client_id, quote=None, status='Confirmado'):
     return job, True
 
 
+def _add_one_month(dt):
+    """Suma un mes a una fecha sin depender de python-dateutil."""
+    month = dt.month + 1
+    year = dt.year + (month - 1) // 12
+    month = (month - 1) % 12 + 1
+    import calendar as _cal
+    day = min(dt.day, _cal.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
+
+
 def _ensure_payments_for_quote(quote, client_id, job_id, tenant_id=None):
     import uuid
     if not quote:
@@ -722,24 +763,34 @@ def _ensure_payments_for_quote(quote, client_id, job_id, tenant_id=None):
     base = round(total / plan_pago, 2)
     invoice_ids = []
 
-    # Si el job tiene fecha de boda futura, repartimos las cuotas
-    # proporcionalmente entre hoy y esa fecha (el ultimo pago vence 14 dias
-    # antes de la boda, no el mismo dia). Si no hay fecha o ya paso, caemos
-    # al comportamiento anterior (cada 30 dias desde hoy).
+    # Calendario de pagos inteligente: 1era cuota el dia de aceptacion,
+    # ultima cuota 1 mes despues de la boda. Para 3 cuotas, la segunda va a
+    # mitad exacta entre aceptacion y boda; para 4/5, las cuotas intermedias
+    # se reparten de forma equidistante hasta la fecha final.
     due_dates = None
     job_for_dates = get_job(job_id) if job_id else None
     boda_date_str = job_for_dates.get('boda_date') if job_for_dates else None
     if boda_date_str:
         try:
             boda_date = datetime.strptime(boda_date_str, '%Y-%m-%d')
-            last_due = boda_date - timedelta(days=14)
             today_dt = datetime.now()
+            last_due = _add_one_month(boda_date)
             if last_due > today_dt:
-                span_days = (last_due - today_dt).days
-                due_dates = [
-                    (today_dt + timedelta(days=round(span_days * i / plan_pago))).strftime('%Y-%m-%d')
-                    for i in range(plan_pago)
-                ]
+                if plan_pago == 1:
+                    due_dates = [today_dt.strftime('%Y-%m-%d')]
+                elif plan_pago == 3 and boda_date > today_dt:
+                    middle = today_dt + timedelta(seconds=(boda_date - today_dt).total_seconds() / 2)
+                    due_dates = [
+                        today_dt.strftime('%Y-%m-%d'),
+                        middle.strftime('%Y-%m-%d'),
+                        last_due.strftime('%Y-%m-%d'),
+                    ]
+                else:
+                    span = (last_due - today_dt).total_seconds()
+                    due_dates = [
+                        (today_dt + timedelta(seconds=span * i / (plan_pago - 1))).strftime('%Y-%m-%d')
+                        for i in range(plan_pago)
+                    ]
         except ValueError:
             due_dates = None
 
@@ -1747,26 +1798,42 @@ def dashboard():
         dashboard_data[range_key] = range_payload
 
     # === Revenue Comparison: años reales superpuestos (estilo Studio Ninja) ===
+    # Esta grafica es de proyeccion: suma pagos cobrados + pagos agendados
+    # pendientes por su fecha de cobro. La pantalla Payments conserva el estado
+    # real de cada pago sin mezclarlo.
     revenue_by_year = defaultdict(lambda: [0.0] * 12)
-    for p in list_payments():
-        if p.get('status') != 'Pagado':
-            continue
-        paid_day = _parse_iso_day(p.get('paid_date') or p.get('fecha_pago') or p.get('sent_at') or p.get('due_date'))
-        if not paid_day:
-            continue
-        revenue_by_year[paid_day.year][paid_day.month - 1] += float(p.get('amount') or 0)
+    paid_by_year = defaultdict(lambda: [0.0] * 12)
+    projected_by_year = defaultdict(lambda: [0.0] * 12)
+    for p in all_dashboard_payments:
+        amount = float(p.get('amount') or 0)
+        if p.get('status') == 'Pagado':
+            paid_day = _parse_iso_day(p.get('paid_date') or p.get('fecha_pago') or p.get('sent_at') or p.get('due_date'))
+            if paid_day:
+                revenue_by_year[paid_day.year][paid_day.month - 1] += amount
+                paid_by_year[paid_day.year][paid_day.month - 1] += amount
+        else:
+            due_day = _parse_iso_day(p.get('due_date'))
+            if due_day:
+                revenue_by_year[due_day.year][due_day.month - 1] += amount
+                projected_by_year[due_day.year][due_day.month - 1] += amount
 
     year_palette = ['#0284C7', '#111827', '#94A3B8', '#075985', '#6B7280', '#334155']
-    sorted_years = sorted(revenue_by_year.keys())
+    sorted_years = sorted(set(revenue_by_year.keys()) | set(paid_by_year.keys()) | set(projected_by_year.keys()))
     revenue_comparison_series = []
     for idx, yr in enumerate(sorted_years):
         values = revenue_by_year[yr]
+        paid_values = paid_by_year[yr]
+        projected = projected_by_year[yr]
         color = year_palette[idx % len(year_palette)]
         revenue_comparison_series.append({
             'year': yr,
             'color': color,
             'values': values,
+            'paid': paid_values,
+            'projected': projected,
             'total': sum(values),
+            'total_paid': sum(paid_values),
+            'total_projected': sum(projected),
         })
 
     return render_template('dashboard.html',
@@ -2500,10 +2567,44 @@ def job_detail(job_id):
         lead_steps, lead_progress, lead_workflow_name = [], 0, 'Lead'
     client = get_client(job.get('client_id', ''))
     payments = [p for p in list_payments() if p.get('job_id') == job_id]
+    for p in payments:
+        p['due_date_display_es'] = _format_date_es(p.get('due_date')) or p.get('due_date') or '-'
+        p['paid_date_display_es'] = _format_date_es(p.get('paid_date') or p.get('fecha_pago'))
     quotes = [
         q for q in store.list('quotes')
         if q.get('job_id') == job_id or (job.get('lead_id') and q.get('lead_id') == job.get('lead_id'))
     ]
+    quotes_by_id = {q.get('id'): q for q in quotes}
+    invoice_groups_map = {}
+    for p in sorted(payments, key=lambda row: (row.get('quote_id') or row.get('invoice_id') or '', row.get('due_date') or '', row.get('cuota') or 0)):
+        group_key = p.get('quote_id') or p.get('invoice_group_id') or p.get('invoice_id') or p.get('id')
+        quote = quotes_by_id.get(p.get('quote_id')) or {}
+        group = invoice_groups_map.setdefault(group_key, {
+            'id': group_key,
+            'invoice_id': p.get('invoice_id') or p.get('id'),
+            'title': quote.get('paquete_nombre') or quote.get('title') or p.get('concepto') or p.get('invoice_id') or 'Invoice',
+            'quote': quote,
+            'payments': [],
+            'total': 0.0,
+            'paid': 0.0,
+            'balance': 0.0,
+            'next_due': '',
+            'status': 'Pagado',
+        })
+        amount = float(p.get('amount') or 0)
+        group['payments'].append(p)
+        group['total'] += amount
+        if p.get('status') == 'Pagado':
+            group['paid'] += amount
+        else:
+            group['status'] = p.get('status') or 'Unpaid'
+            if not group['next_due'] or (p.get('due_date') or '') < group['next_due']:
+                group['next_due'] = p.get('due_date') or ''
+    invoice_groups = []
+    for group in invoice_groups_map.values():
+        group['balance'] = max(group['total'] - group['paid'], 0)
+        group['next_due_display_es'] = _format_date_es(group.get('next_due')) or group.get('next_due') or '-'
+        invoice_groups.append(group)
     contracts = [c for c in store.list('contracts') if c.get('job_id') == job_id]
     questionnaires = [
         q for q in store.list('questionnaires')
@@ -2521,7 +2622,7 @@ def job_detail(job_id):
     mail_log.sort(key=lambda m: m.get('sent_at') or '', reverse=True)
     pending_steps = [s for s in workflow_steps if s['status'] == 'pending']
     job['production_tasks'] = ', '.join(s['name'] for s in pending_steps[:3]) if pending_steps else 'Sin tareas pendientes'
-    job['invoices'] = f"{len(payments)} invoices" if payments else 'Sin invoices'
+    job['invoices'] = f"{len(invoice_groups)} invoices" if invoice_groups else 'Sin invoices'
     total_paid = sum(float(p.get('amount') or 0) for p in payments if p.get('status') == 'Pagado')
     balance_due = sum(float(p.get('amount') or 0) for p in payments if p.get('status') != 'Pagado')
     return render_template('job_detail.html',
@@ -2535,6 +2636,7 @@ def job_detail(job_id):
                           workflow_name=workflow_name,
                           client=client,
                           payments=payments,
+                          invoice_groups=invoice_groups,
                           quotes=quotes,
                           contracts=contracts,
                           questionnaires=questionnaires,
@@ -2673,7 +2775,7 @@ def payments_list():
             days = (date.today() - d).days
             p['days_ago'] = days if days > 0 else None
             p['days_until'] = abs(days) if days < 0 else None
-            p['due_date_display'] = d.strftime('%d %b %Y')
+            p['due_date_display'] = _format_date_es(d)
             if days > 0 and p.get('status') == 'Pendiente':
                 p['status'] = 'Late'
         except Exception:
@@ -2691,6 +2793,7 @@ def payments_list():
 
     # Totales
     total_due = sum(p.get('amount', 0) for p in payments_all if p.get('status') != 'Pagado')
+    total_expected = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Pendiente' and p.get('days_until'))
     total_unpaid = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Pendiente')
     total_late = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Late')
     total_paid = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Pagado')
@@ -2699,6 +2802,7 @@ def payments_list():
                           payments=payments_all,
                           total_due=total_due,
                           total_unpaid=total_unpaid,
+                          total_expected=total_expected,
                           total_late=total_late,
                           total_paid=total_paid)
 
@@ -2730,23 +2834,37 @@ def invoice_view(invoice_id):
     schedule.sort(key=lambda p: (p.get('due_date') or '', p.get('cuota') or 0, p.get('invoice_id') or ''))
     job = get_job(selected.get('job_id', ''))
     client = get_client(selected.get('client_id', ''))
+    lead = get_lead(job.get('lead_id', '')) if job and job.get('lead_id') else None
     total = sum(float(p.get('amount') or 0) for p in schedule)
     paid = sum(float(p.get('amount') or 0) for p in schedule if p.get('status') == 'Pagado')
     balance = max(total - paid, 0)
 
     for row in schedule:
         row['is_selected'] = row.get('id') == selected.get('id')
+        row['due_date_display_es'] = _format_date_es(row.get('due_date')) or row.get('due_date') or '-'
+        row['paid_date_display_es'] = _format_date_es(row.get('paid_date') or row.get('fecha_pago'))
+        row['last_action_display'] = row.get('last_action') or (f"Pagado el {row['paid_date_display_es']}" if row.get('paid_date_display_es') else '-')
         try:
             due = datetime.strptime(row.get('due_date', ''), '%Y-%m-%d').date()
             days = (due - date.today()).days
-            row['relative_due'] = 'today' if days == 0 else (f'in {days} days' if days > 0 else f'{abs(days)} days ago')
+            row['relative_due'] = 'hoy' if days == 0 else (f'en {days} dias' if days > 0 else f'hace {abs(days)} dias')
         except Exception:
             row['relative_due'] = ''
 
-    try:
-        selected['due_date_display'] = datetime.strptime(selected.get('due_date', ''), '%Y-%m-%d').strftime('%d %b %Y')
-    except Exception:
-        selected['due_date_display'] = None
+    selected['due_date_display'] = _format_date_es(selected.get('due_date')) or None
+    invoice_context = {
+        'client_name': (
+            f"{client.get('first_name', '')} {client.get('last_name', '')}".strip()
+            if client else (job.get('client_name') if job else '')
+        ),
+        'wedding_date': _format_date_es(job.get('boda_date') if job else '') or (job.get('boda_date') if job else ''),
+        'event_time': job.get('time') if job else '',
+        'location': (job.get('location') if job else '') or (lead.get('location') if lead else '') or 'Sin ubicacion',
+        'services': (
+            quote.get('paquete_nombre') if quote else ''
+        ) or selected.get('concepto') or 'Servicios de boda',
+        'job_name': job.get('nombre') if job else '',
+    }
 
     return render_template(
         'invoice_view.html',
@@ -2754,7 +2872,9 @@ def invoice_view(invoice_id):
         schedule=schedule,
         quote=quote,
         job=job,
+        lead=lead,
         client=client,
+        invoice_context=invoice_context,
         total=total,
         paid=paid,
         balance=balance,
@@ -3221,8 +3341,11 @@ def calendar_view():
     month_names_short = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
     today_iso = today.isoformat()
+    # "Proximos eventos" son trabajo confirmado (jobs) o eventos manuales --
+    # los leads siguen viendose en la grilla del calendario, pero no aca,
+    # porque todavia no representan un trabajo confirmado.
     upcoming_events = sorted(
-        (e for e in events if e.get('date') and e['date'] >= today_iso),
+        (e for e in events if e.get('date') and e['date'] >= today_iso and e.get('type') != 'lead'),
         key=lambda e: e['date'],
     )[:3]
     for e in upcoming_events:
@@ -3598,6 +3721,12 @@ def api_job_send_email(job_id):
 
 
 QUESTIONNAIRE_QUESTIONS = [
+    {'group': 'Logistica del evento', 'fields': [
+        {'id': 'lugar_arreglo_novia', 'label': 'Lugar donde se arregla la novia', 'type': 'text'},
+        {'id': 'lugar_arreglo_novio', 'label': 'Lugar donde se arregla el novio', 'type': 'text'},
+        {'id': 'ubicacion_ceremonia_boda', 'label': 'Ubicacion de la ceremonia/boda', 'type': 'text'},
+        {'id': 'ubicacion_recepcion', 'label': 'Ubicacion de la recepcion', 'type': 'text'},
+    ]},
     {'group': 'La pareja', 'fields': [
         {'id': 'nombre_novia', 'label': 'Nombre completo de la novia', 'type': 'text'},
         {'id': 'nombre_novio', 'label': 'Nombre completo del novio', 'type': 'text'},
@@ -3634,7 +3763,7 @@ def questionnaire_view(questionnaire_id):
         questionnaire=q,
         job=job,
         client=client,
-        groups=QUESTIONNAIRE_QUESTIONS,
+        groups=q.get('questions') or QUESTIONNAIRE_QUESTIONS,
         answers=q.get('answers') or {},
     )
 
@@ -3670,7 +3799,9 @@ def api_job_create_questionnaire(job_id):
         'lead_id': job.get('lead_id', ''),
         'client_id': job.get('client_id', ''),
         'job_id': job_id,
-        'name': data.get('name') or 'CUESTIONARIO BODAS ASTRAL WEDDINGS',
+        'name': data.get('name') or 'Cuestionario de Bodas Generico',
+        'template_name': 'Cuestionario de Bodas Generico',
+        'questions': data.get('questions') or QUESTIONNAIRE_QUESTIONS,
         'status': data.get('status') or ('Sent' if data.get('send_email', True) else 'Draft'),
         'created': datetime.now().isoformat()[:10],
         'tenant_id': job.get('tenant_id') or get_current_tenant_id(),
@@ -5499,12 +5630,20 @@ def quote_view(quote_id):
     if not lead:
         abort(404)
 
+    payment_schedule = []
+    if quote.get('status') == 'Aceptada':
+        payment_schedule = sorted(
+            [p for p in store.list('payments') if p.get('quote_id') == quote_id],
+            key=lambda p: p.get('due_date') or ''
+        )
+
     return render_template(
         'quote_view.html',
         quote=quote,
         lead=lead,
         options=_normalize_quote_options(quote),
         plan_choices=_quote_plan_choices(quote),
+        payment_schedule=payment_schedule,
     )
 
 
@@ -5694,18 +5833,21 @@ def quote_accept(quote_id):
     if quote.get('status') == 'Aceptada':
         if quote.get('job_id'):
             _accept_quote_for_existing_job(quote)
-        return render_template('quote_accepted.html', quote=quote, already=True)
+        quote = store.get('quotes', quote_id) or quote
+        return render_template('quote_accepted.html', quote=quote, already=True,
+                                portal_url=(f"/portal/{quote['client_id']}" if quote.get('client_id') else None))
 
     if quote.get('job_id'):
         _accept_quote_for_existing_job(quote)
         quote = store.get('quotes', quote_id) or quote
-        return render_template('quote_accepted.html', quote=quote, already=False)
+        return render_template('quote_accepted.html', quote=quote, already=False,
+                                portal_url=(f"/portal/{quote['client_id']}" if quote.get('client_id') else None))
 
     if not quote.get('lead_id'):
         quote['status'] = 'Aceptada'
         quote['aceptada_en'] = date.today().isoformat()
         store.upsert('quotes', quote)
-        return render_template('quote_accepted.html', quote=quote, already=False)
+        return render_template('quote_accepted.html', quote=quote, already=False, portal_url=None)
 
     lead = get_lead(quote.get('lead_id', ''))
     if not lead:
@@ -5713,7 +5855,8 @@ def quote_accept(quote_id):
 
     _convert_lead_to_job(lead, quote=quote, status='Confirmado', create_payments=True)
     quote = store.get('quotes', quote_id) or quote
-    return render_template('quote_accepted.html', quote=quote, already=False)
+    return render_template('quote_accepted.html', quote=quote, already=False,
+                            portal_url=(f"/portal/{quote['client_id']}" if quote.get('client_id') else None))
 
 
 @app.route('/quotes/<quote_id>/decline', methods=['POST'])
@@ -6152,6 +6295,8 @@ def api_contract_sign(contract_id):
     contract['signed'] = True
     contract['signed_at'] = _dt.now().isoformat()
     contract['signature_preview'] = signature_data
+    contract['signature_type'] = data.get('signature_type') or 'draw'
+    contract['signature_text'] = data.get('signature_text') or ''
     contract['status'] = 'Firmado' if contract.get('photographer_signed') else 'Firmado por cliente'
     store.upsert('contracts', contract)
 

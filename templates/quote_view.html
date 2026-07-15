@@ -103,13 +103,28 @@
       <div class="doc-section">
         <div class="doc-eyebrow">Plan de pago</div>
         <table class="doc-table">
-          <thead><tr><th>Cuota</th><th style="text-align:right;">Monto</th></tr></thead>
+          <thead><tr><th>Cuota</th>{% if payment_schedule %}<th>Fecha</th>{% endif %}<th style="text-align:right;">Monto</th>{% if payment_schedule %}<th style="text-align:right;">Estado</th>{% endif %}</tr></thead>
           <tbody>
-            {% for i in range(quote.plan_pago) %}
-            <tr><td>Pago {{ i + 1 }} de {{ quote.plan_pago }}</td><td style="text-align:right;font-weight:600;color:var(--doc-ink);">Q{{ '{:,.2f}'.format(quote.cuota_monto) }}</td></tr>
-            {% endfor %}
+            {% if payment_schedule %}
+              {% for p in payment_schedule %}
+              <tr>
+                <td>Pago {{ p.cuota }}</td>
+                <td>{{ p.due_date }}</td>
+                <td style="text-align:right;font-weight:600;color:var(--doc-ink);">Q{{ '{:,.2f}'.format(p.amount or 0) }}</td>
+                <td style="text-align:right;">
+                  {% if p.status == 'Pagado' %}<span class="doc-pill green" style="padding:3px 10px;font-size:11px;">Pagado</span>
+                  {% else %}<span class="doc-pill amber" style="padding:3px 10px;font-size:11px;">Pendiente</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              {% for i in range(quote.plan_pago) %}
+              <tr><td>Pago {{ i + 1 }} de {{ quote.plan_pago }}</td><td style="text-align:right;font-weight:600;color:var(--doc-ink);">Q{{ '{:,.2f}'.format(quote.cuota_monto) }}</td></tr>
+              {% endfor %}
+            {% endif %}
           </tbody>
         </table>
+        <p class="doc-hint" style="text-align:left;margin-top:8px;">Estas fechas son una propuesta automática. Si necesitás ajustarlas, escribinos.</p>
       </div>
       {% endif %}
 

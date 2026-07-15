@@ -89,12 +89,12 @@
       <div class="check">✓</div>
       <h1 id="accepted-title">Cotizacion aceptada</h1>
       <p>
-        Gracias por aceptar esta cotizacion. Ya se genero la factura correspondiente
-        y quedo reflejada en el job.
+        Gracias por aceptar esta cotizacion. Ya generamos tu factura y tu
+        calendario de pagos -- podes verlos en tu portal cuando quieras.
       </p>
       <div class="actions">
-        {% if quote.job_id %}
-        <a class="primary" href="/jobs/{{ quote.job_id }}">Ver job</a>
+        {% if portal_url %}
+        <a class="primary" href="{{ portal_url }}">Ir a mi portal</a>
         {% endif %}
         <a href="/quotes/{{ quote.id }}">Ver cotizacion</a>
       </div>

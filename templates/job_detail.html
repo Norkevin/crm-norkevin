@@ -261,23 +261,39 @@
           </button>
         </div>
         <div class="sn-list">
-          {% for p in payments %}
+          {% for g in invoice_groups %}
           <div class="sn-list-item">
             <div class="sn-list-row">
               <div>
-                <div class="sn-list-title">{{ p.invoice_id or p.id }}</div>
-                <div class="sn-list-meta">Due {{ p.due_date or '-' }}</div>
-                <div class="sn-list-meta">{{ p.concepto or '' }}</div>
+                <div class="sn-list-title">{{ g.title }}</div>
+                <div class="sn-list-meta">Proximo pago {{ g.next_due_display_es }}</div>
+                <div class="sn-list-meta">{{ g.payments|length }} pago{{ 's' if g.payments|length != 1 else '' }} asociado{{ 's' if g.payments|length != 1 else '' }}</div>
               </div>
               <div style="text-align:right;">
-                <div class="sn-money">Q{{ '{:,.2f}'.format(p.get('amount') or 0) }}</div>
-                <span class="sn-chip {% if p.status == 'Pagado' %}green{% elif p.status == 'Late' %}red{% else %}gray{% endif %}">{{ p.status or 'Unpaid' }}</span>
+                <div class="sn-money">Q{{ '{:,.2f}'.format(g.total or 0) }}</div>
+                <span class="sn-chip {% if g.balance <= 0 %}green{% elif g.status == 'Late' %}red{% else %}gray{% endif %}">
+                  {% if g.balance <= 0 %}Pagado{% else %}Balance Q{{ '{:,.2f}'.format(g.balance) }}{% endif %}
+                </span>
               </div>
             </div>
+            <div class="sn-list" style="margin-top:10px;">
+              {% for p in g.payments %}
+              <div class="sn-list-row" style="padding:8px 0;border-top:1px solid var(--sn-line);">
+                <div>
+                  <div class="sn-list-meta">{{ p.invoice_id or p.id }} · vence {{ p.due_date_display_es }}</div>
+                  {% if p.paid_date_display_es %}<div class="sn-list-meta">Pagado {{ p.paid_date_display_es }}</div>{% endif %}
+                </div>
+                <div style="text-align:right;">
+                  <span class="sn-money">Q{{ '{:,.2f}'.format(p.get('amount') or 0) }}</span>
+                  <span class="sn-chip {% if p.status == 'Pagado' %}green{% elif p.status == 'Late' %}red{% else %}gray{% endif %}">{{ p.status or 'Unpaid' }}</span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
             <div class="sn-list-actions">
-              <a class="sn-btn sn-btn-sm" href="/invoices/{{ p.invoice_id }}">View</a>
-              <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ p.id }}')">Send</button>
-              {% if p.status != 'Pagado' %}<button class="sn-btn sn-btn-sm" type="button" onclick="openRecordPayment('{{ p.id }}', '{{ p.amount or 0 }}')">Record Payment</button>{% endif %}
+              <a class="sn-btn sn-btn-sm" href="/invoices/{{ g.invoice_id }}">View</a>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ g.payments[0].id }}')">Send</button>
+              {% if g.balance > 0 %}<button class="sn-btn sn-btn-sm" type="button" onclick="openRecordPayment('{{ g.payments[0].id }}', '{{ g.payments[0].amount or 0 }}')">Record Payment</button>{% endif %}
             </div>
           </div>
           {% else %}
@@ -377,7 +393,7 @@
             </div>
             <div class="sn-list-actions">
               <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnairePreview({{ (q.name or "Questionnaire")|tojson }}, {{ (q.status or "Draft")|tojson }})'>View</button>
-              <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnaireModal({{ (q.name or "CUESTIONARIO BODAS ASTRAL WEDDINGS")|tojson }})'>Send</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnaireModal({{ (q.name or "Cuestionario de Bodas Generico")|tojson }})'>Send</button>
             </div>
           </div>
           {% else %}
@@ -580,7 +596,7 @@
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">Questionnaire</label>
-          <input class="form-input" id="questionnaire-name" value="CUESTIONARIO BODAS ASTRAL WEDDINGS" required>
+          <input class="form-input" id="questionnaire-name" value="Cuestionario de Bodas Generico" required>
         </div>
         <div class="form-group">
           <label class="form-label">Subject</label>
@@ -801,7 +817,7 @@ function openEmailModal(options) {
 function triggerJobStep(stepId, stepName) {
   var lower = String(stepName || '').toLowerCase();
   if (lower.includes('cuestion')) {
-    openQuestionnaireModal('CUESTIONARIO BODAS ASTRAL WEDDINGS', stepId);
+    openQuestionnaireModal('Cuestionario de Bodas Generico', stepId);
     return;
   }
   if (lower.includes('firma') || lower.includes('contract') || lower.includes('contrato')) {
@@ -994,7 +1010,7 @@ function submitJobEmail(event) {
 }
 
 function openQuestionnaireModal(name, stepId) {
-  document.getElementById('questionnaire-name').value = name || 'CUESTIONARIO BODAS ASTRAL WEDDINGS';
+  document.getElementById('questionnaire-name').value = name || 'Cuestionario de Bodas Generico';
   document.getElementById('questionnaire-step-id').value = stepId || '';
   var bodyEl = document.getElementById('questionnaire-body');
   bodyEl.value = renderTemplate(bodyEl.value);

@@ -23,23 +23,8 @@
     </div>
   </div>
 
-  {% if upcoming_events %}
-  <div class="upcoming-events">
-    <div class="upcoming-events-head">Proximos eventos</div>
-    <div class="upcoming-events-grid">
-      {% for e in upcoming_events %}
-      <button class="upcoming-event-card {{ e.type }}" type="button" onclick="openCalendarEvent('{{ e.url or '' }}')">
-        <span class="upcoming-event-badge {{ e.type }}">{{ e.type|capitalize }}</span>
-        <div class="upcoming-event-title">{{ e.title }}</div>
-        <div class="upcoming-event-date">{{ e.date_label }}</div>
-        {% if e.days_away is not none %}
-        <div class="upcoming-event-days">{% if e.days_away == 0 %}Hoy{% elif e.days_away == 1 %}Manana{% else %}En {{ e.days_away }} dias{% endif %}</div>
-        {% endif %}
-      </button>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
+  <div class="calendar-layout">
+    <div class="calendar-main">
 
   <div class="sn-toolbar">
     <div class="sn-toolbar-left">
@@ -129,6 +114,28 @@
     <p class="sn-muted" style="text-align:center;padding:32px 0;">Sin eventos este mes.</p>
     {% endif %}
   </div>
+    </div>
+
+    <aside class="calendar-sidebar">
+      <div class="upcoming-events">
+        <div class="upcoming-events-head">Proximos eventos</div>
+        <div class="upcoming-events-grid">
+          {% for e in upcoming_events %}
+          <button class="upcoming-event-card {{ e.type }}" type="button" onclick="openCalendarEvent('{{ e.url or '' }}')">
+            <span class="upcoming-event-badge {{ e.type }}">{{ e.type|capitalize }}</span>
+            <div class="upcoming-event-title">{{ e.title }}</div>
+            <div class="upcoming-event-date">{{ e.date_label }}</div>
+            {% if e.days_away is not none %}
+            <div class="upcoming-event-days">{% if e.days_away == 0 %}Hoy{% elif e.days_away == 1 %}Manana{% else %}En {{ e.days_away }} dias{% endif %}</div>
+            {% endif %}
+          </button>
+          {% else %}
+          <div class="upcoming-event-empty">Sin proximos eventos.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </aside>
+  </div>
 </section>
 
 <div class="modal-overlay" id="event-modal">
@@ -166,11 +173,22 @@
 </div>
 
 <style>
+.calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 18px;
+  align-items: start;
+}
+.calendar-main { min-width: 0; }
+.calendar-sidebar {
+  position: sticky;
+  top: 96px;
+}
 .upcoming-events { margin-bottom: 16px; }
 .upcoming-events-head { font-size: 13px; font-weight: 600; color: var(--sn-muted); margin-bottom: 10px; }
 .upcoming-events-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 .upcoming-event-card {
@@ -200,8 +218,16 @@
 .upcoming-event-title { font-size: 15px; font-weight: 600; color: var(--sn-ink); margin-bottom: 4px; }
 .upcoming-event-date { font-size: 12.5px; color: var(--sn-muted); }
 .upcoming-event-days { font-size: 11.5px; color: var(--sn-green-dark); font-weight: 600; margin-top: 6px; }
-@media (max-width: 760px) {
-  .upcoming-events-grid { grid-template-columns: 1fr; }
+.upcoming-event-empty {
+  border: 1px dashed var(--sn-line);
+  border-radius: 14px;
+  padding: 18px;
+  color: var(--sn-muted);
+  font-size: 13px;
+}
+@media (max-width: 1100px) {
+  .calendar-layout { grid-template-columns: 1fr; }
+  .calendar-sidebar { position: static; order: -1; }
 }
 .calendar-shell {
   background: #fff;

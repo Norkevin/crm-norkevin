@@ -128,8 +128,18 @@
 <div class="sig-modal-overlay" id="sig-modal-overlay">
   <div class="sig-modal">
     <h3 style="margin:0 0 4px;font-size:16px;font-weight:600;">Firma digital</h3>
-    <p style="margin:0 0 14px;font-size:12.5px;color:var(--doc-ink-soft);">Firma con tu mouse o dedo en el recuadro</p>
-    <canvas id="sig-canvas" width="400" height="150" class="sig-canvas"></canvas>
+    <p style="margin:0 0 14px;font-size:12.5px;color:var(--doc-ink-soft);">Puedes dibujar tu firma o escribir tu nombre.</p>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button id="sig-mode-draw" type="button" class="doc-btn outline" onclick="setSigMode('draw')">Dibujar</button>
+      <button id="sig-mode-type" type="button" class="doc-btn outline" onclick="setSigMode('type')">Escribir nombre</button>
+    </div>
+    <div id="sig-draw-panel">
+      <canvas id="sig-canvas" width="400" height="150" class="sig-canvas"></canvas>
+    </div>
+    <div id="sig-type-panel" style="display:none;">
+      <input id="typed-sig-name" style="width:100%;border:1px solid var(--doc-line);border-radius:10px;padding:10px;" placeholder="Escribe tu nombre completo">
+      <div id="typed-sig-preview" style="border:1px solid var(--doc-line);border-radius:10px;padding:18px;text-align:center;margin-top:10px;font-family:'Brush Script MT','Segoe Script',cursive;font-size:36px;min-height:90px;">Tu firma</div>
+    </div>
     <div class="sig-actions">
       <button type="button" class="doc-btn outline" onclick="clearSig()">Limpiar</button>
       <div style="flex:1;"></div>
@@ -141,6 +151,7 @@
 
 <script>
 var sigCanvas, sigCtx, sigDrawing = false;
+var sigMode = 'draw';
 var CONTRACT_ID = {{ contract.id|tojson }};
 
 function openSignatureModal() {
@@ -152,12 +163,41 @@ function openSignatureModal() {
   sigCtx.lineCap = 'round';
   sigCtx.lineJoin = 'round';
   clearSig();
+  setSigMode('draw');
 }
 function closeSignatureModal() {
   document.getElementById('sig-modal-overlay').classList.remove('open');
 }
 function clearSig() {
   if (sigCtx) sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+  var typed = document.getElementById('typed-sig-name');
+  var preview = document.getElementById('typed-sig-preview');
+  if (typed) typed.value = '';
+  if (preview) preview.textContent = 'Tu firma';
+}
+function setSigMode(mode) {
+  sigMode = mode;
+  document.getElementById('sig-draw-panel').style.display = mode === 'draw' ? 'block' : 'none';
+  document.getElementById('sig-type-panel').style.display = mode === 'type' ? 'block' : 'none';
+}
+function renderTypedSig() {
+  var name = (document.getElementById('typed-sig-name').value || '').trim();
+  if (!name) {
+    alert('Escribe tu nombre completo para firmar.');
+    return null;
+  }
+  var cv = document.createElement('canvas');
+  cv.width = 800;
+  cv.height = 220;
+  var c = cv.getContext('2d');
+  c.fillStyle = '#fff';
+  c.fillRect(0, 0, cv.width, cv.height);
+  c.fillStyle = '#0A0E1A';
+  c.font = "72px 'Brush Script MT', 'Segoe Script', cursive";
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText(name, cv.width / 2, cv.height / 2);
+  return cv.toDataURL('image/png');
 }
 function sigPos(e) {
   var r = sigCanvas.getBoundingClientRect();
@@ -191,14 +231,23 @@ document.addEventListener('DOMContentLoaded', function() {
   cv.addEventListener('touchstart', startDraw);
   cv.addEventListener('touchmove', draw);
   cv.addEventListener('touchend', endDraw);
+  var typed = document.getElementById('typed-sig-name');
+  typed.addEventListener('input', function() {
+    document.getElementById('typed-sig-preview').textContent = typed.value.trim() || 'Tu firma';
+  });
 });
 
 function saveSig() {
-  var dataUrl = sigCanvas.toDataURL('image/png');
+  var dataUrl = sigMode === 'type' ? renderTypedSig() : sigCanvas.toDataURL('image/png');
+  if (!dataUrl) return;
   fetch('/api/contracts/' + CONTRACT_ID + '/sign', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ signature: dataUrl })
+    body: JSON.stringify({
+      signature: dataUrl,
+      signature_type: sigMode,
+      signature_text: sigMode === 'type' ? (document.getElementById('typed-sig-name').value || '').trim() : ''
+    })
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {

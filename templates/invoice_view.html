@@ -84,6 +84,37 @@
 .invoice-doc-parties strong { display: block; margin-bottom: 2px; color: #fff; }
 .invoice-doc-parties .block { margin-bottom: 14px; }
 .invoice-doc-body { padding: 26px 28px; }
+.invoice-context-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.invoice-context-card {
+  background: #fff;
+  border: 1px solid var(--sn-line);
+  border-radius: 14px;
+  padding: 14px;
+}
+.invoice-context-label {
+  font-size: 11px;
+  color: var(--sn-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 6px;
+}
+.invoice-context-value {
+  font-size: 14px;
+  color: var(--sn-ink);
+  font-weight: 600;
+  line-height: 1.35;
+}
+@media (max-width: 900px) {
+  .invoice-context-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .invoice-context-grid { grid-template-columns: 1fr; }
+}
 </style>
 <section class="sn-page-wide">
   <div class="sn-page-head">
@@ -104,6 +135,25 @@
   </div>
 
   <div style="height:1px;background:var(--sn-line);margin:24px 0 32px;"></div>
+
+  <div class="invoice-context-grid">
+    <div class="invoice-context-card">
+      <div class="invoice-context-label">Cliente</div>
+      <div class="invoice-context-value">{{ invoice_context.client_name or 'Sin cliente' }}</div>
+    </div>
+    <div class="invoice-context-card">
+      <div class="invoice-context-label">Boda</div>
+      <div class="invoice-context-value">{{ invoice_context.wedding_date or 'Sin fecha' }}{% if invoice_context.event_time %}<br>{{ invoice_context.event_time }}{% endif %}</div>
+    </div>
+    <div class="invoice-context-card">
+      <div class="invoice-context-label">Servicios</div>
+      <div class="invoice-context-value">{{ invoice_context.services }}</div>
+    </div>
+    <div class="invoice-context-card">
+      <div class="invoice-context-label">Ubicacion</div>
+      <div class="invoice-context-value">{{ invoice_context.location }}</div>
+    </div>
+  </div>
 
   <div class="sn-page-head" style="align-items:flex-end;">
     <div>
@@ -150,14 +200,14 @@
           </td>
           <td>
             <div style="display:flex;align-items:center;gap:6px;">
-              <span>{{ row.due_date or '-' }}</span>
+              <span>{{ row.due_date_display_es or row.due_date or '-' }}</span>
               {% if row.status != 'Pagado' %}
               <button type="button" class="sn-btn-link" style="font-size:11px;" onclick='openEditDueDate({{ row.id|tojson }}, {{ (row.due_date or "")|tojson }})' title="Editar fecha">✎</button>
               {% endif %}
             </div>
             {% if row.relative_due %}<div class="sn-list-meta">{{ row.relative_due }}</div>{% endif %}
           </td>
-          <td>{{ row.last_action or ('Paid on ' ~ row.fecha_pago if row.fecha_pago else '-') }}</td>
+          <td>{{ row.last_action_display or '-' }}</td>
           <td style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(row.amount or 0) }}</span></td>
           <td style="text-align:right;">
             <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;">

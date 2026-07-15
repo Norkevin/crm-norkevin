@@ -511,8 +511,18 @@
 <div id="modal-sign" class="hidden fixed inset-0 bg-ink/50 z-50 flex items-center justify-center p-4">
   <div class="bg-white rounded-2xl shadow-lg max-w-md w-full p-6">
     <h3 class="font-semibold text-lg mb-2">Firma digital</h3>
-    <p class="text-xs text-ink-soft mb-4">Firma con tu mouse o dedo en el recuadro</p>
-    <canvas id="signature-canvas" width="400" height="150" class="border border-gray-300 rounded-lg w-full"></canvas>
+    <p class="text-xs text-ink-soft mb-4">Puedes dibujar tu firma o escribir tu nombre.</p>
+    <div class="flex gap-2 mb-4">
+      <button id="sign-mode-draw" type="button" onclick="setSignatureMode('draw')" class="text-sm px-3 py-2 border border-gray-200 rounded-lg font-medium" style="background:#E8FFF4;color:#006B3F;">Dibujar</button>
+      <button id="sign-mode-type" type="button" onclick="setSignatureMode('type')" class="text-sm px-3 py-2 border border-gray-200 rounded-lg font-medium">Escribir nombre</button>
+    </div>
+    <div id="signature-draw-panel">
+      <canvas id="signature-canvas" width="400" height="150" class="border border-gray-300 rounded-lg w-full"></canvas>
+    </div>
+    <div id="signature-type-panel" class="hidden">
+      <input id="typed-signature-name" class="border border-gray-300 rounded-lg w-full px-3 py-2 text-sm" placeholder="Escribe tu nombre completo">
+      <div id="typed-signature-preview" class="border border-gray-300 rounded-lg mt-3 p-4 text-center" style="font-family:'Brush Script MT','Segoe Script',cursive;font-size:36px;min-height:90px;color:#0A0E1A;">Tu firma</div>
+    </div>
     <div class="flex gap-2 mt-4">
       <button onclick="clearSignature()" class="text-sm px-3 py-2 border border-gray-200 rounded-lg">Limpiar</button>
       <div class="flex-1"></div>
@@ -530,6 +540,7 @@ function toggleInvoiceGroup(invoiceId) {
 
 let currentContractId = null;
 let canvas, ctx, drawing = false;
+let signatureMode = 'draw';
 
 function openSignature(contractId) {
   currentContractId = contractId;
@@ -541,6 +552,7 @@ function openSignature(contractId) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   clearSignature();
+  setSignatureMode('draw');
 }
 
 function closeSignature() {
@@ -549,6 +561,40 @@ function closeSignature() {
 
 function clearSignature() {
   if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  var typed = document.getElementById('typed-signature-name');
+  var preview = document.getElementById('typed-signature-preview');
+  if (typed) typed.value = '';
+  if (preview) preview.textContent = 'Tu firma';
+}
+
+function setSignatureMode(mode) {
+  signatureMode = mode;
+  document.getElementById('signature-draw-panel').classList.toggle('hidden', mode !== 'draw');
+  document.getElementById('signature-type-panel').classList.toggle('hidden', mode !== 'type');
+  document.getElementById('sign-mode-draw').style.background = mode === 'draw' ? '#E8FFF4' : '#fff';
+  document.getElementById('sign-mode-draw').style.color = mode === 'draw' ? '#006B3F' : '#111827';
+  document.getElementById('sign-mode-type').style.background = mode === 'type' ? '#E8FFF4' : '#fff';
+  document.getElementById('sign-mode-type').style.color = mode === 'type' ? '#006B3F' : '#111827';
+}
+
+function renderTypedSignature() {
+  var name = (document.getElementById('typed-signature-name').value || '').trim();
+  if (!name) {
+    alert('Escribe tu nombre completo para firmar.');
+    return null;
+  }
+  var offscreen = document.createElement('canvas');
+  offscreen.width = 800;
+  offscreen.height = 220;
+  var offCtx = offscreen.getContext('2d');
+  offCtx.fillStyle = '#fff';
+  offCtx.fillRect(0, 0, offscreen.width, offscreen.height);
+  offCtx.fillStyle = '#0A0E1A';
+  offCtx.font = "72px 'Brush Script MT', 'Segoe Script', cursive";
+  offCtx.textAlign = 'center';
+  offCtx.textBaseline = 'middle';
+  offCtx.fillText(name, offscreen.width / 2, offscreen.height / 2);
+  return offscreen.toDataURL('image/png');
 }
 
 function startDraw(e) {
@@ -566,11 +612,16 @@ function draw(e) {
 function endDraw() { drawing = false; }
 
 function saveSignature() {
-  const dataUrl = canvas.toDataURL('image/png');
+  const dataUrl = signatureMode === 'type' ? renderTypedSignature() : canvas.toDataURL('image/png');
+  if (!dataUrl) return;
   fetch('/api/contracts/' + currentContractId + '/sign', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ signature: dataUrl })
+    body: JSON.stringify({
+      signature: dataUrl,
+      signature_type: signatureMode,
+      signature_text: signatureMode === 'type' ? (document.getElementById('typed-signature-name').value || '').trim() : ''
+    })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -601,6 +652,12 @@ document.addEventListener('DOMContentLoaded', function() {
       e.preventDefault();
       var touch = e.touches[0];
       draw(touch);
+    });
+  }
+  var typedSignature = document.getElementById('typed-signature-name');
+  if (typedSignature) {
+    typedSignature.addEventListener('input', function() {
+      document.getElementById('typed-signature-preview').textContent = typedSignature.value.trim() || 'Tu firma';
     });
   }
 });
