@@ -11,6 +11,8 @@ from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort, session
 from dotenv import load_dotenv
 
+load_dotenv()
+
 import notion_sync as ns
 from collections import defaultdict
 
@@ -20,9 +22,23 @@ from src.workflow import WorkflowEngine, LEAD_WORKFLOW, PRODUCTION_WORKFLOW
 from src.workflow.models import StepStatus, WorkflowStatus, TriggerType
 from src.storage import store
 
-load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _log_storage_safety_status():
+    status = store.status()
+    if os.environ.get('RENDER') and not status['is_render_persistent_path']:
+        logger.warning(
+            'Render esta usando %s para datos. Configura CRM_DATA_DIR=/var/data '
+            'y monta el disk persistente en /var/data antes de cargar datos reales.',
+            status['data_dir'],
+        )
+    else:
+        logger.info('CRM data dir activo: %s', status['data_dir'])
+
+
+_log_storage_safety_status()
 
 
 def _bootstrap_seed_table(table):
@@ -69,6 +85,19 @@ def add_dev_cache_headers(response):
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
     return response
+
+
+@app.route('/api/storage/status')
+def api_storage_status():
+    counts = {}
+    for table in ('clients', 'leads', 'jobs', 'quotes', 'payments', 'contracts'):
+        counts[table] = len(store.list(table))
+    return jsonify({
+        'ok': True,
+        'storage': store.status(),
+        'counts': counts,
+        'render': bool(os.environ.get('RENDER')),
+    })
 
 # ============================================================
 # WORKFLOW ENGINE (singleton global)

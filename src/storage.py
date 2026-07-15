@@ -36,6 +36,18 @@ class JsonStore:
     def _path(self, table):
         return os.path.join(self.data_dir, f'{table}.json')
 
+    def status(self) -> Dict[str, Any]:
+        """Devuelve un resumen seguro del almacenamiento activo."""
+        data_dir_abs = os.path.abspath(self.data_dir)
+        render_disk = os.path.abspath(os.environ.get('CRM_DATA_DIR') or '')
+        return {
+            'data_dir': data_dir_abs,
+            'crm_data_dir_env': render_disk or None,
+            'uses_env_data_dir': bool(os.environ.get('CRM_DATA_DIR')),
+            'is_render_persistent_path': data_dir_abs == os.path.abspath('/var/data'),
+            'backup_dir': os.path.join(data_dir_abs, 'backups'),
+        }
+
     def list(self, table):
         path = self._path(table)
         if not os.path.exists(path):
@@ -79,12 +91,42 @@ class JsonStore:
 
     def _save(self, table, records):
         path = self._path(table)
+        self._backup_existing_file(table, path)
         tmp_path = path + '.tmp'
         with open(tmp_path, 'w', encoding='utf-8') as f:
             json.dump(records, f, indent=2, ensure_ascii=False)
         shutil.move(tmp_path, path)
         # Invalida el cache; la proxima list() vuelve a leer y re-cachear.
         self._cache.pop(table, None)
+
+    def _backup_existing_file(self, table, path):
+        if not os.path.exists(path):
+            return
+        backups_root = os.path.join(self.data_dir, 'backups', datetime.now().strftime('%Y%m%d'))
+        os.makedirs(backups_root, exist_ok=True)
+        timestamp = datetime.now().strftime('%H%M%S_%f')
+        backup_path = os.path.join(backups_root, f'{table}_{timestamp}.json')
+        shutil.copy2(path, backup_path)
+        self._prune_backups(table, keep=50)
+
+    def _prune_backups(self, table, keep=50):
+        backups_root = os.path.join(self.data_dir, 'backups')
+        if not os.path.isdir(backups_root):
+            return
+        matches = []
+        for root, _dirs, files in os.walk(backups_root):
+            for filename in files:
+                if filename.startswith(f'{table}_') and filename.endswith('.json'):
+                    path = os.path.join(root, filename)
+                    try:
+                        matches.append((os.path.getmtime(path), path))
+                    except OSError:
+                        continue
+        for _mtime, old_path in sorted(matches, reverse=True)[keep:]:
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
 
 
 
@@ -99,6 +141,7 @@ class JsonStore:
     def save_dict(self, name: str, data: Dict[str, Any]):
         """Guarda un dict en JSON."""
         path = os.path.join(self.data_dir, f'{name}.json')
+        self._backup_existing_file(name, path)
         tmp_path = path + '.tmp'
         with open(tmp_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
