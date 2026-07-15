@@ -540,6 +540,14 @@ def _ensure_client_for_lead(lead):
     today = datetime.now().isoformat()[:10]
 
     if existing:
+        # Kevin: lleno el formulario como 'Angel Lemus' pero el cliente que
+        # quedo vinculado seguia mostrando el nombre de un cliente viejo
+        # (coincidio por email/telefono con un registro existente) -- antes
+        # esto SOLO llenaba campos vacios, nunca corregia un nombre ya
+        # presente, asi que un match por email/telefono dejaba el nombre
+        # viejo pegado sin sentido. El lead mas reciente es la fuente mas
+        # confiable de quien es esta persona ahora mismo, asi que sincroniza
+        # nombre/telefono/email/direccion en vez de solo rellenar blancos.
         changed = False
         for key, value in {
             'first_name': first_name,
@@ -550,7 +558,7 @@ def _ensure_client_for_lead(lead):
             'tenant_id': tenant_id,
             'estado': 'Activo',
         }.items():
-            if value and not existing.get(key):
+            if value and existing.get(key) != value:
                 existing[key] = value
                 changed = True
         if changed:
