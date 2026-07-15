@@ -1142,7 +1142,7 @@ def _default_config_items(kind):
             {'id': 'regla-asistente', 'Name': 'Asistente', 'Marca': 'ASTRAL WEDDINGS', 'Porcentaje': 10, 'Notas': 'Referencia inicial para apoyo de evento', 'Activo': True},
         ]
     if kind == 'fuentes':
-        names = ['Instagram', 'Facebook', 'WhatsApp', 'Recomendacion', 'Google', 'Web']
+        names = ['Instagram', 'Facebook', 'WhatsApp', 'Recomendacion', 'Google', 'Wedding Planner', 'Web']
         for lead in store.list('leads'):
             if lead.get('fuente') and lead['fuente'] not in names:
                 names.append(lead['fuente'])
@@ -1190,6 +1190,29 @@ def _upsert_config_item(kind, item_id, data):
     item.update({k: v for k, v in data.items() if v is not None})
     _save_config_items(kind, items)
     return item
+
+
+SOURCE_COLORS = ['#7d83f2', '#20a7dc', '#c65a09', '#10b981', '#f2c94c', '#94a3b8', '#8b5cf6', '#ef4444']
+
+
+def _configured_lead_sources(include_inactive=False):
+    sources = []
+    for idx, item in enumerate(_config_items('fuentes')):
+        name = (item.get('Name') or item.get('name') or '').strip()
+        if not name:
+            continue
+        active = item.get('Activo', True) is not False
+        if not include_inactive and not active:
+            continue
+        sources.append({
+            'id': item.get('id') or ('fuente-' + re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')),
+            'name': name,
+            'label': name,
+            'active': active,
+            'color': item.get('Color') or SOURCE_COLORS[idx % len(SOURCE_COLORS)],
+        })
+    return sources
+
 
 def _workflow_state_value(value):
     if value is None:
@@ -1667,8 +1690,13 @@ def dashboard():
     if late_pct > 0:
         pie_segments.append({'color': '#DC2626', 'label': 'Atrasado', 'amount': total_late, 'pct': late_pct, 'path': arc_path(paid_pct + pending_pct, 1.0)})
 
+    configured_sources = _configured_lead_sources(include_inactive=True)
+    source_meta = {source['name']: source for source in configured_sources}
     lead_source_counts = defaultdict(int)
     lead_source_jobs = defaultdict(int)
+    for source in configured_sources:
+        lead_source_counts[source['name']] += 0
+        lead_source_jobs[source['name']] += 0
     source_leads = _open_leads()
     for lead in source_leads:
         source = lead.get('fuente') or 'Sin fuente'
@@ -1680,18 +1708,28 @@ def dashboard():
         lead_source_jobs[source] += 1
 
     source_total = sum(lead_source_counts.values()) or 1
-    source_colors = ['#7d83f2', '#20a7dc', '#c65a09', '#10b981', '#f2c94c', '#94a3b8']
     lead_source_stats = []
     start = 0
-    for idx, (source, count) in enumerate(sorted(lead_source_counts.items(), key=lambda item: item[1], reverse=True)):
+    all_source_names = sorted(set(lead_source_counts.keys()) | set(lead_source_jobs.keys()),
+                              key=lambda name: lead_source_counts.get(name, 0),
+                              reverse=True)
+    visible_source_names = [
+        name for name in all_source_names
+        if lead_source_counts.get(name, 0) or lead_source_jobs.get(name, 0) or source_meta.get(name, {}).get('active', False)
+    ]
+    for idx, source in enumerate(visible_source_names):
+        count = lead_source_counts.get(source, 0)
+        jobs_for_source = lead_source_jobs.get(source, 0)
         pct = count / source_total
         end = start + pct
+        meta = source_meta.get(source) or {}
         lead_source_stats.append({
             'label': source,
             'leads': count,
-            'jobs': lead_source_jobs.get(source, 0),
+            'jobs': jobs_for_source,
             'pct': pct,
-            'color': source_colors[idx % len(source_colors)],
+            'status': 'Active' if meta.get('active', True) else 'Inactive',
+            'color': meta.get('color') or SOURCE_COLORS[idx % len(SOURCE_COLORS)],
             'path': arc_path(start, end),
         })
         start = end
@@ -2357,24 +2395,69 @@ def api_lead_send_email(lead_id):
 
 @app.route('/api/leads/<lead_id>/questionnaires', methods=['POST'])
 def api_lead_create_questionnaire(lead_id):
-    """Crea un cuestionario local asociado a un lead."""
+    """Crea el mismo cuestionario real que se usa desde Jobs."""
     import uuid
     lead = get_lead(lead_id)
     if not lead:
         return jsonify({'ok': False, 'error': 'Lead no encontrado'}), 404
     data = request.get_json() or {}
+    job = get_job(lead.get('lead_id_job', '')) if lead.get('lead_id_job') else None
+    client = get_client(lead.get('client_id', '')) if lead.get('client_id') else None
     questionnaire = {
         'id': 'questionnaire-' + uuid.uuid4().hex[:8],
         'lead_id': lead_id,
         'client_id': lead.get('client_id', ''),
         'job_id': lead.get('lead_id_job', ''),
-        'name': data.get('name') or 'Cuestionario bodas Astral',
-        'status': data.get('status') or 'Sent',
+        'name': data.get('name') or 'Cuestionario de Bodas Generico',
+        'template_name': 'Cuestionario de Bodas Generico',
+        'questions': data.get('questions') or QUESTIONNAIRE_QUESTIONS,
+        'status': data.get('status') or ('Sent' if data.get('send_email', True) else 'Draft'),
         'created': datetime.now().isoformat()[:10],
         'tenant_id': lead.get('tenant_id') or get_current_tenant_id(),
     }
     store.upsert('questionnaires', questionnaire)
-    return jsonify({'ok': True, 'questionnaire': questionnaire})
+
+    questionnaire_path = f"/questionnaires/{questionnaire['id']}"
+    questionnaire_url = request.url_root.rstrip('/') + questionnaire_path
+    mail_id = None
+    if data.get('send_email', True):
+        from src.mail_tracker import get_tracker
+        to_email = _email_for(client=client, lead=lead)
+        if to_email:
+            subject = _render_message_template(
+                data.get('subject') or 'Cuestionario para tu boda',
+                client=client,
+                lead=lead,
+                job=job,
+            )
+            body = _render_message_template(
+                data.get('body') or 'Hola %client_name%,\n\nTe comparto el cuestionario para preparar todos los detalles de tu boda.\n\nPlease view the questionnaire online by clicking here\n\nSaludos,\nKevin',
+                client=client,
+                lead=lead,
+                job=job,
+            )
+            body = body.replace(
+                'Please view the questionnaire online by clicking here',
+                questionnaire_url
+            )
+            entry = get_tracker().log_email(
+                to_email=to_email,
+                subject=subject,
+                body=body,
+                template_id=data.get('template_id') or 'tpl-cuestionario-prod',
+                lead_id=lead_id,
+                job_id=lead.get('lead_id_job'),
+                attachments=[questionnaire['name']],
+            )
+            mail_id = entry['id']
+
+    return jsonify({
+        'ok': True,
+        'questionnaire': questionnaire,
+        'questionnaire_path': questionnaire_path,
+        'questionnaire_url': questionnaire_url,
+        'mail_id': mail_id,
+    })
 
 
 @app.route('/api/leads/<lead_id>/files', methods=['POST'])
@@ -2997,6 +3080,36 @@ def settings_email_templates():
     return render_template('settings_email_templates.html', templates=store.list('email_templates'))
 
 
+@app.route('/settings/lead-sources')
+def settings_lead_sources():
+    return render_template('settings_lead_sources.html', lead_sources=_configured_lead_sources(include_inactive=True))
+
+
+@app.route('/api/settings/lead-sources', methods=['POST'])
+def api_settings_lead_source_save():
+    import uuid
+    data = request.get_json() or {}
+    name = (data.get('name') or data.get('Name') or '').strip()
+    if not name:
+        return jsonify({'ok': False, 'error': 'Nombre requerido'}), 400
+    raw_active = data.get('active', data.get('Activo', True))
+    active = str(raw_active).lower() not in ('false', '0', 'no', 'off') if isinstance(raw_active, str) else bool(raw_active)
+    item_id = data.get('id') or ('fuente-' + uuid.uuid4().hex[:8])
+    item = _upsert_config_item('fuentes', item_id, {
+        'Name': name,
+        'Marca': 'Global',
+        'Activo': active,
+        'Color': data.get('color') or data.get('Color'),
+    })
+    return jsonify({'ok': True, 'source': item})
+
+
+@app.route('/api/settings/lead-sources/<source_id>', methods=['DELETE'])
+def api_settings_lead_source_delete(source_id):
+    item = _upsert_config_item('fuentes', source_id, {'Activo': False})
+    return jsonify({'ok': True, 'source': item})
+
+
 @app.route('/api/settings/email-templates', methods=['POST'])
 def api_settings_email_template_save():
     import uuid
@@ -3071,7 +3184,7 @@ def api_settings_package_delete(package_id):
 @app.route('/captacion')
 def captacion_form():
     """Formulario publico de captacion."""
-    return render_template('captacion.html')
+    return render_template('captacion.html', lead_sources=_configured_lead_sources())
 
 
 @app.route('/api/captacion', methods=['POST'])

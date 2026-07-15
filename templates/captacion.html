@@ -73,11 +73,9 @@
         <div>
           <label class="label-simple">Como nos encontraste?</label>
           <select name="fuente" class="field-simple">
-            <option value="Instagram">Instagram</option>
-            <option value="Facebook">Facebook</option>
-            <option value="WhatsApp">WhatsApp</option>
-            <option value="Recomendacion">Recomendacion</option>
-            <option value="Google">Google</option>
+            {% for source in lead_sources %}
+            <option value="{{ source.name }}">{{ source.label }}</option>
+            {% endfor %}
             <option value="Otro">Otro</option>
           </select>
         </div>

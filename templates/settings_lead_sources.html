@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Lead Sources · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}Lead Sources{% endblock %}
+{% block subtitle %}Dashboard &gt; Settings &gt; Lead Sources{% endblock %}
+{% block topbar_title %}Settings{% endblock %}
+
+{% block content %}
+<section class="sn-page">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Lead Sources</h1>
+      <div class="sn-breadcrumbs"><a href="/settings">Settings</a> &gt; Lead Sources</div>
+    </div>
+    <div class="sn-actions">
+      <button class="sn-btn sn-btn-primary" type="button" onclick="openSourceModal()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Nueva Fuente
+      </button>
+    </div>
+  </div>
+
+  <p class="sn-muted" style="margin:14px 0 18px;">Estas opciones alimentan el formulario publico, el dashboard y las graficas de origen de leads.</p>
+
+  <div class="sn-table-shell stack-mobile">
+    <table class="sn-table">
+      <thead>
+        <tr>
+          <th>Fuente</th>
+          <th style="width:110px;">Color</th>
+          <th style="width:100px;">Estado</th>
+          <th style="width:170px;text-align:right;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for source in lead_sources %}
+        <tr>
+          <td data-label="Fuente">{{ source.name }}</td>
+          <td data-label="Color"><span class="legend-dot" style="background:{{ source.color }};"></span>{{ source.color }}</td>
+          <td data-label="Estado">
+            {% if source.active %}<span class="sn-chip green">Activa</span>{% else %}<span class="sn-chip gray">Inactiva</span>{% endif %}
+          </td>
+          <td class="stack-actions" style="text-align:right;">
+            <button class="sn-btn sn-btn-sm" type="button" onclick='openSourceModal({{ source|tojson }})'>Edit</button>
+            {% if source.active %}
+            <button class="sn-btn sn-btn-sm" type="button" onclick="deleteSource('{{ source.id }}')" style="color:#b3263b;">Deactivate</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="sn-muted" style="text-align:center;padding:24px;">No hay fuentes todavia.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal-overlay" id="source-modal">
+  <div class="modal-content" style="width:min(520px,94vw);">
+    <button type="button" class="modal-close" onclick="closeModal('source-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title" id="source-modal-title">Nueva Fuente</h2>
+    <form onsubmit="submitSource(event)">
+      <input type="hidden" id="source-id">
+      <div class="form-group">
+        <label class="form-label">Nombre *</label>
+        <input class="form-input" id="source-name" required placeholder="Wedding Planner">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Color</label>
+          <input class="form-input" id="source-color" type="color" value="#7d83f2">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estado</label>
+          <select class="form-input" id="source-active">
+            <option value="true">Activa</option>
+            <option value="false">Inactiva</option>
+          </select>
+        </div>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeModal('source-modal')">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function openSourceModal(source) {
+  document.getElementById('source-modal-title').textContent = source ? 'Editar Fuente' : 'Nueva Fuente';
+  document.getElementById('source-id').value = source ? source.id : '';
+  document.getElementById('source-name').value = source ? source.name : '';
+  document.getElementById('source-color').value = source ? source.color : '#7d83f2';
+  document.getElementById('source-active').value = source ? String(source.active !== false) : 'true';
+  openModal('source-modal');
+}
+
+function submitSource(event) {
+  event.preventDefault();
+  apiPost('/api/settings/lead-sources', {
+    id: document.getElementById('source-id').value || undefined,
+    name: document.getElementById('source-name').value,
+    color: document.getElementById('source-color').value,
+    active: document.getElementById('source-active').value === 'true'
+  })
+    .then(function() { flashToast('Fuente guardada', 'success'); setTimeout(function(){ location.reload(); }, 450); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function deleteSource(id) {
+  if (!confirm('Desactivar esta fuente? Los leads historicos se conservan.')) return;
+  fetch('/api/settings/lead-sources/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { flashToast('Fuente desactivada', 'success'); setTimeout(function(){ location.reload(); }, 450); }
+      else { flashToast(data.error || 'Error', 'error'); }
+    })
+    .catch(function() { flashToast('Error de red', 'error'); });
+}
+</script>
+{% endblock %}

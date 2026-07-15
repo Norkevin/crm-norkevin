@@ -230,17 +230,19 @@
             Job
           </div>
         </div>
-        <div class="sn-field-grid">
-          <div class="sn-field-label">Name</div><div class="sn-field-value">{{ job.nombre }}</div>
-          <div class="sn-field-label">Type</div><div class="sn-field-value">{{ job.type or 'BODAS' }}</div>
-          <div class="sn-field-label">Workflow</div><div class="sn-field-value">{{ workflow_name }}</div>
-          <div class="sn-field-label">Boda</div><div class="sn-field-value">{{ job.boda_date or 'Fixed' }}</div>
-          <div class="sn-field-label">Location</div><div class="sn-field-value">{{ job.location or '-' }}</div>
-          <div class="sn-field-label">Lead Source</div><div class="sn-field-value">{{ lead.fuente if lead else '-' }}</div>
-        </div>
-        <div class="sn-list-actions">
-          <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('job-edit-modal')">Edit</button>
-          <button class="sn-btn sn-btn-sm" type="button" onclick="archiveJob()">Archive</button>
+        <div class="sn-card-body">
+          <div class="sn-field-grid">
+            <div class="sn-field-label">Name</div><div class="sn-field-value">{{ job.nombre }}</div>
+            <div class="sn-field-label">Type</div><div class="sn-field-value">{{ job.type or 'BODAS' }}</div>
+            <div class="sn-field-label">Workflow</div><div class="sn-field-value">{{ workflow_name }}</div>
+            <div class="sn-field-label">Boda</div><div class="sn-field-value">{{ job.boda_date or 'Fixed' }}</div>
+            <div class="sn-field-label">Location</div><div class="sn-field-value">{{ job.location or '-' }}</div>
+            <div class="sn-field-label">Lead Source</div><div class="sn-field-value">{{ lead.fuente if lead else '-' }}</div>
+          </div>
+          <div class="sn-list-actions">
+            <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('job-edit-modal')">Edit</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="archiveJob()">Archive</button>
+          </div>
         </div>
       </div>
 

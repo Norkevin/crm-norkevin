@@ -492,7 +492,7 @@
       <tbody>
         {% for source in lead_source_stats %}
         <tr>
-          <td>Active</td>
+          <td>{{ source.status or 'Active' }}</td>
           <td><span class="legend-dot" style="background:{{ source.color }};"></span>{{ source.label }}</td>
           <td>{{ source.leads }}</td>
           <td>{{ source.jobs }}</td>
@@ -717,7 +717,9 @@ function drawRevenueComparisonChart() {
         + ' L ' + pts[pts.length - 1].x.toFixed(1) + ',' + (height - paddingBottom) + ' Z';
       html += '<path d="' + areaPath + '" fill="url(#' + gradId + ')"/>';
     }
+    var dashPattern = sIdx % 3 === 1 ? '6 5' : (sIdx % 3 === 2 ? '2 5' : '');
     html += '<path d="' + linePath + '" fill="none" stroke="' + series.color + '" stroke-width="' + (isLast ? '2.5' : '2') + '"'
+      + (dashPattern ? ' stroke-dasharray="' + dashPattern + '"' : '')
       + ' stroke-linecap="round" stroke-linejoin="round"/>';
     pts.forEach(function(p) {
       html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3" fill="#fff" stroke="' + series.color + '" stroke-width="2"/>';
@@ -736,9 +738,8 @@ function drawRevenueComparisonChart() {
 
   var legendHtml = REVENUE_SERIES.map(function(s) {
     var isHidden = hiddenRevenueYears.has(String(s.year));
-    var projectedNote = s.total_projected > 0 ? ' · incluye ' + money(s.total_projected) + ' pendiente' : '';
     return '<button type="button" class="chart-legend-toggle" style="opacity:' + (isHidden ? '.4' : '1') + ';" onclick="toggleRevenueYear(\'' + s.year + '\')">'
-      + '<i class="legend-dot" style="background:' + s.color + ';"></i>' + s.year + ' (' + money(s.total) + projectedNote + ')'
+      + '<i class="legend-dot" style="background:' + s.color + ';"></i>' + s.year
       + '<span class="chart-legend-toggle-hint">' + (isHidden ? 'Mostrar' : 'Ocultar') + '</span></button>';
   }).join('');
   if (REVENUE_SERIES.some(function(s) { return s.total_projected > 0; })) {

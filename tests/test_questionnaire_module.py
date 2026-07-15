@@ -58,3 +58,40 @@ def test_job_questionnaire_can_be_created_opened_and_submitted(auth_client):
     assert stored['status'] == 'Respondido'
     assert stored['answers']['ubicacion_ceremonia_boda'] == 'Antigua Guatemala'
     assert stored['answers']['tendra_vals'] == 'Yes'
+
+
+def test_lead_questionnaire_uses_same_real_form(auth_client):
+    import app as app_module
+
+    lead_id = 'lead-questionnaire-' + uuid.uuid4().hex[:8]
+    client_id = 'client-lead-questionnaire-' + uuid.uuid4().hex[:8]
+    app_module.store.upsert('clients', {
+        'id': client_id,
+        'first_name': 'Lead',
+        'last_name': 'Questionnaire',
+        'email': 'lead-questionnaire@example.com',
+        'tenant_id': 'tenant-norkevin',
+    })
+    app_module.upsert_lead({
+        'id': lead_id,
+        'Nombre': 'Lead con cuestionario',
+        'Email': 'lead-questionnaire@example.com',
+        'client_id': client_id,
+        'tenant_id': 'tenant-norkevin',
+    })
+
+    resp = auth_client.post(f'/api/leads/{lead_id}/questionnaires', json={
+        'name': 'CUESTIONARIO LEAD TEST',
+        'send_email': False,
+    })
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    questionnaire = payload['questionnaire']
+    assert questionnaire['questions']
+    assert payload['questionnaire_path'] == f"/questionnaires/{questionnaire['id']}"
+
+    public_resp = auth_client.get(payload['questionnaire_path'])
+    html = public_resp.get_data(as_text=True)
+    assert public_resp.status_code == 200
+    assert 'CUESTIONARIO LEAD TEST' in html
+    assert 'Cual es la direccion donde la novia se estara preparando?' in html

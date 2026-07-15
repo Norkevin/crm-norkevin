@@ -803,10 +803,17 @@ function checkDate() {
 }
 
 function createQuestionnaire() {
-  var name = prompt('Questionnaire name', 'Cuestionario bodas Astral');
+  var name = prompt('Questionnaire name', 'Cuestionario de Bodas Generico');
   if (!name) return;
-  apiPost('/api/leads/' + LEAD_ID + '/questionnaires', { name: name })
-    .then(function() { flashToast('Questionnaire created', 'success'); setTimeout(function() { location.reload(); }, 500); })
+  apiPost('/api/leads/' + LEAD_ID + '/questionnaires', { name: name, send_email: true })
+    .then(function(data) {
+      flashToast('Questionnaire created', 'success');
+      if (data.questionnaire_path) {
+        setTimeout(function() { window.location.href = data.questionnaire_path; }, 500);
+        return;
+      }
+      setTimeout(function() { location.reload(); }, 500);
+    })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
