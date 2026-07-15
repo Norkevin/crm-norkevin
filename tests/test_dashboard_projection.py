@@ -30,4 +30,3 @@ def test_dashboard_revenue_comparison_includes_projected_unpaid_payments(auth_cl
     series = json.loads(match.group(1))
     projected_2035 = next(row for row in series if row['year'] == 2035)
     assert projected_2035['projected'][1] >= 1234.0
-    assert 'Proyectado (pagos agendados, sin cobrar)' in html

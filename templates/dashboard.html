@@ -709,14 +709,12 @@ function drawRevenueComparisonChart() {
     });
     var linePath = smoothPath(pts);
     var isLast = sIdx === visibleSeries.length - 1;
-    if (isLast) {
-      var gradId = 'dashRevenueFade' + series.year;
-      html += '<defs><linearGradient id="' + gradId + '" x1="0%" y1="0%" x2="0%" y2="100%">'
-        + '<stop offset="0%" stop-color="' + series.color + '" stop-opacity="0.18"/><stop offset="100%" stop-color="' + series.color + '" stop-opacity="0"/></linearGradient></defs>';
-      var areaPath = 'M ' + pts[0].x.toFixed(1) + ',' + (height - paddingBottom) + ' L ' + linePath.slice(2)
-        + ' L ' + pts[pts.length - 1].x.toFixed(1) + ',' + (height - paddingBottom) + ' Z';
-      html += '<path d="' + areaPath + '" fill="url(#' + gradId + ')"/>';
-    }
+    var gradId = 'dashRevenueFade' + series.year;
+    html += '<defs><linearGradient id="' + gradId + '" x1="0%" y1="0%" x2="0%" y2="100%">'
+      + '<stop offset="0%" stop-color="' + series.color + '" stop-opacity="0.18"/><stop offset="100%" stop-color="' + series.color + '" stop-opacity="0"/></linearGradient></defs>';
+    var areaPath = 'M ' + pts[0].x.toFixed(1) + ',' + (height - paddingBottom) + ' L ' + linePath.slice(2)
+      + ' L ' + pts[pts.length - 1].x.toFixed(1) + ',' + (height - paddingBottom) + ' Z';
+    html += '<path d="' + areaPath + '" fill="url(#' + gradId + ')"/>';
     html += '<path d="' + linePath + '" fill="none" stroke="' + series.color + '" stroke-width="' + (isLast ? '2.5' : '2') + '"'
       + ' stroke-linecap="round" stroke-linejoin="round"/>';
     pts.forEach(function(p) {
@@ -740,10 +738,6 @@ function drawRevenueComparisonChart() {
       + '<i class="legend-dot" style="background:' + s.color + ';"></i>' + s.year
       + '<span class="chart-legend-toggle-hint">' + (isHidden ? 'Mostrar' : 'Ocultar') + '</span></button>';
   }).join('');
-  if (REVENUE_SERIES.some(function(s) { return s.total_projected > 0; })) {
-    legendHtml += '<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#9AA1AB;margin-left:8px;">'
-      + 'Proyectado (pagos agendados, sin cobrar): Revenue incluye pagos cobrados y pagos pendientes por fecha de cobro.</span>';
-  }
   document.getElementById('dashboard-chart-legend').innerHTML = legendHtml;
 
   wireChartTooltips(svg, money);
