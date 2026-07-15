@@ -1806,6 +1806,10 @@ def dashboard():
         })
         start = end
 
+    max_source_leads = max((s['leads'] for s in lead_source_stats), default=0) or 1
+    for s in lead_source_stats:
+        s['bar_pct'] = round(s['leads'] / max_source_leads * 100, 1)
+
     def _parse_iso_day(value):
         if not value:
             return None

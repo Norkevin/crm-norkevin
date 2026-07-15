@@ -179,25 +179,41 @@
   font-size: 16px;
   font-weight: 500;
 }
-.source-pie {
-  width: 205px;
-  height: 205px;
-  display: block;
-  margin: 0 auto 12px;
-}
-.source-legend {
+.source-bars {
   display: flex;
-  gap: 8px;
-  justify-content: center;
-  flex-wrap: wrap;
-  font-size: 11px;
+  flex-direction: column;
+  gap: 10px;
   margin-bottom: 14px;
 }
-.source-legend span {
-  max-width: 92px;
+.source-bar-row {
+  display: grid;
+  grid-template-columns: 78px 1fr 24px;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+}
+.source-bar-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #4b5563;
+}
+.source-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: #F1F3F6;
+  overflow: hidden;
+}
+.source-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  min-width: 3px;
+  transition: width .2s ease;
+}
+.source-bar-count {
+  text-align: right;
+  font-weight: 600;
+  color: #20242a;
 }
 .dashboard-lists {
   display: grid;
@@ -318,10 +334,6 @@
   .source-card {
     padding: 12px;
   }
-  .source-pie {
-    width: min(245px, 72vw);
-    height: min(245px, 72vw);
-  }
   .dashboard-list-head {
     padding: 12px;
   }
@@ -399,14 +411,15 @@
       <div class="source-card">
         <h2>Lead Sources</h2>
         {% if lead_source_stats %}
-        <svg class="source-pie" viewBox="0 0 200 200">
-          {% for source in lead_source_stats %}
-          <path d="{{ source.path }}" fill="{{ source.color }}" stroke="#fff" stroke-width="2"/>
-          {% endfor %}
-        </svg>
-        <div class="source-legend">
-          {% for source in lead_source_stats[:3] %}
-          <span><i class="legend-dot" style="background:{{ source.color }};"></i>{{ source.label }}</span>
+        <div class="source-bars">
+          {% for source in lead_source_stats[:6] %}
+          <div class="source-bar-row">
+            <div class="source-bar-label" title="{{ source.label }}">{{ source.label }}</div>
+            <div class="source-bar-track">
+              <div class="source-bar-fill" style="width:{{ source.bar_pct }}%;background:{{ source.color }};"></div>
+            </div>
+            <div class="source-bar-count">{{ source.leads }}</div>
+          </div>
           {% endfor %}
         </div>
         <div style="text-align:center;">
