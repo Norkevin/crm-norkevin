@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: astral-weddings-crm
+    name: crm-norkevin
     runtime: python
     plan: starter
     buildCommand: pip install -r requirements.txt
@@ -11,6 +11,6 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.9
     disk:
-      name: astral-crm-data
+      name: crm-norkevin-data
       mountPath: /var/data
       sizeGB: 1
