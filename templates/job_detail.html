@@ -421,7 +421,7 @@
             </div>
             <div class="sn-list-actions">
               <a class="sn-btn sn-btn-sm" href="/questionnaires/{{ q.id }}" target="_blank" rel="noopener">View</a>
-              <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnaireModal({{ (q.name or "Cuestionario de Bodas Generico")|tojson }})'>Send</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnaireModal({{ (q.name or "Cuestionario de Bodas Generico")|tojson }}, null, {{ q.id|tojson }})'>Send</button>
             </div>
           </div>
           {% else %}
@@ -632,6 +632,22 @@
     <h2 class="modal-title">Send Questionnaire</h2>
     <form onsubmit="submitQuestionnaire(event)">
       <input type="hidden" id="questionnaire-step-id">
+      <input type="hidden" id="questionnaire-id">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Template</label>
+          <select class="form-input" id="questionnaire-template" onchange="applyQuestionnaireTemplate(this.value)">
+            <option value="">Custom email</option>
+            {% for tpl in email_templates %}
+            <option value="{{ tpl.id }}">{{ tpl.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">To</label>
+          <input class="form-input" id="questionnaire-to" readonly>
+        </div>
+      </div>
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">Questionnaire</label>
@@ -1104,23 +1120,77 @@ function submitJobEmail(event) {
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-function openQuestionnaireModal(name, stepId) {
+var questionnaireDefaultBodyRaw = null;
+
+function injectQuestionnaireLink(text, url) {
+  if (text.indexOf('[LINK AL CUESTIONARIO]') !== -1) {
+    return text.replace('[LINK AL CUESTIONARIO]', url);
+  }
+  if (text.indexOf(url) !== -1) return text;
+  return text + '\n\nAccede al cuestionario aqui: ' + url;
+}
+
+function applyQuestionnaireTemplate(templateId) {
+  var url = document.getElementById('questionnaire-id').dataset.url || '';
+  if (!templateId) {
+    document.getElementById('questionnaire-subject').value = '¡Esto es importante para tu boda!';
+    document.getElementById('questionnaire-body').value = injectQuestionnaireLink(renderTemplate(questionnaireDefaultBodyRaw), url);
+    return;
+  }
+  var tpl = findTemplate(templateId);
+  if (!tpl) return;
+  document.getElementById('questionnaire-subject').value = renderTemplate(tpl.asunto || '');
+  document.getElementById('questionnaire-body').value = injectQuestionnaireLink(renderTemplate(tpl.cuerpo || ''), url);
+}
+
+function openQuestionnaireModal(name, stepId, existingId) {
+  if (questionnaireDefaultBodyRaw === null) {
+    questionnaireDefaultBodyRaw = document.getElementById('questionnaire-body').value;
+  }
   document.getElementById('questionnaire-name').value = name || 'Cuestionario de Bodas Generico';
   document.getElementById('questionnaire-step-id').value = stepId || '';
-  var bodyEl = document.getElementById('questionnaire-body');
-  bodyEl.value = renderTemplate(bodyEl.value);
-  var subjEl = document.getElementById('questionnaire-subject');
-  if (subjEl) subjEl.value = renderTemplate(subjEl.value);
-  openModal('questionnaire-modal');
+  document.getElementById('questionnaire-to').value = CLIENT_EMAIL || '';
+
+  var step = stepId ? stepConfig(stepId) : null;
+  var templateId = step ? step.templateId : '';
+
+  if (existingId) {
+    // Reenviar un cuestionario que YA existe (boton 'Send' de la lista) --
+    // no hay que preparar/crear nada, solo usar su propio link real.
+    document.getElementById('questionnaire-id').value = existingId;
+    document.getElementById('questionnaire-id').dataset.url = window.location.origin + '/questionnaires/' + existingId;
+    document.getElementById('questionnaire-template').value = templateId || '';
+    applyQuestionnaireTemplate(templateId || '');
+    openModal('questionnaire-modal');
+    return;
+  }
+
+  document.getElementById('questionnaire-id').value = '';
+  document.getElementById('questionnaire-id').dataset.url = '';
+
+  // Igual que con contratos: se prepara (crea/reutiliza en Draft) el
+  // cuestionario ANTES de abrir el modal para poder mostrar su link real
+  // de una vez, en vez del placeholder [LINK AL CUESTIONARIO] sin resolver.
+  apiPost('/api/jobs/' + JOB_ID + '/questionnaires/prepare', {})
+    .then(function(data) {
+      document.getElementById('questionnaire-id').value = data.questionnaire.id;
+      document.getElementById('questionnaire-id').dataset.url = data.questionnaire_url;
+      document.getElementById('questionnaire-template').value = templateId || '';
+      applyQuestionnaireTemplate(templateId || '');
+      openModal('questionnaire-modal');
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
 function submitQuestionnaire(event) {
   event.preventDefault();
   apiPost('/api/jobs/' + JOB_ID + '/questionnaires', {
+    questionnaire_id: document.getElementById('questionnaire-id').value,
     name: document.getElementById('questionnaire-name').value,
     subject: document.getElementById('questionnaire-subject').value,
     body: document.getElementById('questionnaire-body').value,
     step_id: document.getElementById('questionnaire-step-id').value,
+    template_id: document.getElementById('questionnaire-template').value || null,
     send_email: true
   })
     .then(function(data) {

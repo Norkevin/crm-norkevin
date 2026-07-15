@@ -4137,7 +4137,7 @@ def api_questionnaire_submit(questionnaire_id):
 
 def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questions=None,
                                status=None, template_id=None, send_email=True, host_url=None,
-                               reuse_draft=False):
+                               reuse_draft=False, questionnaire_id=None):
     """Crea (o reutiliza) el cuestionario de un job y opcionalmente lo manda.
     Extraido de la ruta para que tanto el modal manual (api_job_create_questionnaire)
     como el disparador automatico por fecha (_auto_fire_due_job_steps) compartan
@@ -4146,14 +4146,24 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
     reuse_draft=True reutiliza el cuestionario en Draft que ya se pre-crea
     al convertir el job (ver _convert_lead_to_job) en vez de crear uno
     nuevo -- evita duplicados cuando el disparador automatico reintenta
-    cada 6 horas mientras el correo no se termine de entregar de verdad."""
+    cada 6 horas mientras el correo no se termine de entregar de verdad.
+
+    questionnaire_id apunta a un cuestionario EXACTO ya preparado (ver
+    /api/jobs/<job_id>/questionnaires/prepare) -- el modal 'Send
+    Questionnaire' lo usa para que el link real que Kevin ve en el preview
+    sea EXACTAMENTE el mismo registro que se termina enviando, en vez de
+    crear un cuestionario nuevo con otro id al momento de enviar."""
     import uuid
     lead = get_lead(job.get('lead_id', '')) if job.get('lead_id') else None
     client = get_client(job.get('client_id', '')) if job.get('client_id') else None
     host = (host_url or os.environ.get('APP_BASE_URL') or 'http://localhost:5000').rstrip('/')
 
     questionnaire = None
-    if reuse_draft:
+    if questionnaire_id:
+        questionnaire = store.get('questionnaires', questionnaire_id)
+        if questionnaire and questionnaire.get('job_id') != job.get('id'):
+            questionnaire = None
+    if questionnaire is None and reuse_draft:
         questionnaire = next(
             (q for q in store.list('questionnaires')
              if q.get('job_id') == job.get('id') and q.get('status') == 'Draft'),
@@ -4171,6 +4181,11 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
             'created': datetime.now().isoformat()[:10],
             'tenant_id': job.get('tenant_id') or get_current_tenant_id(),
         }
+    else:
+        if name:
+            questionnaire['name'] = name
+        if questions:
+            questionnaire['questions'] = questions
     questionnaire['status'] = status or ('Sent' if send_email else 'Draft')
     store.upsert('questionnaires', questionnaire)
 
@@ -4217,6 +4232,24 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
     }
 
 
+@app.route('/api/jobs/<job_id>/questionnaires/prepare', methods=['POST'])
+def api_job_prepare_questionnaire(job_id):
+    """Kevin: 'quiero el link automatico puesto del cuestionario' -- igual
+    que un contrato (que se crea ANTES de abrir el modal para poder mostrar
+    su link real desde el primer momento), esto crea/reutiliza el
+    cuestionario Draft del job SIN mandar nada, solo para que el modal
+    'Send Questionnaire' tenga un id/link real que mostrar en el preview
+    en vez del placeholder [LINK AL CUESTIONARIO] sin resolver."""
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    result = _create_job_questionnaire(
+        job, send_email=False, reuse_draft=True, host_url=request.url_root,
+    )
+    return jsonify({'ok': True, **result})
+
+
 @app.route('/api/jobs/<job_id>/questionnaires', methods=['POST'])
 def api_job_create_questionnaire(job_id):
     """Crea un cuestionario asociado al job y opcionalmente registra el email de envio."""
@@ -4235,6 +4268,7 @@ def api_job_create_questionnaire(job_id):
         template_id=data.get('template_id'),
         send_email=data.get('send_email', True),
         host_url=request.url_root,
+        questionnaire_id=data.get('questionnaire_id'),
     )
 
     workflow = _complete_job_workflow_step(
