@@ -46,6 +46,10 @@
   padding: 16px;
   background: #fff;
 }
+.quote-package-row.selected {
+  border-color: #07844f;
+  box-shadow: inset 4px 0 0 #07844f;
+}
 .quote-package-name {
   font-size: 15px;
   font-weight: 600;
@@ -53,6 +57,23 @@
 .quote-package-desc {
   color: var(--sn-muted);
   margin-top: 4px;
+}
+.quote-package-includes {
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  list-style: none;
+}
+.quote-package-includes li {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  color: #374151;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 5px 8px;
 }
 .quote-total-panel {
   margin-top: 20px;
@@ -74,10 +95,24 @@
 }
 .quote-package-picker {
   display: grid;
-  gap: 10px;
+  gap: 18px;
   max-height: 430px;
   overflow: auto;
   padding-right: 4px;
+}
+.quote-catalog-section {
+  display: grid;
+  gap: 10px;
+}
+.quote-catalog-heading {
+  align-items: center;
+  color: #111827;
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  justify-content: space-between;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 .quote-catalog-card {
   width: 100%;
@@ -86,10 +121,15 @@
   text-align: left;
   padding: 14px;
   cursor: pointer;
+  min-height: 116px;
 }
 .quote-catalog-card:hover {
   border-color: #07844f;
   background: var(--sn-mint-soft);
+}
+.quote-catalog-card.is-selected {
+  border-color: #07844f;
+  background: #f0fdf4;
 }
 .quote-catalog-meta {
   display: flex;
@@ -108,6 +148,29 @@
 .quote-info-row svg { width: 18px; height: 18px; margin-top: 1px; }
 @media (max-width: 980px) {
   .quote-builder-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .quote-package-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .quote-package-row > strong {
+    font-size: 18px;
+  }
+  .quote-total-panel {
+    justify-content: stretch;
+  }
+  .quote-total-line {
+    min-width: 0;
+    width: 100%;
+  }
+  #quote-schedule {
+    width: 100% !important;
+  }
+  .quote-catalog-card {
+    min-height: 132px;
+    padding: 16px;
+  }
 }
 </style>
 
@@ -221,6 +284,10 @@
     <button type="button" class="modal-close" onclick="closePackageModal()" aria-label="Close">x</button>
     <h2 class="modal-title">Add Packages</h2>
     <p class="sn-muted" style="margin-top:-8px;margin-bottom:18px;">Choose from the configured catalog.</p>
+    <div class="sn-actions" style="margin-bottom:14px;justify-content:space-between;gap:10px;align-items:center;">
+      <input id="catalog-search" class="form-input" style="max-width:320px;" placeholder="Search packages" oninput="renderCatalog()">
+      <span class="sn-muted" id="catalog-count"></span>
+    </div>
     <div class="quote-package-picker" id="catalog-list"></div>
     <div class="sn-actions" style="justify-content:flex-end;margin-top:18px;">
       <button class="sn-btn" type="button" onclick="closePackageModal()">Cancel</button>
@@ -249,17 +316,46 @@ function closePackageModal() {
 }
 function renderCatalog() {
   var list = document.getElementById('catalog-list');
+  var query = (document.getElementById('catalog-search') || {}).value || '';
+  query = query.trim().toLowerCase();
+  var filteredPackages = PACKAGES.filter(function(pkg) {
+    var haystack = [pkg.name, pkg.category, pkg.description].concat(pkg.includes || []).join(' ').toLowerCase();
+    return !query || haystack.indexOf(query) !== -1;
+  });
+  var counter = document.getElementById('catalog-count');
+  if (counter) counter.textContent = filteredPackages.length + ' available';
   if (!PACKAGES.length) {
     list.innerHTML = '<div class="sn-muted" style="padding:28px;text-align:center;">No packages configured.</div>';
     return;
   }
-  list.innerHTML = PACKAGES.map(function(pkg) {
-    return '<button class="quote-catalog-card" type="button" onclick="addPackage(' + JSON.stringify(pkg.id).replace(/"/g, '&quot;') + ')">' +
+  if (!filteredPackages.length) {
+    list.innerHTML = '<div class="sn-muted" style="padding:28px;text-align:center;">No packages match your search.</div>';
+    return;
+  }
+  var groups = {};
+  filteredPackages.forEach(function(pkg) {
+    var category = pkg.category || 'Package';
+    if (!groups[category]) groups[category] = [];
+    groups[category].push(pkg);
+  });
+  list.innerHTML = Object.keys(groups).map(function(category) {
+    return '<div class="quote-catalog-section">' +
+      '<div class="quote-catalog-heading"><span>' + escapeHtml(category) + '</span><span>' + groups[category].length + '</span></div>' +
+      groups[category].map(renderCatalogCard).join('') +
+      '</div>';
+  }).join('');
+}
+function renderCatalogCard(pkg) {
+  var selected = selectedPackages.some(function(item) { return item.id === pkg.id; });
+  var includes = (pkg.includes || []).slice(0, 4).map(function(item) {
+    return '<li>' + escapeHtml(item) + '</li>';
+  }).join('');
+  return '<button class="quote-catalog-card' + (selected ? ' is-selected' : '') + '" type="button" onclick="addPackage(' + JSON.stringify(pkg.id).replace(/"/g, '&quot;') + ')">' +
       '<div class="quote-package-name">' + escapeHtml(pkg.name) + '</div>' +
       '<div class="quote-package-desc">' + escapeHtml(pkg.description || pkg.category || '') + '</div>' +
+      (includes ? '<ul class="quote-package-includes">' + includes + '</ul>' : '') +
       '<div class="quote-catalog-meta"><span>' + escapeHtml(pkg.category || 'Package') + '</span><strong>' + money(pkg.price) + '</strong></div>' +
       '</button>';
-  }).join('');
 }
 function addPackage(id) {
   var pkg = PACKAGES.find(function(item) { return item.id === id; });
@@ -285,8 +381,13 @@ function renderSelected() {
   empty.style.display = selectedPackages.length ? 'none' : 'grid';
   selected.style.display = selectedPackages.length ? 'grid' : 'none';
   selected.innerHTML = selectedPackages.map(function(pkg) {
-    return '<div class="quote-package-row">' +
-      '<div><div class="quote-package-name">' + escapeHtml(pkg.name) + '</div><div class="quote-package-desc">' + escapeHtml(pkg.description || '') + '</div></div>' +
+    var includes = (pkg.includes || []).map(function(item) {
+      return '<li>' + escapeHtml(item) + '</li>';
+    }).join('');
+    return '<div class="quote-package-row selected">' +
+      '<div><div class="quote-package-name">' + escapeHtml(pkg.name) + '</div><div class="quote-package-desc">' + escapeHtml(pkg.description || '') + '</div>' +
+      (includes ? '<ul class="quote-package-includes">' + includes + '</ul>' : '') +
+      '</div>' +
       '<strong>' + money(pkg.price) + '</strong>' +
       '<button class="sn-btn" type="button" onclick="removePackage(' + JSON.stringify(pkg.id).replace(/"/g, '&quot;') + ')">Remove</button>' +
       '</div>';

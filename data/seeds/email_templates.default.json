@@ -3,11 +3,8 @@
     "id": "tpl-paquetes",
     "name": "Paquetes de boda ASTRAL WEDDINGS",
     "asunto": "Nuestros paquetes para tu boda",
-    "cuerpo": "Hola {{nombre}},\n\nGracias por tu interes en ASTRAL WEDDINGS. Adjunto nuestros paquetes:\n\n- Paquete Basico: Q10,000\n- Paquete Premium: Q20,000\n- Paquete Deluxe: Q35,000\n\nQuedamos atentos a tus comentarios.\n\nSaludos,\nKevin Lemus\nASTRAL WEDDINGS",
-    "adjuntos": [
-      "paquete_basico.pdf",
-      "paquete_premium.pdf"
-    ],
+    "cuerpo": "Hola {{nombre}},\n\nGracias por escribirnos y considerar a ASTRAL WEDDINGS para tu boda.\n\nAqui puedes ver nuestra guia completa de paquetes:\nhttps://drive.google.com/file/d/1irm5P-Oru9fUo55B58y4XBuUrMj76y3H/view?usp=sharing\n\nIncluye nuestras colecciones de fotografia, video, mix y extras.\n\nSi algun paquete te gusta o quieres que armemos una propuesta personalizada, dime y con gusto te ayudo.\n\nSaludos,\nKevin Lemus\nASTRAL WEDDINGS",
+    "adjuntos": [],
     "activo": true
   },
   {

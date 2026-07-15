@@ -1,180 +1,184 @@
 [
   {
-    "id": "pkg-boda-civil",
-    "name": "BODA CIVIL",
-    "category": "Cobertura",
-    "description": "Cobertura ceremonia civil + recepcion basica",
-    "duration_hours": 3,
-    "num_photos": 200,
-    "price": 4500,
-    "includes": [
-      "1 Fotografo profesional",
-      "Cobertura ceremonia civil",
-      "200 fotografias editadas",
-      "Galeria online privada"
-    ]
-  },
-  {
-    "id": "pkg-foto-silver",
-    "name": "PAQUETE DE FOTOGRAFIA SILVER",
-    "category": "Fotografia",
-    "description": "Cobertura fotografia basica",
-    "duration_hours": 6,
-    "num_photos": 300,
-    "price": 9500,
-    "includes": [
-      "1 Fotografo profesional",
-      "6 horas de cobertura",
-      "300 fotografias editadas",
-      "Galeria online privada (6 meses)"
-    ]
-  },
-  {
-    "id": "pkg-foto-gold",
-    "name": "PAQUETE DE FOTOGRAFIA GOLD",
-    "category": "Fotografia",
-    "description": "Cobertura fotografia premium",
-    "duration_hours": 8,
-    "num_photos": 500,
-    "price": 13500,
-    "includes": [
-      "1 Fotografo principal",
-      "8 horas de cobertura",
-      "500 fotografias editadas",
-      "Sesion artistica pre-boda",
-      "Galeria online privada (1 ano)"
-    ]
-  },
-  {
-    "id": "pkg-foto-platinum",
-    "name": "PAQUETE DE FOTOGRAFIA PLATINUM",
-    "category": "Fotografia",
-    "description": "Cobertura fotografia completa",
+    "id": "pkg-photo-gold",
+    "name": "PHOTO GOLD",
+    "category": "Photo Collection",
+    "description": "Coleccion fotografica completa para boda.",
     "duration_hours": 12,
     "num_photos": 800,
-    "price": 17500,
+    "price": 13500,
     "includes": [
-      "2 Fotografos",
+      "2 fotografos",
       "12 horas de cobertura",
-      "800 fotografias editadas",
-      "Sesion artistica pre y post boda",
-      "Album 20x20",
-      "Galeria online privada (2 anos)"
+      "800 imagenes digitales",
+      "2 horas Save the Date",
+      "Galeria fotografica"
     ]
   },
   {
-    "id": "pkg-video-silver",
-    "name": "PAQUETE DE VIDEO SILVER",
-    "category": "Video",
-    "description": "Video basico de la boda",
-    "duration_hours": 6,
-    "num_photos": 0,
+    "id": "pkg-photo-silver",
+    "name": "PHOTO SILVER",
+    "category": "Photo Collection",
+    "description": "Coleccion fotografica principal para boda.",
+    "duration_hours": 8,
+    "num_photos": 500,
     "price": 9500,
     "includes": [
-      "1 Videografo",
-      "6 horas de cobertura",
-      "Video highlight 3-5 minutos",
-      "Edicion profesional"
+      "2 fotografos",
+      "8 horas de cobertura",
+      "500 imagenes digitales",
+      "Galeria fotografica"
+    ]
+  },
+  {
+    "id": "pkg-photo-bronze",
+    "name": "PHOTO BRONZE",
+    "category": "Photo Collection",
+    "description": "Coleccion fotografica esencial para boda.",
+    "duration_hours": 4,
+    "num_photos": 500,
+    "price": 6500,
+    "includes": [
+      "1 fotografo",
+      "4 horas de cobertura",
+      "500 imagenes digitales",
+      "Galeria fotografica"
     ]
   },
   {
     "id": "pkg-video-gold",
-    "name": "PAQUETE DE VIDEO GOLD",
-    "category": "Video",
-    "description": "Video premium de la boda",
-    "duration_hours": 8,
+    "name": "VIDEO GOLD",
+    "category": "Video Collection",
+    "description": "Coleccion de video completa para boda.",
+    "duration_hours": 12,
     "num_photos": 0,
     "price": 13500,
     "includes": [
-      "1 Videografo + drone",
-      "8 horas de cobertura",
-      "Video cinematico 8-12 min",
-      "Trailer para redes sociales",
-      "2 rondas de revision"
+      "2 videografos",
+      "12 horas de cobertura",
+      "8:00 min de video",
+      "1:00 min video vertical",
+      "Galeria online"
     ]
   },
   {
-    "id": "pkg-video-platinum",
-    "name": "PAQUETE DE VIDEO PLATINUM",
-    "category": "Video",
-    "description": "Video completo cinematico",
-    "duration_hours": 12,
+    "id": "pkg-video-silver",
+    "name": "VIDEO SILVER",
+    "category": "Video Collection",
+    "description": "Coleccion de video principal para boda.",
+    "duration_hours": 8,
     "num_photos": 0,
-    "price": 17500,
+    "price": 9500,
     "includes": [
-      "2 Videografos + drone",
-      "12 horas de cobertura",
-      "Video cinematico 12-15 min",
-      "Documental completo de la boda",
-      "Trailer redes sociales",
-      "Album USB personalizado"
+      "2 videografos",
+      "8 horas de cobertura",
+      "5:00 min de video",
+      "1:00 min video vertical",
+      "Galeria online"
+    ]
+  },
+  {
+    "id": "pkg-video-bronze",
+    "name": "VIDEO BRONZE",
+    "category": "Video Collection",
+    "description": "Coleccion de video esencial para boda.",
+    "duration_hours": 4,
+    "num_photos": 0,
+    "price": 6500,
+    "includes": [
+      "1 videografo",
+      "4 horas de cobertura",
+      "3:00 min de video",
+      "Galeria online"
     ]
   },
   {
     "id": "pkg-mix-gold",
-    "name": "MIX GOLD",
-    "category": "Mix",
-    "description": "Cobertura completa foto + video premium",
-    "duration_hours": 10,
-    "num_photos": 500,
-    "price": 20500,
-    "includes": [
-      "1 Fotografo + 1 Videografo",
-      "10 horas de cobertura",
-      "500 fotografias editadas",
-      "Video cinematico 5-8 min",
-      "Sesion artistica pre-boda",
-      "Galeria online privada (1 ano)"
-    ]
-  },
-  {
-    "id": "pkg-mix-platinum",
-    "name": "MIX PLATINUM",
-    "category": "Mix",
-    "description": "Cobertura premium completa foto + video",
-    "duration_hours": 14,
+    "name": "GOLD MIX",
+    "category": "Mix Collection",
+    "description": "Coleccion completa de fotografia y video.",
+    "duration_hours": 12,
     "num_photos": 800,
-    "price": 29500,
+    "price": 22500,
     "includes": [
-      "2 Fotografos + 1 Videografo + drone",
-      "14 horas de cobertura",
-      "800 fotografias editadas",
-      "Video cinematico 10-15 min",
-      "Sesion artistica pre y post boda",
-      "Album 30x30",
-      "Galeria online privada (2 anos)"
+      "2 fotografos",
+      "12 horas de cobertura",
+      "800 imagenes digitales",
+      "2 horas Save the Date",
+      "Galeria fotografica",
+      "2 videografos",
+      "12 horas de cobertura de video",
+      "8:00 min de video",
+      "1:00 min video vertical",
+      "Galeria online"
     ]
   },
   {
-    "id": "pkg-propuestas",
-    "name": "PROPUESTAS DE MATRIMONIO FOTO Y VIDEO",
-    "category": "Especial",
-    "description": "Cobertura para propuestas de matrimonio",
-    "duration_hours": 2,
-    "num_photos": 100,
-    "price": 5500,
+    "id": "pkg-mix-silver",
+    "name": "SILVER MIX",
+    "category": "Mix Collection",
+    "description": "Coleccion principal de fotografia y video.",
+    "duration_hours": 8,
+    "num_photos": 500,
+    "price": 16500,
     "includes": [
-      "1 Fotografo + 1 Videografo",
-      "2 horas de cobertura",
-      "100 fotografias editadas",
-      "Video highlight 1-2 min",
-      "Galeria online privada"
+      "2 fotografos",
+      "8 horas de cobertura",
+      "500 imagenes digitales",
+      "Galeria fotografica",
+      "1 videografo",
+      "8 horas de cobertura de video",
+      "5:00 min de video",
+      "1:00 min video vertical",
+      "Galeria online"
     ]
   },
   {
-    "id": "pkg-save-date",
-    "name": "SAVE THE DATE",
-    "category": "Especial",
-    "description": "Sesion fotografica save the date",
+    "id": "extra-hora-adicional",
+    "name": "HORA ADICIONAL",
+    "category": "Extras",
+    "description": "Hora adicional de cobertura.",
     "duration_hours": 1,
-    "num_photos": 50,
+    "num_photos": 0,
+    "price": 1000,
+    "includes": [
+      "1 hora adicional de cobertura"
+    ]
+  },
+  {
+    "id": "extra-save-the-date",
+    "name": "SESION SAVE THE DATE",
+    "category": "Extras",
+    "description": "Sesion Save the Date.",
+    "duration_hours": 2,
+    "num_photos": 0,
+    "price": 1500,
+    "includes": [
+      "Sesion Save the Date"
+    ]
+  },
+  {
+    "id": "extra-sesion-compromiso",
+    "name": "SESION DE COMPROMISO",
+    "category": "Extras",
+    "description": "Sesion de compromiso.",
+    "duration_hours": 2,
+    "num_photos": 0,
+    "price": 1900,
+    "includes": [
+      "Sesion de compromiso"
+    ]
+  },
+  {
+    "id": "extra-segundo-fotografo",
+    "name": "SEGUNDO FOTOGRAFO",
+    "category": "Extras",
+    "description": "Segundo fotografo adicional.",
+    "duration_hours": 0,
+    "num_photos": 0,
     "price": 2000,
     "includes": [
-      "1 Fotografo",
-      "1 hora de sesion",
-      "1 locacion",
-      "50 fotografias editadas",
-      "Galeria online privada"
+      "Segundo fotografo"
     ]
   }
 ]
