@@ -6835,10 +6835,18 @@ def api_contract_send(contract_id):
         f"{contract_url}\n\n"
         "Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\nASTRAL WEDDINGS"
     )
+    # Igual que con cuestionarios: si Kevin elige una plantilla de Settings
+    # que no trae el link del contrato, el correo saldria sin forma de
+    # firmarlo -- _inject_link garantiza que el link siempre vaya, sea cual
+    # sea la plantilla elegida.
+    body = _inject_link(body, contract_url,
+                        placeholders=['[LINK AL CONTRATO]', '[LINK DEL CONTRATO]'],
+                        fallback_label='Firma tu contrato aqui')
     mail = get_tracker().log_email(
         to_email=to_email,
         subject=subject,
         body=body,
+        template_id=data.get('template_id'),
         lead_id=contract.get('lead_id'),
         job_id=contract.get('job_id'),
     )
@@ -6855,6 +6863,7 @@ def api_contract_send(contract_id):
         'delivery_provider': mail.get('delivery_provider'),
         'delivery_mode': mail.get('delivery_mode'),
         'delivery_status': mail.get('status'),
+        'mail_warning': _mail_delivery_warning(mail),
         'email': to_email,
         'contract_url': contract_url,
         'message': f'Contrato enviado a {to_email}',

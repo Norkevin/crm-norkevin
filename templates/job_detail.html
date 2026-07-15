@@ -595,9 +595,20 @@
     <form onsubmit="submitContractSend(event)">
       <input type="hidden" id="contract-send-id">
       <input type="hidden" id="contract-send-step-id">
-      <div class="form-group">
-        <label class="form-label">To</label>
-        <input class="form-input" id="contract-send-to" readonly>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Template</label>
+          <select class="form-input" id="contract-template" onchange="applyContractTemplate(this.value)">
+            <option value="">Custom email</option>
+            {% for tpl in email_templates %}
+            <option value="{{ tpl.id }}">{{ tpl.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">To</label>
+          <input class="form-input" id="contract-send-to" readonly>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Subject</label>
@@ -939,22 +950,45 @@ function createContractForStep(stepId) {
     flashToast('Este job no tiene email de cliente', 'error');
     return;
   }
+  var step = stepConfig(stepId);
   apiPost('/api/contracts/new', { job_id: JOB_ID })
-    .then(function(data) { openContractSendModal(data.contract_id, stepId); })
+    .then(function(data) { openContractSendModal(data.contract_id, stepId, step.templateId); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-function openContractSendModal(contractId, stepId) {
-  document.getElementById('contract-send-id').value = contractId;
-  document.getElementById('contract-send-step-id').value = stepId || '';
-  document.getElementById('contract-send-to').value = CLIENT_EMAIL || '';
-  document.getElementById('contract-send-subject').value = 'Tu contrato de servicios fotograficos - ASTRAL WEDDINGS';
-  var contractUrl = window.location.origin + '/contracts/' + contractId;
-  document.getElementById('contract-send-body').value =
-    'Hola ' + CLIENT_NAME + ',\n\n' +
+function contractDefaultBody(contractUrl) {
+  return 'Hola ' + CLIENT_NAME + ',\n\n' +
     'Aqui esta el contrato de servicios. Puedes leerlo y firmarlo electronicamente desde este link:\n' +
     contractUrl + '\n\n' +
     'Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\nASTRAL WEDDINGS';
+}
+
+function applyContractTemplate(templateId) {
+  var contractUrl = window.location.origin + '/contracts/' + document.getElementById('contract-send-id').value;
+  if (!templateId) {
+    document.getElementById('contract-send-subject').value = 'Tu contrato de servicios fotograficos - ASTRAL WEDDINGS';
+    document.getElementById('contract-send-body').value = contractDefaultBody(contractUrl);
+    return;
+  }
+  var tpl = findTemplate(templateId);
+  if (!tpl) return;
+  document.getElementById('contract-send-subject').value = renderTemplate(tpl.asunto || '');
+  var body = renderTemplate(tpl.cuerpo || '');
+  // Mismo criterio que el backend (_inject_link): la plantilla puede no
+  // traer el link del contrato -- se lo agregamos igual para que lo que
+  // se ve en el preview sea exactamente lo que se va a mandar.
+  if (body.indexOf(contractUrl) === -1) {
+    body += '\n\nFirma tu contrato aqui: ' + contractUrl;
+  }
+  document.getElementById('contract-send-body').value = body;
+}
+
+function openContractSendModal(contractId, stepId, templateId) {
+  document.getElementById('contract-send-id').value = contractId;
+  document.getElementById('contract-send-step-id').value = stepId || '';
+  document.getElementById('contract-send-to').value = CLIENT_EMAIL || '';
+  document.getElementById('contract-template').value = templateId || '';
+  applyContractTemplate(templateId || '');
   openModal('contract-send-modal');
 }
 
@@ -964,13 +998,15 @@ function submitContractSend(event) {
   var stepId = document.getElementById('contract-send-step-id').value;
   apiPost('/api/contracts/' + contractId + '/send', {
     subject: document.getElementById('contract-send-subject').value,
-    body: document.getElementById('contract-send-body').value
+    body: document.getElementById('contract-send-body').value,
+    template_id: document.getElementById('contract-template').value || null
   })
-    .then(function() {
-      if (!stepId) return null;
-      return apiPost('/api/jobs/' + JOB_ID + '/trigger-step', { step_id: stepId });
+    .then(function(data) {
+      var warned = warnIfMailNotDelivered(data);
+      if (!stepId) return warned;
+      return apiPost('/api/jobs/' + JOB_ID + '/trigger-step', { step_id: stepId }).then(function() { return warned; });
     })
-    .then(function() { flashToast('Contract sent', 'success'); setTimeout(function(){ location.reload(); }, 650); })
+    .then(function(warned) { if (!warned) { flashToast('Contract sent', 'success'); } setTimeout(function(){ location.reload(); }, 650); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 function sendPayment(id) {
