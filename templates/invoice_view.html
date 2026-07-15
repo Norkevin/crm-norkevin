@@ -194,6 +194,8 @@
               <span class="sn-chip green">Paid</span>
             {% elif row.status == 'Late' %}
               <span class="sn-chip red">Late</span>
+            {% elif row.paid_amount %}
+              <span class="sn-chip blue">Partial</span>
             {% else %}
               <span class="sn-chip gray">Unpaid</span>
             {% endif %}

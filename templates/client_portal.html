@@ -434,7 +434,15 @@
                 <div class="text-ink-soft">Pago {{ r.cuota or (loop.index) }} &middot; vence {{ r.due_date or '-' }}</div>
                 <div class="flex items-center gap-2">
                   <span class="font-medium text-ink">Q{{ '{:,.2f}'.format(r.amount or 0) }}</span>
-                  <span class="portal-badge {% if r.status == 'Pagado' %}b-green{% elif r.status == 'Late' %}b-red{% else %}b-amber{% endif %}">{{ r.status }}</span>
+                  {% if r.status == 'Pagado' %}
+                  <span class="portal-badge b-green">Pagado</span>
+                  {% elif r.status == 'Late' %}
+                  <span class="portal-badge b-red">Late</span>
+                  {% elif r.balance and r.balance < r.amount %}
+                  <span class="portal-badge b-blue">Parcial</span>
+                  {% else %}
+                  <span class="portal-badge b-amber">{{ r.status }}</span>
+                  {% endif %}
                 </div>
               </div>
               {% if r.status != 'Pagado' and r.balance and r.balance < r.amount %}

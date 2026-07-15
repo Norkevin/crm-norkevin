@@ -61,6 +61,8 @@
               <span class="sn-chip red">Late</span>
             {% elif p.status == 'Pagado' %}
               <span class="sn-chip green">Paid</span>
+            {% elif p.paid_amount %}
+              <span class="sn-chip yellow">Partial</span>
             {% elif p.days_until %}
               <span class="sn-chip blue">Expected</span>
             {% else %}

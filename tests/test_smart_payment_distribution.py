@@ -163,3 +163,28 @@ def test_invoice_view_total_stays_fixed_after_partial_payment(auth_client):
     html = resp.get_data(as_text=True)
     assert 'Q22,500.00' in html, 'el Subtotal debe seguir siendo el total original del contrato'
     assert 'Q10,000.00' in html, 'el Paid debe reflejar lo realmente cobrado (incluyendo el abono parcial)'
+
+
+def test_invoice_view_shows_partial_badge_not_plain_unpaid(auth_client):
+    """Kevin: 'pague 6,000 y no me marca el pago' -- la fila que recibio el
+    abono parcial mostraba el mismo chip gris 'Unpaid' que una fila sin
+    ningun pago, sin distinguir que SI se registro dinero. Ahora debe
+    mostrar un chip 'Partial' distinto."""
+    import app as app_module
+
+    quote_id = 'quote-' + uuid.uuid4().hex[:8]
+    app_module.store.upsert('quotes', {'id': quote_id, 'paquete_nombre': 'Test Package', 'status': 'Aceptada'})
+    jid, ids = _make_job_with_payments(app_module, [4500, 4500, 4500, 4500, 4500])
+    for pid in ids:
+        p = app_module.store.get('payments', pid)
+        p['quote_id'] = quote_id
+        app_module.store.upsert('payments', p)
+
+    resp = auth_client.post(f'/api/jobs/{jid}/record-payment', json={'amount': 6000, 'fecha_pago': '2026-01-01'})
+    assert resp.status_code == 200
+
+    resp = auth_client.get(f'/invoices/{ids[0]}')
+    html = resp.get_data(as_text=True)
+    assert '>Partial<' in html, 'la cuota con abono parcial debe distinguirse de una sin ningun pago'
+    # Las cuotas 3, 4 y 5 (sin ningun abono) deben seguir mostrando Unpaid.
+    assert html.count('>Unpaid<') == 3

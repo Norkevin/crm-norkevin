@@ -310,7 +310,15 @@
                 </div>
                 <div style="text-align:right;">
                   <span class="sn-money">Q{{ '{:,.2f}'.format(p.get('amount') or 0) }}</span>
-                  <span class="sn-chip {% if p.status == 'Pagado' %}green{% elif p.status == 'Late' %}red{% else %}gray{% endif %}">{{ p.status or 'Unpaid' }}</span>
+                  {% if p.status == 'Pagado' %}
+                  <span class="sn-chip green">Pagado</span>
+                  {% elif p.status == 'Late' %}
+                  <span class="sn-chip red">Late</span>
+                  {% elif p.paid_amount %}
+                  <span class="sn-chip blue">Parcial</span>
+                  {% else %}
+                  <span class="sn-chip gray">{{ p.status or 'Unpaid' }}</span>
+                  {% endif %}
                 </div>
               </div>
               {% endfor %}
