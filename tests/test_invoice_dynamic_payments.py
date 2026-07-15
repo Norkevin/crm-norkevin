@@ -45,7 +45,8 @@ def test_invoice_page_exposes_job_id_for_smart_record_payment(auth_client):
 def test_invoice_record_payment_endpoint_redistributes_surplus(auth_client):
     """No pasa por el HTML -- pega directo al endpoint que ahora usa la
     factura, confirmando que un pago de mas se reparte a la siguiente cuota
-    en vez de inflar el total del job."""
+    via paid_amount, SIN reducir 'amount' (eso es lo que rompia el total
+    de la factura -- ver test_smart_payment_distribution.py)."""
     import app as app_module
     job_id, pay1_id, pay2_id, invoice_id = _make_job_with_two_installments(app_module, 'b')
 
@@ -61,13 +62,11 @@ def test_invoice_record_payment_endpoint_redistributes_surplus(auth_client):
     assert row1['status'] == 'Pagado'
     assert row1['amount'] == 7500.0
     assert row2['status'] == 'Pendiente'
-    assert row2['amount'] == 5000.0, 'el sobrante de Q2500 debe reducir la siguiente cuota'
+    assert row2['amount'] == 7500.0, 'amount NUNCA se reduce -- es el monto fijo de la cuota'
+    assert row2['paid_amount'] == 2500.0, 'el sobrante de Q2500 se abona a la siguiente cuota via paid_amount'
 
-    # Invariante real: lo recibido (10000) mas lo que todavia falta por
-    # cobrar (5000) debe seguir sumando el contrato original (15000) --
-    # no que cada fila conserve su monto original.
-    remaining_pending = sum(float(r.get('amount') or 0) for r in rows if r.get('status') != 'Pagado')
-    assert 10000.0 + remaining_pending == 15000.0
+    # El total del contrato (suma de amounts) se mantiene fijo siempre.
+    assert sum(float(r.get('amount') or 0) for r in rows) == 15000.0
 
 
 def test_send_invoice_preview_does_not_send(auth_client):

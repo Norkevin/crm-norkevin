@@ -57,6 +57,32 @@ def test_portal_skips_link_generation_when_recurrente_not_configured(auth_client
     assert not stored.get('payment_link_url')
 
 
+def test_portal_payment_link_charges_remaining_balance_not_full_cuota(auth_client):
+    """Kevin: 'si pago mas en un pago se deberia reducir la cuota en todos
+    los demas, no bajar el total'. amount se queda fijo (Q5,000), pero un
+    abono parcial de Q2,000 debe hacer que el link de pago cobre solo el
+    saldo (Q3,000), no los Q5,000 completos -- si no, se le cobraria de mas
+    al cliente."""
+    import app as app_module
+    client_id, pay_id = _make_client_with_pending_payment(app_module, 'd')
+    pay = app_module.store.get('payments', pay_id)
+    pay['paid_amount'] = 2000
+    app_module.store.upsert('payments', pay)
+
+    captured = {}
+
+    def _fake_checkout(**kwargs):
+        captured.update(kwargs)
+        return {'ok': True, 'checkout_url': 'https://pay.example/partial', 'id': 'chk_partial'}
+
+    with patch('src.recurrente.is_configured', return_value=True), \
+         patch('src.recurrente.create_checkout', side_effect=_fake_checkout):
+        resp = auth_client.get(f'/portal/{client_id}')
+
+    assert resp.status_code == 200
+    assert captured['amount_in_cents'] == 300000, 'debe cobrar el saldo (Q3,000), no el monto fijo completo (Q5,000)'
+
+
 def test_portal_does_not_regenerate_existing_link(auth_client):
     import app as app_module
     client_id, pay_id = _make_client_with_pending_payment(app_module, 'c')

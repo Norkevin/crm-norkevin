@@ -246,7 +246,7 @@
         {% if next_due %}
         <div class="text-right">
           <div class="text-xs text-ink-soft">Proximo pago</div>
-          <div class="text-sm font-semibold text-ink">Q{{ '{:,.2f}'.format(next_due.amount or 0) }} &middot; {{ next_due.due_date }}</div>
+          <div class="text-sm font-semibold text-ink">Q{{ '{:,.2f}'.format(next_due.balance if next_due.balance is not none else next_due.amount or 0) }} &middot; {{ next_due.due_date }}</div>
           {% if next_due.payment_link_url %}
           <a href="{{ next_due.payment_link_url }}" target="_blank" class="portal-action primary" style="margin-top:8px;">Pagar ahora</a>
           {% endif %}
@@ -437,8 +437,11 @@
                   <span class="portal-badge {% if r.status == 'Pagado' %}b-green{% elif r.status == 'Late' %}b-red{% else %}b-amber{% endif %}">{{ r.status }}</span>
                 </div>
               </div>
+              {% if r.status != 'Pagado' and r.balance and r.balance < r.amount %}
+              <div class="text-xs text-ink-soft" style="margin-top:4px;">Abono recibido &middot; saldo Q{{ '{:,.2f}'.format(r.balance) }}</div>
+              {% endif %}
               {% if r.status != 'Pagado' and r.payment_link_url %}
-              <a href="{{ r.payment_link_url }}" target="_blank" onclick="event.stopPropagation();" class="portal-action primary" style="width:100%;margin-top:8px;">Pagar ahora Q{{ '{:,.2f}'.format(r.amount or 0) }}</a>
+              <a href="{{ r.payment_link_url }}" target="_blank" onclick="event.stopPropagation();" class="portal-action primary" style="width:100%;margin-top:8px;">Pagar ahora Q{{ '{:,.2f}'.format(r.balance if r.balance is not none else r.amount or 0) }}</a>
               {% endif %}
             </div>
             {% endfor %}

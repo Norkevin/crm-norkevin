@@ -2754,9 +2754,8 @@ def job_detail(job_id):
         amount = float(p.get('amount') or 0)
         group['payments'].append(p)
         group['total'] += amount
-        if p.get('status') == 'Pagado':
-            group['paid'] += amount
-        else:
+        group['paid'] += _row_paid_amount(p)
+        if p.get('status') != 'Pagado':
             group['status'] = p.get('status') or 'Unpaid'
             if not group['next_due'] or (p.get('due_date') or '') < group['next_due']:
                 group['next_due'] = p.get('due_date') or ''
@@ -2784,8 +2783,11 @@ def job_detail(job_id):
     pending_steps = [s for s in workflow_steps if s['status'] == 'pending']
     job['production_tasks'] = ', '.join(s['name'] for s in pending_steps[:3]) if pending_steps else 'Sin tareas pendientes'
     job['invoices'] = f"{len(invoice_groups)} invoices" if invoice_groups else 'Sin invoices'
-    total_paid = sum(float(p.get('amount') or 0) for p in payments if p.get('status') == 'Pagado')
-    balance_due = sum(float(p.get('amount') or 0) for p in payments if p.get('status') != 'Pagado')
+    total_paid = sum(_row_paid_amount(p) for p in payments)
+    balance_due = sum(
+        float(p.get('amount') or 0) - _row_paid_amount(p)
+        for p in payments if p.get('status') != 'Pagado'
+    )
     return render_template('job_detail.html',
                           job=job,
                           lead=lead,
@@ -2998,7 +3000,7 @@ def invoice_view(invoice_id):
     client = get_client(selected.get('client_id', ''))
     lead = get_lead(job.get('lead_id', '')) if job and job.get('lead_id') else None
     total = sum(float(p.get('amount') or 0) for p in schedule)
-    paid = sum(float(p.get('amount') or 0) for p in schedule if p.get('status') == 'Pagado')
+    paid = sum(_row_paid_amount(p) for p in schedule)
     balance = max(total - paid, 0)
 
     for row in schedule:
@@ -3699,13 +3701,30 @@ def pagos_equipo_list():
                            count_pagado_mes=sum(1 for p in pagados if p.get('paid_date', '').startswith(datetime.now().strftime('%Y-%m'))))
 
 
+def _row_paid_amount(row):
+    """Cuanto se ha pagado de verdad en esta cuota. 'amount' es SIEMPRE el
+    monto fijo original de la cuota -- nunca se reduce -- asi que el total
+    de una factura (suma de amount) nunca cambia sin importar como se
+    reparten los pagos. Las filas viejas (de antes de este campo) no
+    tienen paid_amount guardado; se infiere de su status."""
+    if 'paid_amount' in row:
+        return round(float(row.get('paid_amount') or 0), 2)
+    return round(float(row.get('amount') or 0), 2) if row.get('status') == 'Pagado' else 0.0
+
+
 def _apply_payment_sequentially(job_id, amount_received, paid_date):
     """Distribuye un pago recibido entre las cuotas pendientes del job, en
     orden de vencimiento: llena la primera cuota pendiente, y si sobra
-    dinero lo aplica a la siguiente, y asi sucesivamente. Una cuota que no
-    se termina de cubrir queda Pendiente pero con su monto reducido al
-    saldo real que falta -- Kevin no tiene que recalcular nada a mano.
-    Devuelve la lista de filas de pago que se tocaron."""
+    dinero lo aplica a la siguiente, y asi sucesivamente.
+
+    Kevin: 'el total siempre es el que sea el total de la factura, si pago
+    mas en un pago se deberia reducir la cuota en todos los demas, no bajar
+    el total'. amount NUNCA se toca -- es el monto fijo de la cuota. Lo que
+    se acumula es paid_amount (cuanto se ha abonado a esa cuota); el saldo
+    de una cuota es amount - paid_amount. Antes esto reducia 'amount'
+    directamente, lo que hacia que la suma de amounts (el Subtotal de la
+    factura) se encogiera con cada pago parcial -- exactamente el bug que
+    reporto. Devuelve la lista de filas de pago que se tocaron."""
     from datetime import datetime as _dt
 
     amount_received = round(float(amount_received or 0), 2)
@@ -3724,17 +3743,24 @@ def _apply_payment_sequentially(job_id, amount_received, paid_date):
         if remaining <= 0:
             break
         row_amount = round(float(row.get('amount') or 0), 2)
-        if remaining >= row_amount:
+        already_paid = _row_paid_amount(row)
+        balance = round(row_amount - already_paid, 2)
+        if balance <= 0:
+            continue
+
+        applied = min(remaining, balance)
+        row['paid_amount'] = round(already_paid + applied, 2)
+        remaining = round(remaining - applied, 2)
+        row['paid_date'] = paid_date
+        row['fecha_pago'] = paid_date
+        row['paid_at'] = _dt.now().isoformat()
+
+        if row['paid_amount'] >= row_amount - 0.01:
             row['status'] = 'Pagado'
-            row['paid_date'] = paid_date
-            row['fecha_pago'] = paid_date
-            row['paid_at'] = _dt.now().isoformat()
             row['last_action'] = f'Paid on {paid_date} (distribucion automatica)'
-            remaining = round(remaining - row_amount, 2)
         else:
-            row['amount'] = round(row_amount - remaining, 2)
-            row['last_action'] = f'Abono parcial de Q{remaining:,.2f} el {paid_date}'
-            remaining = 0
+            saldo = round(row_amount - row['paid_amount'], 2)
+            row['last_action'] = f'Abono parcial de Q{applied:,.2f} el {paid_date} (saldo Q{saldo:,.2f})'
         store.upsert('payments', row)
         touched.append(row)
 
@@ -3764,8 +3790,8 @@ def api_job_record_payment(job_id):
         return jsonify({'ok': False, 'error': 'No hay cuotas pendientes para este job'}), 400
 
     paid_total = sum(
-        float(p.get('amount') or 0) for p in store.list('payments')
-        if p.get('job_id') == job_id and p.get('status') == 'Pagado'
+        _row_paid_amount(p) for p in store.list('payments')
+        if p.get('job_id') == job_id and p.get('tipo') != 'team_payment'
     )
     job['price_paid'] = paid_total
     upsert_job(job)
@@ -3773,7 +3799,10 @@ def api_job_record_payment(job_id):
     return jsonify({
         'ok': True,
         'amount_applied': amount,
-        'rows_touched': [{'id': r['id'], 'status': r['status'], 'amount': r['amount']} for r in touched],
+        'rows_touched': [
+            {'id': r['id'], 'status': r['status'], 'amount': r['amount'], 'paid_amount': r.get('paid_amount', 0)}
+            for r in touched
+        ],
         'message': f'Q{amount:,.2f} distribuido automaticamente entre las cuotas pendientes',
     })
 
@@ -4825,7 +4854,9 @@ def api_pago_create_payment_link(pago_id):
     if not recurrente.is_configured():
         return jsonify({'ok': False, 'error': 'Falta configurar RECURRENTE_SECRET_KEY en el .env'}), 400
 
-    amount = float(pay.get('amount') or 0)
+    # Cobra el saldo pendiente de esta cuota, no el monto original fijo --
+    # si ya se aplico un abono parcial, el link no debe cobrar de mas.
+    amount = round(float(pay.get('amount') or 0) - _row_paid_amount(pay), 2)
     if amount <= 0:
         return jsonify({'ok': False, 'error': 'El pago no tiene un monto valido'}), 400
 
@@ -4871,7 +4902,7 @@ def _payment_reminder_email_text(pay, client, job, payment_link):
     settings_dict = get_settings()
     bank_info = (settings_dict.get('company') or {}).get('bank_info') or ''
     name = _client_name(client=client, lead=None, job=job)
-    amount = float(pay.get('amount') or 0)
+    amount = round(float(pay.get('amount') or 0) - _row_paid_amount(pay), 2)
     due_date_str = pay.get('due_date') or ''
     when_text = 'sin fecha de vencimiento definida'
     if due_date_str:
@@ -5006,7 +5037,7 @@ def check_and_send_payment_reminders(host_url=None):
         if not to_email:
             continue
 
-        amount = float(pay.get('amount') or 0)
+        amount = round(float(pay.get('amount') or 0) - _row_paid_amount(pay), 2)
         invoice_id = pay.get('invoice_id') or pay['id']
 
         payment_link = pay.get('payment_link_url')
@@ -6590,7 +6621,7 @@ def client_portal(client_id):
         for p in payments:
             if p.get('status') == 'Pagado' or p.get('payment_link_url'):
                 continue
-            amount = float(p.get('amount') or 0)
+            amount = round(float(p.get('amount') or 0) - _row_paid_amount(p), 2)
             if amount <= 0:
                 continue
             invoice_id = p.get('invoice_id') or p['id']
@@ -6620,8 +6651,10 @@ def client_portal(client_id):
             if (r.get('quote_id') or r.get('job_id') or r.get('invoice_id')) == group_key
         ]
         rows.sort(key=lambda r: (r.get('due_date') or '', r.get('cuota') or 0))
+        for r in rows:
+            r['balance'] = max(round(float(r.get('amount') or 0) - _row_paid_amount(r), 2), 0)
         total = sum(float(r.get('amount') or 0) for r in rows)
-        paid = sum(float(r.get('amount') or 0) for r in rows if r.get('status') == 'Pagado')
+        paid = sum(_row_paid_amount(r) for r in rows)
         if paid >= total and total > 0:
             group_status = 'Pagado'
         elif any(r.get('status') == 'Late' for r in rows):
