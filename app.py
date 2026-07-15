@@ -3721,31 +3721,34 @@ def api_job_send_email(job_id):
 
 
 QUESTIONNAIRE_QUESTIONS = [
-    {'group': 'Logistica del evento', 'fields': [
-        {'id': 'lugar_arreglo_novia', 'label': 'Lugar donde se arregla la novia', 'type': 'text'},
-        {'id': 'lugar_arreglo_novio', 'label': 'Lugar donde se arregla el novio', 'type': 'text'},
-        {'id': 'ubicacion_ceremonia_boda', 'label': 'Ubicacion de la ceremonia/boda', 'type': 'text'},
-        {'id': 'ubicacion_recepcion', 'label': 'Ubicacion de la recepcion', 'type': 'text'},
+    {'group': 'Datos de la novia', 'columns': 2, 'fields': [
+        {'id': 'nombre_novia', 'label': 'Nombre de la novia *', 'type': 'text', 'required': True},
+        {'id': 'instagram_novia', 'label': 'Usuario de Instagram', 'type': 'text'},
+        {'id': 'telefono_novia', 'label': 'Numero de contacto novia', 'type': 'text'},
+        {'id': 'email_novia', 'label': 'Correo Electronico novia', 'type': 'text'},
+        {'id': 'familia_novia_ausente', 'label': 'Alguien del nucleo familiar de la novia no estara en la boda?', 'type': 'textarea', 'full': True},
     ]},
-    {'group': 'La pareja', 'fields': [
-        {'id': 'nombre_novia', 'label': 'Nombre completo de la novia', 'type': 'text'},
-        {'id': 'nombre_novio', 'label': 'Nombre completo del novio', 'type': 'text'},
-        {'id': 'como_conocieron', 'label': 'Como se conocieron?', 'type': 'textarea'},
+    {'group': 'Datos del novio', 'columns': 2, 'fields': [
+        {'id': 'nombre_novio', 'label': 'Nombre del novio *', 'type': 'text', 'required': True},
+        {'id': 'instagram_novio', 'label': 'Usuario de Instagram', 'type': 'text'},
+        {'id': 'telefono_novio', 'label': 'Numero de contacto novio', 'type': 'text'},
+        {'id': 'email_novio', 'label': 'Correo Electronico novio', 'type': 'text'},
+        {'id': 'familia_novio_ausente', 'label': 'Alguien del nucleo familiar del novio no estara en la boda?', 'type': 'textarea', 'full': True},
     ]},
-    {'group': 'Ceremonia', 'fields': [
-        {'id': 'lugar_ceremonia', 'label': 'Lugar de la ceremonia', 'type': 'text'},
-        {'id': 'hora_ceremonia', 'label': 'Hora de la ceremonia', 'type': 'text'},
-        {'id': 'oficiante', 'label': 'Nombre del oficiante', 'type': 'text'},
+    {'group': 'Ubicaciones del evento', 'columns': 1, 'fields': [
+        {'id': 'lugar_arreglo_novia', 'label': 'Cual es la direccion donde la novia se estara preparando? (si aplica)', 'type': 'text'},
+        {'id': 'lugar_arreglo_novio', 'label': 'Cual es la direccion donde el novio se estara preparando? (si aplica)', 'type': 'text'},
+        {'id': 'ubicacion_ceremonia_boda', 'label': 'Cual es la direccion exacta de la ceremonia? (si aplica)', 'type': 'text'},
+        {'id': 'ubicacion_recepcion', 'label': 'Cual es la direccion exacta de la recepcion? (si aplica)', 'type': 'text'},
     ]},
-    {'group': 'Recepcion', 'fields': [
-        {'id': 'lugar_recepcion', 'label': 'Lugar de la recepcion', 'type': 'text'},
-        {'id': 'num_invitados', 'label': 'Numero aproximado de invitados', 'type': 'text'},
-        {'id': 'horario_recepcion', 'label': 'Horario estimado de la recepcion', 'type': 'text'},
-    ]},
-    {'group': 'Preferencias fotograficas', 'fields': [
-        {'id': 'momentos_especiales', 'label': 'Momentos especiales que no nos podemos perder', 'type': 'textarea'},
-        {'id': 'familiares_clave', 'label': 'Familiares o personas clave para fotografiar', 'type': 'textarea'},
-        {'id': 'restricciones', 'label': 'Alguna restriccion o consideracion especial?', 'type': 'textarea'},
+    {'group': 'Momentos y logistica', 'columns': 2, 'fields': [
+        {'id': 'tendra_vals', 'label': 'Tendras vals?', 'type': 'radio', 'options': ['Yes', 'No']},
+        {'id': 'fotos_mesa', 'label': 'Tendras fotos de mesa en mesa?', 'type': 'radio', 'options': ['Yes', 'No']},
+        {'id': 'lanzamiento_ramo', 'label': 'Habra lanzamiento del ramo?', 'type': 'radio', 'options': ['Yes', 'No']},
+        {'id': 'lanzamiento_liga', 'label': 'Habra lanzamiento de liga?', 'type': 'radio', 'options': ['Yes', 'No']},
+        {'id': 'hora_inicio_cobertura', 'label': 'A que hora te gustaria iniciar la cobertura? Recuerda que las horas de cobertura son continuas', 'type': 'text', 'full': True},
+        {'id': 'num_invitados', 'label': 'Cuantos invitados aproximadamente habra el dia de tu boda?', 'type': 'text', 'full': True},
+        {'id': 'punto_especial', 'label': 'Hay algun punto especial en la boda del que deba estar al tanto?', 'type': 'textarea', 'full': True},
     ]},
 ]
 
@@ -3808,6 +3811,8 @@ def api_job_create_questionnaire(job_id):
     }
     store.upsert('questionnaires', questionnaire)
 
+    questionnaire_path = f"/questionnaires/{questionnaire['id']}"
+    questionnaire_url = request.url_root.rstrip('/') + questionnaire_path
     mail_id = None
     if data.get('send_email', True):
         from src.mail_tracker import get_tracker
@@ -3825,6 +3830,10 @@ def api_job_create_questionnaire(job_id):
                 lead=lead,
                 job=job,
             )
+            body = body.replace(
+                'Please view the questionnaire online by clicking here',
+                questionnaire_url
+            )
             entry = get_tracker().log_email(
                 to_email=to_email,
                 subject=subject,
@@ -3841,7 +3850,14 @@ def api_job_create_questionnaire(job_id):
         data.get('step_id'),
         result_message=f"Cuestionario creado: {questionnaire['name']}"
     )
-    return jsonify({'ok': True, 'questionnaire': questionnaire, 'mail_id': mail_id, 'workflow': workflow})
+    return jsonify({
+        'ok': True,
+        'questionnaire': questionnaire,
+        'questionnaire_path': questionnaire_path,
+        'questionnaire_url': questionnaire_url,
+        'mail_id': mail_id,
+        'workflow': workflow,
+    })
 
 
 UPLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'uploads')

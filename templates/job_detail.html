@@ -387,12 +387,15 @@
             <div class="sn-list-row">
               <div>
                 <div class="sn-list-title">{{ q.name or q.id }}</div>
-                <div class="sn-list-meta">Sent on {{ q.created or '-' }}</div>
+                <div class="sn-list-meta">
+                  Sent on {{ q.created or '-' }}
+                  {% if q.status == 'Respondido' and q.answered_at %} · Completed on {{ q.answered_at[:10] }}{% endif %}
+                </div>
               </div>
-              <span class="sn-chip {% if q.status == 'Sent' %}cyan{% else %}gray{% endif %}">{{ q.status or 'Draft' }}</span>
+              <span class="sn-chip {% if q.status == 'Respondido' %}green{% elif q.status == 'Sent' %}cyan{% else %}gray{% endif %}">{{ q.status or 'Draft' }}</span>
             </div>
             <div class="sn-list-actions">
-              <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnairePreview({{ (q.name or "Questionnaire")|tojson }}, {{ (q.status or "Draft")|tojson }})'>View</button>
+              <a class="sn-btn sn-btn-sm" href="/questionnaires/{{ q.id }}" target="_blank" rel="noopener">View</a>
               <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnaireModal({{ (q.name or "Cuestionario de Bodas Generico")|tojson }})'>Send</button>
             </div>
           </div>
@@ -1028,7 +1031,16 @@ function submitQuestionnaire(event) {
     step_id: document.getElementById('questionnaire-step-id').value,
     send_email: true
   })
-    .then(function() { flashToast('Questionnaire sent', 'success'); setTimeout(function(){ location.reload(); }, 650); })
+    .then(function(data) {
+      flashToast('Questionnaire created', 'success');
+      setTimeout(function(){
+        if (data.questionnaire_path) {
+          window.location.href = data.questionnaire_path;
+        } else {
+          location.reload();
+        }
+      }, 450);
+    })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 

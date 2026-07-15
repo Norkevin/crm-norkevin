@@ -33,21 +33,28 @@ def test_job_questionnaire_can_be_created_opened_and_submitted(auth_client):
     payload = resp.get_json()
     assert payload['ok'] is True
     questionnaire_id = payload['questionnaire']['id']
+    assert payload['questionnaire_path'] == f'/questionnaires/{questionnaire_id}'
 
     with auth_client.session_transaction() as sess:
         sess.clear()
 
     public_resp = auth_client.get(f'/questionnaires/{questionnaire_id}')
     assert public_resp.status_code == 200
-    assert 'CUESTIONARIO TEST' in public_resp.get_data(as_text=True)
+    html = public_resp.get_data(as_text=True)
+    assert 'CUESTIONARIO TEST' in html
+    assert 'Nombre de la novia *' in html
+    assert 'Cual es la direccion exacta de la recepcion?' in html
+    assert 'Tendras vals?' in html
 
     submit_resp = auth_client.post(f'/api/questionnaires/{questionnaire_id}/submit', json={
         'answers': {
-            'ceremony_location': 'Antigua Guatemala',
-            'must_have_photos': 'Familia y ceremonia',
+            'nombre_novia': 'Ana',
+            'ubicacion_ceremonia_boda': 'Antigua Guatemala',
+            'tendra_vals': 'Yes',
         }
     })
     assert submit_resp.status_code == 200
     stored = app_module.store.get('questionnaires', questionnaire_id)
     assert stored['status'] == 'Respondido'
-    assert stored['answers']['ceremony_location'] == 'Antigua Guatemala'
+    assert stored['answers']['ubicacion_ceremonia_boda'] == 'Antigua Guatemala'
+    assert stored['answers']['tendra_vals'] == 'Yes'

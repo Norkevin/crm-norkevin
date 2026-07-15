@@ -8,14 +8,23 @@
 <style>
   .q-group { margin-bottom: 26px; }
   .q-group-title { font-size: 13px; font-weight: 600; color: var(--doc-ink); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--doc-line); }
+  .q-fields { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .q-fields.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .q-field { margin-bottom: 16px; }
+  .q-fields .q-field { margin-bottom: 0; }
+  .q-field.full { grid-column: 1 / -1; }
   .q-field label { display: block; font-size: 12.5px; font-weight: 500; color: var(--doc-ink-soft); margin-bottom: 6px; }
   .q-field input, .q-field textarea {
     width: 100%; border: 1px solid var(--doc-line); border-radius: 10px; padding: 13px 14px;
     font-size: 15px; font-family: inherit; color: var(--doc-ink); background: #fff;
   }
+  .q-radio-group { display: flex; gap: 18px; align-items: center; min-height: 48px; }
+  .q-radio-option { display: inline-flex !important; align-items: center; gap: 7px; margin: 0 !important; color: var(--doc-ink); }
+  .q-radio-option input { width: 18px; height: 18px; padding: 0; }
   @media (max-width: 480px) {
+    .q-fields.two { grid-template-columns: 1fr; }
     .q-field input, .q-field textarea { padding: 14px; font-size: 16px; }
+    .q-radio-group { min-height: 44px; }
   }
   .q-field input:focus, .q-field textarea:focus { outline: none; border-color: var(--doc-brand); }
   .q-field textarea { resize: vertical; min-height: 70px; }
@@ -65,16 +74,27 @@
         {% for group in groups %}
         <div class="q-group">
           <div class="q-group-title">{{ group.group }}</div>
+          <div class="q-fields {% if group.columns == 2 %}two{% endif %}">
           {% for field in group.fields %}
-          <div class="q-field">
+          <div class="q-field {% if field.full %}full{% endif %}">
             <label for="qf-{{ field.id }}">{{ field.label }}</label>
             {% if field.type == 'textarea' %}
-            <textarea id="qf-{{ field.id }}" name="{{ field.id }}" {{ 'readonly' if questionnaire.status == 'Respondido' else '' }}>{{ answers.get(field.id, '') }}</textarea>
+            <textarea id="qf-{{ field.id }}" name="{{ field.id }}" {% if field.required and questionnaire.status != 'Respondido' %}required{% endif %} {{ 'readonly' if questionnaire.status == 'Respondido' else '' }}>{{ answers.get(field.id, '') }}</textarea>
+            {% elif field.type == 'radio' %}
+            <div class="q-radio-group" id="qf-{{ field.id }}">
+              {% for option in field.options %}
+              <label class="q-radio-option">
+                <input type="radio" name="{{ field.id }}" value="{{ option }}" {% if answers.get(field.id) == option %}checked{% endif %} {% if field.required and questionnaire.status != 'Respondido' %}required{% endif %} {% if questionnaire.status == 'Respondido' %}disabled{% endif %}>
+                <span>{{ option }}</span>
+              </label>
+              {% endfor %}
+            </div>
             {% else %}
-            <input type="text" id="qf-{{ field.id }}" name="{{ field.id }}" value="{{ answers.get(field.id, '') }}" {{ 'readonly' if questionnaire.status == 'Respondido' else '' }}>
+            <input type="text" id="qf-{{ field.id }}" name="{{ field.id }}" value="{{ answers.get(field.id, '') }}" {% if field.required and questionnaire.status != 'Respondido' %}required{% endif %} {{ 'readonly' if questionnaire.status == 'Respondido' else '' }}>
             {% endif %}
           </div>
           {% endfor %}
+          </div>
         </div>
         {% endfor %}
 
