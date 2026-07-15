@@ -967,6 +967,15 @@ def _convert_lead_to_job(lead, quote=None, status='Confirmado', create_payments=
     workflow_instance_id, workflow_created = _ensure_production_workflow_for_job(lead, job)
     _complete_original_lead_workflow(lead, job)
     _activate_job_workflow_start(job)
+    if job_created:
+        # Kevin: 'al crear el job creo el cuestionario deberia estar creado'
+        # -- se crea de una vez en Draft (sin mandar nada todavia); el envio
+        # real lo dispara _auto_fire_due_job_steps() cuando llegue la fecha
+        # del step "Cuestionario cliente" del workflow.
+        try:
+            _create_job_questionnaire(job, send_email=False)
+        except Exception as e:
+            logger.error(f'No se pudo pre-crear el cuestionario del job {job.get("id")}: {e}')
     return {
         'client': client,
         'job': job,
@@ -1300,6 +1309,28 @@ def compute_workflow_steps_for_lead(lead):
     return steps, progress, tmpl.name
 
 
+def _step_scheduled_for_job(step, trigger_at, boda_date):
+    """step.offset_minutes (en models.py) es una aproximacion cruda para
+    steps 'after_event' -- no conoce la fecha real de la boda, asi que
+    cuenta el amount/unit desde la creacion del job en vez de desde boda_date.
+    Con una boda real (normalmente meses/un anio despues del job), eso hace
+    que p.ej. 'Cuestionario cliente: 1 mes antes de la boda' se calcule casi
+    de inmediato en vez de 1 mes antes de la boda de verdad. Si tenemos
+    boda_date, calculamos el offset desde ahi en su lugar."""
+    from datetime import timedelta
+    dd = step.due_date
+    if dd.mode == 'after_event' and boda_date:
+        mult_days = {
+            'minutes': 1 / (60 * 24), 'hours': 1 / 24, 'days': 1,
+            'weeks': 7, 'months': 30,
+        }.get(dd.unit, 1)
+        delta = timedelta(days=dd.amount * mult_days)
+        if dd.relative_to == 'before_boda':
+            return boda_date - delta
+        return boda_date + delta
+    return trigger_at + timedelta(minutes=step.offset_minutes)
+
+
 def compute_workflow_steps_for_job(job):
     from datetime import datetime, timedelta
     tmpl = PRODUCTION_WORKFLOW()
@@ -1307,12 +1338,18 @@ def compute_workflow_steps_for_job(job):
         trigger_at = datetime.fromisoformat(job['created'].replace('Z', '+00:00').split('T')[0] + 'T00:00:00')
     except Exception:
         trigger_at = datetime.now()
+    boda_date = None
+    if job.get('boda_date'):
+        try:
+            boda_date = datetime.strptime(job['boda_date'], '%Y-%m-%d')
+        except ValueError:
+            boda_date = None
     instance = _workflow_instance_for('job', job.get('id', ''))
     state_map = getattr(instance, 'step_states', {}) if instance else {}
     result_map = getattr(instance, 'step_results', {}) if instance else {}
     steps = []
     for step in tmpl.steps:
-        scheduled = trigger_at + timedelta(minutes=step.offset_minutes)
+        scheduled = _step_scheduled_for_job(step, trigger_at, boda_date)
         stored_status = _workflow_state_value(state_map.get(step.id))
         status = stored_status or 'pending'
         executed_at = trigger_at.isoformat() if status == 'done' else None
@@ -3895,55 +3932,72 @@ def api_job_notes(job_id):
     return jsonify(res)
 
 
-@app.route('/api/jobs/<job_id>/send-email', methods=['POST'])
-def api_job_send_email(job_id):
-    """Registra un email enviado desde el job y opcionalmente completa un workflow step."""
+def _send_job_template_email(job, *, template_id=None, subject=None, body=None, attachments=None):
+    """Compone y manda un correo a partir de una plantilla para un job.
+    Extraido de la ruta para que el modal manual y el disparador automatico
+    por fecha (_auto_fire_due_job_steps) compartan la misma logica."""
     from src.mail_tracker import get_tracker
-
-    job = get_job(job_id)
-    if not job:
-        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
 
     lead = get_lead(job.get('lead_id', '')) if job.get('lead_id') else None
     client = get_client(job.get('client_id', '')) if job.get('client_id') else None
     to_email = _email_for(client=client, lead=lead)
     if not to_email:
-        return jsonify({'ok': False, 'error': 'Este job no tiene email de cliente'}), 400
+        return {'error': 'Este job no tiene email de cliente'}
 
-    data = request.get_json() or {}
-    template = _get_email_template(data.get('template_id'))
-    subject = data.get('subject') or (template or {}).get('asunto') or 'Mensaje de ASTRAL WEDDINGS'
-    body = data.get('body') or (template or {}).get('cuerpo') or ''
-    subject = _render_message_template(subject, client=client, lead=lead, job=job)
-    body = _render_message_template(body, client=client, lead=lead, job=job)
+    template = _get_email_template(template_id)
+    rendered_subject = subject or (template or {}).get('asunto') or 'Mensaje de ASTRAL WEDDINGS'
+    rendered_body = body or (template or {}).get('cuerpo') or ''
+    rendered_subject = _render_message_template(rendered_subject, client=client, lead=lead, job=job)
+    rendered_body = _render_message_template(rendered_body, client=client, lead=lead, job=job)
 
-    tracker = get_tracker()
-    entry = tracker.log_email(
+    entry = get_tracker().log_email(
         to_email=to_email,
-        subject=subject,
-        body=body,
-        template_id=data.get('template_id'),
+        subject=rendered_subject,
+        body=rendered_body,
+        template_id=template_id,
         lead_id=job.get('lead_id'),
-        job_id=job_id,
-        attachments=data.get('attachments') or [],
+        job_id=job.get('id'),
+        attachments=attachments or [],
     )
-
-    workflow = _complete_job_workflow_step(
-        job,
-        data.get('step_id'),
-        result_message=f"Email enviado: {subject}"
-    )
-    return jsonify({
-        'ok': True,
+    return {
         'mail_id': entry['id'],
         'to': to_email,
-        'subject': subject,
+        'subject': rendered_subject,
         'delivery_provider': entry.get('delivery_provider'),
         'delivery_mode': entry.get('delivery_mode'),
         'delivery_status': entry.get('status'),
         'delivery_error': entry.get('delivery_error'),
         'mail_warning': _mail_delivery_warning(entry),
+    }
+
+
+@app.route('/api/jobs/<job_id>/send-email', methods=['POST'])
+def api_job_send_email(job_id):
+    """Registra un email enviado desde el job y opcionalmente completa un workflow step."""
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    data = request.get_json() or {}
+    result = _send_job_template_email(
+        job,
+        template_id=data.get('template_id'),
+        subject=data.get('subject'),
+        body=data.get('body'),
+        attachments=data.get('attachments'),
+    )
+    if result.get('error'):
+        return jsonify({'ok': False, 'error': result['error']}), 400
+
+    workflow = _complete_job_workflow_step(
+        job,
+        data.get('step_id'),
+        result_message=f"Email enviado: {result['subject']}"
+    )
+    return jsonify({
+        'ok': True,
         'workflow': workflow,
+        **result,
     })
 
 
@@ -4013,62 +4067,72 @@ def api_questionnaire_submit(questionnaire_id):
     return jsonify({'ok': True, 'questionnaire': q})
 
 
-@app.route('/api/jobs/<job_id>/questionnaires', methods=['POST'])
-def api_job_create_questionnaire(job_id):
-    """Crea un cuestionario asociado al job y opcionalmente registra el email de envio."""
-    import uuid
-    job = get_job(job_id)
-    if not job:
-        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questions=None,
+                               status=None, template_id=None, send_email=True, host_url=None,
+                               reuse_draft=False):
+    """Crea (o reutiliza) el cuestionario de un job y opcionalmente lo manda.
+    Extraido de la ruta para que tanto el modal manual (api_job_create_questionnaire)
+    como el disparador automatico por fecha (_auto_fire_due_job_steps) compartan
+    exactamente la misma logica de armado y entrega de correo.
 
+    reuse_draft=True reutiliza el cuestionario en Draft que ya se pre-crea
+    al convertir el job (ver _convert_lead_to_job) en vez de crear uno
+    nuevo -- evita duplicados cuando el disparador automatico reintenta
+    cada 6 horas mientras el correo no se termine de entregar de verdad."""
+    import uuid
     lead = get_lead(job.get('lead_id', '')) if job.get('lead_id') else None
     client = get_client(job.get('client_id', '')) if job.get('client_id') else None
-    data = request.get_json() or {}
-    questionnaire = {
-        'id': 'questionnaire-' + uuid.uuid4().hex[:8],
-        'lead_id': job.get('lead_id', ''),
-        'client_id': job.get('client_id', ''),
-        'job_id': job_id,
-        'name': data.get('name') or 'Cuestionario de Bodas Generico',
-        'template_name': 'Cuestionario de Bodas Generico',
-        'questions': data.get('questions') or QUESTIONNAIRE_QUESTIONS,
-        'status': data.get('status') or ('Sent' if data.get('send_email', True) else 'Draft'),
-        'created': datetime.now().isoformat()[:10],
-        'tenant_id': job.get('tenant_id') or get_current_tenant_id(),
-    }
+    host = (host_url or os.environ.get('APP_BASE_URL') or 'http://localhost:5000').rstrip('/')
+
+    questionnaire = None
+    if reuse_draft:
+        questionnaire = next(
+            (q for q in store.list('questionnaires')
+             if q.get('job_id') == job.get('id') and q.get('status') == 'Draft'),
+            None,
+        )
+    if questionnaire is None:
+        questionnaire = {
+            'id': 'questionnaire-' + uuid.uuid4().hex[:8],
+            'lead_id': job.get('lead_id', ''),
+            'client_id': job.get('client_id', ''),
+            'job_id': job.get('id'),
+            'name': name or 'Cuestionario de Bodas Generico',
+            'template_name': 'Cuestionario de Bodas Generico',
+            'questions': questions or QUESTIONNAIRE_QUESTIONS,
+            'created': datetime.now().isoformat()[:10],
+            'tenant_id': job.get('tenant_id') or get_current_tenant_id(),
+        }
+    questionnaire['status'] = status or ('Sent' if send_email else 'Draft')
     store.upsert('questionnaires', questionnaire)
 
     questionnaire_path = f"/questionnaires/{questionnaire['id']}"
-    questionnaire_url = request.url_root.rstrip('/') + questionnaire_path
+    questionnaire_url = host + questionnaire_path
     mail_id = None
     mail_warning = None
-    if data.get('send_email', True):
+    if send_email:
         from src.mail_tracker import get_tracker
         to_email = _email_for(client=client, lead=lead)
         if to_email:
-            subject = _render_message_template(
-                data.get('subject') or 'Cuestionario para tu boda',
-                client=client,
-                lead=lead,
-                job=job,
+            rendered_subject = _render_message_template(
+                subject or 'Cuestionario para tu boda',
+                client=client, lead=lead, job=job,
             )
-            body = _render_message_template(
-                data.get('body') or 'Hola %client_name%,\n\nTe comparto el cuestionario para preparar todos los detalles de tu boda:\n\n[LINK AL CUESTIONARIO]\n\nSaludos,\nKevin',
-                client=client,
-                lead=lead,
-                job=job,
+            rendered_body = _render_message_template(
+                body or 'Hola %client_name%,\n\nTe comparto el cuestionario para preparar todos los detalles de tu boda:\n\n[LINK AL CUESTIONARIO]\n\nSaludos,\nKevin',
+                client=client, lead=lead, job=job,
             )
-            body = _inject_link(body, questionnaire_url,
+            rendered_body = _inject_link(rendered_body, questionnaire_url,
                                 placeholders=['[LINK AL CUESTIONARIO]',
                                               'Please view the questionnaire online by clicking here'],
                                 fallback_label='Completa el cuestionario aqui')
             entry = get_tracker().log_email(
                 to_email=to_email,
-                subject=subject,
-                body=body,
-                template_id=data.get('template_id') or 'tpl-cuestionario-prod',
+                subject=rendered_subject,
+                body=rendered_body,
+                template_id=template_id or 'tpl-cuestionario-prod',
                 lead_id=job.get('lead_id'),
-                job_id=job_id,
+                job_id=job.get('id'),
                 attachments=[questionnaire['name']],
             )
             mail_id = entry['id']
@@ -4076,19 +4140,44 @@ def api_job_create_questionnaire(job_id):
         else:
             mail_warning = 'Este cliente no tiene email registrado -- el cuestionario se creo pero no se mando nada.'
 
-    workflow = _complete_job_workflow_step(
-        job,
-        data.get('step_id'),
-        result_message=f"Cuestionario creado: {questionnaire['name']}"
-    )
-    return jsonify({
-        'ok': True,
+    return {
         'questionnaire': questionnaire,
         'questionnaire_path': questionnaire_path,
         'questionnaire_url': questionnaire_url,
         'mail_id': mail_id,
         'mail_warning': mail_warning,
+    }
+
+
+@app.route('/api/jobs/<job_id>/questionnaires', methods=['POST'])
+def api_job_create_questionnaire(job_id):
+    """Crea un cuestionario asociado al job y opcionalmente registra el email de envio."""
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    data = request.get_json() or {}
+    result = _create_job_questionnaire(
+        job,
+        name=data.get('name'),
+        subject=data.get('subject'),
+        body=data.get('body'),
+        questions=data.get('questions'),
+        status=data.get('status'),
+        template_id=data.get('template_id'),
+        send_email=data.get('send_email', True),
+        host_url=request.url_root,
+    )
+
+    workflow = _complete_job_workflow_step(
+        job,
+        data.get('step_id'),
+        result_message=f"Cuestionario creado: {result['questionnaire']['name']}"
+    )
+    return jsonify({
+        'ok': True,
         'workflow': workflow,
+        **result,
     })
 
 
@@ -7017,12 +7106,83 @@ def api_job_production_step(job_id):
 
 
 
+_AUTO_FIRE_JOB_ACTION_TYPES = ('send_email', 'send_questionnaire', 'send_gallery')
+
+
+def _auto_fire_due_job_steps():
+    """Kevin: 'al crear el job... que se envie cuando el workflow lo diga' --
+    antes NADA disparaba un step de Job automaticamente por fecha; se
+    quedaba pending para siempre hasta que alguien entrara a darle click
+    manual. Revisa cada Job activo y dispara de verdad (correo real, no solo
+    marcar el step 'done') los steps de envio cuya fecha ya llego."""
+    fired = []
+    for job in store.list('jobs'):
+        if job.get('status') in ('Cancelado', 'Archivado'):
+            continue
+        try:
+            steps, _, _ = compute_workflow_steps_for_job(job)
+        except Exception as e:
+            logger.error(f'Error calculando steps del job {job.get("id")}: {e}')
+            continue
+
+        for step in steps:
+            if step['status'] != 'pending':
+                continue
+            if step['action_type'] not in _AUTO_FIRE_JOB_ACTION_TYPES:
+                continue
+            scheduled = step.get('scheduled')
+            if not scheduled:
+                continue
+            try:
+                if datetime.fromisoformat(scheduled) > datetime.now():
+                    continue
+            except ValueError:
+                continue
+
+            try:
+                if step['action_type'] == 'send_questionnaire':
+                    result = _create_job_questionnaire(
+                        job, template_id=step.get('email_template_id'), send_email=True,
+                        reuse_draft=True,
+                    )
+                    ok = bool(result.get('mail_id')) and not result.get('mail_warning')
+                    result_message = f"Cuestionario auto-enviado: {result['questionnaire']['name']}"
+                else:
+                    template = _get_email_template(step.get('email_template_id'))
+                    result = _send_job_template_email(
+                        job,
+                        template_id=step.get('email_template_id'),
+                        subject=(template or {}).get('asunto'),
+                        body=(template or {}).get('cuerpo'),
+                    )
+                    ok = bool(result.get('mail_id')) and not result.get('mail_warning') and not result.get('error')
+                    result_message = f"Email auto-enviado: {step['name']}"
+
+                if ok:
+                    # Solo se marca 'done' cuando de verdad se entrego --
+                    # si Gmail esta desconectado hoy, el step se queda
+                    # pending y se reintenta en la siguiente pasada (6h)
+                    # en vez de quedar marcado como completado en falso.
+                    _complete_job_workflow_step(job, step['id'], result_message=result_message)
+                    fired.append((job.get('id'), step['id']))
+                else:
+                    logger.warning(
+                        f"Auto-fire del step {step['id']} en job {job.get('id')} no se entrego de verdad, "
+                        f"se reintentara: {result.get('mail_warning') or result.get('error')}"
+                    )
+            except Exception as e:
+                logger.error(f'Error auto-disparando step {step["id"]} del job {job.get("id")}: {e}')
+
+    return fired
+
+
 _reminder_thread_started = False
 
 
 def _reminder_scheduler_loop():
     """Corre en segundo plano mientras la app este viva: revisa recordatorios
-    de pago cada 6 horas (la primera revision arranca a los 60s del boot)."""
+    de pago y steps de workflow vencidos cada 6 horas (la primera revision
+    arranca a los 60s del boot)."""
     time.sleep(60)
     while True:
         try:
@@ -7031,6 +7191,12 @@ def _reminder_scheduler_loop():
                 logger.info(f'Recordatorios de pago enviados: {len(sent)} ({sent})')
         except Exception as e:
             logger.error(f'Error revisando recordatorios de pago: {e}')
+        try:
+            fired = _auto_fire_due_job_steps()
+            if fired:
+                logger.info(f'Steps de workflow auto-disparados: {len(fired)} ({fired})')
+        except Exception as e:
+            logger.error(f'Error auto-disparando steps de workflow: {e}')
         time.sleep(6 * 60 * 60)
 
 
