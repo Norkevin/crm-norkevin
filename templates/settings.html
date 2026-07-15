@@ -255,6 +255,9 @@ function submitEditCompany(event) {
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
 function disconnectGmail() {
   if (!confirm('Desconectar Gmail? Los correos volveran a modo prueba (local outbox).')) return;
   apiPost('/api/settings/google/disconnect', {})
