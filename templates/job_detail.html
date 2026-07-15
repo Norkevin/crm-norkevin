@@ -86,22 +86,35 @@
           </div>
           {% for step in workflow_steps if step.id not in delivery_ids and step.id != 'job_accepted' %}
           <div class="workflow-step {{ 'done' if step.status == 'done' else '' }}">
-            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status != 'done' %}onclick='triggerJobStep({{ step.id|tojson }}, {{ step.name|tojson }})'{% endif %} title="Completar paso">
+            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status != 'done' %}onclick='triggerJobStep({{ step.id|tojson }})'{% endif %} title="Completar paso">
               {% if step.status == 'done' %}
               <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
               {% endif %}
             </button>
             <div class="sn-ellipsis">
               <div class="workflow-step-name">{{ step.name }}</div>
-              <span class="sn-chip yellow">
-                {% if 'contract' in (step.description or '')|lower %}Auto send contract
-                {% elif 'question' in (step.description or '')|lower or 'cuestionario' in (step.name or '')|lower %}Auto send questionnaire
-                {% else %}Auto send email{% endif %}
-              </span>
+              {% set action_label = {
+                'send_email': 'Auto send email',
+                'send_contract': 'Auto send contract',
+                'send_questionnaire': 'Auto send questionnaire',
+                'send_invoice': 'Auto send invoice',
+                'send_gallery': 'Auto send gallery',
+                'send_whatsapp': 'Auto send WhatsApp',
+                'create_task': 'Task',
+                'change_status': 'Change status',
+                'notify_owner': 'Notify owner',
+                'link_job': 'Create job',
+                'archive': 'Archive',
+                'noop': 'Task'
+              }.get(step.action_type, 'Auto send email') %}
+              <span class="sn-chip yellow">{{ action_label }}</span>
+              {% if step.email_template_id %}
+              <span class="sn-chip gray">Template: {{ email_template_names.get(step.email_template_id, step.email_template_id) }}</span>
+              {% endif %}
               {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:10] }}</span>{% endif %}
             </div>
             <div class="workflow-step-tools">
-              <button class="sn-menu-dots" type="button" onclick='triggerJobStep({{ step.id|tojson }}, {{ step.name|tojson }})' title="Completar ahora">
+              <button class="sn-menu-dots" type="button" onclick='triggerJobStep({{ step.id|tojson }})' title="Completar ahora">
                 <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
               </button>
             </div>
@@ -138,17 +151,27 @@
         <div class="workflow-steps">
           {% for step in workflow_steps if step.id in delivery_ids %}
           <div class="workflow-step {{ 'done' if step.status == 'done' else '' }}">
-            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status != 'done' %}onclick='triggerJobStep({{ step.id|tojson }}, {{ step.name|tojson }})'{% endif %}>
+            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status != 'done' %}onclick='triggerJobStep({{ step.id|tojson }})'{% endif %}>
               {% if step.status == 'done' %}
               <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
               {% endif %}
             </button>
             <div class="sn-ellipsis">
               <div class="workflow-step-name">{{ step.name }}</div>
-              <span class="sn-chip cyan">Auto send email</span>
+              {% set action_label = {
+                'send_email': 'Auto send email',
+                'send_gallery': 'Auto send gallery',
+                'create_task': 'Task',
+                'change_status': 'Change status',
+                'noop': 'Task'
+              }.get(step.action_type, 'Auto send email') %}
+              <span class="sn-chip cyan">{{ action_label }}</span>
+              {% if step.email_template_id %}
+              <span class="sn-chip gray">Template: {{ email_template_names.get(step.email_template_id, step.email_template_id) }}</span>
+              {% endif %}
               {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:10] }}</span>{% endif %}
             </div>
-            <button class="sn-menu-dots" type="button" onclick='triggerJobStep({{ step.id|tojson }}, {{ step.name|tojson }})'>
+            <button class="sn-menu-dots" type="button" onclick='triggerJobStep({{ step.id|tojson }})'>
               <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
             </button>
           </div>
@@ -711,6 +734,16 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 <script>
 var JOB_ID = '{{ job.id }}';
 var EMAIL_TEMPLATES = {{ email_templates|tojson }};
+var WORKFLOW_STEP_CONFIG = {
+  {% for step in workflow_steps %}
+  {{ step.id|tojson }}: {
+    id: {{ step.id|tojson }},
+    name: {{ step.name|tojson }},
+    actionType: {{ (step.action_type or '')|tojson }},
+    templateId: {{ (step.email_template_id or '')|tojson }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
 var CLIENT_EMAIL = {{ ((client.email if client else (lead.email if lead else '')) or '')|tojson }};
 var CLIENT_NAME = {{ (((client.first_name ~ ' ' ~ client.last_name) if client else (lead.nombre if lead else job.nombre)) or 'Cliente')|trim|tojson }};
 var JOB_DATE = {{ (job.boda_date or (lead.fecha_tentativa if lead else '') or '')|tojson }};
@@ -817,23 +850,37 @@ function openEmailModal(options) {
   openModal('email-modal');
 }
 
+function stepConfig(stepId, fallbackName) {
+  var cfg = WORKFLOW_STEP_CONFIG[stepId] || {};
+  return {
+    id: stepId,
+    name: cfg.name || fallbackName || stepId,
+    actionType: String(cfg.actionType || '').toLowerCase(),
+    templateId: cfg.templateId || templateForStep(cfg.name || fallbackName || stepId)
+  };
+}
+
 function triggerJobStep(stepId, stepName) {
-  var lower = String(stepName || '').toLowerCase();
-  if (lower.includes('cuestion')) {
+  var step = stepConfig(stepId, stepName);
+  var lower = String(step.name || '').toLowerCase();
+  var action = step.actionType;
+  if (action === 'send_questionnaire' || lower.includes('cuestion')) {
     openQuestionnaireModal('Cuestionario de Bodas Generico', stepId);
     return;
   }
-  if (lower.includes('firma') || lower.includes('contract') || lower.includes('contrato')) {
+  if (action === 'send_contract' || lower.includes('firma') || lower.includes('contract') || lower.includes('contrato')) {
     createContractForStep(stepId);
     return;
   }
-  if (lower.includes('reserva') || lower.includes('google') || lower.includes('galeria') || lower.includes('seguimiento') || lower.includes('levanta')) {
-    openEmailModal({ stepId: stepId, templateId: templateForStep(stepName) });
+  if (action === 'send_email' || action === 'send_gallery' || step.templateId ||
+      lower.includes('reserva') || lower.includes('google') || lower.includes('galeria') ||
+      lower.includes('seguimiento') || lower.includes('levanta')) {
+    openEmailModal({ stepId: stepId, templateId: step.templateId });
     return;
   }
   apiPost('/api/jobs/' + JOB_ID + '/trigger-step', { step_id: stepId })
     .then(function(data) {
-      flashToast(data.message || ('Step completado: ' + stepName), 'success');
+      flashToast(data.message || ('Step completado: ' + step.name), 'success');
       setTimeout(function() { location.reload(); }, 650);
     })
     .catch(function(err) { flashToast(err.message, 'error'); });

@@ -2615,6 +2615,7 @@ def job_detail(job_id):
         if f.get('job_id') == job_id or (job.get('lead_id') and f.get('lead_id') == job.get('lead_id'))
     ]
     email_templates = [tpl for tpl in store.list('email_templates') if tpl.get('activo', True)]
+    email_template_names = {tpl.get('id'): tpl.get('name') for tpl in email_templates}
     mail_log = [
         m for m in store.list('mail_log')
         if m.get('job_id') == job_id or (job.get('lead_id') and m.get('lead_id') == job.get('lead_id'))
@@ -2642,6 +2643,7 @@ def job_detail(job_id):
                           questionnaires=questionnaires,
                           files=files,
                           email_templates=email_templates,
+                          email_template_names=email_template_names,
                           mail_log=mail_log,
                           total_paid=total_paid,
                           balance_due=balance_due)
@@ -6582,11 +6584,14 @@ def api_workflow_step():
     if not lead:
         return jsonify({'ok': False, 'error': 'Lead no encontrado'}), 404
 
-    # Determinar el email template segun el step
-    template_id = None
-    if step_id == 'envio_paquetes':
-        template_id = 'tpl-paquetes'
-    elif step_id == 'validar_disponibilidad':
+    # Determinar el email template segun el workflow editable.
+    from src.workflow import LEAD_WORKFLOW
+    workflow_step = next((s for s in LEAD_WORKFLOW().steps if s.id == step_id), None)
+    if not workflow_step:
+        return jsonify({'ok': False, 'error': 'Step desconocido'}), 400
+
+    template_id = workflow_step.email_template_id
+    if step_id == 'validar_disponibilidad':
         # Verificar disponibilidad primero
         fecha = lead.get('fecha_tentativa', '')
         conflicts = []
@@ -6594,7 +6599,7 @@ def api_workflow_step():
             if j.get('boda_date') == fecha and j.get('lead_id') != lead_id:
                 conflicts.append(j)
         if not conflicts:
-            template_id = 'tpl-paquetes'
+            template_id = template_id or 'tpl-paquetes'
             return jsonify({
                 'ok': True,
                 'disponible': True,
@@ -6603,7 +6608,7 @@ def api_workflow_step():
                 'message': f'Fecha {fecha} esta LIBRE'
             })
         else:
-            template_id = 'tpl-fecha-no-disponible'
+            template_id = template_id or 'tpl-fecha-no-disponible'
             return jsonify({
                 'ok': True,
                 'disponible': False,
@@ -6612,17 +6617,10 @@ def api_workflow_step():
                 'recomendacion': 'Enviar email de Astral Films',
                 'message': f'Fecha {fecha} NO esta disponible. Recomendar Astral Films.'
             })
-    elif step_id == 'seguimiento_cliente':
-        template_id = 'tpl-seguimiento'
-    elif step_id == 'levanta_muertos':
-        template_id = 'tpl-levanta-muertos'
-    elif step_id == 'seguimiento_final':
-        template_id = 'tpl-levanta-muertos'
-    else:
-        return jsonify({'ok': False, 'error': 'Step desconocido'}), 400
+    if not template_id:
+        return jsonify({'ok': False, 'error': 'Este step no tiene email template configurado'}), 400
 
     # Disparar workflow engine
-    from src.workflow import LEAD_WORKFLOW, PRODUCTION_WORKFLOW
     instances = workflow_engine.list_instances(subject_id=lead_id, subject_type='lead')
     if not instances:
         return jsonify({'ok': False, 'error': 'No hay workflow activo'}), 400

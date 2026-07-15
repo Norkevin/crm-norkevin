@@ -249,11 +249,16 @@
           <select id="step-action-input" name="action_type"
                   class="w-full border border-line rounded px-3 py-2 text-sm focus:outline-none focus:border-gold">
             <option value="send_email">Enviar email</option>
+            <option value="send_contract">Enviar contrato</option>
+            <option value="send_questionnaire">Enviar cuestionario</option>
+            <option value="send_invoice">Enviar invoice</option>
+            <option value="send_gallery">Enviar galeria</option>
             <option value="send_whatsapp">Enviar WhatsApp</option>
             <option value="create_task">Crear tarea interna</option>
             <option value="change_status">Cambiar status</option>
             <option value="notify_owner">Notificar al dueno</option>
             <option value="link_job">Crear Job (magic)</option>
+            <option value="archive">Archivar</option>
             <option value="noop">Marcador (sin accion)</option>
           </select>
         </div>
@@ -366,6 +371,7 @@ function stepDrop(e) {
     });
     cards.forEach(c => container.appendChild(c));
     renumberSteps();
+    saveTemplate({ message: 'Orden guardado' });
   }
 
   draggedStepEl.classList.remove('dragging');
@@ -390,6 +396,7 @@ function moveStep(stepId, direction) {
   });
   cards.forEach(c => container.appendChild(c));
   renumberSteps();
+  saveTemplate({ message: 'Orden guardado' });
 }
 function renumberSteps() {
   const container = document.getElementById('steps-container');
@@ -467,8 +474,7 @@ document.getElementById('step-form').addEventListener('submit', function(e) {
   }
 
   closeStepEditor();
-  // Recargar para ver cambios
-  setTimeout(() => location.reload(), 200);
+  saveTemplate({ reload: true, message: 'Step guardado' });
 });
 
 function editStep(stepId) {
@@ -478,7 +484,7 @@ function editStep(stepId) {
 function deleteStep(stepId) {
   if (!confirm('Eliminar este step?')) return;
   workflowData.steps = workflowData.steps.filter(s => s.id !== stepId);
-  setTimeout(() => location.reload(), 200);
+  saveTemplate({ reload: true, message: 'Step eliminado' });
 }
 
 function addStep() {
@@ -505,7 +511,8 @@ function newTemplate() {
   .catch(() => flashToast('Error de red', 'error'));
 }
 
-function saveTemplate() {
+function saveTemplate(options) {
+  options = options || {};
   fetch('/api/workflow/template/' + workflowData.id, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -513,7 +520,10 @@ function saveTemplate() {
   })
   .then(r => r.json())
   .then(data => {
-    if (data.ok) flashToast('Template guardado');
+    if (data.ok) {
+      flashToast(options.message || 'Template guardado');
+      if (options.reload) setTimeout(() => location.reload(), 350);
+    }
     else flashToast('Error: ' + data.error, 'error');
   })
   .catch(err => flashToast('Error de red', 'error'));

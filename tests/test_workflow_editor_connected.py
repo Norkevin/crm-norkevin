@@ -86,6 +86,46 @@ def test_workflow_editor_save_preserves_template_and_delay(auth_client):
     app_module.store.save_dict('workflow_templates', {})
 
 
+def test_workflow_editor_js_persists_step_edits_and_supports_real_actions():
+    from pathlib import Path
+
+    html = Path('templates/workflow_editor.html').read_text(encoding='utf-8')
+    assert "saveTemplate({ reload: true, message: 'Step guardado' })" in html
+    assert "saveTemplate({ reload: true, message: 'Step eliminado' })" in html
+    assert '<option value="send_contract">' in html
+    assert '<option value="send_questionnaire">' in html
+    assert '<option value="send_gallery">' in html
+
+
+def test_manual_lead_step_uses_configured_workflow_template(auth_client):
+    import app as app_module
+
+    original = app_module.LEAD_WORKFLOW()
+    edited_dict = original.to_dict()
+    for step in edited_dict['steps']:
+        if step['id'] == 'envio_paquetes':
+            step['email_template_id'] = 'tpl-seguimiento'
+            break
+    app_module.store.save_dict('workflow_templates', {'lead_workflow_v1': edited_dict})
+
+    try:
+        resp = auth_client.post('/api/leads/nuevo', json={
+            'nombre': 'Template', 'apellido': 'Conectado', 'email': 'template@example.com',
+            'pais': 'Guatemala', 'fecha_boda': '2027-06-02',
+        })
+        assert resp.status_code == 200
+        lead_id = resp.get_json()['lead_id']
+
+        step_resp = auth_client.post('/api/workflow/step', json={
+            'lead_id': lead_id,
+            'step_id': 'envio_paquetes',
+        })
+        assert step_resp.status_code == 200
+        assert step_resp.get_json()['template'] == 'tpl-seguimiento'
+    finally:
+        app_module.store.save_dict('workflow_templates', {})
+
+
 def test_bootstrap_seeds_templates_on_a_fresh_deploy_with_no_data():
     """Simula exactamente lo que pasa en un deploy nuevo de Render: el
     archivo email_templates.json arranca vacio."""
