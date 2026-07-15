@@ -1061,7 +1061,10 @@ function submitJobEmail(event) {
     body: document.getElementById('email-body').value,
     step_id: document.getElementById('email-step-id').value
   })
-    .then(function() { flashToast('Email sent', 'success'); setTimeout(function(){ location.reload(); }, 600); })
+    .then(function(data) {
+      if (!warnIfMailNotDelivered(data)) { flashToast('Email sent', 'success'); }
+      setTimeout(function(){ location.reload(); }, 800);
+    })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
@@ -1085,14 +1088,14 @@ function submitQuestionnaire(event) {
     send_email: true
   })
     .then(function(data) {
-      flashToast('Questionnaire created', 'success');
+      if (!warnIfMailNotDelivered(data)) { flashToast('Questionnaire created', 'success'); }
       setTimeout(function(){
         if (data.questionnaire_path) {
           window.location.href = data.questionnaire_path;
         } else {
           location.reload();
         }
-      }, 450);
+      }, data.mail_warning ? 2200 : 450);
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }

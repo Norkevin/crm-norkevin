@@ -864,12 +864,13 @@ function submitLeadQuestionnaire(event) {
   })
     .then(function(data) {
       closeModal('lead-questionnaire-modal');
-      flashToast('Questionnaire created', 'success');
+      if (!warnIfMailNotDelivered(data)) { flashToast('Questionnaire created', 'success'); }
+      var delay = data.mail_warning ? 2200 : 500;
       if (data.questionnaire_path) {
-        setTimeout(function() { window.location.href = data.questionnaire_path; }, 500);
+        setTimeout(function() { window.location.href = data.questionnaire_path; }, delay);
         return;
       }
-      setTimeout(function() { location.reload(); }, 500);
+      setTimeout(function() { location.reload(); }, delay);
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }

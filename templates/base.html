@@ -1789,6 +1789,18 @@ function flashToast(message, type) {
   setTimeout(function() { t.remove(); }, 3200);
 }
 
+function warnIfMailNotDelivered(data) {
+  // Cuando Gmail no esta conectado (o falla), el correo se registra como
+  // "enviado" en local_outbox pero nunca llega de verdad al cliente -- el
+  // backend ya expone delivery_provider/delivery_status/mail_warning para
+  // que este aviso no dependa de que Kevin note el banner de arriba.
+  if (data && data.mail_warning) {
+    flashToast(data.mail_warning, 'error');
+    return true;
+  }
+  return false;
+}
+
 function apiPost(url, payload) {
   return fetch(url, {
     method: 'POST',

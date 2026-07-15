@@ -351,7 +351,41 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="invoice-send-modal">
+  <div class="modal-content" style="width:min(640px,94vw);">
+    <button type="button" class="modal-close" onclick="closeInvoiceSendModal()" aria-label="Close">x</button>
+    <h2 class="modal-title" id="invoice-send-title">Enviando factura...</h2>
+    <p class="sn-muted" style="font-size:12px;margin-top:-6px;margin-bottom:14px;" id="invoice-send-status">Preparando el correo...</p>
+    <div id="invoice-send-form" style="display:none;">
+      <div class="form-group">
+        <label class="form-label">Para</label>
+        <input class="form-input" id="invoice-send-to">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Asunto</label>
+        <input class="form-input" id="invoice-send-subject">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mensaje</label>
+        <textarea class="form-input" id="invoice-send-body" rows="12"></textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeInvoiceSendModal()">Cancelar</button>
+        <button class="sn-btn sn-btn-primary" type="button" id="invoice-send-btn" onclick="confirmSendInvoice()">Enviar ahora</button>
+      </div>
+    </div>
+    <div id="invoice-send-spinner" style="display:flex;justify-content:center;padding:24px 0;">
+      <svg width="28" height="28" viewBox="0 0 24 24" style="animation:spin 0.8s linear infinite;">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="var(--sn-line)" stroke-width="3"/>
+        <path d="M12 2a10 10 0 0 1 10 10" fill="none" stroke="#0284C7" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
+</div>
+<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+
 <script>
+var JOB_ID = {{ (job.id if job else '')|tojson }};
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function openEditDueDate(paymentId, currentDate) {
@@ -380,18 +414,80 @@ function closeRecordPayment() {
 }
 function submitRecordPayment(event) {
   event.preventDefault();
-  var paymentId = document.getElementById('record-payment-id').value;
-  apiPost('/api/payments/' + paymentId + '/pay', {
-    amount: document.getElementById('record-payment-amount').value,
-    fecha_pago: document.getElementById('record-payment-date').value
-  })
+  var amount = document.getElementById('record-payment-amount').value;
+  var fechaPago = document.getElementById('record-payment-date').value;
+  var promise;
+  if (JOB_ID) {
+    // Reparte el monto entre las cuotas pendientes del job en orden de
+    // vencimiento en vez de sobreescribir solo esta fila -- si el cliente
+    // paga mas de lo que debe esta cuota, el sobrante abona a las
+    // siguientes y el total del job se mantiene correcto.
+    promise = apiPost('/api/jobs/' + JOB_ID + '/record-payment', { amount: amount, fecha_pago: fechaPago });
+  } else {
+    var paymentId = document.getElementById('record-payment-id').value;
+    promise = apiPost('/api/payments/' + paymentId + '/pay', { amount: amount, fecha_pago: fechaPago });
+  }
+  promise
     .then(function() { flashToast('Payment recorded', 'success'); setTimeout(function() { location.reload(); }, 500); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
+var currentInvoiceSendPaymentId = null;
 function sendInvoice(paymentId) {
-  apiPost('/api/payments/' + paymentId + '/send', {})
-    .then(function(data) { flashToast(data.message || 'Invoice sent', 'success'); setTimeout(function() { location.reload(); }, 450); })
-    .catch(function(err) { flashToast(err.message, 'error'); });
+  currentInvoiceSendPaymentId = paymentId;
+  document.getElementById('invoice-send-title').textContent = 'Preparando factura...';
+  document.getElementById('invoice-send-status').textContent = 'Armando el correo antes de enviarlo.';
+  document.getElementById('invoice-send-form').style.display = 'none';
+  document.getElementById('invoice-send-spinner').style.display = 'flex';
+  openModal('invoice-send-modal');
+
+  fetch('/api/payments/' + paymentId + '/send-preview')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) { flashToast(data.error || 'No se pudo preparar la factura', 'error'); closeInvoiceSendModal(); return; }
+      document.getElementById('invoice-send-to').value = data.to_email;
+      document.getElementById('invoice-send-subject').value = data.subject;
+      document.getElementById('invoice-send-body').value = data.body;
+      document.getElementById('invoice-send-title').textContent = 'Enviar factura';
+      document.getElementById('invoice-send-status').textContent = 'Revisa o edita el mensaje antes de enviarlo. No se ha enviado nada todavia.';
+      document.getElementById('invoice-send-spinner').style.display = 'none';
+      document.getElementById('invoice-send-form').style.display = 'block';
+    })
+    .catch(function() { flashToast('No se pudo preparar la factura', 'error'); closeInvoiceSendModal(); });
+}
+function confirmSendInvoice() {
+  document.getElementById('invoice-send-form').style.display = 'none';
+  document.getElementById('invoice-send-title').textContent = 'Enviando...';
+  document.getElementById('invoice-send-status').textContent = 'Mandando el correo, un momento.';
+  document.getElementById('invoice-send-spinner').style.display = 'flex';
+
+  apiPost('/api/payments/' + currentInvoiceSendPaymentId + '/send', {
+    to_email: document.getElementById('invoice-send-to').value,
+    subject: document.getElementById('invoice-send-subject').value,
+    body: document.getElementById('invoice-send-body').value
+  })
+    .then(function(data) {
+      if (data.mail_warning) {
+        document.getElementById('invoice-send-title').textContent = 'No se entrego de verdad';
+        document.getElementById('invoice-send-status').textContent = data.mail_warning;
+        flashToast(data.mail_warning, 'error');
+        setTimeout(function() { closeModal('invoice-send-modal'); location.reload(); }, 2600);
+        return;
+      }
+      document.getElementById('invoice-send-title').textContent = 'Factura enviada';
+      document.getElementById('invoice-send-status').textContent = data.message || 'Enviada correctamente.';
+      flashToast(data.message || 'Invoice sent', 'success');
+      setTimeout(function() { closeModal('invoice-send-modal'); location.reload(); }, 900);
+    })
+    .catch(function(err) {
+      flashToast(err.message, 'error');
+      document.getElementById('invoice-send-title').textContent = 'No se pudo enviar';
+      document.getElementById('invoice-send-status').textContent = err.message;
+      document.getElementById('invoice-send-spinner').style.display = 'none';
+      document.getElementById('invoice-send-form').style.display = 'block';
+    });
+}
+function closeInvoiceSendModal() {
+  closeModal('invoice-send-modal');
 }
 var currentReminderPaymentId = null;
 

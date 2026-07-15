@@ -308,6 +308,21 @@ def _email_for(client=None, lead=None):
     return (client or {}).get('email') or (lead or {}).get('email') or ''
 
 
+def _mail_delivery_warning(entry):
+    """Kevin recibia toasts de 'enviado' cuando en realidad Gmail estaba
+    desconectado y el correo solo se guardaba en data/mail_outbox.json
+    (local_outbox), sin llegar nunca al cliente. send_email() cae ahi en
+    silencio -- este helper convierte ese caso en un aviso explicito que el
+    frontend puede mostrar en vez de un exito falso."""
+    if not entry:
+        return None
+    if entry.get('status') == 'failed':
+        return f"El correo NO se pudo entregar: {entry.get('delivery_error') or 'error desconocido'}."
+    if entry.get('delivery_provider') == 'local_outbox':
+        return 'El correo se registro pero NO se entrego de verdad porque Gmail no esta conectado. Conecta Gmail en Configuracion y vuelve a enviarlo.'
+    return None
+
+
 def _get_email_template(template_id):
     if not template_id:
         return None
@@ -2432,6 +2447,7 @@ def api_lead_create_questionnaire(lead_id):
     questionnaire_path = f"/questionnaires/{questionnaire['id']}"
     questionnaire_url = request.url_root.rstrip('/') + questionnaire_path
     mail_id = None
+    mail_warning = None
     if data.get('send_email', True):
         from src.mail_tracker import get_tracker
         to_email = _email_for(client=client, lead=lead)
@@ -2462,6 +2478,9 @@ def api_lead_create_questionnaire(lead_id):
                 attachments=[questionnaire['name']],
             )
             mail_id = entry['id']
+            mail_warning = _mail_delivery_warning(entry)
+        else:
+            mail_warning = 'Este lead no tiene email registrado -- el cuestionario se creo pero no se mando nada.'
 
     return jsonify({
         'ok': True,
@@ -2469,6 +2488,7 @@ def api_lead_create_questionnaire(lead_id):
         'questionnaire_path': questionnaire_path,
         'questionnaire_url': questionnaire_url,
         'mail_id': mail_id,
+        'mail_warning': mail_warning,
     })
 
 
@@ -3922,6 +3942,7 @@ def api_job_send_email(job_id):
         'delivery_mode': entry.get('delivery_mode'),
         'delivery_status': entry.get('status'),
         'delivery_error': entry.get('delivery_error'),
+        'mail_warning': _mail_delivery_warning(entry),
         'workflow': workflow,
     })
 
@@ -4020,6 +4041,7 @@ def api_job_create_questionnaire(job_id):
     questionnaire_path = f"/questionnaires/{questionnaire['id']}"
     questionnaire_url = request.url_root.rstrip('/') + questionnaire_path
     mail_id = None
+    mail_warning = None
     if data.get('send_email', True):
         from src.mail_tracker import get_tracker
         to_email = _email_for(client=client, lead=lead)
@@ -4050,6 +4072,9 @@ def api_job_create_questionnaire(job_id):
                 attachments=[questionnaire['name']],
             )
             mail_id = entry['id']
+            mail_warning = _mail_delivery_warning(entry)
+        else:
+            mail_warning = 'Este cliente no tiene email registrado -- el cuestionario se creo pero no se mando nada.'
 
     workflow = _complete_job_workflow_step(
         job,
@@ -4062,6 +4087,7 @@ def api_job_create_questionnaire(job_id):
         'questionnaire_path': questionnaire_path,
         'questionnaire_url': questionnaire_url,
         'mail_id': mail_id,
+        'mail_warning': mail_warning,
         'workflow': workflow,
     })
 
@@ -4574,23 +4600,7 @@ def _client_facing_invoice_url(host, client, invoice_id):
     return host + f"/invoices/{invoice_id}"
 
 
-@app.route('/api/payments/<pago_id>/send', methods=['POST'])
-def api_pago_send(pago_id):
-    """Envia la factura/invoice por email al cliente, no solo marca sent_at."""
-    from src.mail_tracker import get_tracker
-
-    pay = store.get('payments', pago_id) or next((p for p in store.list('payments') if p.get('invoice_id') == pago_id), None)
-    if not pay:
-        return jsonify({'ok': False, 'error': 'Pago no encontrado'}), 404
-
-    job = get_job(pay.get('job_id', '')) if pay.get('job_id') else None
-    client = get_client(pay.get('client_id', '')) if pay.get('client_id') else None
-    lead = get_lead(job.get('lead_id', '')) if (job and job.get('lead_id')) else None
-    to_email = _email_for(client=client, lead=lead)
-    if not to_email:
-        return jsonify({'ok': False, 'error': 'Este pago no tiene email de cliente'}), 400
-
-    host = request.host_url.rstrip('/')
+def _invoice_send_email_text(pay, client, job, lead, host):
     invoice_id = pay.get('invoice_id') or pay['id']
     invoice_url = _client_facing_invoice_url(host, client, invoice_id)
     name = _client_name(client=client, lead=lead, job=job)
@@ -4603,6 +4613,52 @@ def api_pago_send(pago_id):
         f"Puedes verla y pagarla en este enlace:\n{invoice_url}\n\n"
         "Saludos,\nASTRAL WEDDINGS"
     )
+    return subject, body, invoice_url
+
+
+@app.route('/api/payments/<pago_id>/send-preview')
+def api_pago_send_preview(pago_id):
+    """Vista previa (sin enviar nada) del correo de factura/invoice para
+    este pago -- Kevin pidio ver que se va a mandar antes de mandarlo,
+    igual que ya existe para los recordatorios de pago."""
+    pay = store.get('payments', pago_id) or next((p for p in store.list('payments') if p.get('invoice_id') == pago_id), None)
+    if not pay:
+        return jsonify({'ok': False, 'error': 'Pago no encontrado'}), 404
+
+    job = get_job(pay.get('job_id', '')) if pay.get('job_id') else None
+    client = get_client(pay.get('client_id', '')) if pay.get('client_id') else None
+    lead = get_lead(job.get('lead_id', '')) if (job and job.get('lead_id')) else None
+    to_email = _email_for(client=client, lead=lead)
+    host = request.host_url.rstrip('/')
+    subject, body, _ = _invoice_send_email_text(pay, client, job, lead, host)
+
+    return jsonify({'ok': True, 'to_email': to_email or '', 'subject': subject, 'body': body})
+
+
+@app.route('/api/payments/<pago_id>/send', methods=['POST'])
+def api_pago_send(pago_id):
+    """Envia la factura/invoice por email al cliente, no solo marca sent_at."""
+    from src.mail_tracker import get_tracker
+
+    pay = store.get('payments', pago_id) or next((p for p in store.list('payments') if p.get('invoice_id') == pago_id), None)
+    if not pay:
+        return jsonify({'ok': False, 'error': 'Pago no encontrado'}), 404
+
+    job = get_job(pay.get('job_id', '')) if pay.get('job_id') else None
+    client = get_client(pay.get('client_id', '')) if pay.get('client_id') else None
+    lead = get_lead(job.get('lead_id', '')) if (job and job.get('lead_id')) else None
+    host = request.host_url.rstrip('/')
+    default_subject, default_body, invoice_url = _invoice_send_email_text(pay, client, job, lead, host)
+
+    # Si Kevin edito el "Para/Asunto/Mensaje" en la vista previa, respetamos
+    # eso tal cual -- si no mando nada, generamos el correo por defecto.
+    data = request.get_json(silent=True) or {}
+    to_email = (data.get('to_email') or '').strip() or _email_for(client=client, lead=lead)
+    if not to_email:
+        return jsonify({'ok': False, 'error': 'Este pago no tiene email de cliente'}), 400
+    subject = (data.get('subject') or '').strip() or default_subject
+    body = (data.get('body') or '').strip() or default_body
+
     mail = get_tracker().log_email(
         to_email=to_email,
         subject=subject,
@@ -4624,6 +4680,7 @@ def api_pago_send(pago_id):
         'delivery_mode': mail.get('delivery_mode'),
         'email': to_email,
         'invoice_url': invoice_url,
+        'mail_warning': _mail_delivery_warning(mail),
         'message': f'Factura enviada a {to_email}',
     })
 
