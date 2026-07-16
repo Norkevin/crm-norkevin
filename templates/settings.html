@@ -200,6 +200,21 @@
   </div>
 </div>
 
+<div class="mb-8">
+  <h3 class="settings-section-title" style="color:var(--sn-red,#DC2626);">Parar correos automaticos de jobs importados</h3>
+  <div class="sn-card white" style="padding:18px;border-color:#FCA5A5;">
+    <p class="sn-muted text-sm mb-4">
+      Los jobs importados de Studio Ninja son historicos (bodas ya realizadas
+      o canceladas) y no deberian mandar correos automaticos de contrato o
+      cuestionario. Si ves que salieron correos de ese tipo para esos jobs,
+      usa esto para saltarlos de una vez y que no se vuelvan a disparar.
+    </p>
+    <button class="sn-btn" type="button" style="border-color:#DC2626;color:#DC2626;" onclick="openModal('stop-emails-modal')">
+      Parar correos de jobs historicos
+    </button>
+  </div>
+</div>
+
 </section>
 
 <div class="modal-overlay" id="reset-data-modal">
@@ -241,6 +256,26 @@
     <div class="sn-actions" style="justify-content:space-between;">
       <button class="sn-btn" type="button" onclick="closeModal('import-sn-modal')">Cancelar</button>
       <button class="sn-btn sn-btn-primary" type="button" onclick="confirmImportStudioNinja()">Importar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="stop-emails-modal">
+  <div class="modal-content" style="width:min(460px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('stop-emails-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Parar correos de jobs historicos</h2>
+    <p class="sn-muted" style="font-size:13px;margin-top:-6px;margin-bottom:14px;">
+      Marca como saltados todos los pasos de contrato/cuestionario de los
+      jobs importados de Studio Ninja, para que dejen de mandar correos
+      automaticos. No borra ni modifica ningun dato del job. Escribe
+      <strong>PARAR</strong> para confirmar.
+    </p>
+    <div class="form-group">
+      <input class="form-input" id="stop-emails-confirm" placeholder="Escribe PARAR" autocomplete="off">
+    </div>
+    <div class="sn-actions" style="justify-content:space-between;">
+      <button class="sn-btn" type="button" onclick="closeModal('stop-emails-modal')">Cancelar</button>
+      <button class="sn-btn" type="button" style="background:#DC2626;color:#fff;border-color:#DC2626;" onclick="confirmStopHistoricalEmails()">Parar correos</button>
     </div>
   </div>
 </div>
@@ -357,6 +392,20 @@ function confirmImportStudioNinja() {
   };
   reader.onerror = function() { flashToast('No se pudo leer el archivo', 'error'); };
   reader.readAsText(file);
+}
+
+function confirmStopHistoricalEmails() {
+  var typed = document.getElementById('stop-emails-confirm').value.trim();
+  if (typed !== 'PARAR') {
+    flashToast('Escribe PARAR (en mayusculas) para confirmar', 'error');
+    return;
+  }
+  apiPost('/api/admin/stop-historical-job-emails', { confirm: typed })
+    .then(function(data) {
+      closeModal('stop-emails-modal');
+      flashToast(data.fixed.length + ' jobs historicos blindados, ya no van a mandar correos automaticos', 'success');
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
 {% if google_status == 'connected' %}
