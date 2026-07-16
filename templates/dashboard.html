@@ -593,13 +593,18 @@ function smoothPath(points) {
 var METRIC_COLORS = { leads: '#0284C7', sessions: '#111827', payments: '#6B7280', revenue: '#075985' };
 
 function drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usableW, usableH, max, formatAxis) {
+  // Kevin: 'las lineas blancas en la grafica no me gustan, quitalas' --
+  // solo se dibuja la linea base solida del eje (i===4), el resto de las
+  // guias punteadas se quitan y dejamos unicamente las etiquetas de valor.
   var html = '';
   for (var i = 0; i < 5; i += 1) {
     var y = paddingTop + usableH * i / 4;
     var value = max * (4 - i) / 4;
-    html += '<line x1="' + paddingX + '" y1="' + y.toFixed(1) + '" x2="' + (width - paddingX) + '" y2="' + y.toFixed(1)
-      + '" stroke="#EEF0F3" stroke-width="1" stroke-dasharray="' + (i === 4 ? '0' : '3 5') + '"/>';
-    html += '<text x="' + (paddingX - 14) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" fill="#9AA1AB" font-weight="500">' + formatAxis(value) + '</text>';
+    if (i === 4) {
+      html += '<line x1="' + paddingX + '" y1="' + y.toFixed(1) + '" x2="' + (width - paddingX) + '" y2="' + y.toFixed(1)
+        + '" stroke="var(--sn-line)" stroke-width="1"/>';
+    }
+    html += '<text x="' + (paddingX - 14) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" fill="var(--sn-muted)" font-weight="500">' + formatAxis(value) + '</text>';
   }
   return html;
 }
@@ -672,11 +677,11 @@ function drawDashboardChart(labels, values, metric) {
   html += '<path d="' + linePath + '" fill="none" stroke="' + accent + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
   points.forEach(function(p, index) {
     var showLabel = labels.length <= 14 || index % Math.ceil(labels.length / 12) === 0 || index === labels.length - 1;
-    html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3" fill="#fff" stroke="' + accent + '" stroke-width="2"/>';
+    html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3" fill="var(--sn-white)" stroke="' + accent + '" stroke-width="2"/>';
     html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="14" fill="transparent" stroke="none"'
       + ' class="chart-hit" data-label="' + p.label + '" data-value="' + p.value + '"/>';
     if (showLabel) {
-      html += '<text x="' + p.x + '" y="' + (height - 12) + '" text-anchor="middle" font-size="11" fill="#9AA1AB" font-weight="500">' + p.label + '</text>';
+      html += '<text x="' + p.x + '" y="' + (height - 12) + '" text-anchor="middle" font-size="11" fill="var(--sn-muted)" font-weight="500">' + p.label + '</text>';
     }
   });
   svg.innerHTML = html;
@@ -715,7 +720,7 @@ function drawRevenueComparisonChart() {
   var usableH = height - paddingTop - paddingBottom;
 
   if (!REVENUE_SERIES.length) {
-    svg.innerHTML = '<text x="450" y="150" text-anchor="middle" font-size="13" fill="#9AA1AB">Sin pagos registrados todavia</text>';
+    svg.innerHTML = '<text x="450" y="150" text-anchor="middle" font-size="13" fill="var(--sn-muted)">Sin pagos registrados todavia</text>';
     document.getElementById('dashboard-chart-legend').innerHTML = '';
     return;
   }
@@ -745,7 +750,7 @@ function drawRevenueComparisonChart() {
     html += '<path d="' + linePath + '" fill="none" stroke="' + series.color + '" stroke-width="' + (isLast ? '2.5' : '2') + '"'
       + ' stroke-linecap="round" stroke-linejoin="round"/>';
     pts.forEach(function(p) {
-      html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3" fill="#fff" stroke="' + series.color + '" stroke-width="2"/>';
+      html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3" fill="var(--sn-white)" stroke="' + series.color + '" stroke-width="2"/>';
       html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="14" fill="transparent" stroke="none"'
         + ' class="chart-hit" data-label="' + series.year + ' - ' + p.month + '" data-value="' + p.value + '"/>';
     });
@@ -754,7 +759,7 @@ function drawRevenueComparisonChart() {
 
   MONTH_LABELS.forEach(function(m, i) {
     var x = paddingX + usableW * i / 11;
-    html += '<text x="' + x + '" y="' + (height - 12) + '" text-anchor="middle" font-size="11" fill="#9AA1AB" font-weight="500">' + m + '</text>';
+    html += '<text x="' + x + '" y="' + (height - 12) + '" text-anchor="middle" font-size="11" fill="var(--sn-muted)" font-weight="500">' + m + '</text>';
   });
 
   svg.innerHTML = html;

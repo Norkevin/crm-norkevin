@@ -249,12 +249,12 @@ svg[stroke="currentColor"] rect {
   border-radius: 999px;
   display: inline-grid;
   place-items: center;
-  color: #343a40;
-  background: #fff;
+  color: var(--sn-ink);
+  background: var(--sn-white);
   cursor: pointer;
   position: relative;
 }
-.sn-icon-button:hover { background: #f7faf9; }
+.sn-icon-button:hover { background: var(--sn-surface-hover); }
 .sn-icon-button svg { width: 19px; height: 19px; }
 .sn-bubble {
   position: absolute;
@@ -270,7 +270,7 @@ svg[stroke="currentColor"] rect {
   place-items: center;
   font-size: 10px;
   font-weight: 700;
-  border: 2px solid #fff;
+  border: 2px solid var(--sn-white);
 }
 .tenant-switcher {
   height: 44px;
@@ -278,7 +278,8 @@ svg[stroke="currentColor"] rect {
   max-width: 210px;
   border: 1px solid var(--sn-line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--sn-white);
+  color: var(--sn-ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -341,10 +342,11 @@ svg[stroke="currentColor"] rect {
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  background: #fff;
+  background: var(--sn-white);
+  color: var(--sn-ink);
   border: 1px solid var(--sn-line);
   border-radius: 14px;
-  box-shadow: 0 18px 42px rgba(15, 23, 42, .18);
+  box-shadow: 0 18px 42px var(--sn-shadow-card);
   display: none;
   z-index: 90;
 }
@@ -365,10 +367,10 @@ svg[stroke="currentColor"] rect {
 .sn-popover-title {
   font-size: 20px;
   font-weight: 600;
-  color: #20242a;
+  color: var(--sn-ink);
 }
 .sn-popover-link {
-  color: #20242a;
+  color: var(--sn-ink);
   font-size: 12px;
   font-weight: 600;
 }
@@ -383,9 +385,9 @@ svg[stroke="currentColor"] rect {
   padding: 8px 10px;
   font-size: 12px;
   font-weight: 600;
-  color: #2e3338;
+  color: var(--sn-ink);
 }
-.sn-notification-tab.active { background: #e7e7ea; }
+.sn-notification-tab.active { background: var(--sn-surface-hover); }
 .sn-count-pill {
   display: inline-grid;
   place-items: center;
@@ -401,14 +403,14 @@ svg[stroke="currentColor"] rect {
 }
 .sn-notification-permission {
   padding: 9px 16px;
-  background: #f1fbff;
-  border-top: 1px solid #dceff7;
-  border-bottom: 1px solid #dceff7;
-  color: #2f3941;
+  background: var(--sn-mint-soft);
+  border-top: 1px solid var(--sn-mint);
+  border-bottom: 1px solid var(--sn-mint);
+  color: var(--sn-ink);
   font-size: 12px;
 }
 .sn-notification-permission button {
-  color: #0083c4;
+  color: var(--sn-green);
   font-weight: 600;
 }
 .sn-notification-list {
@@ -436,14 +438,14 @@ a.sn-notification-item:hover {
 }
 .sn-notification-icon.mail { color: #0089ca; }
 .sn-notification-title {
-  color: #20242a;
+  color: var(--sn-ink);
   font-size: 13px;
   line-height: 1.35;
   font-weight: 500;
 }
 .sn-notification-meta {
   margin-top: 7px;
-  color: #626a73;
+  color: var(--sn-muted);
   font-size: 12px;
 }
 .sn-unread-dot {
@@ -509,11 +511,11 @@ a.sn-notification-item:hover {
   font-weight: 700;
   flex-shrink: 0;
 }
-.sn-account-name { font-size: 15px; font-weight: 600; color: #20242a; }
-.sn-account-email { font-size: 12px; color: #4f5862; margin-top: 2px; }
+.sn-account-name { font-size: 15px; font-weight: 600; color: var(--sn-ink); }
+.sn-account-email { font-size: 12px; color: var(--sn-muted); margin-top: 2px; }
 .sn-account-section-title {
   padding: 14px 18px 10px;
-  color: #4b525a;
+  color: var(--sn-muted);
   font-size: 13px;
 }
 .sn-account-row {
@@ -528,7 +530,7 @@ a.sn-notification-item:hover {
 }
 .sn-account-row:hover,
 .sn-account-row.active { background: var(--sn-mint); }
-.sn-account-row-title { font-size: 14px; font-weight: 600; color: #20242a; }
+.sn-account-row-title { font-size: 14px; font-weight: 600; color: var(--sn-ink); }
 .sn-master-badge {
   margin-left: auto;
   padding: 5px 8px;
