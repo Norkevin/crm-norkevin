@@ -44,6 +44,31 @@ def test_payments_overview_page_exposes_job_id_for_smart_record_payment(auth_cli
     assert "/api/jobs/' + jobId + '/record-payment" in html
 
 
+def test_payments_overview_unpaid_filter_includes_late_rows(auth_client):
+    """Kevin: 'mostres juntos los lates y los unpaids asi no me confundo' --
+    el filtro 'Unpaid' antes excluia explicitamente las filas 'Late' (options
+    separadas Pendiente vs Late), asi que una cuota vencida desaparecia del
+    filtro por default. Ahora 'Unpaid' significa 'lo que no esta pagado'."""
+    import app as app_module
+    job_id, pay_ids = _make_job_with_two_installments(app_module, 'c')
+    # La primera cuota (due 2026-07-15) queda vencida frente a "hoy" de las
+    # pruebas (fixture usa fechas futuras 2026/2027, asi que forzamos una
+    # fecha claramente pasada para que /payments la marque 'Late').
+    pay = app_module.store.get('payments', pay_ids[0])
+    pay['due_date'] = '2020-01-01'
+    app_module.store.upsert('payments', pay)
+
+    resp = auth_client.get('/payments')
+    html = resp.get_data(as_text=True)
+
+    assert 'value="unpaid"' in html, 'la opcion Unpaid del dropdown debe usar el valor unificado'
+    assert "status === 'unpaid' && rowStatus !== 'Pagado'" in html, (
+        'el filtro Unpaid debe incluir cualquier fila que no este pagada (Late incluida)'
+    )
+    assert 'data-status="Late"' in html
+    assert 'data-status="Pendiente"' in html
+
+
 def test_overpayment_from_payments_overview_flow_redistributes_surplus(auth_client):
     """No pasa por el HTML -- confirma que el endpoint que ahora usa
     /payments (el job-level record-payment) reparte el sobrante en vez de

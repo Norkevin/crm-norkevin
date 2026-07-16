@@ -26,7 +26,7 @@
   <div class="sn-toolbar">
     <div class="sn-toolbar-left">
       <select id="payment-status-filter" class="sn-select" onchange="filterPayments()">
-        <option value="Pendiente">Unpaid</option>
+        <option value="unpaid">Unpaid</option>
         <option value="all">All</option>
         <option value="Late">Late</option>
         <option value="Pagado">Paid</option>
@@ -41,12 +41,12 @@
     <table class="sn-table" id="payments-table">
       <thead>
         <tr>
-          <th style="width:120px;">Status</th>
-          <th style="width:180px;">Due</th>
-          <th style="width:150px;">Invoice ID</th>
+          <th style="width:100px;">Status</th>
+          <th style="width:175px;">Due</th>
+          <th style="width:120px;">Invoice ID</th>
           <th>Client</th>
           <th>Job</th>
-          <th style="width:135px;text-align:right;">Amount</th>
+          <th style="width:120px;text-align:right;">Amount</th>
           <th style="width:44px;text-align:right;"></th>
         </tr>
       </thead>
@@ -69,12 +69,12 @@
               <span class="sn-chip gray">Unpaid</span>
             {% endif %}
           </td>
-          <td>
-            <div>{{ p.due_date_display or p.due_date or 'No due date' }}</div>
+          <td class="sn-ellipsis">
+            {{ p.due_date_display or p.due_date or 'No due date' }}
             {% if p.days_ago %}
-              <div class="sn-list-meta" style="color:#b3263b;">{{ p.days_ago }} days ago</div>
+              <span class="sn-muted" style="color:#b3263b;">({{ p.days_ago }} days ago)</span>
             {% elif p.days_until %}
-              <div class="sn-list-meta">in {{ p.days_until }} days</div>
+              <span class="sn-muted">(in {{ p.days_until }} days)</span>
             {% endif %}
           </td>
           <td class="sn-ellipsis">{{ p.invoice_id or p.id }}</td>
@@ -160,7 +160,7 @@ function filterPayments() {
   document.querySelectorAll('#payments-table tbody tr').forEach(function(row) {
     if (!row.dataset.text) return;
     var rowStatus = row.dataset.status || '';
-    var statusOk = status === 'all' || rowStatus === status || (status === 'Pendiente' && rowStatus !== 'Pagado' && rowStatus !== 'Late');
+    var statusOk = status === 'all' || rowStatus === status || (status === 'unpaid' && rowStatus !== 'Pagado');
     var searchOk = !q || row.dataset.text.indexOf(q) !== -1;
     row.style.display = statusOk && searchOk ? '' : 'none';
   });
