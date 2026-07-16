@@ -273,6 +273,9 @@
           <div class="sn-list-actions">
             <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('job-edit-modal')">Edit</button>
             <button class="sn-btn sn-btn-sm" type="button" onclick="archiveJob()">Archive</button>
+            {% if payments %}
+            <button class="sn-btn sn-btn-sm" type="button" style="color:#B4232A;" onclick="openModal('delete-payments-modal')" title="Para bodas canceladas">Eliminar pagos</button>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -660,6 +663,26 @@
       <div class="form-group"><textarea class="form-input" name="notas">{{ job.notas or job.notes or '' }}</textarea></div>
       <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('notes-modal')">Cancel</button><button class="sn-btn sn-btn-primary" type="submit">Save</button></div>
     </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="delete-payments-modal">
+  <div class="modal-content" style="width:min(460px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('delete-payments-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Eliminar pagos</h2>
+    <p class="sn-muted" style="font-size:13px;margin-top:-6px;margin-bottom:14px;">
+      Esto borra TODAS las cuotas de este job -- pagadas y pendientes.
+      Pensado para bodas canceladas donde el cliente ya pago una parte. No
+      borra al cliente, el job, ni las cotizaciones o contratos. Queda un
+      respaldo automatico en el servidor. Escribe <strong>BORRAR</strong> para confirmar.
+    </p>
+    <div class="form-group">
+      <input class="form-input" id="delete-payments-confirm" placeholder="Escribe BORRAR" autocomplete="off">
+    </div>
+    <div class="sn-actions" style="justify-content:space-between;">
+      <button class="sn-btn" type="button" onclick="closeModal('delete-payments-modal')">Cancelar</button>
+      <button class="sn-btn" type="button" style="background:#DC2626;color:#fff;border-color:#DC2626;" onclick="confirmDeletePayments()">Eliminar pagos</button>
+    </div>
   </div>
 </div>
 
@@ -1202,6 +1225,20 @@ function archiveJob() {
   if (!confirm('Archivar este job?')) return;
   apiPost('/api/jobs/' + JOB_ID + '/status', { status: 'Archivado' })
     .then(function() { flashToast('Job archivado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function confirmDeletePayments() {
+  var typed = document.getElementById('delete-payments-confirm').value.trim();
+  if (typed !== 'BORRAR') {
+    flashToast('Escribe BORRAR (en mayusculas) para confirmar', 'error');
+    return;
+  }
+  apiPost('/api/jobs/' + JOB_ID + '/delete-payments', { confirm: typed })
+    .then(function(data) {
+      closeModal('delete-payments-modal');
+      flashToast(data.deleted + ' pagos eliminados', 'success');
+      setTimeout(function() { location.reload(); }, 700);
+    })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 function saveNotes(event) {

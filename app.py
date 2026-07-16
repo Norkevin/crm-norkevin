@@ -4222,6 +4222,29 @@ def api_job_status(job_id):
     return jsonify(res)
 
 
+@app.route('/api/jobs/<job_id>/delete-payments', methods=['POST'])
+def api_job_delete_payments(job_id):
+    """Kevin: 'un cliente me cancelo su boda, solo me habia pagado una
+    parte, quiero una opcion para poder eliminar los pagos, escribiendo la
+    palabra BORRAR'. Borra TODAS las cuotas (pagadas y pendientes) de este
+    job -- no toca el cliente, el job ni las cotizaciones/contratos, y cada
+    tabla ya se respalda automaticamente antes de escribir (JsonStore)."""
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    data = request.get_json(silent=True) or {}
+    if data.get('confirm') != 'BORRAR':
+        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
+
+    remaining = [p for p in store.list('payments') if p.get('job_id') != job_id]
+    deleted_count = len(store.list('payments')) - len(remaining)
+    store._save('payments', remaining)
+
+    logger.info(f"Pagos eliminados del job {job_id} por {session.get('user_email')}: {deleted_count}")
+    return jsonify({'ok': True, 'deleted': deleted_count})
+
+
 @app.route('/api/jobs/<job_id>/notes', methods=['POST'])
 def api_job_notes(job_id):
     data = request.json or request.form
