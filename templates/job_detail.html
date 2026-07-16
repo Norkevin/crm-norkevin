@@ -300,6 +300,27 @@
             <a class="sn-btn sn-btn-sm" href="/clients/{{ client.id }}">Edit Client</a>
             <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Send Email</button>
           </div>
+
+          {% for role, person, label in [('secondary', secondary_client, 'Secondary'), ('planner', planner_client, 'Wedding Planner')] %}
+          <hr style="margin:14px 0;border:none;border-top:1px solid var(--sn-line);">
+          {% if person %}
+          <div class="entity-primary">
+            <div>
+              <div class="sn-list-title">{{ person.first_name }} {{ person.last_name }}</div>
+              <div class="sn-list-meta">({{ label }})</div>
+              <div class="sn-list-meta" style="margin-top:12px;">{{ person.phone or '-' }}</div>
+              <div class="sn-list-meta">{{ person.email or '-' }}</div>
+            </div>
+            <div class="entity-avatar">{{ (person.first_name or 'C')[:1] }}{{ (person.last_name or '')[:1] }}</div>
+          </div>
+          <div class="sn-list-actions">
+            <a class="sn-btn sn-btn-sm" href="/clients/{{ person.id }}">Edit</a>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="unlinkJobClient('{{ role }}')">Remove</button>
+          </div>
+          {% else %}
+          <button class="sn-btn sn-btn-sm" type="button" onclick='openLinkClientModal({{ role|tojson }}, {{ label|tojson }})'>+ Add {{ label }}</button>
+          {% endif %}
+          {% endfor %}
         </div>
         {% else %}
         <div class="sn-card-body sn-muted">No client attached.</div>
@@ -642,6 +663,51 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="link-client-modal">
+  <div class="modal-content" style="width:min(480px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('link-client-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title" id="link-client-title">Add contact</h2>
+    <form onsubmit="submitLinkClient(event)">
+      <input type="hidden" id="link-client-role">
+      <div class="form-group">
+        <label class="form-label">Cliente existente</label>
+        <select class="form-input" id="link-client-existing" onchange="toggleLinkClientNewFields()">
+          <option value="">-- Crear un contacto nuevo --</option>
+          {% for c in all_clients %}
+          <option value="{{ c.id }}">{{ c.first_name }} {{ c.last_name }} ({{ c.email or 'sin correo' }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div id="link-client-new-fields">
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Nombre *</label>
+            <input class="form-input" id="link-client-first-name">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Apellido</label>
+            <input class="form-input" id="link-client-last-name">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input class="form-input" id="link-client-email" type="email">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefono</label>
+            <input class="form-input" id="link-client-phone">
+          </div>
+        </div>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-start;">
+        <button class="sn-btn sn-btn-primary" type="submit">Save</button>
+        <button class="sn-btn" type="button" onclick="closeModal('link-client-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="email-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
     <button type="button" class="modal-close" onclick="closeModal('email-modal')" aria-label="Close">x</button>
@@ -660,7 +726,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">To</label>
-          <input class="form-input" id="email-to" value="{{ (client.email if client else (lead.email if lead else '')) or '' }}" readonly>
+          <input class="form-input" id="email-to" value="{{ all_recipient_emails or (lead.email if lead else '') }}" readonly title="Se envia a cliente principal, secundario y wedding planner si estan vinculados">
         </div>
       </div>
       <div class="form-group">
@@ -1348,6 +1414,52 @@ async function savePhotogSig() {
 }
 function sendClientEmail() {
   openEmailModal({ templateId: 'tpl-seguimiento' });
+}
+function openLinkClientModal(role, label) {
+  document.getElementById('link-client-role').value = role;
+  document.getElementById('link-client-title').textContent = 'Add ' + label;
+  document.getElementById('link-client-existing').value = '';
+  document.getElementById('link-client-first-name').value = '';
+  document.getElementById('link-client-last-name').value = '';
+  document.getElementById('link-client-email').value = '';
+  document.getElementById('link-client-phone').value = '';
+  toggleLinkClientNewFields();
+  openModal('link-client-modal');
+}
+function toggleLinkClientNewFields() {
+  var picked = document.getElementById('link-client-existing').value;
+  document.getElementById('link-client-new-fields').style.display = picked ? 'none' : 'block';
+}
+function submitLinkClient(event) {
+  event.preventDefault();
+  var role = document.getElementById('link-client-role').value;
+  var existingId = document.getElementById('link-client-existing').value;
+  var payload = { role: role };
+  if (existingId) {
+    payload.client_id = existingId;
+  } else {
+    payload.first_name = document.getElementById('link-client-first-name').value;
+    payload.last_name = document.getElementById('link-client-last-name').value;
+    payload.email = document.getElementById('link-client-email').value;
+    payload.phone = document.getElementById('link-client-phone').value;
+    if (!payload.first_name.trim()) {
+      flashToast('Escribe un nombre o selecciona un cliente existente', 'error');
+      return;
+    }
+  }
+  apiPost('/api/jobs/' + JOB_ID + '/link-client', payload)
+    .then(function() {
+      closeModal('link-client-modal');
+      flashToast('Contacto agregado', 'success');
+      setTimeout(function() { location.reload(); }, 400);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function unlinkJobClient(role) {
+  if (!confirm('Quitar este contacto del job? (no se elimina el cliente)')) return;
+  apiPost('/api/jobs/' + JOB_ID + '/unlink-client', { role: role })
+    .then(function() { flashToast('Contacto quitado', 'success'); setTimeout(function() { location.reload(); }, 400); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
 function submitJobEmail(event) {

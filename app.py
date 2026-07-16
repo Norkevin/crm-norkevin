@@ -308,6 +308,26 @@ def _email_for(client=None, lead=None):
     return (client or {}).get('email') or (lead or {}).get('email') or ''
 
 
+def _job_all_recipient_emails(job, primary_client=None, lead=None):
+    """Kevin: 'que se pueda agregar hasta 3 clientes... asi le mandaria los
+    correos a los 3 y no se le pasa a nadie' -- junta el email del cliente
+    principal, el secundario y el wedding planner (si estan vinculados) en
+    una sola lista para el header To:, sin duplicados."""
+    emails = []
+    primary_email = _email_for(client=primary_client, lead=lead)
+    if primary_email:
+        emails.append(primary_email)
+    for role in ('secondary_client_id', 'planner_client_id'):
+        cid = job.get(role)
+        if not cid:
+            continue
+        extra_client = get_client(cid)
+        extra_email = (extra_client or {}).get('email')
+        if extra_email and extra_email not in emails:
+            emails.append(extra_email)
+    return emails
+
+
 def _mail_delivery_warning(entry):
     """Kevin recibia toasts de 'enviado' cuando en realidad Gmail estaba
     desconectado y el correo solo se guardaba en data/mail_outbox.json
@@ -2732,6 +2752,9 @@ def job_detail(job_id):
     else:
         lead_steps, lead_progress, lead_workflow_name = [], 0, 'Lead'
     client = get_client(job.get('client_id', ''))
+    secondary_client = get_client(job.get('secondary_client_id')) if job.get('secondary_client_id') else None
+    planner_client = get_client(job.get('planner_client_id')) if job.get('planner_client_id') else None
+    all_recipient_emails = ', '.join(_job_all_recipient_emails(job, primary_client=client, lead=lead))
     payments = [p for p in list_payments() if p.get('job_id') == job_id]
     for p in payments:
         p['due_date_display_es'] = _format_date_es(p.get('due_date')) or p.get('due_date') or '-'
@@ -2806,6 +2829,10 @@ def job_detail(job_id):
                           workflow_progress=workflow_progress,
                           workflow_name=workflow_name,
                           client=client,
+                          secondary_client=secondary_client,
+                          planner_client=planner_client,
+                          all_recipient_emails=all_recipient_emails,
+                          all_clients=list_clients(),
                           payments=payments,
                           invoice_groups=invoice_groups,
                           quotes=quotes,
@@ -4217,7 +4244,7 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
 
     lead = get_lead(job.get('lead_id', '')) if job.get('lead_id') else None
     client = get_client(job.get('client_id', '')) if job.get('client_id') else None
-    to_email = _email_for(client=client, lead=lead)
+    to_email = ', '.join(_job_all_recipient_emails(job, primary_client=client, lead=lead))
     if not to_email:
         return {'error': 'Este job no tiene email de cliente'}
 
@@ -4959,6 +4986,75 @@ def api_job_update(job_id):
         return jsonify({'ok': False, 'error': 'Sin cambios'}), 400
     res = ns.update_job(job_id, **fields)
     return jsonify(res)
+
+
+JOB_CLIENT_ROLES = {'secondary': 'secondary_client_id', 'planner': 'planner_client_id'}
+
+
+@app.route('/api/jobs/<job_id>/link-client', methods=['POST'])
+def api_job_link_client(job_id):
+    """Kevin: 'que se pueda agregar hasta 3 clientes... el principal, el
+    secundario y el tercero seria la wedding planner, asi le mandaria los
+    correos a los 3 y no se le pasa a nadie'. Vincula un cliente existente
+    (por id) o crea uno nuevo en el momento (nombre/email/telefono) como
+    contacto secundario o wedding planner de este job."""
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    data = request.get_json() or {}
+    role = data.get('role')
+    field = JOB_CLIENT_ROLES.get(role)
+    if not field:
+        return jsonify({'ok': False, 'error': 'Rol invalido (secondary o planner)'}), 400
+
+    client_id = data.get('client_id')
+    if client_id:
+        client = get_client(client_id)
+        if not client:
+            return jsonify({'ok': False, 'error': 'Cliente no encontrado'}), 404
+    else:
+        first_name = (data.get('first_name') or '').strip()
+        if not first_name:
+            return jsonify({'ok': False, 'error': 'Nombre requerido'}), 400
+        import uuid as _uuid
+        client_id = 'client-' + _uuid.uuid4().hex[:8]
+        client = {
+            'id': client_id,
+            'first_name': first_name,
+            'last_name': (data.get('last_name') or '').strip(),
+            'email': (data.get('email') or '').strip(),
+            'phone': (data.get('phone') or '').strip(),
+            'estado': 'Activo',
+            'tenant_id': get_current_tenant_id(),
+            'created': datetime.now().isoformat()[:10],
+        }
+        store.upsert('clients', client)
+
+    job[field] = client_id
+    job['updated_at'] = datetime.now().isoformat()
+    upsert_job(job)
+    return jsonify({'ok': True, 'client': client})
+
+
+@app.route('/api/jobs/<job_id>/unlink-client', methods=['POST'])
+def api_job_unlink_client(job_id):
+    """No borra el cliente, solo lo desvincula de este job (rol secundario
+    o wedding planner)."""
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    data = request.get_json() or {}
+    role = data.get('role')
+    field = JOB_CLIENT_ROLES.get(role)
+    if not field:
+        return jsonify({'ok': False, 'error': 'Rol invalido (secondary o planner)'}), 400
+
+    job[field] = None
+    job['updated_at'] = datetime.now().isoformat()
+    upsert_job(job)
+    return jsonify({'ok': True})
 
 
 # ============================================================
