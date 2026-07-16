@@ -152,6 +152,9 @@ svg[stroke="currentColor"] rect {
   display: block;
   flex-shrink: 0;
 }
+.brand-logo-dark { display: none; }
+:root[data-theme="dark"] .brand-logo-light { display: none; }
+:root[data-theme="dark"] .brand-logo-dark { display: block; }
 .brand-copy { min-width: 0; line-height: 1.05; }
 .brand-name {
   font-size: 15px;
@@ -1561,7 +1564,8 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 
 <header class="app-header">
   <a href="/dashboard" class="brand-link">
-    <img class="brand-logo-img" src="{{ url_for('static', filename='logo-flow-crm.png') }}" alt="Flow CRM">
+    <img class="brand-logo-img brand-logo-light" src="{{ url_for('static', filename='logo-flow-crm.png') }}" alt="Flow CRM">
+    <img class="brand-logo-img brand-logo-dark" src="{{ url_for('static', filename='logo-flow-crm-dark.png') }}" alt="Flow CRM">
   </a>
 
   <nav class="topnav" aria-label="Principal">
