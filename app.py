@@ -3376,10 +3376,53 @@ def api_admin_import_studio_ninja():
                 'tenant_id': tenant_id,
             })
 
+        # Estos son jobs HISTORICOS (bodas ya realizadas/canceladas de Studio
+        # Ninja). Sin esto, _auto_fire_due_job_steps() (corre cada 6h en
+        # produccion) ve sus steps de contrato/cuestionario como "pendientes
+        # y vencidos hace meses" y les manda correos reales a clientes reales
+        # apenas arranca -- exactamente lo que la docstring de este endpoint
+        # decia que no iba a pasar. Marcar todo SKIPPED (mismo mecanismo del
+        # boton de 3 puntos del workflow) los deja fuera de get_due_steps().
+        instance = _get_or_create_job_workflow_instance(job)
+        for step in PRODUCTION_WORKFLOW().steps:
+            instance.step_states[step.id] = StepStatus.SKIPPED
+        workflow_engine._save_to_storage()
+
         created.append(entry['job_name'])
 
     logger.info(f"Import Studio Ninja por {session.get('user_email')}: {len(created)} creados, {len(skipped)} salteados")
     return jsonify({'ok': True, 'created': created, 'skipped': skipped})
+
+
+@app.route('/api/admin/stop-historical-job-emails', methods=['POST'])
+def api_admin_stop_historical_job_emails():
+    """Kevin: 'porque se puso a enviar correos?' -- el import de Studio Ninja
+    (arriba) no creaba instancia de workflow, asi que _auto_fire_due_job_steps
+    (corre cada 6h) la creaba sola al vuelo con todos los steps de
+    contrato/cuestionario 'vencidos hace meses' y los disparaba de una,
+    mandando correos reales a clientes reales por bodas ya viejas. Remediacion
+    de una sola vez: salta todos los steps de workflow de los jobs ya
+    importados (id 'boda-sn-*') para que dejen de dispararse. La correccion
+    de fondo (que el import ya deje todo SKIPPED desde el momento en que se
+    crea el job) ya esta arriba, esto es solo para los que ya se crearon
+    antes de ese fix."""
+    data = request.get_json(silent=True) or {}
+    if data.get('confirm') != 'PARAR':
+        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
+
+    fixed = []
+    for job in store.list('jobs'):
+        if not str(job.get('id', '')).startswith('boda-sn-'):
+            continue
+        instance = _get_or_create_job_workflow_instance(job)
+        for step in PRODUCTION_WORKFLOW().steps:
+            if instance.step_states.get(step.id) != StepStatus.DONE:
+                instance.step_states[step.id] = StepStatus.SKIPPED
+        fixed.append(job.get('id'))
+    workflow_engine._save_to_storage()
+
+    logger.info(f"Steps de workflow frenados para {len(fixed)} jobs historicos por {session.get('user_email')}: {fixed}")
+    return jsonify({'ok': True, 'fixed': fixed})
 
 
 @app.route('/settings/email-templates')

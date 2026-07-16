@@ -151,19 +151,42 @@ def test_import_is_idempotent_on_second_run(auth_client):
 
 
 def test_import_does_not_trigger_workflow_engine_or_send_mail(auth_client):
-    """No debe mandarle correos automaticos a clientes reales por historial viejo --
-    la importacion escribe directo al store, sin pasar por el flujo normal de
-    conversion de lead a job que dispara el workflow engine."""
+    """No debe mandarle correos automaticos a clientes reales por historial viejo.
+
+    Kevin: 'porque se puso a enviar correos?' -- el primer intento de este
+    endpoint no creaba instancia de workflow, pero eso dejaba los steps en
+    estado implicito 'pending', y _auto_fire_due_job_steps() (corre cada 6h
+    en produccion) los creaba solo al vuelo y los disparaba de una por estar
+    'vencidos hace meses', mandando correos reales a clientes reales. Ahora
+    SI se crea la instancia a proposito, pero con todos los steps SKIPPED, y
+    eso es lo que realmente importa: que get_due_steps() no vea nada
+    pendiente para estos jobs historicos."""
     import app as app_module
+    from src.workflow.models import StepStatus
+
     before_mail = len(app_module.store.list('mail_log')) + len(app_module.store.list('mail_outbox'))
-    before_instances = len(app_module.workflow_engine.instances)
 
     auth_client.post('/api/admin/import-studio-ninja', json={'confirm': 'IMPORTAR', 'payload': SAMPLE_PAYLOAD})
 
     after_mail = len(app_module.store.list('mail_log')) + len(app_module.store.list('mail_outbox'))
-    after_instances = len(app_module.workflow_engine.instances)
     assert after_mail == before_mail
-    assert after_instances == before_instances
+
+    imported_job_ids = {j['id'] for j in app_module.store.list('jobs') if j['id'].startswith('boda-sn-test-')}
+    assert imported_job_ids
+    instances = [
+        i for i in app_module.workflow_engine.list_instances(subject_type='job')
+        if i.subject_id in imported_job_ids
+    ]
+    assert len(instances) == len(imported_job_ids), 'cada job importado debe tener su instancia ya blindada'
+    for instance in instances:
+        assert all(state == StepStatus.SKIPPED for state in instance.step_states.values()), (
+            'todos los steps de un job historico deben quedar SKIPPED, nunca pending'
+        )
+
+    due = app_module.workflow_engine.get_due_steps()
+    assert not any(inst.subject_id in imported_job_ids for inst, s in due), (
+        'un job historico importado nunca debe aparecer como pendiente de disparar un correo'
+    )
 
 
 def test_fully_paid_job_matches_the_source_invoice_totals(auth_client):
