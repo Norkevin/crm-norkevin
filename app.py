@@ -4576,6 +4576,15 @@ def api_job_history(job_id):
 
 @app.route('/api/jobs/<job_id>/workflow-task', methods=['POST'])
 def api_job_workflow_task(job_id):
+    """Kevin: 'poder agregar un shoot extra desde jobs, porque muchas veces se
+    anotan bodas civiles, save the dates, trash the dress, welcome party' --
+    'Extra Event'/'Appointment' antes se creaban al instante sin fecha propia
+    (heredaban la fecha de la boda principal) y nunca aparecian en el
+    calendario (se guardaban con type='job', pero /calendar solo muestra
+    type='event' -- las de tipo job las regenera fresco desde boda_date de
+    cada job, asi que una fecha de shoot extra quedaba huerfana y se perdia).
+    Ahora se piden fecha/hora/ubicacion reales y el evento de calendario
+    siempre se guarda como type='event' para que sí aparezca."""
     job = get_job(job_id)
     if not job:
         return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
@@ -4592,6 +4601,16 @@ def api_job_workflow_task(job_id):
     if not name:
         name = default_names.get(task_type, 'Workflow task')
 
+    needs_schedule = task_type in ('extra-event', 'appointment')
+    start_date = (data.get('start_date') or '').strip()
+    if needs_schedule and not start_date:
+        return jsonify({'ok': False, 'error': 'La fecha es requerida'}), 400
+    end_date = (data.get('end_date') or '').strip() or start_date
+    start_time = (data.get('start_time') or '').strip()
+    end_time = (data.get('end_time') or '').strip()
+    location = (data.get('location') or '').strip()
+    show_in_portal = bool(data.get('show_in_portal'))
+
     import uuid
     task = {
         'id': 'task-' + uuid.uuid4().hex[:8],
@@ -4600,6 +4619,16 @@ def api_job_workflow_task(job_id):
         'status': 'pending',
         'created': datetime.now().isoformat()[:10],
     }
+    if needs_schedule:
+        task.update({
+            'start_date': start_date,
+            'end_date': end_date,
+            'start_time': start_time,
+            'end_time': end_time,
+            'location': location,
+            'show_in_portal': show_in_portal,
+        })
+
     manual_tasks = job.get('manual_workflow_tasks') or []
     manual_tasks.append(task)
     job['manual_workflow_tasks'] = manual_tasks
@@ -4608,12 +4637,16 @@ def api_job_workflow_task(job_id):
     upsert_job(job)
 
     calendar_event = None
-    if task_type in ('extra-event', 'appointment'):
+    if needs_schedule:
         event_id = 'evt-' + uuid.uuid4().hex[:8]
         calendar_event = {
             'id': event_id,
-            'date': data.get('date') or job.get('boda_date') or date.today().isoformat(),
-            'type': 'job' if task_type == 'extra-event' else 'event',
+            'date': start_date,
+            'end_date': end_date,
+            'start_time': start_time,
+            'end_time': end_time,
+            'location': location,
+            'type': 'event',
             'title': f"{name} - {job.get('nombre', 'Job')}",
             'job_id': job_id,
             'lead_id': job.get('lead_id'),

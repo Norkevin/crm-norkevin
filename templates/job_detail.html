@@ -131,8 +131,20 @@
             </button>
             <div class="sn-ellipsis">
               <div class="workflow-step-name">{{ task.name }}</div>
-              <span class="sn-chip green">{{ task.type }}</span>
-              <span class="sn-chip gray">{{ task.created }}</span>
+              {% if task.location %}<span class="workflow-step-desc">Location: {{ task.location }}</span>{% endif %}
+              <div>
+                {% if task.type == 'extra-event' %}<span class="sn-chip green">Extra Shoot</span>
+                {% elif task.type == 'appointment' %}<span class="sn-chip cyan">Appointment</span>
+                {% else %}<span class="sn-chip gray">{{ task.type }}</span>{% endif %}
+                {% if task.start_date %}
+                <span class="sn-chip gray">
+                  {{ task.start_date }}{% if task.end_date and task.end_date != task.start_date %} - {{ task.end_date }}{% endif %}
+                  {% if task.start_time %} from {{ task.start_time }}{% if task.end_time %} - {{ task.end_time }}{% endif %}{% endif %}
+                </span>
+                {% else %}
+                <span class="sn-chip gray">{{ task.created }}</span>
+                {% endif %}
+              </div>
             </div>
             <div class="workflow-step-tools"></div>
           </div>
@@ -509,17 +521,63 @@
         <strong>Automation</strong>
         <span>Add a task that automatically sends an email, questionnaire or contract.</span>
       </button>
-      <button class="sn-choice-card" type="button" onclick="createManualTask('extra-event', 'Evento extr')">
+      <button class="sn-choice-card" type="button" onclick="openScheduleTaskForm('extra-event', 'Extra Shoot')">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M4 9h16v11H4zM12 13v4m-2-2h4"/></svg>
         <strong>Extra Event</strong>
-        <span>Add an additional shoot that appears in your workflow and calendar.</span>
+        <span>Add an additional shoot (civil wedding, save the date, trash the dress) that appears in your workflow and calendar.</span>
       </button>
-      <button class="sn-choice-card" type="button" onclick="createManualTask('appointment', 'Appointment')">
+      <button class="sn-choice-card" type="button" onclick="openScheduleTaskForm('appointment', 'Appointment')">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 0 1-6 0"/></svg>
         <strong>Appointment</strong>
         <span>Add an appointment that appears in your workflow and calendar.</span>
       </button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="schedule-task-modal">
+  <div class="modal-content" style="width:min(560px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('schedule-task-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title" id="schedule-task-title">Add a New Extra Shoot</h2>
+    <form onsubmit="submitScheduleTask(event)">
+      <input type="hidden" id="schedule-task-type">
+      <div class="form-group">
+        <label class="form-label">Name *</label>
+        <input class="form-input" id="schedule-task-name" required placeholder="e.g. Boda civil, Save the Date, Trash the Dress">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Start date *</label>
+          <input class="form-input" id="schedule-task-start-date" type="date" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">End date</label>
+          <input class="form-input" id="schedule-task-end-date" type="date">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Start time</label>
+          <input class="form-input" id="schedule-task-start-time" type="time">
+        </div>
+        <div class="form-group">
+          <label class="form-label">End time</label>
+          <input class="form-input" id="schedule-task-end-time" type="time">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location</label>
+        <input class="form-input" id="schedule-task-location" placeholder="Ingresa una ubicacion">
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="schedule-task-portal" style="width:16px;height:16px;">
+        <label class="form-label" for="schedule-task-portal" style="margin:0;">Show in Client Portal</label>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-start;margin-top:6px;">
+        <button class="sn-btn sn-btn-primary" type="submit" id="schedule-task-submit">Save</button>
+        <button class="sn-btn" type="button" onclick="closeModal('schedule-task-modal')">Cancel</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -934,7 +992,40 @@ function triggerJobStep(stepId, stepName) {
 function createManualTask(type, label) {
   apiPost('/api/jobs/' + JOB_ID + '/workflow-task', { type: type, name: label })
     .then(function() {
-      flashToast(type === 'appointment' || type === 'extra-event' ? 'Workflow task and calendar event added' : 'Workflow task added', 'success');
+      flashToast('Workflow task added', 'success');
+      setTimeout(function() { location.reload(); }, 500);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function openScheduleTaskForm(type, titleLabel) {
+  closeModal('workflow-task-modal');
+  document.getElementById('schedule-task-type').value = type;
+  document.getElementById('schedule-task-title').textContent = 'Add a New ' + titleLabel;
+  document.getElementById('schedule-task-name').value = '';
+  document.getElementById('schedule-task-start-date').value = '';
+  document.getElementById('schedule-task-end-date').value = '';
+  document.getElementById('schedule-task-start-time').value = '';
+  document.getElementById('schedule-task-end-time').value = '';
+  document.getElementById('schedule-task-location').value = '';
+  document.getElementById('schedule-task-portal').checked = false;
+  openModal('schedule-task-modal');
+}
+function submitScheduleTask(event) {
+  event.preventDefault();
+  var type = document.getElementById('schedule-task-type').value;
+  apiPost('/api/jobs/' + JOB_ID + '/workflow-task', {
+    type: type,
+    name: document.getElementById('schedule-task-name').value,
+    start_date: document.getElementById('schedule-task-start-date').value,
+    end_date: document.getElementById('schedule-task-end-date').value,
+    start_time: document.getElementById('schedule-task-start-time').value,
+    end_time: document.getElementById('schedule-task-end-time').value,
+    location: document.getElementById('schedule-task-location').value,
+    show_in_portal: document.getElementById('schedule-task-portal').checked
+  })
+    .then(function() {
+      closeModal('schedule-task-modal');
+      flashToast('Workflow task and calendar event added', 'success');
       setTimeout(function() { location.reload(); }, 500);
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
