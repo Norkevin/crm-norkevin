@@ -1060,11 +1060,13 @@ a.kpi-card:hover,
 .workflow-rail.lead { background: #0284C7; }
 .workflow-rail.production { background: #111827; }
 .workflow-rail.delivery { background: #6B7280; }
+:root[data-theme="dark"] .workflow-rail.production { background: #2b3745; }
+:root[data-theme="dark"] .workflow-rail.delivery { background: #445261; }
 .workflow-steps { display: flex; flex-direction: column; gap: 6px; }
 .workflow-step {
   min-height: 47px;
   border: 1px solid var(--sn-line);
-  background: #fff;
+  background: var(--sn-white);
   border-radius: 12px;
   padding: 8px 12px;
   display: grid;
@@ -1073,19 +1075,19 @@ a.kpi-card:hover,
   gap: 8px;
   transition: box-shadow .15s ease, border-color .15s ease;
 }
-.workflow-step:hover { box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
-.workflow-step.done { background: #F6F7F9; border-color: var(--sn-line); color: #70777f; }
-.workflow-step.skipped { background: #FAFAFA; border-color: var(--sn-line); opacity: .6; }
+.workflow-step:hover { box-shadow: 0 1px 2px var(--sn-shadow-soft); }
+.workflow-step.done { background: var(--sn-row); border-color: var(--sn-line); color: var(--sn-muted); }
+.workflow-step.skipped { background: var(--sn-row); border-color: var(--sn-line); opacity: .6; }
 .workflow-step.skipped .workflow-step-name { text-decoration: line-through; }
-.workflow-step.skipped .workflow-check { border-color: #c4c4cb; color: #9a9fa6; cursor: default; }
+.workflow-step.skipped .workflow-check { border-color: var(--sn-line-dark); color: var(--sn-soft); cursor: default; }
 .workflow-check {
   width: 16px;
   height: 16px;
   border-radius: 6px;
-  border: 1.5px solid #9aa1a9;
+  border: 1.5px solid var(--sn-line-dark);
   display: grid;
   place-items: center;
-  background: #fff;
+  background: var(--sn-white);
   cursor: pointer;
   color: var(--sn-green);
 }
@@ -1098,7 +1100,7 @@ a.kpi-card:hover,
 .workflow-step-name {
   font-size: 12px;
   font-weight: 600;
-  color: #30363c;
+  color: var(--sn-ink);
 }
 .workflow-step-desc {
   display: inline-block;
@@ -1106,8 +1108,8 @@ a.kpi-card:hover,
   margin-top: 3px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(0,0,0,.08);
-  color: #666e76;
+  background: var(--sn-surface-hover);
+  color: var(--sn-muted);
   font-size: 10px;
 }
 .workflow-step-tools {
@@ -1148,7 +1150,7 @@ a.kpi-card:hover,
   gap: 8px;
 }
 .sn-list-item {
-  background: #fff;
+  background: var(--sn-white);
   border: 1px solid var(--sn-line);
   border-radius: 4px;
   padding: 11px 12px;
@@ -1159,7 +1161,7 @@ a.kpi-card:hover,
   justify-content: space-between;
   gap: 12px;
 }
-.sn-list-title { font-size: 14px; font-weight: 600; color: #293038; }
+.sn-list-title { font-size: 14px; font-weight: 600; color: var(--sn-ink); }
 .sn-list-meta { font-size: 12px; color: var(--sn-muted); margin-top: 3px; }
 .sn-list-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
 
