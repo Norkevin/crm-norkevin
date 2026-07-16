@@ -18,6 +18,7 @@
 }
 .date-status-badge svg { width: 12px; height: 12px; }
 .date-status-badge.red { background: #fecaca; color: #b3263b; }
+.date-status-badge.orange { background: #fed7aa; color: #b3540a; }
 .date-status-badge.yellow { background: #fde68a; color: #92610a; }
 </style>
 <section class="sn-page-wide">
@@ -86,8 +87,12 @@
             {% if lead.boda_date_display %}
               {{ lead.boda_date_display }}
               {% if lead.date_conflict %}
-                <span class="date-status-badge red" title="Fecha ocupada: {{ lead.date_conflict }}">
+                <span class="date-status-badge red" title="Ya hay una boda agendada este dia: {{ lead.date_conflict }}">
                   <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.7 7.3a1 1 0 00-1.4 1.4L8.6 10l-1.3 1.3a1 1 0 101.4 1.4L10 11.4l1.3 1.3a1 1 0 001.4-1.4L11.4 10l1.3-1.3a1 1 0 00-1.4-1.4L10 8.6 8.7 7.3z" clip-rule="evenodd"/></svg>
+                </span>
+              {% elif lead.other_lead_conflict %}
+                <span class="date-status-badge orange" title="Otro lead esta interesado en esta misma fecha">
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.486 0l6.516 11.598c.75 1.334-.213 2.986-1.743 2.986H3.484c-1.53 0-2.493-1.652-1.743-2.986L8.257 3.1zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-.25-6.5a.75.75 0 00-1.5 0v3.5a.75.75 0 001.5 0v-3.5z" clip-rule="evenodd"/></svg>
                 </span>
               {% elif lead.date_available %}
                 <span class="date-status-badge yellow" title="Fecha disponible">

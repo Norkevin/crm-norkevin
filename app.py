@@ -2008,6 +2008,14 @@ def leads_list():
         for j in _canonical_jobs()
         if j.get('boda_date') and j.get('status') not in ('Archivado',)
     }
+    # Fechas donde hay mas de un lead abierto interesado (estilo Studio Ninja:
+    # naranja = "another lead is at the same time"), para ayudar a decidir si
+    # aceptar o no una boda cuando hay competencia por la misma fecha.
+    open_leads_by_date = defaultdict(list)
+    for l in leads:
+        fecha_l = l.get('fecha_tentativa')
+        if fecha_l and l.get('status') not in ('Convertido', 'Perdido'):
+            open_leads_by_date[fecha_l].append(l.get('id'))
     tracker = get_tracker()
 
     for lead in leads:
@@ -2030,7 +2038,9 @@ def leads_list():
         lead['boda_date_display'] = _format_pretty_date(fecha) if fecha else None
         conflict_job = booked_dates.get(fecha) if fecha else None
         lead['date_conflict'] = conflict_job
-        lead['date_available'] = bool(fecha) and not conflict_job
+        other_leads_same_date = [i for i in open_leads_by_date.get(fecha, []) if i != lead.get('id')] if fecha else []
+        lead['other_lead_conflict'] = bool(fecha) and not conflict_job and bool(other_leads_same_date)
+        lead['date_available'] = bool(fecha) and not conflict_job and not other_leads_same_date
 
         # Ultimo correo real del lead (subject + chip con fecha, como SN)
         mails = tracker.list_for_lead(lead.get('id'))
