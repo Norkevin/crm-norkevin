@@ -58,6 +58,29 @@
 </div>
 
 <!-- ============================================================
+     APARIENCIA (modo claro/oscuro)
+     ============================================================ -->
+<div class="mb-8">
+  <h3 class="settings-section-title">Apariencia</h3>
+  <div class="sn-card white" style="padding:18px;">
+    <p class="sn-muted text-sm mb-4">
+      Modo oscuro para cuando trabajas de noche y no queres que la pantalla
+      te moleste la vista. Se guarda en este navegador.
+    </p>
+    <div style="display:flex;gap:10px;">
+      <button type="button" id="theme-btn-light" class="sn-btn sn-btn-sm" onclick="setAppTheme('light'); updateThemeButtons();">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        Modo normal
+      </button>
+      <button type="button" id="theme-btn-dark" class="sn-btn sn-btn-sm" onclick="setAppTheme('dark'); updateThemeButtons();">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 1020.354 15.354z"/></svg>
+        Modo oscuro
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
      FUNDAMENTALS
      ============================================================ -->
 <div class="mb-8">
@@ -380,6 +403,15 @@ function submitEditCompany(event) {
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function updateThemeButtons() {
+  var current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  var lightBtn = document.getElementById('theme-btn-light');
+  var darkBtn = document.getElementById('theme-btn-dark');
+  if (lightBtn) lightBtn.classList.toggle('sn-btn-primary', current === 'light');
+  if (darkBtn) darkBtn.classList.toggle('sn-btn-primary', current === 'dark');
+}
+updateThemeButtons();
 
 function disconnectGmail() {
   if (!confirm('Desconectar Gmail? Los correos volveran a modo prueba (local outbox).')) return;

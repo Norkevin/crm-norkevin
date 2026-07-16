@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{% block title %}ASTRAL WEDDINGS · Flow CRM{% endblock %}</title>
+<script>
+(function() {
+  try {
+    var saved = localStorage.getItem('flowcrm-theme');
+    document.documentElement.setAttribute('data-theme', saved === 'dark' ? 'dark' : 'light');
+  } catch (e) {}
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
@@ -29,6 +37,21 @@
   --sn-blue: #0284C7;
   --sn-red: #dc2626;
   --sn-canvas: #F7F7FB;
+}
+
+/* Kevin: 'ver todo en modo oscuro para cuando trabajo de noche no
+   molestarme la vista'. La app usa color hardcodeado (#fff, etc.) en
+   decenas de templates ademas de las variables --sn-*, asi que en vez de
+   reescribir cada pantalla se invierte el documento entero y se
+   contra-invierten las imagenes reales (logo, fotos) para que no salgan
+   con los colores al reves. Toggle en Settings, persistido en
+   localStorage y aplicado sin flash via el script inline en <head>. */
+html[data-theme="dark"] {
+  filter: invert(1) hue-rotate(180deg);
+  background: #111;
+}
+html[data-theme="dark"] img {
+  filter: invert(1) hue-rotate(180deg);
 }
 
 * { box-sizing: border-box; }
@@ -1628,6 +1651,12 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 </div>
 
 <script>
+function setAppTheme(mode) {
+  var theme = mode === 'dark' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+  try { localStorage.setItem('flowcrm-theme', theme); } catch (e) {}
+}
+
 function closeHeaderPopovers() {
   ['tenant-menu', 'notifications-menu', 'account-menu'].forEach(function(id) {
     var menu = document.getElementById(id);
