@@ -1393,7 +1393,12 @@ def compute_workflow_steps_for_job(job):
             'status': status,
             'result': result_map.get(step.id),
         })
-    done = sum(1 for s in steps if s['status'] == 'done')
+    # 'skipped' cuenta para el progreso igual que 'done' -- un step saltado
+    # a proposito (menu de 3 puntos: "por si no quieres mandar contrato")
+    # ya no aparece como pendiente en jobs_list() (next_task pasa a
+    # 'Completado'), pero si solo se contara 'done' aca la barra quedaria
+    # contradictoriamente vacia/baja mientras el texto dice terminado.
+    done = sum(1 for s in steps if s['status'] in ('done', 'skipped'))
     progress = round(done * 100 / len(steps)) if steps else 0
     return steps, progress, tmpl.name
 

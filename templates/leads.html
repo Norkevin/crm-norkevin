@@ -131,9 +131,18 @@
         {% endfor %}
         {% if not leads %}
         <tr>
-          <td colspan="7" style="text-align:center;padding:44px;color:var(--sn-muted);">
-            No leads yet.
-            <button type="button" class="sn-btn-link" onclick="openLeadModal()">Create the first one</button>
+          <td colspan="7" style="padding:0;">
+            <div class="sn-empty-state">
+              <div class="sn-empty-state-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-4.13a4 4 0 10-4-4 4 4 0 004 4zm6-6a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+              </div>
+              <h3 class="sn-empty-state-title">Sin leads todavia</h3>
+              <p class="sn-empty-state-desc">Los leads que entren por tu formulario de contacto van a aparecer aca. Tambien podes crear uno a mano.</p>
+              <button type="button" class="sn-btn sn-btn-primary sn-empty-state-cta" onclick="openLeadModal()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+                Add New Lead
+              </button>
+            </div>
           </td>
         </tr>
         {% endif %}

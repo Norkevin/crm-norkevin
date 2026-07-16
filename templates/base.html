@@ -37,21 +37,43 @@
   --sn-blue: #0284C7;
   --sn-red: #dc2626;
   --sn-canvas: #F7F7FB;
+  /* Niveles de superficie -- separados de --sn-white/--sn-row para que el
+     tema oscuro pueda distinguir tarjeta vs input vs hover sin que todo
+     colapse al mismo gris (ver seccion 1 del feedback de Kevin). */
+  --sn-surface-2: #F3F4F6;
+  --sn-surface-hover: #F6F7F9;
+  --sn-focus-ring: rgba(2, 132, 199, .12);
+  --sn-shadow-soft: rgba(24, 24, 27, .04);
+  --sn-shadow-card: rgba(15, 23, 42, .06);
+  --sn-overlay: rgba(15, 18, 22, .6);
 }
 
 /* Kevin: 'ver todo en modo oscuro para cuando trabajo de noche no
-   molestarme la vista'. La app usa color hardcodeado (#fff, etc.) en
-   decenas de templates ademas de las variables --sn-*, asi que en vez de
-   reescribir cada pantalla se invierte el documento entero y se
-   contra-invierten las imagenes reales (logo, fotos) para que no salgan
-   con los colores al reves. Toggle en Settings, persistido en
-   localStorage y aplicado sin flash via el script inline en <head>. */
-html[data-theme="dark"] {
-  filter: invert(1) hue-rotate(180deg);
-  background: #111;
-}
-html[data-theme="dark"] img {
-  filter: invert(1) hue-rotate(180deg);
+   molestarme la vista', despues pidio pulirlo con niveles de superficie
+   reales en vez del truco de invertir colores (que no permite distinguir
+   fondo/tarjeta/input/hover porque todo es la misma imagen invertida).
+   Estas variables se redefinen aca y el resto del CSS las usa en vez de
+   colores fijos, asi que un solo bloque cubre toda la app sin reescribir
+   cada template. Toggle en Settings, persistido en localStorage y
+   aplicado sin flash via el script inline en <head>. */
+:root[data-theme="dark"] {
+  --sn-canvas: #05070a;
+  --sn-white: #090d12;
+  --sn-row: #0d131a;
+  --sn-panel: #0d131a;
+  --sn-surface-2: #0d131a;
+  --sn-surface-hover: #121a23;
+  --sn-line: #1d2631;
+  --sn-line-dark: #2b3745;
+  --sn-ink: #f3f6f9;
+  --sn-muted: #aab4c0;
+  --sn-soft: #7f8a98;
+  --sn-mint: #0d2536;
+  --sn-mint-soft: #0a1c2b;
+  --sn-focus-ring: rgba(56, 189, 248, .18);
+  --sn-shadow-soft: rgba(0, 0, 0, .35);
+  --sn-shadow-card: rgba(0, 0, 0, .45);
+  --sn-overlay: rgba(0, 0, 0, .72);
 }
 
 * { box-sizing: border-box; }
@@ -196,17 +218,23 @@ svg[stroke="currentColor"] rect {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 24px;
-  background: #FDF1DC;
-  color: #97620C;
+  padding: 8px 24px;
+  background: #F7EEDD;
+  color: #8a5f11;
   font-size: 13px;
   font-weight: 500;
-  border-bottom: 1px solid #F5DDA8;
+  border-bottom: 1px solid #EDE0C4;
 }
+:root[data-theme="dark"] .gmail-warning-banner {
+  background: #2b230f;
+  color: #e0b96b;
+  border-bottom-color: #3d321a;
+}
+:root[data-theme="dark"] .gmail-warning-banner a { color: #e0b96b; }
 .gmail-warning-banner svg { width: 18px; height: 18px; flex-shrink: 0; }
 .gmail-warning-banner span { flex: 1; }
 .gmail-warning-banner a {
-  color: #97620C;
+  color: #8a5f11;
   font-weight: 700;
   text-decoration: underline;
   flex-shrink: 0;
@@ -639,12 +667,18 @@ a.sn-notification-item:hover {
   min-width: 0;
   border: 1.5px solid transparent;
   border-radius: 10px;
-  background: #F3F4F6;
+  background: var(--sn-surface-2);
   color: var(--sn-ink);
   padding: 0 13px;
   outline: none;
   font-size: 13px;
   transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+:root[data-theme="dark"] .sn-select,
+:root[data-theme="dark"] .sn-search,
+:root[data-theme="dark"] .sn-input,
+:root[data-theme="dark"] .form-input {
+  border-color: var(--sn-line);
 }
 .form-input { display: block; width: 100%; }
 .sn-select { width: 280px; max-width: min(50vw, 280px); }
@@ -663,9 +697,9 @@ select.sn-input {
 .sn-select:focus,
 .sn-search:focus,
 .form-input:focus {
-  background: #fff;
+  background: var(--sn-white);
   border-color: var(--sn-green);
-  box-shadow: 0 0 0 3px rgba(2, 132, 199, .12);
+  box-shadow: 0 0 0 3px var(--sn-focus-ring);
 }
 .sn-btn,
 .btn {
@@ -677,17 +711,17 @@ select.sn-input {
   padding: 0 16px;
   border-radius: 999px;
   border: 1px solid var(--sn-line);
-  background: #fff;
+  background: var(--sn-white);
   color: var(--sn-ink);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(24, 24, 27, .04);
+  box-shadow: 0 1px 2px var(--sn-shadow-soft);
   transition: background .15s ease, border-color .15s ease, transform .1s ease, box-shadow .15s ease;
 }
 .sn-btn:hover,
-.btn:hover { background: #f7f8f8; border-color: #c4c4cb; box-shadow: 0 2px 6px rgba(24, 24, 27, .06); }
+.btn:hover { background: var(--sn-surface-hover); border-color: var(--sn-line-dark); box-shadow: 0 2px 6px var(--sn-shadow-soft); }
 .sn-btn:active,
 .btn:active { transform: scale(.97); box-shadow: 0 1px 2px rgba(24, 24, 27, .04); }
 .sn-btn:focus-visible,
@@ -716,7 +750,7 @@ select.sn-input {
   padding: 0;
   border-radius: 999px;
 }
-.sn-btn-icon:hover { background: #eef1ef; border-color: #c4c4cb; }
+.sn-btn-icon:hover { background: var(--sn-surface-hover); border-color: var(--sn-line-dark); }
 .sn-btn-sm,
 .btn-sm {
   min-height: 25px;
@@ -736,11 +770,11 @@ select.sn-input {
 
 .sn-table-shell {
   width: 100%;
-  background: #fff;
+  background: var(--sn-white);
   overflow: hidden;
   border: 1px solid var(--sn-line);
   border-radius: 18px;
-  box-shadow: 0 1px 2px rgba(24, 24, 27, .03);
+  box-shadow: 0 1px 2px var(--sn-shadow-soft);
 }
 .sn-table,
 .table-responsive {
@@ -753,7 +787,7 @@ select.sn-input {
   height: 38px;
   padding: 0 12px;
   background: var(--sn-row);
-  color: #41474e;
+  color: var(--sn-muted);
   text-align: left;
   font-size: 11.5px;
   font-weight: 600;
@@ -767,7 +801,7 @@ select.sn-input {
   height: 40px;
   padding: 0 12px;
   border-bottom: 1px solid var(--sn-line);
-  color: #27272a;
+  color: var(--sn-ink);
   font-size: 13px;
   vertical-align: middle;
   transition: background .1s ease;
@@ -775,7 +809,7 @@ select.sn-input {
 .sn-table tr:last-child td,
 .table-responsive tr:last-child td { border-bottom: none; }
 .sn-table tr:hover td,
-.table-responsive tr:hover td { background: #fafbfa; }
+.table-responsive tr:hover td { background: var(--sn-surface-hover); }
 .sn-table-row { cursor: pointer; }
 .sn-ellipsis {
   overflow: hidden;
@@ -795,7 +829,7 @@ select.sn-input {
 .sn-progress {
   height: 8px;
   width: 100%;
-  background: #e4e4e7;
+  background: var(--sn-line-dark);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -830,10 +864,10 @@ select.sn-input {
   position: fixed;
   min-width: 172px;
   padding: 6px;
-  background: #fff;
+  background: var(--sn-white);
   border: 1px solid var(--sn-line);
   border-radius: 7px;
-  box-shadow: 0 16px 38px rgba(15, 23, 42, .16);
+  box-shadow: 0 16px 38px var(--sn-shadow-card);
   z-index: 10050;
 }
 .sn-floating-menu-item {
@@ -844,7 +878,7 @@ select.sn-input {
   gap: 8px;
   padding: 0 10px;
   border-radius: 5px;
-  color: #20242a;
+  color: var(--sn-ink);
   font-size: 12px;
   font-weight: 500;
   text-align: left;
@@ -863,6 +897,33 @@ select.sn-input {
   background: var(--sn-line);
 }
 
+/* Empty state reutilizable para cualquier tabla vacia (Leads, Clients,
+   Jobs, Payments) -- Kevin: 'la pantalla de Leads tiene demasiado espacio
+   negro cuando no existen registros'. */
+.sn-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 56px 24px;
+  text-align: center;
+}
+.sn-empty-state-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--sn-row);
+  color: var(--sn-soft);
+  margin-bottom: 4px;
+}
+.sn-empty-state-icon svg { width: 22px; height: 22px; }
+.sn-empty-state-title { font-size: 14px; font-weight: 600; color: var(--sn-ink); margin: 0; }
+.sn-empty-state-desc { font-size: 12.5px; color: var(--sn-muted); margin: 0; max-width: 320px; }
+.sn-empty-state-cta { margin-top: 6px; }
+
 .sn-card,
 .card,
 .kpi-card {
@@ -870,17 +931,17 @@ select.sn-input {
   border: 1px solid var(--sn-line-dark);
   border-radius: 18px;
   padding: 14px;
-  box-shadow: 0 1px 2px rgba(24, 24, 27, .03);
+  box-shadow: 0 1px 2px var(--sn-shadow-soft);
   transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
 }
 .sn-card.white,
-.card.white { background: #fff; }
+.card.white { background: var(--sn-white); }
 a.sn-card:hover,
 a.kpi-card:hover,
 .sn-card.clickable:hover,
 .kpi-card.clickable:hover {
-  box-shadow: 0 4px 16px -4px rgba(24, 24, 27, .12);
-  border-color: #c4c4cb;
+  box-shadow: 0 4px 16px -4px var(--sn-shadow-card);
+  border-color: var(--sn-line-dark);
   transform: translateY(-1px);
 }
 .sn-card-head {
@@ -896,11 +957,11 @@ a.kpi-card:hover,
   gap: 8px;
   font-size: 16px;
   font-weight: 600;
-  color: #2e3338;
+  color: var(--sn-ink);
 }
 .sn-card-title svg { width: 18px; height: 18px; }
 .sn-card-body {
-  background: #fff;
+  background: var(--sn-white);
   border: 1px solid var(--sn-line);
   border-radius: 12px;
   padding: 12px;
@@ -912,8 +973,8 @@ a.kpi-card:hover,
   align-items: start;
   font-size: 12.5px;
 }
-.sn-field-label { color: #59616a; font-weight: 600; }
-.sn-field-value { color: #262b30; min-width: 0; }
+.sn-field-label { color: var(--sn-muted); font-weight: 600; }
+.sn-field-value { color: var(--sn-ink); min-width: 0; }
 .sn-muted { color: var(--sn-muted); }
 .sn-green { color: var(--sn-green); }
 .sn-money { color: #087a4a; font-weight: 600; }
@@ -1100,7 +1161,7 @@ a.kpi-card:hover,
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 18, 22, .6);
+  background: var(--sn-overlay);
   display: none;
   align-items: center;
   justify-content: center;
@@ -1115,10 +1176,11 @@ a.kpi-card:hover,
   width: min(520px, 100%);
   max-height: 90vh;
   overflow: auto;
-  background: #fff;
+  background: var(--sn-white);
+  color: var(--sn-ink);
   border-radius: 20px;
   border: 1px solid var(--sn-line);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 30px 60px -12px rgba(15, 23, 42, .28);
+  box-shadow: 0 1px 2px var(--sn-shadow-card), 0 30px 60px -12px var(--sn-shadow-card);
   padding: 20px;
   position: relative;
   animation: sn-modal-pop .18s cubic-bezier(.2,.9,.3,1.2);
@@ -1133,22 +1195,23 @@ a.kpi-card:hover,
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  color: #9a9fa6;
+  color: var(--sn-soft);
   font-size: 22px;
   line-height: 1;
   font-weight: 500;
   cursor: pointer;
   transition: background .12s ease, color .12s ease;
 }
-.modal-close:hover { color: #33373d; background: #f1f3f6; }
+.modal-close:hover { color: var(--sn-ink); background: var(--sn-surface-hover); }
 .modal-title {
   margin: 0 0 16px;
   font-size: 17px;
   font-weight: 600;
   padding-right: 24px;
+  color: var(--sn-ink);
 }
 .form-group { margin-bottom: 12px; }
-.form-label { display: block; margin-bottom: 5px; color: #464d55; font-weight: 600; font-size: 11px; }
+.form-label { display: block; margin-bottom: 5px; color: var(--sn-muted); font-weight: 600; font-size: 11px; }
 textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-height: 1.55; resize: vertical; }
 
 .toast-container {

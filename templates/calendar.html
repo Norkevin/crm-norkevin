@@ -29,7 +29,7 @@
   <div class="sn-toolbar">
     <div class="sn-toolbar-left">
       <a class="sn-btn sn-btn-sm" href="/calendar?year={{ prev_year }}&month={{ prev_month }}">‹</a>
-      <span class="sn-btn sn-btn-sm" style="background:#fff;">{{ month_name }} {{ year }}</span>
+      <span class="sn-btn sn-btn-sm" style="background:var(--sn-white);">{{ month_name }} {{ year }}</span>
       <a class="sn-btn sn-btn-sm" href="/calendar?year={{ next_year }}&month={{ next_month }}">›</a>
       <a class="sn-btn sn-btn-sm" href="/calendar">Today</a>
       <select id="calendar-view" class="sn-select" onchange="changeCalendarView()">
@@ -193,15 +193,15 @@
 }
 .upcoming-event-card {
   text-align: left;
-  background: #fff;
+  background: var(--sn-white);
   border: 1px solid var(--sn-line);
   border-radius: 14px;
   padding: 16px;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(20, 23, 31, .03);
+  box-shadow: 0 1px 2px var(--sn-shadow-soft);
   transition: box-shadow .15s ease, border-color .15s ease;
 }
-.upcoming-event-card:hover { box-shadow: 0 8px 22px rgba(15, 23, 42, .08); border-color: var(--sn-line-dark); }
+.upcoming-event-card:hover { box-shadow: 0 8px 22px var(--sn-shadow-card); border-color: var(--sn-line-dark); }
 .upcoming-event-badge {
   display: inline-flex;
   align-items: center;
@@ -230,11 +230,11 @@
   .calendar-sidebar { position: static; order: -1; }
 }
 .calendar-shell {
-  background: #fff;
+  background: var(--sn-white);
   border: 1px solid var(--sn-line);
   border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+  box-shadow: 0 1px 2px var(--sn-shadow-soft);
 }
 .calendar-head,
 .calendar-grid {
@@ -242,7 +242,7 @@
   grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 .calendar-head > div {
-  background: #FAFBFC;
+  background: var(--sn-row);
   border-bottom: 1px solid var(--sn-line);
   padding: 11px;
   text-align: center;
@@ -257,11 +257,11 @@
   border-right: 1px solid var(--sn-line);
   border-bottom: 1px solid var(--sn-line);
   padding: 8px;
-  background: #fff;
+  background: var(--sn-white);
   transition: background .12s ease;
 }
-.calendar-cell:hover { background: #FAFBFC; }
-.calendar-cell.muted { background: #FAFBFC; color: #a0a6ad; }
+.calendar-cell:hover { background: var(--sn-surface-hover); }
+.calendar-cell.muted { background: var(--sn-row); color: var(--sn-soft); }
 .calendar-day {
   width: 24px;
   height: 24px;
@@ -285,7 +285,7 @@
   align-items: flex-start;
   gap: 2px;
   border: 1px solid var(--sn-line);
-  background: #FAFBFC;
+  background: var(--sn-row);
   border-radius: 8px;
   padding: 4px 7px;
   font-size: 10px;
@@ -293,7 +293,7 @@
   cursor: pointer;
   transition: box-shadow .12s ease;
 }
-.calendar-event:hover { box-shadow: 0 2px 6px rgba(15, 23, 42, .08); }
+.calendar-event:hover { box-shadow: 0 2px 6px var(--sn-shadow-card); }
 .calendar-event-badge {
   display: inline-flex;
   align-items: center;
@@ -312,11 +312,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #20242a;
+  color: var(--sn-ink);
 }
-.calendar-event.lead { background: #F0F9FF; border-color: #BAE6FD; }
-.calendar-event.job { background: #F6F7F9; border-color: #E4E7EC; }
-.calendar-event.event { background: #F6F7F9; border-color: #E4E7EC; }
+.calendar-event.lead { background: var(--sn-mint-soft); border-color: var(--sn-mint); }
+.calendar-event.job { background: var(--sn-row); border-color: var(--sn-line); }
+.calendar-event.event { background: var(--sn-row); border-color: var(--sn-line); }
 .calendar-event-more {
   width: 100%;
   text-align: left;
@@ -329,7 +329,7 @@
 .calendar-event-more:hover { color: var(--sn-ink); text-decoration: underline; }
 .calendar-events-hidden { display: flex; flex-direction: column; gap: 4px; }
 .calendar-agenda { display: none; }
-.agenda-day { background: #fff; border: 1px solid var(--sn-line); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+.agenda-day { background: var(--sn-white); border: 1px solid var(--sn-line); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
 .agenda-day.today { border-color: var(--sn-green); box-shadow: 0 0 0 1px var(--sn-green); }
 .agenda-day-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
 .agenda-day-num { font-size: 20px; font-weight: 700; color: var(--sn-ink); }

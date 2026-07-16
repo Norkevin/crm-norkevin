@@ -9,14 +9,14 @@
 <section class="sn-page">
 <style>
 .settings-tile {
-  background: #fff;
+  background: var(--sn-white);
   border: 1px solid var(--sn-line-dark);
   border-radius: 6px;
   padding: 16px;
   display: block;
 }
-.settings-tile.clickable { cursor: pointer; transition: box-shadow .15s ease, border-color .15s ease; }
-.settings-tile.clickable:hover { box-shadow: 0 6px 18px rgba(15,23,42,.08); border-color: #b9bec4; }
+.settings-tile.clickable { cursor: pointer; transition: box-shadow .15s ease, border-color .15s ease, background .15s ease; }
+.settings-tile.clickable:hover { box-shadow: 0 6px 18px var(--sn-shadow-card); border-color: var(--sn-line-dark); background: var(--sn-surface-hover); }
 .settings-tile.disabled { opacity: .55; cursor: default; }
 .settings-tile svg { width: 22px; height: 22px; color: var(--sn-green); margin-bottom: 8px; }
 .settings-tile h4 { font-size: 13px; font-weight: 600; color: var(--sn-ink); margin: 0 0 4px; }
@@ -26,8 +26,8 @@
   margin-left: 6px;
   padding: 1px 6px;
   border-radius: 999px;
-  background: #f4f4f5;
-  color: #71717a;
+  background: var(--sn-row);
+  color: var(--sn-muted);
   font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
