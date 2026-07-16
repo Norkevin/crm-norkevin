@@ -2727,6 +2727,21 @@ def jobs_list():
     payments_by_job = defaultdict(list)
     for p in list_payments():
         payments_by_job[p.get('job_id')].append(p)
+
+    # Kevin: los mismos indicadores de conflicto de fecha de /leads, vistos
+    # desde el lado de los Jobs -- rojo = otra boda real ya agendada ese
+    # mismo dia (doble booking de verdad), naranja = un lead todavia abierto
+    # esta preguntando por esa misma fecha (util para saber si conviene
+    # ofrecerle otro dia antes de que avance mas).
+    other_jobs_by_date = defaultdict(list)
+    for j in jobs:
+        if j.get('boda_date') and j.get('status') not in ('Archivado',):
+            other_jobs_by_date[j['boda_date']].append(j.get('id'))
+    open_leads_by_date = defaultdict(list)
+    for l in _open_leads():
+        if l.get('fecha_tentativa'):
+            open_leads_by_date[l['fecha_tentativa']].append(l.get('id'))
+
     for j in jobs:
         try:
             d = datetime.strptime(j['boda_date'], '%Y-%m-%d').date()
@@ -2735,6 +2750,10 @@ def jobs_list():
         except Exception:
             j['dias_restantes'] = None
             j['boda_date_display'] = None
+        fecha = j.get('boda_date')
+        other_jobs_same_date = [i for i in other_jobs_by_date.get(fecha, []) if i != j.get('id')] if fecha else []
+        j['date_conflict'] = bool(other_jobs_same_date)
+        j['lead_interest_conflict'] = bool(fecha) and not j['date_conflict'] and bool(open_leads_by_date.get(fecha))
         try:
             steps, prog, _ = compute_workflow_steps_for_job(j)
             pending = [s for s in steps if s['status'] == 'pending']

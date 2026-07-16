@@ -4,6 +4,21 @@
 {% block subtitle %}{{ jobs|length }} jobs{% endblock %}
 
 {% block content %}
+<style>
+.date-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  margin-left: 4px;
+  vertical-align: -3px;
+}
+.date-status-badge svg { width: 12px; height: 12px; }
+.date-status-badge.red { background: #fecaca; color: #b3263b; }
+.date-status-badge.orange { background: #fed7aa; color: #b3540a; }
+</style>
 <section class="sn-page-wide">
   <div class="sn-page-head">
     <div>
@@ -61,6 +76,15 @@
               {{ job.boda_date_display or job.boda_date }}
               {% if job.dias_restantes is not none and job.dias_restantes >= 0 %}
                 <span class="sn-chip yellow" title="Dias restantes">{{ job.dias_restantes }}d</span>
+              {% endif %}
+              {% if job.date_conflict %}
+                <span class="date-status-badge red" title="Otra boda ya agendada este mismo dia">
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.7 7.3a1 1 0 00-1.4 1.4L8.6 10l-1.3 1.3a1 1 0 101.4 1.4L10 11.4l1.3 1.3a1 1 0 001.4-1.4L11.4 10l1.3-1.3a1 1 0 00-1.4-1.4L10 8.6 8.7 7.3z" clip-rule="evenodd"/></svg>
+                </span>
+              {% elif job.lead_interest_conflict %}
+                <span class="date-status-badge orange" title="Un lead abierto esta preguntando por esta misma fecha">
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.486 0l6.516 11.598c.75 1.334-.213 2.986-1.743 2.986H3.484c-1.53 0-2.493-1.652-1.743-2.986L8.257 3.1zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-.25-6.5a.75.75 0 00-1.5 0v3.5a.75.75 0 001.5 0v-3.5z" clip-rule="evenodd"/></svg>
+                </span>
               {% endif %}
             {% else %}
               <span class="sn-muted">No date</span>

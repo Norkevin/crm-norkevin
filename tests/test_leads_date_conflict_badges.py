@@ -6,8 +6,19 @@ time, esto ayuda a tomar decisiones para ver si acepto o no las bodas'.
 leads_list() ya calculaba date_conflict (rojo, contra Jobs reales) y
 date_available (amarillo). Faltaba el caso intermedio naranja: dos o mas
 Leads abiertos compitiendo por la misma fecha, sin que ninguno se haya
-convertido todavia en Job."""
+convertido todavia en Job.
+
+Las fechas se derivan del suffix unico de cada test (no literales fijos
+como '2027-05-08') porque el store persiste entre TODOS los tests de la
+sesion (ver conftest.py) -- un literal fijo puede chocar con el mismo
+literal usado en otro archivo (paso con test_jobs_date_conflict_badges.py)
+y contaminar el resultado de ambos tests."""
 import uuid
+from datetime import date, timedelta
+
+
+def _unique_date(suffix):
+    return (date(2031, 1, 1) + timedelta(days=int(suffix, 16) % 3000)).isoformat()
 
 
 def _make_lead(app_module, suffix, fecha, status='Nuevo'):
@@ -22,8 +33,8 @@ def _make_lead(app_module, suffix, fecha, status='Nuevo'):
 
 def test_two_open_leads_same_date_get_orange_conflict(auth_client):
     import app as app_module
-    fecha = '2027-05-08'
     suffix = uuid.uuid4().hex[:6]
+    fecha = _unique_date(suffix)
     lead_a = _make_lead(app_module, f'a-{suffix}', fecha)
     lead_b = _make_lead(app_module, f'b-{suffix}', fecha)
 
@@ -36,7 +47,7 @@ def test_two_open_leads_same_date_get_orange_conflict(auth_client):
 def test_lead_alone_on_its_date_has_no_conflict_badge(auth_client):
     import app as app_module
     suffix = uuid.uuid4().hex[:6]
-    _make_lead(app_module, f'solo-{suffix}', '2027-06-01')
+    _make_lead(app_module, f'solo-{suffix}', _unique_date(suffix))
 
     resp = auth_client.get('/leads')
     html = resp.get_data(as_text=True)
@@ -49,8 +60,8 @@ def test_job_booked_date_wins_over_lead_conflict_as_red(auth_client):
     """Si ya hay un Job real agendado ese dia, el badge debe ser rojo (mas
     urgente), no naranja, aunque tambien haya otro lead compitiendo."""
     import app as app_module
-    fecha = '2027-09-11'
     suffix = uuid.uuid4().hex[:6]
+    fecha = _unique_date(suffix)
     client_id = f'client-dateconf-{suffix}'
     job_id = f'job-dateconf-{suffix}'
     app_module.store.upsert('clients', {
@@ -71,8 +82,8 @@ def test_job_booked_date_wins_over_lead_conflict_as_red(auth_client):
 
 def test_converted_or_lost_leads_do_not_count_toward_orange_conflict(auth_client):
     import app as app_module
-    fecha = '2027-10-02'
     suffix = uuid.uuid4().hex[:6]
+    fecha = _unique_date(suffix)
     lead_a = _make_lead(app_module, f'conv-{suffix}', fecha, status='Convertido')
     lead_b = _make_lead(app_module, f'lost-{suffix}', fecha, status='Perdido')
     lead_c = _make_lead(app_module, f'open-{suffix}', fecha, status='Nuevo')
