@@ -161,6 +161,27 @@
 </div>
 
 <!-- ============================================================
+     IMPORTACIONES
+     ============================================================ -->
+<div class="mb-8">
+  <h3 class="settings-section-title">Importaciones</h3>
+  <div class="sn-card white" style="padding:18px;">
+    <p class="sn-muted text-sm mb-4">
+      Sube el archivo JSON con los datos migrados desde Studio Ninja (clientes,
+      cotizaciones, facturas con su historial de pagos y contratos firmados) para
+      crearlos tal como estaban en el sistema anterior. El archivo se sube desde
+      tu compu en el momento -- nunca queda guardado en el codigo del CRM, porque
+      trae nombres, correos, telefonos y montos reales de clientes. No manda
+      correos automaticos a estos clientes. Si un job ya fue importado antes, se
+      saltea (no duplica).
+    </p>
+    <button class="sn-btn sn-btn-primary" type="button" onclick="openModal('import-sn-modal')">
+      Importar datos de Studio Ninja
+    </button>
+  </div>
+</div>
+
+<!-- ============================================================
      ZONA DE RIESGO (reiniciar datos de prueba)
      ============================================================ -->
 <div class="mb-8">
@@ -197,6 +218,29 @@
     <div class="sn-actions" style="justify-content:space-between;">
       <button class="sn-btn" type="button" onclick="closeModal('reset-data-modal')">Cancelar</button>
       <button class="sn-btn" type="button" style="background:#DC2626;color:#fff;border-color:#DC2626;" onclick="confirmResetTestData()">Vaciar todo</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="import-sn-modal">
+  <div class="modal-content" style="width:min(460px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('import-sn-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Importar datos de Studio Ninja</h2>
+    <p class="sn-muted" style="font-size:13px;margin-top:-6px;margin-bottom:14px;">
+      Selecciona el archivo <code>studio_ninja_import.json</code> con los datos.
+      Es seguro correrlo mas de una vez -- los jobs que ya existan se saltean.
+      Escribe <strong>IMPORTAR</strong> para confirmar.
+    </p>
+    <div class="form-group">
+      <label class="form-label">Archivo JSON</label>
+      <input class="form-input" id="import-sn-file" type="file" accept="application/json,.json">
+    </div>
+    <div class="form-group">
+      <input class="form-input" id="import-sn-confirm" placeholder="Escribe IMPORTAR" autocomplete="off">
+    </div>
+    <div class="sn-actions" style="justify-content:space-between;">
+      <button class="sn-btn" type="button" onclick="closeModal('import-sn-modal')">Cancelar</button>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="confirmImportStudioNinja()">Importar</button>
     </div>
   </div>
 </div>
@@ -278,6 +322,41 @@ function confirmResetTestData() {
       setTimeout(function() { location.reload(); }, 700);
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function confirmImportStudioNinja() {
+  var typed = document.getElementById('import-sn-confirm').value.trim();
+  if (typed !== 'IMPORTAR') {
+    flashToast('Escribe IMPORTAR (en mayusculas) para confirmar', 'error');
+    return;
+  }
+  var fileInput = document.getElementById('import-sn-file');
+  var file = fileInput.files && fileInput.files[0];
+  if (!file) {
+    flashToast('Selecciona el archivo JSON primero', 'error');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function() {
+    var payload;
+    try {
+      payload = JSON.parse(reader.result);
+    } catch (e) {
+      flashToast('El archivo no es un JSON valido', 'error');
+      return;
+    }
+    apiPost('/api/admin/import-studio-ninja', { confirm: typed, payload: payload })
+      .then(function(data) {
+        closeModal('import-sn-modal');
+        var msg = data.created.length + ' jobs importados';
+        if (data.skipped.length) msg += ', ' + data.skipped.length + ' ya existian';
+        flashToast(msg, 'success');
+        setTimeout(function() { location.reload(); }, 900);
+      })
+      .catch(function(err) { flashToast(err.message, 'error'); });
+  };
+  reader.onerror = function() { flashToast('No se pudo leer el archivo', 'error'); };
+  reader.readAsText(file);
 }
 
 {% if google_status == 'connected' %}

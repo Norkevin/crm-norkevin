@@ -3192,6 +3192,158 @@ def api_admin_reset_test_data():
     return jsonify({'ok': True, 'wiped': wiped})
 
 
+@app.route('/api/admin/import-studio-ninja', methods=['POST'])
+def api_admin_import_studio_ninja():
+    """Kevin: 'llenemos el CRM con toda esta info... tal cual esta' -- importa
+    jobs reales de su export de Studio Ninja (clientes, cotizaciones, facturas
+    con su historial de pagos y contratos). El JSON con los datos (transcrito a
+    mano leyendo cada factura/contrato, no con un parser automatico, para no
+    arriesgar los montos reales) lo sube Kevin en el momento desde Settings --
+    NUNCA se guarda en el repo, porque tiene nombres/emails/telefonos/montos
+    reales de clientes y este repo es publico en GitHub.
+    Escribe directo via store.upsert -- NO pasa por _convert_lead_to_job ni
+    dispara el workflow engine, asi que no se mandan correos automaticos a
+    estos clientes reales por datos historicos.
+    Idempotente: cada job usa un id deterministico (boda-sn-<slug>), asi que
+    correrlo de nuevo saltea los jobs que ya existen en vez de duplicarlos."""
+    data = request.get_json(silent=True) or {}
+    if data.get('confirm') != 'IMPORTAR':
+        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
+
+    payload = data.get('payload')
+    if not isinstance(payload, dict) or not isinstance(payload.get('jobs'), list):
+        return jsonify({'ok': False, 'error': 'Payload invalido: se espera {"jobs": [...]}'}), 400
+
+    tenant_id = get_current_tenant_id()
+    created = []
+    skipped = []
+
+    for entry in payload.get('jobs', []):
+        slug = entry['slug']
+        job_id = f'boda-sn-{slug}'
+        if get_job(job_id):
+            skipped.append(entry['job_name'])
+            continue
+
+        client_id = f'client-sn-{slug}'
+        lead_id = f'lead-sn-{slug}'
+        c = entry['client']
+        full_name = f"{c['first_name']} {c.get('last_name') or ''}".strip()
+
+        store.upsert('clients', {
+            'id': client_id,
+            'first_name': c['first_name'],
+            'last_name': c.get('last_name') or '',
+            'email': c.get('email') or '',
+            'phone': c.get('phone') or '',
+            'address': entry.get('location') or '',
+            'estado': 'Activo',
+            'tenant_id': tenant_id,
+            'created': entry['created'],
+        })
+
+        store.upsert('leads', {
+            'id': lead_id,
+            'nombre': full_name,
+            'email': c.get('email') or '',
+            'telefono': c.get('phone') or '',
+            'status': 'Convertido',
+            'fuente': entry.get('lead_source') or '',
+            'tipo_evento': 'Boda',
+            'fecha_tentativa': entry['boda_date'],
+            'locacion': entry.get('location') or '',
+            'client_id': client_id,
+            'created': entry['created'],
+            'tenant_id': tenant_id,
+        })
+
+        price_total = round(sum(q['total'] for q in entry['quotes']), 2)
+        store.upsert('jobs', {
+            'id': job_id,
+            'nombre': entry['job_name'],
+            'boda_date': entry['boda_date'],
+            'location': entry.get('location') or '',
+            'client_id': client_id,
+            'lead_id': lead_id,
+            'status': 'Confirmado',
+            'empresa': 'ASTRAL WEDDINGS',
+            'price_total': price_total,
+            'tenant_id': tenant_id,
+            'created': entry['created'],
+        })
+
+        accepted_quote_id = None
+        for qi, q in enumerate(entry['quotes']):
+            quote_id = f'quote-sn-{slug}-{qi + 1}'
+            store.upsert('quotes', {
+                'id': quote_id,
+                'job_id': job_id,
+                'client_id': client_id,
+                'lead_id': lead_id,
+                'status': 'Aceptada',
+                'paquete_nombre': q['package_name'],
+                'precio_total': q['total'],
+                'incluye': q.get('incluye') or [],
+                'created': entry['created'],
+                'tenant_id': tenant_id,
+            })
+            if accepted_quote_id is None:
+                accepted_quote_id = quote_id
+
+            invoice_id = 'INV-SN-' + slug.upper().replace('-', '')[:8] + f'-{qi + 1}'
+            num_cuotas = len(q['cuotas'])
+            for ci, cuota in enumerate(q['cuotas']):
+                original_amount = round(cuota['amount'], 2)
+                row = {
+                    'id': f'pay-sn-{slug}-{qi + 1}-{ci + 1}',
+                    'invoice_id': invoice_id,
+                    'client_id': client_id,
+                    'job_id': job_id,
+                    'quote_id': quote_id,
+                    'concepto': q['package_name'],
+                    'original_amount': original_amount,
+                    'due_date': cuota['due_date'],
+                    'cuota': f'{ci + 1}/{num_cuotas}',
+                    'tenant_id': tenant_id,
+                }
+                if cuota['status'] == 'Pagado':
+                    paid_date = cuota.get('paid_date') or cuota['due_date']
+                    row.update({
+                        'amount': original_amount,
+                        'paid_amount': original_amount,
+                        'status': 'Pagado',
+                        'paid_date': paid_date,
+                        'fecha_pago': paid_date,
+                    })
+                else:
+                    row.update({'amount': original_amount, 'paid_amount': 0, 'status': 'Pendiente'})
+                store.upsert('payments', row)
+
+        job = get_job(job_id)
+        job['accepted_quote_id'] = accepted_quote_id
+        store.upsert('jobs', job)
+
+        contract = entry.get('contract')
+        if contract:
+            store.upsert('contracts', {
+                'id': f'contract-sn-{slug}',
+                'job_id': job_id,
+                'client_id': client_id,
+                'lead_id': lead_id,
+                'tipo': 'boda',
+                'status': 'Firmado' if contract.get('signed') else 'Enviado',
+                'signed': bool(contract.get('signed')),
+                'photographer_signed': bool(contract.get('photographer_signed')),
+                'created': contract.get('signed_date') or entry['created'],
+                'tenant_id': tenant_id,
+            })
+
+        created.append(entry['job_name'])
+
+    logger.info(f"Import Studio Ninja por {session.get('user_email')}: {len(created)} creados, {len(skipped)} salteados")
+    return jsonify({'ok': True, 'created': created, 'skipped': skipped})
+
+
 @app.route('/settings/email-templates')
 def settings_email_templates():
     return render_template('settings_email_templates.html', templates=store.list('email_templates'))
