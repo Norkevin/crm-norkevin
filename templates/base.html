@@ -1463,10 +1463,10 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 
 <header class="app-header">
   <a href="/dashboard" class="brand-link">
-    <div class="brand-mark">{{ current_tenant.logo_letter|default('A') }}</div>
+    <div class="brand-mark">F</div>
     <div class="brand-copy">
-      <div class="brand-name">ASTRAL WEDDINGS</div>
-      <div class="brand-sub">Flow CRM</div>
+      <div class="brand-name">FLOW CRM</div>
+      <div class="brand-sub">{{ current_tenant.name|default('ASTRAL WEDDINGS') }}</div>
     </div>
   </a>
 
@@ -1891,8 +1891,9 @@ function enforceAstralBranding() {
   if (!brand) return;
   var name = brand.querySelector('.brand-name');
   var sub = brand.querySelector('.brand-sub');
-  if (name) name.textContent = 'ASTRAL WEDDINGS';
-  if (sub) sub.textContent = 'Flow CRM';
+  var tenantName = document.querySelector('.tenant-name');
+  if (name) name.textContent = 'FLOW CRM';
+  if (sub) sub.textContent = tenantName ? tenantName.textContent : 'ASTRAL WEDDINGS';
 }
 
 document.addEventListener('DOMContentLoaded', function() {
