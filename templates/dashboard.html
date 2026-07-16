@@ -681,7 +681,17 @@ function drawDashboardChart(labels, values, metric) {
   wireChartTooltips(svg, formatAxis);
 }
 
+var CURRENT_YEAR = {{ current_year|tojson }};
+// Por defecto solo se muestra el año en curso -- las demas lineas quedan
+// disponibles pero ocultas, el usuario las puede prender desde la leyenda.
+// Si el año en curso no tiene datos todavia, no ocultamos nada (mejor
+// mostrar lo que haya que dejar la grafica en blanco).
 var hiddenRevenueYears = new Set();
+if (REVENUE_SERIES.some(function(s) { return String(s.year) === String(CURRENT_YEAR); })) {
+  REVENUE_SERIES.forEach(function(s) {
+    if (String(s.year) !== String(CURRENT_YEAR)) hiddenRevenueYears.add(String(s.year));
+  });
+}
 
 function toggleRevenueYear(year) {
   year = String(year);
@@ -762,7 +772,8 @@ function updateDashboard() {
   document.getElementById('dashboard-leads-value').textContent = payload.totals.leads || 0;
   document.getElementById('dashboard-sessions-value').textContent = payload.totals.sessions || 0;
   document.getElementById('dashboard-payments-value').innerHTML = money(payload.totals.payments) + ' <span style="color:#7d8490;">(Q0)</span>';
-  document.getElementById('dashboard-revenue-value').textContent = '';
+  var currentYearSeries = REVENUE_SERIES.find(function(s) { return String(s.year) === String(CURRENT_YEAR); });
+  document.getElementById('dashboard-revenue-value').textContent = currentYearSeries ? money(currentYearSeries.total) : money(0);
   if (dashboardMetric === 'revenue') {
     drawRevenueComparisonChart();
   } else {

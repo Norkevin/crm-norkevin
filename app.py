@@ -1952,6 +1952,7 @@ def dashboard():
 
     return render_template('dashboard.html',
                            today=today,
+                           current_year=today.year,
                            upcoming_jobs=upcoming_jobs,
                            recent_leads=recent_leads,
                            workflow_events=workflow_events,
