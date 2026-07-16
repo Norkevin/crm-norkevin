@@ -1470,9 +1470,6 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 <header class="app-header">
   <a href="/dashboard" class="brand-link">
     <img class="brand-logo-img" src="{{ url_for('static', filename='logo-flow-crm.png') }}" alt="Flow CRM">
-    <div class="brand-copy">
-      <div class="brand-sub">{{ current_tenant.name|default('ASTRAL WEDDINGS') }}</div>
-    </div>
   </a>
 
   <nav class="topnav" aria-label="Principal">
@@ -1891,16 +1888,7 @@ function openActionMenu(event, actions) {
   menu.style.top = top + 'px';
 }
 
-function enforceAstralBranding() {
-  var brand = document.querySelector('.brand-link');
-  if (!brand) return;
-  var sub = brand.querySelector('.brand-sub');
-  var tenantName = document.querySelector('.tenant-name');
-  if (sub) sub.textContent = tenantName ? tenantName.textContent : 'ASTRAL WEDDINGS';
-}
-
 document.addEventListener('DOMContentLoaded', function() {
-  enforceAstralBranding();
   var path = window.location.pathname;
   if (path === '/') path = '/dashboard';
   document.querySelectorAll('.topnav-item').forEach(function(el) {
