@@ -98,6 +98,12 @@ svg[stroke="currentColor"] rect {
   letter-spacing: .03em;
   box-shadow: 0 4px 10px -3px rgba(2, 132, 199, .45);
 }
+.brand-logo-img {
+  height: 32px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+}
 .brand-copy { min-width: 0; line-height: 1.05; }
 .brand-name {
   font-size: 15px;
@@ -1463,9 +1469,8 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 
 <header class="app-header">
   <a href="/dashboard" class="brand-link">
-    <div class="brand-mark">F</div>
+    <img class="brand-logo-img" src="{{ url_for('static', filename='logo-flow-crm.png') }}" alt="Flow CRM">
     <div class="brand-copy">
-      <div class="brand-name">FLOW CRM</div>
       <div class="brand-sub">{{ current_tenant.name|default('ASTRAL WEDDINGS') }}</div>
     </div>
   </a>
@@ -1889,10 +1894,8 @@ function openActionMenu(event, actions) {
 function enforceAstralBranding() {
   var brand = document.querySelector('.brand-link');
   if (!brand) return;
-  var name = brand.querySelector('.brand-name');
   var sub = brand.querySelector('.brand-sub');
   var tenantName = document.querySelector('.tenant-name');
-  if (name) name.textContent = 'FLOW CRM';
   if (sub) sub.textContent = tenantName ? tenantName.textContent : 'ASTRAL WEDDINGS';
 }
 
