@@ -3425,6 +3425,77 @@ def api_admin_stop_historical_job_emails():
     return jsonify({'ok': True, 'fixed': fixed})
 
 
+@app.route('/api/admin/historical-job-mail-log')
+def api_admin_historical_job_mail_log():
+    """Kevin: 'hay que mandar una disculpa a los correos que mando'. Antes de
+    mandar nada hace falta saber a quien le llego de verdad -- esto lista,
+    de solo lectura, cada correo del mail_log ligado a un job importado de
+    Studio Ninja ('boda-sn-*'), agrupado por destinatario. delivered=false
+    marca los que solo cayeron en el outbox local (Gmail desconectado) y por
+    lo tanto NUNCA llegaron de verdad a nadie -- esos no necesitan disculpa."""
+    from src.mail_tracker import get_tracker
+
+    tracker = get_tracker()
+    by_recipient = {}
+    for entry in tracker.log:
+        job_id = entry.get('job_id') or ''
+        if not job_id.startswith('boda-sn-'):
+            continue
+        job = get_job(job_id)
+        delivered = entry.get('delivery_provider') != 'local_outbox' and entry.get('status') != 'failed'
+        for to_email in [e.strip() for e in (entry.get('to') or '').split(',') if e.strip()]:
+            row = by_recipient.setdefault(to_email, {
+                'to': to_email, 'jobs': set(), 'emails': [], 'delivered': False,
+            })
+            row['jobs'].add((job or {}).get('nombre') or job_id)
+            row['emails'].append({'subject': entry.get('subject'), 'sent_at': entry.get('sent_at'), 'delivered': delivered})
+            row['delivered'] = row['delivered'] or delivered
+
+    recipients = [
+        {'to': r['to'], 'jobs': sorted(r['jobs']), 'email_count': len(r['emails']), 'delivered': r['delivered']}
+        for r in by_recipient.values()
+    ]
+    recipients.sort(key=lambda r: r['to'])
+    return jsonify({'ok': True, 'recipients': recipients})
+
+
+@app.route('/api/admin/send-apology-historical-jobs', methods=['POST'])
+def api_admin_send_apology_historical_jobs():
+    """Manda la disculpa que pidio Kevin solo a los destinatarios reales que
+    de verdad recibieron un correo automatico indebido por un job importado
+    de Studio Ninja (delivery_provider != local_outbox). Requiere que Kevin
+    escriba el asunto/cuerpo el mismo -- este endpoint no inventa el texto,
+    solo lo manda a la lista correcta."""
+    from src.mail_tracker import get_tracker
+
+    data = request.get_json(silent=True) or {}
+    if data.get('confirm') != 'DISCULPA':
+        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
+    subject = (data.get('subject') or '').strip()
+    body = (data.get('body') or '').strip()
+    if not subject or not body:
+        return jsonify({'ok': False, 'error': 'Asunto y cuerpo requeridos'}), 400
+
+    tracker = get_tracker()
+    recipients = set()
+    for entry in tracker.log:
+        job_id = entry.get('job_id') or ''
+        if not job_id.startswith('boda-sn-'):
+            continue
+        if entry.get('delivery_provider') == 'local_outbox' or entry.get('status') == 'failed':
+            continue
+        for to_email in [e.strip() for e in (entry.get('to') or '').split(',') if e.strip()]:
+            recipients.add(to_email)
+
+    sent = []
+    for to_email in sorted(recipients):
+        entry = tracker.log_email(to_email=to_email, subject=subject, body=body)
+        sent.append({'to': to_email, 'mail_id': entry['id'], 'delivered': entry.get('delivery_provider') != 'local_outbox'})
+
+    logger.info(f"Disculpa por correos historicos enviada por {session.get('user_email')} a {len(sent)} destinatarios")
+    return jsonify({'ok': True, 'sent': sent})
+
+
 @app.route('/settings/email-templates')
 def settings_email_templates():
     return render_template('settings_email_templates.html', templates=store.list('email_templates'))

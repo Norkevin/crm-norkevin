@@ -215,6 +215,20 @@
   </div>
 </div>
 
+<div class="mb-8">
+  <h3 class="settings-section-title" style="color:var(--sn-red,#DC2626);">Disculpa por correos indebidos</h3>
+  <div class="sn-card white" style="padding:18px;border-color:#FCA5A5;">
+    <p class="sn-muted text-sm mb-4">
+      Muestra a quien de verdad le llego un correo automatico de un job
+      historico importado, y te deja mandarles una disculpa a esa lista
+      exacta. No inventa el texto -- lo escribis vos.
+    </p>
+    <button class="sn-btn" type="button" style="border-color:#DC2626;color:#DC2626;" onclick="openApologyModal()">
+      Ver destinatarios y mandar disculpa
+    </button>
+  </div>
+</div>
+
 </section>
 
 <div class="modal-overlay" id="reset-data-modal">
@@ -276,6 +290,36 @@
     <div class="sn-actions" style="justify-content:space-between;">
       <button class="sn-btn" type="button" onclick="closeModal('stop-emails-modal')">Cancelar</button>
       <button class="sn-btn" type="button" style="background:#DC2626;color:#fff;border-color:#DC2626;" onclick="confirmStopHistoricalEmails()">Parar correos</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="apology-modal">
+  <div class="modal-content" style="width:min(560px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('apology-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Disculpa por correos indebidos</h2>
+    <p class="sn-muted" style="font-size:13px;margin-top:-6px;margin-bottom:14px;">
+      Esta lista son los destinatarios que de verdad recibieron un correo
+      automatico por un job historico (no cuenta lo que se quedo solo en el
+      outbox local, eso nunca llego a nadie).
+    </p>
+    <div id="apology-recipients" class="sn-muted" style="font-size:13px;max-height:160px;overflow-y:auto;border:1px solid var(--sn-line);border-radius:8px;padding:10px;margin-bottom:14px;">
+      Cargando...
+    </div>
+    <div class="form-group">
+      <label class="form-label">Asunto</label>
+      <input class="form-input" id="apology-subject" placeholder="Una disculpa de nuestra parte" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mensaje</label>
+      <textarea class="form-input" id="apology-body" rows="6" placeholder="Escribe aqui el mensaje de disculpa..."></textarea>
+    </div>
+    <div class="form-group">
+      <input class="form-input" id="apology-confirm" placeholder="Escribe DISCULPA para confirmar" autocomplete="off">
+    </div>
+    <div class="sn-actions" style="justify-content:space-between;">
+      <button class="sn-btn" type="button" onclick="closeModal('apology-modal')">Cancelar</button>
+      <button class="sn-btn" type="button" style="background:#DC2626;color:#fff;border-color:#DC2626;" onclick="confirmSendApology()">Enviar disculpa</button>
     </div>
   </div>
 </div>
@@ -404,6 +448,47 @@ function confirmStopHistoricalEmails() {
     .then(function(data) {
       closeModal('stop-emails-modal');
       flashToast(data.fixed.length + ' jobs historicos blindados, ya no van a mandar correos automaticos', 'success');
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function openApologyModal() {
+  openModal('apology-modal');
+  var box = document.getElementById('apology-recipients');
+  box.textContent = 'Cargando...';
+  fetch('/api/admin/historical-job-mail-log')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var real = (data.recipients || []).filter(function(r) { return r.delivered; });
+      if (!real.length) {
+        box.textContent = 'No hay destinatarios reales registrados (todo quedo en modo prueba, nadie recibio nada de verdad).';
+        return;
+      }
+      box.innerHTML = real.map(function(r) {
+        return '<div style="padding:4px 0;border-bottom:1px solid var(--sn-line);">' +
+          '<strong>' + r.to + '</strong> -- ' + r.email_count + ' correo(s) -- ' + r.jobs.join(', ') +
+          '</div>';
+      }).join('');
+    })
+    .catch(function() { box.textContent = 'No se pudo cargar la lista.'; });
+}
+
+function confirmSendApology() {
+  var typed = document.getElementById('apology-confirm').value.trim();
+  if (typed !== 'DISCULPA') {
+    flashToast('Escribe DISCULPA (en mayusculas) para confirmar', 'error');
+    return;
+  }
+  var subject = document.getElementById('apology-subject').value.trim();
+  var body = document.getElementById('apology-body').value.trim();
+  if (!subject || !body) {
+    flashToast('Escribe el asunto y el mensaje primero', 'error');
+    return;
+  }
+  apiPost('/api/admin/send-apology-historical-jobs', { confirm: typed, subject: subject, body: body })
+    .then(function(data) {
+      closeModal('apology-modal');
+      flashToast('Disculpa enviada a ' + data.sent.length + ' destinatario(s)', 'success');
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
