@@ -1709,13 +1709,19 @@ def dashboard():
     today = date.today()
     today_str = today.isoformat()
 
-    # Upcoming jobs (proxima boda en los proximos 60 dias)
+    # Kevin: la lista de "proximas sesiones" quedaba vacia con datos reales
+    # porque estaba limitada a los proximos 60 dias -- sus bodas reales
+    # agendadas suelen estar meses (o mas de un año) por delante. Mostramos
+    # cualquier boda futura, ordenada por la mas cercana primero (el corte a
+    # 5 abajo en el template ya evita que la lista crezca sin limite).
     upcoming_jobs = []
     for j in _canonical_jobs():
+        if str(j.get('status') or '').strip().lower() in ('archivado', 'cancelado', 'cancelada'):
+            continue
         boda = j.get('boda_date', '')
         try:
             bd = date.fromisoformat(boda)
-            if 0 <= (bd - today).days <= 60:
+            if (bd - today).days >= 0:
                 j['dias_restantes'] = (bd - today).days
                 upcoming_jobs.append(j)
         except Exception:
