@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Contrato - {{ client.first_name }} {{ client.last_name }} · ASTRAL WEDDINGS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
 {% include "_document_style.html" %}
 <style>
   .term-block { margin-bottom: 18px; }
@@ -138,7 +141,7 @@
     </div>
     <div id="sig-type-panel" style="display:none;">
       <input id="typed-sig-name" style="width:100%;border:1px solid var(--doc-line);border-radius:10px;padding:10px;" placeholder="Escribe tu nombre completo">
-      <div id="typed-sig-preview" style="border:1px solid var(--doc-line);border-radius:10px;padding:18px;text-align:center;margin-top:10px;font-family:'Brush Script MT','Segoe Script',cursive;font-size:36px;min-height:90px;">Tu firma</div>
+      <div id="typed-sig-preview" style="border:1px solid var(--doc-line);border-radius:10px;padding:18px;text-align:center;margin-top:10px;font-family:'Great Vibes','Dancing Script',cursive;font-size:44px;min-height:90px;display:flex;align-items:center;justify-content:center;">Tu firma</div>
     </div>
     <div class="sig-actions">
       <button type="button" class="doc-btn outline" onclick="clearSig()">Limpiar</button>
@@ -180,12 +183,13 @@ function setSigMode(mode) {
   document.getElementById('sig-draw-panel').style.display = mode === 'draw' ? 'block' : 'none';
   document.getElementById('sig-type-panel').style.display = mode === 'type' ? 'block' : 'none';
 }
-function renderTypedSig() {
+async function renderTypedSig() {
   var name = (document.getElementById('typed-sig-name').value || '').trim();
   if (!name) {
     alert('Escribe tu nombre completo para firmar.');
     return null;
   }
+  try { await document.fonts.load("90px 'Great Vibes'"); } catch (e) {}
   var cv = document.createElement('canvas');
   cv.width = 800;
   cv.height = 220;
@@ -193,7 +197,7 @@ function renderTypedSig() {
   c.fillStyle = '#fff';
   c.fillRect(0, 0, cv.width, cv.height);
   c.fillStyle = '#0A0E1A';
-  c.font = "72px 'Brush Script MT', 'Segoe Script', cursive";
+  c.font = "90px 'Great Vibes', 'Dancing Script', cursive";
   c.textAlign = 'center';
   c.textBaseline = 'middle';
   c.fillText(name, cv.width / 2, cv.height / 2);
@@ -237,8 +241,8 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-function saveSig() {
-  var dataUrl = sigMode === 'type' ? renderTypedSig() : sigCanvas.toDataURL('image/png');
+async function saveSig() {
+  var dataUrl = sigMode === 'type' ? await renderTypedSig() : sigCanvas.toDataURL('image/png');
   if (!dataUrl) return;
   fetch('/api/contracts/' + CONTRACT_ID + '/sign', {
     method: 'POST',

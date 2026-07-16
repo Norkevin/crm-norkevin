@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{% block title %}ASTRAL WEDDINGS · Flow CRM{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 {% include "_tailwind_config.html" %}
 <style>
@@ -983,6 +986,9 @@ a.kpi-card:hover,
 }
 .workflow-step:hover { box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
 .workflow-step.done { background: #F6F7F9; border-color: var(--sn-line); color: #70777f; }
+.workflow-step.skipped { background: #FAFAFA; border-color: var(--sn-line); opacity: .6; }
+.workflow-step.skipped .workflow-step-name { text-decoration: line-through; }
+.workflow-step.skipped .workflow-check { border-color: #c4c4cb; color: #9a9fa6; cursor: default; }
 .workflow-check {
   width: 16px;
   height: 16px;

@@ -87,14 +87,19 @@
             <div class="workflow-step-tools"></div>
           </div>
           {% for step in workflow_steps if step.id not in delivery_ids and step.id != 'job_accepted' %}
-          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }}">
-            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status != 'done' %}onclick='triggerJobStep({{ step.id|tojson }})'{% endif %} title="Completar paso">
+          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }} {{ 'skipped' if step.status == 'skipped' else '' }}">
+            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status == 'pending' %}onclick='triggerJobStep({{ step.id|tojson }})'{% endif %} title="Completar paso" {% if step.status == 'skipped' %}disabled{% endif %}>
               {% if step.status == 'done' %}
               <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+              {% elif step.status == 'skipped' %}
+              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
               {% endif %}
             </button>
             <div class="sn-ellipsis">
               <div class="workflow-step-name">{{ step.name }}</div>
+              {% if step.status == 'skipped' %}
+              <span class="sn-chip gray">Omitido</span>
+              {% else %}
               {% set action_label = {
                 'send_email': 'Auto send email',
                 'send_contract': 'Auto send contract',
@@ -114,9 +119,10 @@
               <span class="sn-chip gray">Template: {{ email_template_names.get(step.email_template_id, step.email_template_id) }}</span>
               {% endif %}
               {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:10] }}</span>{% endif %}
+              {% endif %}
             </div>
             <div class="workflow-step-tools">
-              <button class="sn-menu-dots" type="button" onclick='triggerJobStep({{ step.id|tojson }})' title="Completar ahora">
+              <button class="sn-menu-dots" type="button" onclick='openStepActions(event, {{ step.id|tojson }}, {{ step.name|tojson }}, {{ step.status|tojson }})' title="Mas opciones">
                 <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
               </button>
             </div>
@@ -144,9 +150,14 @@
                 {% else %}
                 <span class="sn-chip gray">{{ task.created }}</span>
                 {% endif %}
+                {% if task.show_in_portal %}<span class="sn-chip blue">Show in Client Portal</span>{% endif %}
               </div>
             </div>
-            <div class="workflow-step-tools"></div>
+            <div class="workflow-step-tools">
+              <button class="sn-menu-dots" type="button" onclick='openManualTaskActions(event, {{ task|tojson }})' title="Mas opciones">
+                <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+              </button>
+            </div>
           </div>
           {% endfor %}
           <div class="workflow-step">
@@ -164,14 +175,19 @@
         <div class="workflow-rail delivery">DELIVERY</div>
         <div class="workflow-steps">
           {% for step in workflow_steps if step.id in delivery_ids %}
-          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }}">
-            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status != 'done' %}onclick='triggerJobStep({{ step.id|tojson }})'{% endif %}>
+          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }} {{ 'skipped' if step.status == 'skipped' else '' }}">
+            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status == 'pending' %}onclick='triggerJobStep({{ step.id|tojson }})'{% endif %} {% if step.status == 'skipped' %}disabled{% endif %}>
               {% if step.status == 'done' %}
               <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+              {% elif step.status == 'skipped' %}
+              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
               {% endif %}
             </button>
             <div class="sn-ellipsis">
               <div class="workflow-step-name">{{ step.name }}</div>
+              {% if step.status == 'skipped' %}
+              <span class="sn-chip gray">Omitido</span>
+              {% else %}
               {% set action_label = {
                 'send_email': 'Auto send email',
                 'send_gallery': 'Auto send gallery',
@@ -184,8 +200,9 @@
               <span class="sn-chip gray">Template: {{ email_template_names.get(step.email_template_id, step.email_template_id) }}</span>
               {% endif %}
               {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:10] }}</span>{% endif %}
+              {% endif %}
             </div>
-            <button class="sn-menu-dots" type="button" onclick='triggerJobStep({{ step.id|tojson }})'>
+            <button class="sn-menu-dots" type="button" onclick='openStepActions(event, {{ step.id|tojson }}, {{ step.name|tojson }}, {{ step.status|tojson }})' title="Mas opciones">
               <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
             </button>
           </div>
@@ -541,6 +558,7 @@
     <h2 class="modal-title" id="schedule-task-title">Add a New Extra Shoot</h2>
     <form onsubmit="submitScheduleTask(event)">
       <input type="hidden" id="schedule-task-type">
+      <input type="hidden" id="schedule-task-id">
       <div class="form-group">
         <label class="form-label">Name *</label>
         <input class="form-input" id="schedule-task-name" required placeholder="e.g. Boda civil, Save the Date, Trash the Dress">
@@ -767,8 +785,18 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
   <div class="modal-content" style="width:min(460px,100%);">
     <button type="button" class="modal-close" onclick="closeModal('photographer-sign-modal')" aria-label="Close">x</button>
     <h2 class="modal-title">Firma del fotografo</h2>
-    <p class="sn-muted" style="margin:-8px 0 14px;font-size:12.5px;">Firma con tu mouse o dedo para completar el contrato como ASTRAL WEDDINGS.</p>
-    <canvas id="photog-sig-canvas" width="400" height="150" style="border:1px solid var(--sn-line);border-radius:10px;width:100%;background:#fcfcfb;touch-action:none;"></canvas>
+    <p class="sn-muted" style="margin:-8px 0 14px;font-size:12.5px;">Puedes dibujar tu firma o escribir tu nombre.</p>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button id="photog-sig-mode-draw" type="button" class="sn-btn" onclick="setPhotogSigMode('draw')">Dibujar</button>
+      <button id="photog-sig-mode-type" type="button" class="sn-btn" onclick="setPhotogSigMode('type')">Escribir nombre</button>
+    </div>
+    <div id="photog-sig-draw-panel">
+      <canvas id="photog-sig-canvas" width="400" height="150" style="border:1px solid var(--sn-line);border-radius:10px;width:100%;background:#fcfcfb;touch-action:none;"></canvas>
+    </div>
+    <div id="photog-sig-type-panel" style="display:none;">
+      <input id="photog-typed-sig-name" class="form-input" placeholder="Escribe tu nombre completo">
+      <div id="photog-typed-sig-preview" style="border:1px solid var(--sn-line);border-radius:10px;padding:18px;text-align:center;margin-top:10px;font-family:'Great Vibes','Dancing Script',cursive;font-size:44px;min-height:90px;display:flex;align-items:center;justify-content:center;">Tu firma</div>
+    </div>
     <div class="sn-actions" style="justify-content:flex-start;margin-top:14px;">
       <button class="sn-btn" type="button" onclick="clearPhotogSig()">Limpiar</button>
       <div style="flex:1;"></div>
@@ -989,6 +1017,25 @@ function triggerJobStep(stepId, stepName) {
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
+function openStepActions(event, stepId, stepName, status) {
+  openActionMenu(event, [
+    status === 'pending' ? { label: 'Completar ahora', action: function() { triggerJobStep(stepId); } } : null,
+    status === 'pending' ? { label: 'Saltar este step', danger: true, confirm: '"' + stepName + '" no se va a enviar para este job. Seguro?', action: function() { skipJobStep(stepId, stepName); } } : null,
+    status === 'skipped' ? { label: 'Volver a incluir', action: function() { unskipJobStep(stepId, stepName); } } : null,
+    { divider: true },
+    { label: 'Editar en Workflow Editor', href: '/workflow-editor?id=production_workflow_v1' }
+  ]);
+}
+function skipJobStep(stepId, stepName) {
+  apiPost('/api/jobs/' + JOB_ID + '/steps/' + stepId + '/skip', {})
+    .then(function() { flashToast('"' + stepName + '" saltado para este job', 'success'); setTimeout(function() { location.reload(); }, 450); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function unskipJobStep(stepId, stepName) {
+  apiPost('/api/jobs/' + JOB_ID + '/steps/' + stepId + '/unskip', {})
+    .then(function() { flashToast('"' + stepName + '" vuelve a estar activo', 'success'); setTimeout(function() { location.reload(); }, 450); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
 function createManualTask(type, label) {
   apiPost('/api/jobs/' + JOB_ID + '/workflow-task', { type: type, name: label })
     .then(function() {
@@ -1000,7 +1047,9 @@ function createManualTask(type, label) {
 function openScheduleTaskForm(type, titleLabel) {
   closeModal('workflow-task-modal');
   document.getElementById('schedule-task-type').value = type;
+  document.getElementById('schedule-task-id').value = '';
   document.getElementById('schedule-task-title').textContent = 'Add a New ' + titleLabel;
+  document.getElementById('schedule-task-submit').textContent = 'Save';
   document.getElementById('schedule-task-name').value = '';
   document.getElementById('schedule-task-start-date').value = '';
   document.getElementById('schedule-task-end-date').value = '';
@@ -1010,10 +1059,25 @@ function openScheduleTaskForm(type, titleLabel) {
   document.getElementById('schedule-task-portal').checked = false;
   openModal('schedule-task-modal');
 }
+function openEditTaskForm(task) {
+  document.getElementById('schedule-task-type').value = task.type;
+  document.getElementById('schedule-task-id').value = task.id;
+  document.getElementById('schedule-task-title').textContent = 'Edit ' + (task.type === 'extra-event' ? 'Extra Shoot' : 'Appointment');
+  document.getElementById('schedule-task-submit').textContent = 'Save changes';
+  document.getElementById('schedule-task-name').value = task.name || '';
+  document.getElementById('schedule-task-start-date').value = task.start_date || '';
+  document.getElementById('schedule-task-end-date').value = task.end_date || '';
+  document.getElementById('schedule-task-start-time').value = task.start_time || '';
+  document.getElementById('schedule-task-end-time').value = task.end_time || '';
+  document.getElementById('schedule-task-location').value = task.location || '';
+  document.getElementById('schedule-task-portal').checked = !!task.show_in_portal;
+  openModal('schedule-task-modal');
+}
 function submitScheduleTask(event) {
   event.preventDefault();
   var type = document.getElementById('schedule-task-type').value;
-  apiPost('/api/jobs/' + JOB_ID + '/workflow-task', {
+  var taskId = document.getElementById('schedule-task-id').value;
+  var payload = {
     type: type,
     name: document.getElementById('schedule-task-name').value,
     start_date: document.getElementById('schedule-task-start-date').value,
@@ -1022,10 +1086,14 @@ function submitScheduleTask(event) {
     end_time: document.getElementById('schedule-task-end-time').value,
     location: document.getElementById('schedule-task-location').value,
     show_in_portal: document.getElementById('schedule-task-portal').checked
-  })
+  };
+  var url = taskId
+    ? '/api/jobs/' + JOB_ID + '/workflow-task/' + taskId + '/update'
+    : '/api/jobs/' + JOB_ID + '/workflow-task';
+  apiPost(url, payload)
     .then(function() {
       closeModal('schedule-task-modal');
-      flashToast('Workflow task and calendar event added', 'success');
+      flashToast(taskId ? 'Cambios guardados' : 'Workflow task and calendar event added', 'success');
       setTimeout(function() { location.reload(); }, 500);
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
@@ -1036,6 +1104,26 @@ function completeManualTask(taskId) {
       flashToast('Task completed', 'success');
       setTimeout(function() { location.reload(); }, 500);
     })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function openManualTaskActions(event, task) {
+  var hasSchedule = task.type === 'extra-event' || task.type === 'appointment';
+  openActionMenu(event, [
+    task.status !== 'done' ? { label: 'Completar ahora', action: function() { completeManualTask(task.id); } } : null,
+    hasSchedule ? { label: 'Editar', action: function() { openEditTaskForm(task); } } : null,
+    hasSchedule ? { label: task.show_in_portal ? 'Ocultar del Client Portal' : 'Show in Client Portal', action: function() { togglePortalManualTask(task.id); } } : null,
+    { divider: true },
+    { label: 'Eliminar', danger: true, confirm: 'Eliminar "' + task.name + '"?', action: function() { deleteManualTask(task.id); } }
+  ]);
+}
+function togglePortalManualTask(taskId) {
+  apiPost('/api/jobs/' + JOB_ID + '/workflow-task/' + taskId + '/toggle-portal', {})
+    .then(function() { setTimeout(function() { location.reload(); }, 300); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function deleteManualTask(taskId) {
+  apiPost('/api/jobs/' + JOB_ID + '/workflow-task/' + taskId + '/delete', {})
+    .then(function() { flashToast('Eliminado', 'success'); setTimeout(function() { location.reload(); }, 400); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 function saveJob(event) {
@@ -1176,6 +1264,7 @@ function sendContract(id) {
 }
 
 var photogSigCanvas, photogSigCtx, photogSigDrawing = false, photogSigContractId = null;
+var photogSigMode = 'draw';
 function openPhotographerSignature(contractId) {
   photogSigContractId = contractId;
   openModal('photographer-sign-modal');
@@ -1186,6 +1275,7 @@ function openPhotographerSignature(contractId) {
   photogSigCtx.lineCap = 'round';
   photogSigCtx.lineJoin = 'round';
   clearPhotogSig();
+  setPhotogSigMode('draw');
   if (!photogSigCanvas.dataset.bound) {
     photogSigCanvas.dataset.bound = '1';
     function pos(e) {
@@ -1205,14 +1295,54 @@ function openPhotographerSignature(contractId) {
     photogSigCanvas.addEventListener('touchstart', start);
     photogSigCanvas.addEventListener('touchmove', move);
     photogSigCanvas.addEventListener('touchend', end);
+    var typed = document.getElementById('photog-typed-sig-name');
+    typed.addEventListener('input', function() {
+      document.getElementById('photog-typed-sig-preview').textContent = typed.value.trim() || 'Tu firma';
+    });
   }
+}
+function setPhotogSigMode(mode) {
+  photogSigMode = mode;
+  document.getElementById('photog-sig-draw-panel').style.display = mode === 'draw' ? 'block' : 'none';
+  document.getElementById('photog-sig-type-panel').style.display = mode === 'type' ? 'block' : 'none';
+  document.getElementById('photog-sig-mode-draw').classList.toggle('sn-btn-primary', mode === 'draw');
+  document.getElementById('photog-sig-mode-type').classList.toggle('sn-btn-primary', mode === 'type');
 }
 function clearPhotogSig() {
   if (photogSigCtx) photogSigCtx.clearRect(0, 0, photogSigCanvas.width, photogSigCanvas.height);
+  var typed = document.getElementById('photog-typed-sig-name');
+  var preview = document.getElementById('photog-typed-sig-preview');
+  if (typed) typed.value = '';
+  if (preview) preview.textContent = 'Tu firma';
 }
-function savePhotogSig() {
-  var dataUrl = photogSigCanvas.toDataURL('image/png');
-  apiPost('/api/contracts/' + photogSigContractId + '/sign-photographer', { signature: dataUrl })
+async function renderPhotogTypedSig() {
+  var name = (document.getElementById('photog-typed-sig-name').value || '').trim();
+  if (!name) {
+    flashToast('Escribe tu nombre completo para firmar', 'error');
+    return null;
+  }
+  try { await document.fonts.load("90px 'Great Vibes'"); } catch (e) {}
+  var cv = document.createElement('canvas');
+  cv.width = 800;
+  cv.height = 220;
+  var c = cv.getContext('2d');
+  c.fillStyle = '#fff';
+  c.fillRect(0, 0, cv.width, cv.height);
+  c.fillStyle = '#18181b';
+  c.font = "90px 'Great Vibes', 'Dancing Script', cursive";
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText(name, cv.width / 2, cv.height / 2);
+  return cv.toDataURL('image/png');
+}
+async function savePhotogSig() {
+  var dataUrl = photogSigMode === 'type' ? await renderPhotogTypedSig() : photogSigCanvas.toDataURL('image/png');
+  if (!dataUrl) return;
+  apiPost('/api/contracts/' + photogSigContractId + '/sign-photographer', {
+    signature: dataUrl,
+    signature_type: photogSigMode,
+    signature_text: photogSigMode === 'type' ? (document.getElementById('photog-typed-sig-name').value || '').trim() : ''
+  })
     .then(function() { flashToast('Firma del fotografo guardada', 'success'); setTimeout(function(){ location.reload(); }, 500); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }

@@ -4655,6 +4655,10 @@ def api_job_workflow_task(job_id):
             'created': datetime.now().isoformat()[:10],
         }
         store.upsert('calendar', calendar_event)
+        task['calendar_event_id'] = event_id
+        # task ya se guardo en manual_tasks arriba por referencia, pero
+        # upsert_job(job) todavia no corrio -- lo dejamos correr una sola vez.
+        upsert_job(job)
 
     return jsonify({'ok': True, 'task': task, 'calendar_event': calendar_event})
 
@@ -4676,6 +4680,158 @@ def api_job_workflow_task_complete(job_id, task_id):
         return jsonify({'ok': False, 'error': 'Tarea no encontrada'}), 404
     upsert_job(job)
     return jsonify({'ok': True, 'task': found})
+
+
+@app.route('/api/jobs/<job_id>/workflow-task/<task_id>/update', methods=['POST'])
+def api_job_workflow_task_update(job_id, task_id):
+    """Edita un shoot extra / appointment ya creado (nombre, fecha, hora,
+    ubicacion, visibilidad en el portal) y mantiene su evento de calendario
+    sincronizado con los mismos datos."""
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    manual_tasks = job.get('manual_workflow_tasks') or []
+    task = next((t for t in manual_tasks if t.get('id') == task_id), None)
+    if not task:
+        return jsonify({'ok': False, 'error': 'Tarea no encontrada'}), 404
+
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip() or task.get('name')
+    needs_schedule = task.get('type') in ('extra-event', 'appointment')
+    start_date = (data.get('start_date') or '').strip()
+    if needs_schedule and not start_date:
+        return jsonify({'ok': False, 'error': 'La fecha es requerida'}), 400
+    end_date = (data.get('end_date') or '').strip() or start_date
+    start_time = (data.get('start_time') or '').strip()
+    end_time = (data.get('end_time') or '').strip()
+    location = (data.get('location') or '').strip()
+    show_in_portal = bool(data.get('show_in_portal'))
+
+    task['name'] = name
+    if needs_schedule:
+        task.update({
+            'start_date': start_date, 'end_date': end_date,
+            'start_time': start_time, 'end_time': end_time,
+            'location': location, 'show_in_portal': show_in_portal,
+        })
+        event_id = task.get('calendar_event_id')
+        if event_id and store.get('calendar', event_id):
+            event = store.get('calendar', event_id)
+            event.update({
+                'date': start_date, 'end_date': end_date,
+                'start_time': start_time, 'end_time': end_time,
+                'location': location,
+                'title': f"{name} - {job.get('nombre', 'Job')}",
+            })
+            store.upsert('calendar', event)
+        elif not event_id:
+            event_id = 'evt-' + uuid.uuid4().hex[:8]
+            store.upsert('calendar', {
+                'id': event_id, 'date': start_date, 'end_date': end_date,
+                'start_time': start_time, 'end_time': end_time, 'location': location,
+                'type': 'event', 'title': f"{name} - {job.get('nombre', 'Job')}",
+                'job_id': job_id, 'lead_id': job.get('lead_id'),
+                'created': datetime.now().isoformat()[:10],
+            })
+            task['calendar_event_id'] = event_id
+
+    job['manual_workflow_tasks'] = manual_tasks
+    upsert_job(job)
+    return jsonify({'ok': True, 'task': task})
+
+
+@app.route('/api/jobs/<job_id>/workflow-task/<task_id>/delete', methods=['POST'])
+def api_job_workflow_task_delete(job_id, task_id):
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    manual_tasks = job.get('manual_workflow_tasks') or []
+    task = next((t for t in manual_tasks if t.get('id') == task_id), None)
+    if not task:
+        return jsonify({'ok': False, 'error': 'Tarea no encontrada'}), 404
+
+    if task.get('calendar_event_id'):
+        store.delete('calendar', task['calendar_event_id'])
+
+    job['manual_workflow_tasks'] = [t for t in manual_tasks if t.get('id') != task_id]
+    upsert_job(job)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/jobs/<job_id>/workflow-task/<task_id>/toggle-portal', methods=['POST'])
+def api_job_workflow_task_toggle_portal(job_id, task_id):
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    manual_tasks = job.get('manual_workflow_tasks') or []
+    task = next((t for t in manual_tasks if t.get('id') == task_id), None)
+    if not task:
+        return jsonify({'ok': False, 'error': 'Tarea no encontrada'}), 404
+
+    task['show_in_portal'] = not task.get('show_in_portal')
+    job['manual_workflow_tasks'] = manual_tasks
+    upsert_job(job)
+    return jsonify({'ok': True, 'show_in_portal': task['show_in_portal']})
+
+
+def _get_or_create_job_workflow_instance(job):
+    instances = [i for i in workflow_engine.list_instances(subject_id=job.get('id'), subject_type='job')]
+    if instances:
+        return instances[0]
+    return workflow_engine.start_workflow(
+        workflow=PRODUCTION_WORKFLOW(),
+        subject_type='job',
+        subject_id=job.get('id'),
+        subject_name=job.get('nombre', 'Job'),
+        trigger_event='job.created',
+        auto_execute_first=False,
+    )
+
+
+@app.route('/api/jobs/<job_id>/steps/<step_id>/skip', methods=['POST'])
+def api_job_step_skip(job_id, step_id):
+    """Kevin: 'una opcion por cada paso... es util por si no quieres mandar
+    contrato por ejemplo'. Marca el step como SKIPPED solo para este job --
+    get_due_steps() del engine ya ignora cualquier estado que no sea PENDING,
+    asi que un step saltado nunca se dispara solo."""
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    tmpl = PRODUCTION_WORKFLOW()
+    step = next((s for s in tmpl.steps if s.id == step_id), None)
+    if not step:
+        return jsonify({'ok': False, 'error': 'Step no encontrado'}), 404
+
+    instance = _get_or_create_job_workflow_instance(job)
+    if instance.step_states.get(step_id) == StepStatus.DONE:
+        return jsonify({'ok': False, 'error': 'Este step ya se completo, no se puede saltar'}), 400
+
+    instance.step_states[step_id] = StepStatus.SKIPPED
+    workflow_engine._log(instance, 'step.skipped', f'{step.name}: saltado manualmente')
+    workflow_engine._save_to_storage()
+    return jsonify({'ok': True, 'step': step.name})
+
+
+@app.route('/api/jobs/<job_id>/steps/<step_id>/unskip', methods=['POST'])
+def api_job_step_unskip(job_id, step_id):
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+
+    tmpl = PRODUCTION_WORKFLOW()
+    step = next((s for s in tmpl.steps if s.id == step_id), None)
+    if not step:
+        return jsonify({'ok': False, 'error': 'Step no encontrado'}), 404
+
+    instance = _get_or_create_job_workflow_instance(job)
+    instance.step_states[step_id] = StepStatus.PENDING
+    workflow_engine._log(instance, 'step.unskipped', f'{step.name}: vuelve a estar activo')
+    workflow_engine._save_to_storage()
+    return jsonify({'ok': True, 'step': step.name})
 
 
 @app.route('/api/jobs/<job_id>/notes_produccion', methods=['POST'])
@@ -7104,6 +7260,8 @@ def api_contract_sign_photographer(contract_id):
     contract['photographer_signed'] = True
     contract['photographer_signed_at'] = _dt.now().isoformat()
     contract['photographer_signature_preview'] = signature_data
+    contract['photographer_signature_type'] = data.get('signature_type') or 'draw'
+    contract['photographer_signature_text'] = data.get('signature_text') or ''
     if contract.get('signed'):
         contract['status'] = 'Firmado'
     store.upsert('contracts', contract)
