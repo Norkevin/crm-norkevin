@@ -6,26 +6,89 @@
 <title>Iniciar sesion &middot; Flow CRM</title>
 <style>
   :root {
-    --lg-navy: #0F2350;
-    --lg-teal: #14B8B8;
+    --lg-navy-1: #050a17;
+    --lg-navy-2: #0a1230;
+    --lg-blue: #0ea5e9;
+    --lg-cyan: #22d3ee;
     --lg-ink: #0A0E1A;
-    --lg-ink-soft: #4B5563;
+    --lg-ink-soft: #6B7280;
     --lg-line: #E4E7EC;
-    --lg-paper: #F6F7F4;
   }
   * { box-sizing: border-box; }
   html, body {
     margin: 0; min-height: 100%;
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: var(--lg-paper);
     color: var(--lg-ink);
   }
   .login-shell {
     min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+  }
+  /* Panel izquierdo -- solo presentacion, sin logica funcional */
+  .login-hero {
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(120% 100% at 100% 100%, #12306b 0%, var(--lg-navy-2) 45%, var(--lg-navy-1) 100%);
+    color: #fff;
+    padding: 56px 64px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .login-arc {
+    position: absolute;
+    top: 0;
+    right: -40px;
+    height: 100%;
+    width: 340px;
+    pointer-events: none;
+  }
+  .login-hero-logo { height: 40px; width: auto; display: block; margin-bottom: 40px; }
+  .login-hero-title {
+    font-size: 42px;
+    font-weight: 800;
+    line-height: 1.18;
+    letter-spacing: -.01em;
+    margin: 0 0 18px;
+    max-width: 480px;
+  }
+  .login-hero-title .accent { color: var(--lg-cyan); }
+  .login-hero-tag {
+    font-size: 15px;
+    color: #A9B4C4;
+    line-height: 1.6;
+    max-width: 420px;
+    margin: 0 0 44px;
+  }
+  .login-hero-features {
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+  }
+  .login-feature { display: flex; align-items: center; gap: 12px; max-width: 220px; }
+  .login-feature-icon {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: rgba(56, 189, 248, .12);
+    border: 1px solid rgba(56, 189, 248, .25);
+    color: var(--lg-cyan);
+    display: grid;
+    place-items: center;
+  }
+  .login-feature-icon svg { width: 19px; height: 19px; }
+  .login-feature-title { font-size: 13px; font-weight: 600; color: #fff; }
+  .login-feature-desc { font-size: 11.5px; color: #8B96A8; margin-top: 2px; }
+
+  /* Panel derecho -- formulario real */
+  .login-panel {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 32px;
+    background: #F6F7F4;
   }
   .login-card {
     width: 100%;
@@ -33,12 +96,12 @@
     background: #fff;
     border: 1px solid var(--lg-line);
     border-radius: 22px;
-    padding: 44px 32px;
+    padding: 44px 36px;
     box-shadow: 0 1px 2px rgba(10,14,26,.04), 0 24px 48px -24px rgba(10,14,26,.14);
-    text-align: center;
   }
-  .login-logo { max-width: 220px; width: 100%; height: auto; margin: 0 auto 8px; display: block; }
-  .login-sub { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--lg-ink-soft); margin-top: 10px; }
+  .login-card-logo { height: 34px; width: auto; display: block; margin-bottom: 26px; }
+  .login-welcome { font-size: 23px; font-weight: 700; margin: 0 0 6px; color: var(--lg-ink); }
+  .login-welcome-sub { font-size: 13.5px; color: var(--lg-ink-soft); margin: 0; }
   .login-tag { font-size: 13px; color: var(--lg-ink-soft); margin-top: 22px; line-height: 1.6; }
   .login-btn {
     margin-top: 28px;
@@ -47,17 +110,19 @@
     align-items: center;
     justify-content: center;
     gap: 10px;
-    height: 46px;
-    border-radius: 999px;
-    background: var(--lg-ink);
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #0ea5e9, #075985);
     color: #fff;
-    font-size: 14px;
+    font-size: 14.5px;
     font-weight: 600;
     text-decoration: none;
-    transition: opacity .15s ease;
+    box-shadow: 0 10px 24px -8px rgba(14, 165, 233, .55);
+    transition: opacity .15s ease, transform .1s ease;
   }
-  .login-btn:hover { opacity: .88; }
-  .login-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .login-btn:hover { opacity: .92; }
+  .login-btn:active { transform: scale(.99); }
+  .login-btn svg { width: 18px; height: 18px; flex-shrink: 0; background: #fff; border-radius: 3px; padding: 2px; }
   .login-error {
     margin-top: 18px;
     padding: 10px 14px;
@@ -68,41 +133,92 @@
     font-size: 12px;
     text-align: left;
   }
-  .login-footer { margin-top: 26px; font-size: 11px; color: #9CA3AF; }
+  .login-footer { margin-top: 28px; font-size: 11px; color: #9CA3AF; text-align: center; }
+
+  @media (max-width: 900px) {
+    .login-shell { grid-template-columns: 1fr; }
+    .login-hero { display: none; }
+    .login-panel { min-height: 100vh; }
+  }
 </style>
 </head>
 <body>
 <div class="login-shell">
-  <div class="login-card">
-    <img class="login-logo" src="/static/logo-flow-crm.png" alt="Flow CRM">
-    <div class="login-sub">ASTRAL WEDDINGS</div>
-    <div class="login-tag">Inicia sesion con tu cuenta de Google para entrar al panel de administracion.</div>
-
-    {% set error = request.args.get('error') %}
-    {% if error %}
-    <div class="login-error">
-      {% if error == 'cuenta_no_autorizada' %}
-        Esa cuenta de Google no tiene acceso a este CRM.
-      {% elif error == 'not_configured' %}
-        Falta configurar GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET en el servidor.
-      {% elif error == 'state_invalido' %}
-        La sesion de inicio expiro, intenta de nuevo.
-      {% else %}
-        No se pudo iniciar sesion: {{ error }}
-      {% endif %}
+  <div class="login-hero">
+    <svg class="login-arc" viewBox="0 0 340 900" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="arcGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0"/>
+          <stop offset="50%" stop-color="#38bdf8" stop-opacity=".9"/>
+          <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
+        </linearGradient>
+        <filter id="arcGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3.2" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <path d="M 320 0 Q 140 450 320 900" stroke="url(#arcGrad)" stroke-width="2.5" fill="none" filter="url(#arcGlow)"/>
+    </svg>
+    <img class="login-hero-logo" src="/static/logo-flow-crm-dark.png" alt="Flow CRM">
+    <h1 class="login-hero-title">Everything your business needs.<br>All in <span class="accent">FLOW</span>.</h1>
+    <p class="login-hero-tag">Manage clients, leads, jobs, calendar, and payments&mdash;seamlessly.</p>
+    <div class="login-hero-features">
+      <div class="login-feature">
+        <div class="login-feature-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-4.13a4 4 0 10-4-4 4 4 0 004 4zm6-6a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </div>
+        <div>
+          <div class="login-feature-title">Client Management</div>
+          <div class="login-feature-desc">Keep client details organized.</div>
+        </div>
+      </div>
+      <div class="login-feature">
+        <div class="login-feature-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M20 7h-3V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H4a1 1 0 00-1 1v10a2 2 0 002 2h14a2 2 0 002-2V8a1 1 0 00-1-1zM9 5h6v2H9V5z"/></svg>
+        </div>
+        <div>
+          <div class="login-feature-title">Jobs &amp; Projects</div>
+          <div class="login-feature-desc">Track jobs from start to finish.</div>
+        </div>
+      </div>
     </div>
-    {% endif %}
+  </div>
 
-    {% if google_configured %}
-    <a class="login-btn" href="/auth/google/login/start?next={{ next_path }}">
-      <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M23.5 12.27c0-.79-.07-1.54-.19-2.27H12v4.3h6.47c-.28 1.5-1.13 2.77-2.4 3.62v3h3.88c2.27-2.09 3.55-5.17 3.55-8.65z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3c-1.08.72-2.45 1.15-4.05 1.15-3.11 0-5.75-2.1-6.69-4.92H1.3v3.09C3.27 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.31 14.32A7.2 7.2 0 0 1 4.94 12c0-.8.14-1.58.37-2.32V6.59H1.3A11.98 11.98 0 0 0 0 12c0 1.94.46 3.77 1.3 5.41z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.45-3.45C17.94 1.19 15.23 0 12 0 7.31 0 3.27 2.7 1.3 6.59l4.01 3.09C6.25 6.85 8.89 4.75 12 4.75z"/></svg>
-      Iniciar sesion con Google
-    </a>
-    {% else %}
-    <div class="login-error">Google no esta configurado todavia en el servidor.</div>
-    {% endif %}
+  <div class="login-panel">
+    <div class="login-card">
+      <img class="login-card-logo" src="/static/logo-flow-crm.png" alt="Flow CRM">
+      <h2 class="login-welcome">Welcome back</h2>
+      <p class="login-welcome-sub">Sign in to continue to your account</p>
 
-    <div class="login-footer">Acceso restringido &middot; ASTRAL WEDDINGS</div>
+      {% set error = request.args.get('error') %}
+      {% if error %}
+      <div class="login-error">
+        {% if error == 'cuenta_no_autorizada' %}
+          Esa cuenta de Google no tiene acceso a este CRM.
+        {% elif error == 'not_configured' %}
+          Falta configurar GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET en el servidor.
+        {% elif error == 'state_invalido' %}
+          La sesion de inicio expiro, intenta de nuevo.
+        {% else %}
+          No se pudo iniciar sesion: {{ error }}
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if google_configured %}
+      <a class="login-btn" href="/auth/google/login/start?next={{ next_path }}">
+        <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M23.5 12.27c0-.79-.07-1.54-.19-2.27H12v4.3h6.47c-.28 1.5-1.13 2.77-2.4 3.62v3h3.88c2.27-2.09 3.55-5.17 3.55-8.65z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3c-1.08.72-2.45 1.15-4.05 1.15-3.11 0-5.75-2.1-6.69-4.92H1.3v3.09C3.27 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.31 14.32A7.2 7.2 0 0 1 4.94 12c0-.8.14-1.58.37-2.32V6.59H1.3A11.98 11.98 0 0 0 0 12c0 1.94.46 3.77 1.3 5.41z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.45-3.45C17.94 1.19 15.23 0 12 0 7.31 0 3.27 2.7 1.3 6.59l4.01 3.09C6.25 6.85 8.89 4.75 12 4.75z"/></svg>
+        Iniciar sesion con Google
+      </a>
+      {% else %}
+      <div class="login-error">Google no esta configurado todavia en el servidor.</div>
+      {% endif %}
+
+      <div class="login-footer">Acceso restringido &middot; ASTRAL WEDDINGS</div>
+    </div>
   </div>
 </div>
 </body>
