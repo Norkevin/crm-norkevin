@@ -23,7 +23,9 @@
       <div id="add-menu" class="tenant-menu" style="right:0;top:38px;">
         <button class="tenant-menu-item" type="button" onclick="createMultiOptionQuote()">Quote</button>
         <button class="tenant-menu-item" type="button" onclick="openModal('invoice-modal')">Invoice</button>
+        {% if not contracts %}
         <button class="tenant-menu-item" type="button" onclick="createContract()">Contract</button>
+        {% endif %}
         <button class="tenant-menu-item" type="button" onclick="openQuestionnaireModal()">Questionnaire</button>
         <button class="tenant-menu-item" type="button" onclick="openModal('file-modal')">File</button>
         <button class="tenant-menu-item" type="button" onclick="openModal('notes-modal')">Note</button>
@@ -374,9 +376,11 @@
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 3h8l4 4v14H4V3h4Zm8 0v5h4"/></svg>
             Contracts
           </div>
+          {% if not contracts %}
           <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="createContract()">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
           </button>
+          {% endif %}
         </div>
         <div class="sn-list">
           {% for c in contracts %}
@@ -398,6 +402,9 @@
               <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Send</button>
               {% if not c.photographer_signed %}
               <button class="sn-btn sn-btn-sm sn-btn-primary" type="button" onclick="openPhotographerSignature('{{ c.id }}')">Firmar (fotografo)</button>
+              {% endif %}
+              {% if not c.signed and not c.photographer_signed %}
+              <button class="sn-btn sn-btn-sm" type="button" onclick="deleteContract('{{ c.id }}')" style="color:#b3263b;" title="Eliminar contrato">Eliminar</button>
               {% endif %}
             </div>
           </div>
@@ -968,6 +975,16 @@ function createContract() {
   apiPost('/api/contracts/new', { job_id: JOB_ID })
     .then(function() { flashToast('Contrato creado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
     .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function deleteContract(contractId) {
+  if (!confirm('Eliminar este contrato duplicado?')) return;
+  fetch('/api/contracts/' + contractId, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { flashToast('Contrato eliminado', 'success'); setTimeout(function(){ location.reload(); }, 450); }
+      else { flashToast(data.error || 'Error', 'error'); }
+    })
+    .catch(function() { flashToast('Error de red', 'error'); });
 }
 function createContractForStep(stepId) {
   if (!CLIENT_EMAIL) {

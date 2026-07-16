@@ -6611,7 +6611,11 @@ def invoice_pdf(invoice_id):
 
 @app.route('/api/contracts/new', methods=['POST'])
 def api_contract_new():
-    """Crea un nuevo contrato para un job."""
+    """Crea el contrato de un job -- o devuelve el que ya existe. Kevin: 'quiero
+    que solo haya un contrato por job, se generaron 3 de la nada' -- el boton +
+    y el trigger del workflow step llamaban a este endpoint cada vez, creando
+    un registro nuevo (y un link nuevo) en cada click/disparo. Ahora es
+    idempotente: un job siempre resuelve al mismo contrato."""
     import uuid
     from datetime import datetime as _dt
 
@@ -6627,6 +6631,14 @@ def api_contract_new():
     client = get_client(job.get('client_id', ''))
     if not client:
         return jsonify({'ok': False, 'error': 'Cliente no encontrado'}), 404
+
+    existing = next((c for c in store.list('contracts') if c.get('job_id') == job_id), None)
+    if existing:
+        return jsonify({
+            'ok': True,
+            'contract_id': existing['id'],
+            'pdf_url': f"/contracts/{existing['id']}/pdf",
+        })
 
     contract_id = 'contract-' + uuid.uuid4().hex[:8]
     contract = {
@@ -6646,6 +6658,19 @@ def api_contract_new():
         'contract_id': contract_id,
         'pdf_url': f'/contracts/{contract_id}/pdf',
     })
+
+
+@app.route('/api/contracts/<contract_id>', methods=['DELETE'])
+def api_contract_delete(contract_id):
+    """Elimina un contrato -- para limpiar duplicados que se hayan generado
+    antes de que /api/contracts/new fuera idempotente."""
+    contract = get_contract(contract_id)
+    if not contract:
+        return jsonify({'ok': False, 'error': 'Contrato no encontrado'}), 404
+    if contract.get('signed') or contract.get('photographer_signed'):
+        return jsonify({'ok': False, 'error': 'No se puede eliminar un contrato ya firmado'}), 400
+    store.delete('contracts', contract_id)
+    return jsonify({'ok': True})
 
 
 def get_contract(contract_id):
