@@ -55,7 +55,7 @@
             data-balance="{{ c.balance_due or 0 }}"
             data-email="{{ c.email or '' }}"
             onclick="goClient(event, '{{ c.id }}')">
-          <td class="sn-ellipsis" data-label="Client">
+          <td class="sn-ellipsis stack-full" data-label="Client">
             <div class="sn-row-name">
               <span class="sn-row-avatar">{{ (c.first_name or '?')[:1]|upper }}{{ (c.last_name or '')[:1]|upper }}</span>
               <div style="min-width:0;">

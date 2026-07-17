@@ -71,11 +71,14 @@ def test_pwa_meta_tags_present_on_every_page(auth_client):
     assert 'apple-touch-icon' in html
 
 
-def test_bottom_nav_present_and_has_five_items(auth_client):
+def test_bottom_nav_present_and_has_the_right_items(auth_client):
+    """Kevin: 'prefiero ver lead a ver clientes, y prefiero que salga
+    payments' -- Clients se saco de la barra principal (se mudo al menu
+    Mas) y Leads + Payments entraron."""
     resp = auth_client.get('/dashboard')
     html = resp.get_data(as_text=True)
     assert 'class="bottom-nav"' in html
-    for path in ('/dashboard', '/clients', '/jobs', '/calendar'):
+    for path in ('/dashboard', '/leads', '/jobs', '/payments', '/calendar'):
         assert f'data-nav="{path}"' in html
     assert 'openMoreSheet' in html
 

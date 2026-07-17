@@ -1495,7 +1495,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     min-height: 56px;
     grid-template-columns: auto 1fr auto;
     gap: 8px;
-    padding: 8px 12px;
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
     overflow: hidden;
   }
   .brand-link { gap: 7px; }
@@ -1661,7 +1661,8 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
      diseño): "demasiado aire" y "las labels en mayuscula se sienten de
      formulario" -- filas mas compactas, labels en gris claro sin
      mayusculas forzadas. */
-  .stack-mobile { border: none; box-shadow: none; background: transparent; }
+  .sn-table-shell.stack-mobile { overflow-x: visible; }
+  .stack-mobile { border: none; box-shadow: none; background: transparent; max-width: 100%; }
   .stack-mobile .sn-table { min-width: 0; table-layout: auto; }
   .stack-mobile .sn-table thead { display: none; }
   .stack-mobile .sn-table tr {
@@ -1679,7 +1680,8 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 6px 12px;
     height: auto;
     min-height: 30px;
     padding: 5px 0;
@@ -1689,6 +1691,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     background: transparent !important;
     text-align: right;
     font-size: 13px;
+    max-width: 100%;
   }
   .stack-mobile .sn-table td:last-child { border-bottom: none; }
   .stack-mobile .sn-table td[data-label]::before {
@@ -1710,6 +1713,25 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   .stack-mobile .sn-table td:first-child > div:first-child { text-align: left; }
   .stack-mobile .sn-table td .sn-progress-wrap,
   .stack-mobile .sn-table td .sn-progress { width: 140px; flex-shrink: 0; }
+
+  /* Bug real (Kevin: "jobs y clientes lo dejaste horrible no se
+     entiende nada"): una celda con label:value en flex row necesita
+     que el "value" pueda encogerse (min-width:0) para truncar en vez
+     de desbordar la tarjeta -- por defecto un flex item NO se encoge
+     mas alla de su contenido. Ademas, celdas con avatar+nombre+subtitulo
+     (mas anchas que un simple texto) no calzan bien en el patron
+     label-izquierda/valor-derecha -- se les saca de ese patron por
+     completo con .stack-full: bloque de ancho completo, alineado a la
+     izquierda, sin la etiqueta redundante (el avatar+nombre ya se
+     explica solo). */
+  .stack-mobile .sn-table td > *:last-child { min-width: 0; }
+  .stack-mobile .sn-table td.stack-full {
+    display: block;
+    text-align: left;
+    padding: 8px 0;
+  }
+  .stack-mobile .sn-table td.stack-full::before { display: none; }
+  .stack-mobile .sn-table td.stack-full .sn-row-name { min-width: 0; }
 }
 @media (max-width: 430px) {
   .app-header {
@@ -1872,13 +1894,17 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 22V12h6v10"/></svg>
     Dashboard
   </a>
-  <a href="/clients" class="bottom-nav-item" data-nav="/clients">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-    Clients
+  <a href="/leads" class="bottom-nav-item" data-nav="/leads">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 6v6l4 2"/></svg>
+    Leads
   </a>
   <a href="/jobs" class="bottom-nav-item" data-nav="/jobs">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
     Jobs
+  </a>
+  <a href="/payments" class="bottom-nav-item" data-nav="/payments">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M1 10h22"/></svg>
+    Payments
   </a>
   <a href="/calendar" class="bottom-nav-item" data-nav="/calendar">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 2v4M8 2v4M3 10h18"/></svg>
@@ -1910,13 +1936,9 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       <span>Configuración</span>
     </a>
-    <a class="more-sheet-item" href="/payments">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M1 10h22"/></svg>
-      <span>Payments</span>
-    </a>
-    <a class="more-sheet-item" href="/leads">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 6v6l4 2"/></svg>
-      <span>Leads</span>
+    <a class="more-sheet-item" href="/clients">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Clients</span>
     </a>
   </div>
   <div class="more-sheet-list">

@@ -76,7 +76,7 @@
             data-text="{{ (lead.nombre ~ ' ' ~ (lead.email or '') ~ ' ' ~ (lead.tipo_evento or '') ~ ' ' ~ (lead.fuente or ''))|lower }}"
             onclick="goLead(event, '{{ lead.id }}')">
           <td class="sn-ellipsis" data-label="Created">{{ lead.created_display or lead.created or '—' }}</td>
-          <td class="sn-ellipsis" data-label="Lead Name">
+          <td class="sn-ellipsis stack-full" data-label="Lead Name">
             <div class="sn-row-name">
               <span class="sn-row-avatar">{{ (lead.nombre or '?')[:1]|upper }}</span>
               <span>{{ lead.nombre or 'Sin nombre' }}</span>
