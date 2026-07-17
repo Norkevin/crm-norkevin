@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contacto · ASTRAL WEDDINGS</title>
+<title>Contacto · {{ tenant.name or 'ASTRAL WEDDINGS' }}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 {% include "_tailwind_config.html" %}
 <style>
@@ -23,7 +23,7 @@
   <div class="max-w-xl w-full">
 
     <div class="text-center mb-8">
-      <div class="text-3xl font-semibold tracking-tight text-ink">ASTRAL WEDDINGS</div>
+      <div class="text-3xl font-semibold tracking-tight text-ink">{{ tenant.name or 'ASTRAL WEDDINGS' }}</div>
       <p class="text-xs text-ink-soft uppercase tracking-widest mt-1">Photography &amp; Films</p>
     </div>
 
@@ -94,7 +94,7 @@
     </div>
 
     <div class="text-center mt-6 text-xs text-ink-soft">
-      ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333
+      {{ tenant.name or 'ASTRAL WEDDINGS' }} &middot; {{ contact_email }} &middot; {{ contact_phone }}
     </div>
   </div>
 </div>

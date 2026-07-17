@@ -3923,10 +3923,17 @@ def captacion_form(tenant_slug=None):
             abort(404)
     else:
         tenant = _tenant_by_slug('astral-weddings')
+    tenant = tenant or {}
+    company = get_settings(tenant_id=tenant.get('id')).get('company', {})
+    contact_email = company.get('email') or tenant.get('login_email') or 'info@astralweddings.com'
+    contact_phone = company.get('phone') or '+502 2222 3333'
     return render_template(
         'captacion.html',
-        lead_sources=_configured_lead_sources(tenant_id=(tenant or {}).get('id')),
-        tenant_slug=(tenant or {}).get('slug', 'astral-weddings'),
+        lead_sources=_configured_lead_sources(tenant_id=tenant.get('id')),
+        tenant_slug=tenant.get('slug', 'astral-weddings'),
+        tenant=tenant,
+        contact_email=contact_email,
+        contact_phone=contact_phone,
     )
 
 
@@ -6406,10 +6413,15 @@ def formulario_lead(tenant_slug=None):
             abort(404)
     else:
         tenant = _tenant_by_slug('astral-weddings')
+    tenant = tenant or {}
+    company = get_settings(tenant_id=tenant.get('id')).get('company', {})
+    contact_email = company.get('email') or tenant.get('login_email') or 'info@astralweddings.com'
     return render_template(
         'formulario.html',
-        lead_sources=_configured_lead_sources(tenant_id=(tenant or {}).get('id')),
-        tenant_slug=(tenant or {}).get('slug', 'astral-weddings'),
+        lead_sources=_configured_lead_sources(tenant_id=tenant.get('id')),
+        tenant_slug=tenant.get('slug', 'astral-weddings'),
+        tenant=tenant,
+        contact_email=contact_email,
     )
 
 

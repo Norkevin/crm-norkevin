@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cotizar mi boda · ASTRAL WEDDINGS</title>
+<title>Cotizar mi boda · {{ tenant.name or 'ASTRAL WEDDINGS' }}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config = {
@@ -67,9 +67,9 @@ tailwind.config = {
 <header class="border-b border-line bg-white">
   <div class="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
     <a href="/" class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-sm bg-ink flex items-center justify-center text-paper font-semibold text-sm tracking-wider">N</div>
+      <div class="w-9 h-9 rounded-sm bg-ink flex items-center justify-center text-paper font-semibold text-sm tracking-wider">{{ tenant.logo_letter or 'F' }}</div>
       <div class="leading-tight">
-        <div class="font-semibold text-[14px] text-ink tracking-tight">ASTRAL WEDDINGS</div>
+        <div class="font-semibold text-[14px] text-ink tracking-tight">{{ tenant.name or 'ASTRAL WEDDINGS' }}</div>
         <div class="text-[9px] text-mute uppercase tracking-wide-mega font-medium">Photography</div>
       </div>
     </a>
@@ -107,7 +107,7 @@ tailwind.config = {
   <!-- Mensaje de error -->
   <div id="msg-error" class="hidden form-card p-6 mb-8 border-l-4 border-l-red-700">
     <div class="font-semibold text-red-900 mb-1">Hubo un problema</div>
-    <div class="text-sm text-red-700" id="msg-error-text">Intenta de nuevo o escríbeme directo a info@astralweddings.com</div>
+    <div class="text-sm text-red-700" id="msg-error-text">Intenta de nuevo o escríbeme directo a {{ contact_email }}</div>
   </div>
 
   <!-- Formulario -->
@@ -197,7 +197,7 @@ tailwind.config = {
 
   <!-- Footer -->
   <div class="mt-12 pt-8 border-t border-line text-center">
-    <p class="text-xs text-mute">¿Prefieres escribirme directo? <a href="mailto:info@astralweddings.com" class="text-ink font-medium hover:underline">info@astralweddings.com</a></p>
+    <p class="text-xs text-mute">¿Prefieres escribirme directo? <a href="mailto:{{ contact_email }}" class="text-ink font-medium hover:underline">{{ contact_email }}</a></p>
   </div>
 
 </main>
@@ -271,7 +271,7 @@ form.addEventListener('submit', async (e) => {
       msgExito.classList.remove('hidden');
       window.scrollTo({top: 0, behavior: 'smooth'});
     } else {
-      msgErrorText.textContent = d.error || 'Intenta de nuevo o escríbeme directo a info@astralweddings.com';
+      msgErrorText.textContent = d.error || 'Intenta de nuevo o escríbeme directo a {{ contact_email }}';
       msgError.classList.remove('hidden');
     }
   } catch (err) {

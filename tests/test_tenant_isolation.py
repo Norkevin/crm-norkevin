@@ -313,6 +313,29 @@ def test_public_contact_form_tags_lead_with_the_slugs_tenant(client):
         assert app_module.store.get('leads', lead_id) is None
 
 
+def test_public_contact_forms_show_the_right_brand_per_slug(client):
+    """Kevin: 'el contact form es el mismo para las 3 cuentas' -- la ruta
+    ya resolvia el tenant correcto para asignar el lead, pero el HTML
+    seguia mostrando 'ASTRAL WEDDINGS' fijo sin importar el slug. Un
+    visitante llenando /contacto/norkevin-photography no debe ver la marca
+    de otra cuenta."""
+    for path in ('/contacto', '/captacion'):
+        resp = client.get(f'{path}/norkevin-photography')
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert 'Norkevin Photography' in html
+        assert 'ASTRAL WEDDINGS' not in html, f'{path} no debe mostrar la marca de otra cuenta'
+
+        resp = client.get(f'{path}/ramiro-cruz-photo')
+        html = resp.get_data(as_text=True)
+        assert 'Ramiro Cruz Photo' in html
+        assert 'ASTRAL WEDDINGS' not in html
+
+        resp = client.get(path)
+        html = resp.get_data(as_text=True)
+        assert 'ASTRAL WEDDINGS' in html, f'{path} sin slug sigue cayendo en Astral Weddings por compatibilidad'
+
+
 def test_unknown_contact_form_slug_is_404(client):
     resp = client.get('/contacto/marca-que-no-existe')
     assert resp.status_code == 404
