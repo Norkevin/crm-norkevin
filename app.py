@@ -3317,7 +3317,16 @@ def settings():
     inicio_mes = today.replace(day=1)
 
     host = request.host_url.rstrip('/')
-    captacion_url = host + '/captacion'
+    current_tenant_id = get_current_tenant_id()
+    current_tenant = next((t for t in store.list('tenants') if t.get('id') == current_tenant_id), None)
+    tenant_slug = (current_tenant or {}).get('slug')
+    # Kevin: 'el link del formulario es el mismo en las 3 cuentas' -- sin el
+    # slug, las 3 cuentas mostraban /captacion a secas, que siempre cae en
+    # Astral Weddings (el default de compatibilidad de la ruta sin slug).
+    # Cualquier lead que llegara por el link copiado desde Settings de
+    # Norkevin Photography o Ramiro Cruz Photo se le habria asignado a
+    # Astral Weddings por error.
+    captacion_url = host + '/captacion/' + tenant_slug if tenant_slug else host + '/captacion'
 
     stats = {
         'leads_mes': sum(1 for l in leads if l.get('created', '') >= inicio_mes.isoformat()),

@@ -336,6 +336,28 @@ def test_public_contact_forms_show_the_right_brand_per_slug(client):
         assert 'ASTRAL WEDDINGS' in html, f'{path} sin slug sigue cayendo en Astral Weddings por compatibilidad'
 
 
+def test_settings_shows_each_tenants_own_captacion_link(client):
+    """Kevin: 'el link del formulario es el mismo en las 3 cuentas' --
+    /settings armaba captacion_url como host + '/captacion' a secas, sin
+    slug, para CUALQUIER cuenta logueada. Ese link generico cae en Astral
+    Weddings (el fallback de compatibilidad de la ruta sin slug), asi que
+    si Norkevin Photography o Ramiro Cruz Photo compartian el link que
+    Settings les mostraba, sus leads se le habrian asignado a Astral
+    Weddings por error."""
+    login_as_tenant(client, 'tenant-norkevin-photography')
+    html = client.get('/settings').get_data(as_text=True)
+    assert '/captacion/norkevin-photography' in html
+    assert 'href="/captacion"' not in html, 'el link no debe caer en el default sin slug'
+
+    login_as_tenant(client, 'tenant-ramiro-cruz')
+    html = client.get('/settings').get_data(as_text=True)
+    assert '/captacion/ramiro-cruz-photo' in html
+
+    login_as_tenant(client, 'tenant-norkevin')
+    html = client.get('/settings').get_data(as_text=True)
+    assert '/captacion/astral-weddings' in html
+
+
 def test_unknown_contact_form_slug_is_404(client):
     resp = client.get('/contacto/marca-que-no-existe')
     assert resp.status_code == 404
