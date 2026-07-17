@@ -84,12 +84,28 @@
 
   /* Panel derecho -- formulario real */
   .login-panel {
+    position: relative;
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 32px;
-    background: #F6F7F4;
+    background:
+      radial-gradient(60% 50% at 100% 0%, rgba(14,165,233,.10) 0%, rgba(14,165,233,0) 70%),
+      radial-gradient(50% 45% at 0% 100%, rgba(34,211,238,.08) 0%, rgba(34,211,238,0) 70%),
+      #FAFBFC;
   }
+  .login-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(10,14,26,.05) 1px, transparent 1px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 0%, transparent 75%);
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 0%, transparent 75%);
+    pointer-events: none;
+  }
+  .login-card { position: relative; }
   .login-card {
     width: 100%;
     max-width: 400px;
@@ -163,16 +179,16 @@
       <path d="M 320 0 Q 140 450 320 900" stroke="url(#arcGrad)" stroke-width="2.5" fill="none" filter="url(#arcGlow)"/>
     </svg>
     <img class="login-hero-logo" src="/static/logo-flow-crm-dark.png" alt="Flow CRM">
-    <h1 class="login-hero-title">Everything your business needs.<br>All in <span class="accent">FLOW</span>.</h1>
-    <p class="login-hero-tag">Manage clients, leads, jobs, calendar, and payments&mdash;seamlessly.</p>
+    <h1 class="login-hero-title">Todo lo que tu negocio necesita.<br>Todo en <span class="accent">FLOW</span>.</h1>
+    <p class="login-hero-tag">Clientes, leads, trabajos, calendario y pagos&mdash;en un solo lugar.</p>
     <div class="login-hero-features">
       <div class="login-feature">
         <div class="login-feature-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-4.13a4 4 0 10-4-4 4 4 0 004 4zm6-6a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
         </div>
         <div>
-          <div class="login-feature-title">Client Management</div>
-          <div class="login-feature-desc">Keep client details organized.</div>
+          <div class="login-feature-title">Gestion de clientes</div>
+          <div class="login-feature-desc">Todo organizado en un solo lugar.</div>
         </div>
       </div>
       <div class="login-feature">
@@ -180,8 +196,8 @@
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M20 7h-3V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H4a1 1 0 00-1 1v10a2 2 0 002 2h14a2 2 0 002-2V8a1 1 0 00-1-1zM9 5h6v2H9V5z"/></svg>
         </div>
         <div>
-          <div class="login-feature-title">Jobs &amp; Projects</div>
-          <div class="login-feature-desc">Track jobs from start to finish.</div>
+          <div class="login-feature-title">Trabajos y proyectos</div>
+          <div class="login-feature-desc">Sigue cada boda de principio a fin.</div>
         </div>
       </div>
     </div>
@@ -190,8 +206,8 @@
   <div class="login-panel">
     <div class="login-card">
       <img class="login-card-logo" src="/static/logo-flow-crm.png" alt="Flow CRM">
-      <h2 class="login-welcome">Welcome back</h2>
-      <p class="login-welcome-sub">Sign in to continue to your account</p>
+      <h2 class="login-welcome">Bienvenido de nuevo</h2>
+      <p class="login-welcome-sub">Inicia sesion para continuar a tu cuenta</p>
 
       {% set error = request.args.get('error') %}
       {% if error %}
@@ -217,7 +233,7 @@
       <div class="login-error">Google no esta configurado todavia en el servidor.</div>
       {% endif %}
 
-      <div class="login-footer">Acceso restringido &middot; ASTRAL WEDDINGS</div>
+      <div class="login-footer">Acceso restringido a cuentas autorizadas</div>
     </div>
   </div>
 </div>
