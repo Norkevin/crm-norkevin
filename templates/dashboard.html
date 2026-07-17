@@ -10,6 +10,53 @@
   max-width: 1260px;
   margin: 0 auto;
 }
+/* Jerarquia del dashboard (Kevin, feedback de diseño: "todo pesa igual,
+   dale jerarquia a lo mas importante") -- lo que representa dinero
+   pendiente de cobrar va primero y con mas peso visual que el resto. */
+.dashboard-pending-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  margin-bottom: 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #0c4a6e, #075985);
+  color: #fff;
+  text-decoration: none;
+  box-shadow: 0 6px 20px -8px rgba(7, 89, 133, .45);
+  transition: transform .12s ease, box-shadow .15s ease;
+}
+.dashboard-pending-banner:hover { transform: translateY(-1px); box-shadow: 0 10px 26px -8px rgba(7, 89, 133, .55); }
+.dashboard-pending-banner.urgent { background: linear-gradient(135deg, #7f1d1d, #b3263b); box-shadow: 0 6px 20px -8px rgba(179, 38, 59, .45); }
+.dashboard-pending-icon {
+  width: 42px; height: 42px; flex-shrink: 0;
+  border-radius: 12px;
+  background: rgba(255,255,255,.15);
+  display: grid; place-items: center;
+}
+.dashboard-pending-icon svg { width: 21px; height: 21px; }
+.dashboard-pending-copy { min-width: 0; flex: 1; }
+.dashboard-pending-label { font-size: 12px; font-weight: 500; opacity: .85; }
+.dashboard-pending-value { font-size: 24px; font-weight: 700; margin-top: 1px; }
+.dashboard-pending-late {
+  flex-shrink: 0;
+  text-align: right;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(0,0,0,.18);
+}
+.dashboard-pending-late-value { display: block; font-size: 14px; font-weight: 700; }
+.dashboard-pending-late-label { display: block; font-size: 10px; opacity: .8; }
+.dashboard-pending-arrow { width: 18px; height: 18px; flex-shrink: 0; opacity: .7; }
+.dashboard-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--sn-muted);
+  margin: 20px 0 8px;
+}
+.dashboard-section-label:first-child { margin-top: 0; }
 .dashboard-panel {
   border: 1px solid var(--sn-line-dark);
   border-radius: 18px;
@@ -301,6 +348,10 @@
     padding: 12px;
     border-radius: 7px;
   }
+  .dashboard-pending-banner { padding: 12px 14px; gap: 10px; }
+  .dashboard-pending-value { font-size: 19px; }
+  .dashboard-pending-icon { width: 36px; height: 36px; }
+  .dashboard-section-label { margin: 16px 0 6px; font-size: 11px; }
   .dashboard-control-right {
     display: grid;
     grid-template-columns: 1fr;
@@ -357,6 +408,73 @@
 </style>
 
 <section class="dashboard-shell">
+  {% if total_pending %}
+  <a class="dashboard-pending-banner {{ 'urgent' if total_late else '' }}" href="/payments">
+    <div class="dashboard-pending-icon">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2 10h20M6 15h4M2 6h20a1 1 0 011 1v10a1 1 0 01-1 1H2a1 1 0 01-1-1V7a1 1 0 011-1z"/></svg>
+    </div>
+    <div class="dashboard-pending-copy">
+      <div class="dashboard-pending-label">Pagos pendientes de cobrar</div>
+      <div class="dashboard-pending-value">Q{{ '{:,.0f}'.format(total_pending) }}</div>
+    </div>
+    {% if total_late %}
+    <div class="dashboard-pending-late">
+      <span class="dashboard-pending-late-value">Q{{ '{:,.0f}'.format(total_late) }}</span>
+      <span class="dashboard-pending-late-label">atrasado</span>
+    </div>
+    {% endif %}
+    <svg class="dashboard-pending-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
+  </a>
+  {% endif %}
+
+  <div class="dashboard-section-label">Proximos eventos y actividad reciente</div>
+  <div class="dashboard-lists">
+    <div class="dashboard-list-card">
+      <div class="dashboard-list-head">
+        <div class="dashboard-list-title">Upcoming Session &amp; Appointments</div>
+        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/jobs?new=1">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          Add New
+        </a>
+      </div>
+      {% for j in upcoming_jobs[:5] %}
+      <a class="dashboard-row" href="/jobs/{{ j.id }}">
+        <span>{{ j.boda_date or 'No date' }}</span>
+        <span>
+          <span class="dashboard-row-main">{{ j.nombre }}</span>
+          <span class="dashboard-row-sub">{{ j.location or 'Sin ubicacion' }}</span>
+        </span>
+        <span class="sn-chip green">Job</span>
+      </a>
+      {% else %}
+      <div class="text-center py-6 text-ink-soft text-sm">Sin sesiones proximas</div>
+      {% endfor %}
+    </div>
+
+    <div class="dashboard-list-card">
+      <div class="dashboard-list-head">
+        <div class="dashboard-list-title">Most Recent Leads</div>
+        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/leads?new=1">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          Add New
+        </a>
+      </div>
+      {% for l in recent_leads %}
+      <a class="dashboard-row" href="/leads/{{ l.id }}">
+        <span>{{ l.created or 'Today' }}</span>
+        <span>
+          <span class="dashboard-row-main">{{ l.nombre }}</span>
+          <span class="dashboard-row-sub">{{ l.email or l.fuente or '' }}</span>
+        </span>
+        <span class="sn-chip cyan">{{ l.mail_status or 'OPEN' }}</span>
+      </a>
+      {% else %}
+      <div class="text-center py-6 text-ink-soft text-sm">Sin leads recientes</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="dashboard-section-label">Ventas y graficas</div>
   <div class="dashboard-panel">
     <div class="dashboard-controls">
       <select id="dashboard-job-type" class="sn-select" style="width:220px;" onchange="updateDashboard()">
@@ -436,52 +554,6 @@
         <div class="text-center py-6 text-ink-soft text-sm">Sin fuentes</div>
         {% endif %}
       </div>
-    </div>
-  </div>
-
-  <div class="dashboard-lists">
-    <div class="dashboard-list-card">
-      <div class="dashboard-list-head">
-        <div class="dashboard-list-title">Upcoming Session & Appointments</div>
-        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/jobs?new=1">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-          Add New
-        </a>
-      </div>
-      {% for j in upcoming_jobs[:5] %}
-      <a class="dashboard-row" href="/jobs/{{ j.id }}">
-        <span>{{ j.boda_date or 'No date' }}</span>
-        <span>
-          <span class="dashboard-row-main">{{ j.nombre }}</span>
-          <span class="dashboard-row-sub">{{ j.location or 'Sin ubicacion' }}</span>
-        </span>
-        <span class="sn-chip green">Job</span>
-      </a>
-      {% else %}
-      <div class="text-center py-6 text-ink-soft text-sm">Sin sesiones proximas</div>
-      {% endfor %}
-    </div>
-
-    <div class="dashboard-list-card">
-      <div class="dashboard-list-head">
-        <div class="dashboard-list-title">Most Recent Leads</div>
-        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/leads?new=1">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-          Add New
-        </a>
-      </div>
-      {% for l in recent_leads %}
-      <a class="dashboard-row" href="/leads/{{ l.id }}">
-        <span>{{ l.created or 'Today' }}</span>
-        <span>
-          <span class="dashboard-row-main">{{ l.nombre }}</span>
-          <span class="dashboard-row-sub">{{ l.email or l.fuente or '' }}</span>
-        </span>
-        <span class="sn-chip cyan">{{ l.mail_status or 'OPEN' }}</span>
-      </a>
-      {% else %}
-      <div class="text-center py-6 text-ink-soft text-sm">Sin leads recientes</div>
-      {% endfor %}
     </div>
   </div>
 </section>
