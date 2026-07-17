@@ -222,19 +222,19 @@
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
           </button>
         </div>
-        <div class="sn-table-shell">
+        <div class="sn-table-shell stack-mobile">
           <table class="sn-table">
             <thead><tr><th style="width:110px;">Date</th><th style="width:160px;">To</th><th>Subject</th><th style="width:70px;"></th></tr></thead>
             <tbody>
             {% for mail in mail_log %}
               <tr>
-                <td>{{ (mail.sent_at or '')[:10] }}</td>
-                <td class="sn-ellipsis">{{ mail.to or 'me' }}</td>
-                <td>
+                <td data-label="Date">{{ (mail.sent_at or '')[:10] }}</td>
+                <td class="sn-ellipsis" data-label="To">{{ mail.to or 'me' }}</td>
+                <td data-label="Subject">
                   <div class="sn-ellipsis">{{ mail.subject or 'Email' }}</div>
                   {% if mail.status == 'opened' %}<span class="sn-chip cyan">EMAIL OPENED</span>{% elif mail.status %}<span class="sn-chip gray">{{ mail.status|upper }}</span>{% endif %}
                 </td>
-                <td>
+                <td class="stack-actions">
                   <button class="sn-btn sn-btn-sm" type="button"
                     data-subject="{{ mail.subject or 'Email' }}"
                     data-to="{{ mail.to or '' }}"

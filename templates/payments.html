@@ -37,7 +37,7 @@
     </div>
   </div>
 
-  <div class="sn-table-shell">
+  <div class="sn-table-shell stack-mobile">
     <table class="sn-table" id="payments-table">
       <thead>
         <tr>
@@ -56,7 +56,7 @@
             data-status="{{ p.status }}"
             data-text="{{ (p.invoice_id ~ ' ' ~ p.client_name ~ ' ' ~ p.job_name ~ ' ' ~ (p.concepto or ''))|lower }}"
             onclick="goPayment(event, '{{ p.job_id }}', '{{ p.client_id }}')">
-          <td>
+          <td data-label="Status">
             {% if p.status == 'Late' %}
               <span class="sn-chip red">Late</span>
             {% elif p.status == 'Pagado' %}
@@ -69,7 +69,7 @@
               <span class="sn-chip gray">Unpaid</span>
             {% endif %}
           </td>
-          <td class="sn-ellipsis">
+          <td class="sn-ellipsis" data-label="Due">
             {{ p.due_date_display or p.due_date or 'No due date' }}
             {% if p.days_ago %}
               <span class="sn-muted" style="color:#b3263b;">({{ p.days_ago }} days ago)</span>
@@ -77,11 +77,11 @@
               <span class="sn-muted">(in {{ p.days_until }} days)</span>
             {% endif %}
           </td>
-          <td class="sn-ellipsis">{{ p.invoice_id or p.id }}</td>
-          <td class="sn-ellipsis">{{ p.client_name }}</td>
-          <td class="sn-ellipsis">{{ p.job_name }}</td>
-          <td style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(p.amount) }}</span></td>
-          <td style="text-align:right;" onclick="event.stopPropagation()">
+          <td class="sn-ellipsis" data-label="Invoice ID">{{ p.invoice_id or p.id }}</td>
+          <td class="sn-ellipsis" data-label="Client">{{ p.client_name }}</td>
+          <td class="sn-ellipsis" data-label="Job">{{ p.job_name }}</td>
+          <td data-label="Amount" style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(p.amount) }}</span></td>
+          <td class="stack-actions" style="text-align:right;" onclick="event.stopPropagation()">
             <button class="sn-menu-dots" type="button" title="Actions" onclick='openPaymentActions(event, {{ p.id|tojson }}, {{ (p.invoice_id or p.id)|tojson }}, {{ (p.job_id or "")|tojson }}, {{ (p.client_id or "")|tojson }}, {{ (p.status or "")|tojson }}, {{ (p.amount or 0)|tojson }})'>
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
             </button>

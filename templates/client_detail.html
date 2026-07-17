@@ -23,260 +23,351 @@
     </div>
   </div>
 
-  <div class="grid-12-9">
-    <aside class="grid-1">
-      <section class="sn-card">
-        <div class="sn-card-body">
-          <div class="flex items-center gap-3 mb-4">
-            <div style="width:54px;height:54px;border-radius:50%;background:#e2e3e6;display:grid;place-items:center;color:#4b535b;font-weight:600;">
-              {{ (cliente['Nombre'] or '?')[:1] }}
+  <div class="client-summary-bar">
+    <div class="client-summary-avatar">{{ (cliente['Nombre'] or '?')[:1] }}</div>
+    <div class="client-summary-copy">
+      <div class="client-summary-name">{{ cliente['Nombre'] }}</div>
+      <div class="client-summary-meta">{{ cliente.get('Estado') or 'Activo' }} &middot; {{ cliente.get('Email') or 'No email' }}</div>
+    </div>
+    <div class="client-summary-due">
+      <div class="sn-muted" style="font-size:11px;">Balance due</div>
+      <div class="sn-money">Q{{ '{:,.2f}'.format(total_due or 0) }}</div>
+    </div>
+  </div>
+
+  <div class="client-tabs" role="tablist">
+    <button class="client-tab active" type="button" data-tab="info" onclick="showClientTab('info')">Información</button>
+    <button class="client-tab" type="button" data-tab="jobs" onclick="showClientTab('jobs')">Jobs</button>
+    <button class="client-tab" type="button" data-tab="cotizaciones" onclick="showClientTab('cotizaciones')">Cotizaciones</button>
+    <button class="client-tab" type="button" data-tab="contratos" onclick="showClientTab('contratos')">Contratos</button>
+    <button class="client-tab" type="button" data-tab="facturas" onclick="showClientTab('facturas')">Facturas</button>
+    <button class="client-tab" type="button" data-tab="pagos" onclick="showClientTab('pagos')">Pagos</button>
+    <button class="client-tab" type="button" data-tab="correos" onclick="showClientTab('correos')">Correos</button>
+    <button class="client-tab" type="button" data-tab="notas" onclick="showClientTab('notas')">Notas</button>
+  </div>
+
+  <!-- ===================== INFORMACION ===================== -->
+  <div class="client-tab-panel active" id="tab-info">
+    <section class="sn-card">
+      <div class="sn-card-head">
+        <div class="sn-card-title">Contact info</div>
+        <button class="sn-btn sn-btn-sm" type="button" onclick="openClientEdit()">Edit Client</button>
+      </div>
+      <div class="sn-card-body">
+        <div class="sn-field-grid">
+          <div class="sn-field-label">Phone:</div><div class="sn-field-value">{{ cliente.get('Teléfono') or '—' }}</div>
+          <div class="sn-field-label">Email:</div><div class="sn-field-value sn-ellipsis">{{ cliente.get('Email') or '—' }}</div>
+          <div class="sn-field-label">Street Address:</div><div class="sn-field-value">{{ cliente.get('Dirección facturación') or '—' }}</div>
+          <div class="sn-field-label">Suburb/Town:</div><div class="sn-field-value">—</div>
+          <div class="sn-field-label">Postcode/Zip:</div><div class="sn-field-value">—</div>
+          <div class="sn-field-label">Country:</div><div class="sn-field-value">Guatemala</div>
+        </div>
+        <div class="sn-list-actions" style="margin-top:14px;">
+          <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Send Email</button>
+          <button class="sn-btn sn-btn-sm" type="button" onclick="archiveClient()">Archive</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="sn-card">
+      <div class="sn-card-head">
+        <div class="sn-card-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5h6M9 9h6M9 13h6M7 21h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z"/></svg>
+          Files &amp; Portal
+        </div>
+      </div>
+      <div class="sn-card-body">
+        <div class="sn-list">
+          <div class="sn-list-item">
+            <div class="sn-list-title">Client portal</div>
+            <div class="sn-list-meta">{{ cliente.get('Portal URL') or ('/portal/' ~ cliente.id) }}</div>
+            <div class="sn-list-actions">
+              <button class="sn-btn sn-btn-sm" type="button" onclick="openPortal()">Open</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="copyPortal()">Copy Link</button>
             </div>
-            <div style="min-width:0;">
-              <div class="sn-card-title" style="margin-bottom:4px;">{{ cliente['Nombre'] }}</div>
-              <div class="sn-muted">{{ cliente.get('Estado') or 'Activo' }}</div>
-            </div>
-          </div>
-          <div class="sn-field-grid">
-            <div class="sn-field-label">Phone:</div><div class="sn-field-value">{{ cliente.get('Teléfono') or '—' }}</div>
-            <div class="sn-field-label">Email:</div><div class="sn-field-value sn-ellipsis">{{ cliente.get('Email') or '—' }}</div>
-            <div class="sn-field-label">Street Address:</div><div class="sn-field-value">{{ cliente.get('Dirección facturación') or '—' }}</div>
-            <div class="sn-field-label">Suburb/Town:</div><div class="sn-field-value">—</div>
-            <div class="sn-field-label">Postcode/Zip:</div><div class="sn-field-value">—</div>
-            <div class="sn-field-label">Country:</div><div class="sn-field-value">Guatemala</div>
-          </div>
-          <div class="sn-list-actions">
-            <button class="sn-btn sn-btn-sm" type="button" onclick="openClientEdit()">Edit Client</button>
-            <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Send Email</button>
-            <button class="sn-btn sn-btn-sm" type="button" onclick="archiveClient()">Archive</button>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
+  </div>
 
-      <section class="sn-card">
-        <div class="sn-card-head">
-          <div class="sn-card-title">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
-            Client Notes
-          </div>
-          <button class="sn-btn-icon" type="button" onclick="saveClientNotes()">+</button>
+  <!-- ===================== JOBS (+ Leads) ===================== -->
+  <div class="client-tab-panel" id="tab-jobs">
+    <section class="sn-card">
+      <div class="sn-card-head">
+        <div class="sn-card-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20Z"/></svg>
+          Leads
         </div>
-        <div class="sn-card-body">
-          <textarea id="client-notes" class="form-input" rows="5" placeholder="Notes">{{ cliente.get('Notas') or '' }}</textarea>
-        </div>
-      </section>
-
-      <section class="sn-card">
-        <div class="sn-card-head">
-          <div class="sn-card-title">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M12 3l8 4v6c0 5-3.5 8-8 8s-8-3-8-8V7l8-4Z"/></svg>
-            Consent
-          </div>
-          <button class="sn-btn-icon" type="button" onclick="saveConsent()">+</button>
-        </div>
-        <div class="sn-card-body">
-          <label class="flex items-center gap-2 text-sm">
-            <input id="client-consent" type="checkbox" {% if 'consent' in (cliente.get('Notas') or '')|lower %}checked{% endif %}>
-            Client has approved communication and portal access
-          </label>
-        </div>
-      </section>
-    </aside>
-
-    <main class="grid-1">
-      <section class="sn-card">
-        <div class="sn-card-head">
-          <div class="sn-card-title">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20Z"/></svg>
-            Leads
-          </div>
-          <button class="sn-btn-icon" type="button" onclick="openLeadModal()">+</button>
-        </div>
-        <div class="sn-card-body">
-          {% if leads %}
-            <div class="sn-list">
-              {% for lead in leads %}
-              <div class="sn-list-item">
-                <div class="sn-list-row">
-                  <div>
-                    <div class="sn-list-title">{{ lead.nombre }}</div>
-                    <div class="sn-list-meta">{{ lead.tipo_evento or 'BODAS' }} · {{ lead.fecha_tentativa or 'No date' }} · {{ lead.fuente or 'Manual' }}</div>
-                  </div>
-                  <span class="sn-chip {% if lead.status == 'Convertido' %}green{% elif lead.status == 'Perdido' %}red{% else %}cyan{% endif %}">{{ lead.status or 'Nuevo' }}</span>
+        <button class="sn-btn-icon" type="button" onclick="openLeadModal()">+</button>
+      </div>
+      <div class="sn-card-body">
+        {% if leads %}
+          <div class="sn-list">
+            {% for lead in leads %}
+            <div class="sn-list-item">
+              <div class="sn-list-row">
+                <div>
+                  <div class="sn-list-title">{{ lead.nombre }}</div>
+                  <div class="sn-list-meta">{{ lead.tipo_evento or 'BODAS' }} · {{ lead.fecha_tentativa or 'No date' }} · {{ lead.fuente or 'Manual' }}</div>
                 </div>
-                <div class="sn-list-actions">
-                  <a class="sn-btn sn-btn-sm" href="/leads/{{ lead.id }}">View</a>
-                  {% if lead.status != 'Convertido' %}
-                  <button class="sn-btn sn-btn-sm" type="button" onclick="acceptLead('{{ lead.id }}')">Accept</button>
-                  {% endif %}
-                </div>
+                <span class="sn-chip {% if lead.status == 'Convertido' %}green{% elif lead.status == 'Perdido' %}red{% else %}cyan{% endif %}">{{ lead.status or 'Nuevo' }}</span>
               </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="sn-muted">No leads attached.</div>
-          {% endif %}
-        </div>
-      </section>
-
-      <section class="sn-card">
-        <div class="sn-card-head">
-          <div class="sn-card-title">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6h4M5 8h14v11H5zM8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-            Jobs
-          </div>
-          <button class="sn-btn-icon" type="button" onclick="openJobModal()">+</button>
-        </div>
-        <div class="sn-card-body">
-          {% if jobs_raw %}
-            <div class="sn-list">
-              {% for job in jobs_raw %}
-              <div class="sn-list-item">
-                <div class="sn-list-row">
-                  <div>
-                    <div class="sn-list-title">{{ job.nombre }}</div>
-                    <div class="sn-list-meta">{{ job.type or 'BODAS' }} · {{ job.boda_date or 'No date' }} · {{ job.location or 'No location' }}</div>
-                  </div>
-                  <span class="sn-chip yellow">{{ job.status or 'Cotizando' }}</span>
-                </div>
-                <div class="sn-progress mt-2"><div class="sn-progress-fill" style="width: {{ job.workflow_progress or 0 }}%;"></div></div>
-                <div class="sn-list-actions">
-                  <a class="sn-btn sn-btn-sm" href="/jobs/{{ job.id }}">View Job</a>
-                </div>
-              </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="sn-muted">No jobs attached.</div>
-          {% endif %}
-        </div>
-      </section>
-
-      <section class="grid-2">
-        <div class="sn-card">
-          <div class="sn-card-head">
-            <div class="sn-card-title">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 3h10v18H7zM9 7h6M9 11h6M9 15h3"/></svg>
-              Invoices
-            </div>
-            <span class="sn-money">Q{{ '{:,.2f}'.format(total_due or 0) }}</span>
-          </div>
-          <div class="sn-card-body">
-            {% if payments %}
-              <div class="sn-list">
-                {% for p in payments[:4] %}
-                <div class="sn-list-item">
-                  <div class="sn-list-row">
-                    <div>
-                      <div class="sn-list-title">{{ p.invoice_id or p.id }}</div>
-                      <div class="sn-list-meta">{{ p.due_date or 'No due date' }} · {{ p.concepto or 'Invoice' }}</div>
-                    </div>
-                    <div class="sn-money">Q{{ '{:,.2f}'.format(p.amount or 0) }}</div>
-                  </div>
-                  <div class="sn-list-actions">
-                    <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ p.id }}')">Send</button>
-                    {% if p.status != 'Pagado' %}
-                    <button class="sn-btn sn-btn-sm" type="button" onclick="markPaymentPaid('{{ p.id }}')">Record Payment</button>
-                    {% else %}
-                    <span class="sn-chip green">Paid</span>
-                    {% endif %}
-                  </div>
-                </div>
-                {% endfor %}
-              </div>
-            {% else %}
-              <div class="sn-muted">No invoices attached.</div>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="sn-card">
-          <div class="sn-card-head">
-            <div class="sn-card-title">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
-              Quotes
-            </div>
-            <button class="sn-btn-icon" type="button" onclick="openLeadModal()">+</button>
-          </div>
-          <div class="sn-card-body">
-            {% if quotes %}
-              <div class="sn-list">
-                {% for q in quotes[:4] %}
-                <div class="sn-list-item">
-                  <div class="sn-list-row">
-                    <div>
-                      <div class="sn-list-title">{{ q.paquete_nombre or q.id }}</div>
-                      <div class="sn-list-meta">{{ q.created or '' }} · {{ q.status or 'Draft' }}</div>
-                    </div>
-                    <div class="sn-money">Q{{ '{:,.2f}'.format(q.precio_total or 0) }}</div>
-                  </div>
-                  <div class="sn-list-actions">
-                    <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}">View</a>
-                  </div>
-                </div>
-                {% endfor %}
-              </div>
-            {% else %}
-              <div class="sn-muted">Quotes will appear here.</div>
-            {% endif %}
-          </div>
-        </div>
-      </section>
-
-      <section class="grid-2">
-        <div class="sn-card">
-          <div class="sn-card-head">
-            <div class="sn-card-title">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6M9 16h6M8 4h8l3 3v13H5V4h3Z"/></svg>
-              Contracts
-            </div>
-          </div>
-          <div class="sn-card-body">
-            {% if contracts %}
-              <div class="sn-list">
-                {% for c in contracts %}
-                <div class="sn-list-item">
-                  <div class="sn-list-row">
-                    <div>
-                      <div class="sn-list-title">{{ c.tipo or 'Contract' }}</div>
-                      <div class="sn-list-meta">{{ c.created or '' }} · {{ c.status or 'Draft' }}</div>
-                    </div>
-                    {% if c.signed %}<span class="sn-chip green">Signed</span>{% else %}<span class="sn-chip gray">Not signed</span>{% endif %}
-                  </div>
-                  <div class="sn-list-actions">
-                    <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf">View</a>
-                    <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Send</button>
-                  </div>
-                </div>
-                {% endfor %}
-              </div>
-            {% else %}
-              <div class="sn-muted">No contract attached.</div>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="sn-card">
-          <div class="sn-card-head">
-            <div class="sn-card-title">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5h6M9 9h6M9 13h6M7 21h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z"/></svg>
-              Files & Portal
-            </div>
-          </div>
-          <div class="sn-card-body">
-            <div class="sn-list">
-              <div class="sn-list-item">
-                <div class="sn-list-title">Client portal</div>
-                <div class="sn-list-meta">{{ cliente.get('Portal URL') or ('/portal/' ~ cliente.id) }}</div>
-                <div class="sn-list-actions">
-                  <button class="sn-btn sn-btn-sm" type="button" onclick="openPortal()">Open</button>
-                  <button class="sn-btn sn-btn-sm" type="button" onclick="copyPortal()">Copy Link</button>
-                </div>
+              <div class="sn-list-actions">
+                <a class="sn-btn sn-btn-sm" href="/leads/{{ lead.id }}">View</a>
+                {% if lead.status != 'Convertido' %}
+                <button class="sn-btn sn-btn-sm" type="button" onclick="acceptLead('{{ lead.id }}')">Accept</button>
+                {% endif %}
               </div>
             </div>
+            {% endfor %}
           </div>
+        {% else %}
+          <div class="sn-muted">No leads attached.</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="sn-card">
+      <div class="sn-card-head">
+        <div class="sn-card-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6h4M5 8h14v11H5zM8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          Jobs
         </div>
-      </section>
-    </main>
+        <button class="sn-btn-icon" type="button" onclick="openJobModal()">+</button>
+      </div>
+      <div class="sn-card-body">
+        {% if jobs_raw %}
+          <div class="sn-list">
+            {% for job in jobs_raw %}
+            <div class="sn-list-item">
+              <div class="sn-list-row">
+                <div>
+                  <div class="sn-list-title">{{ job.nombre }}</div>
+                  <div class="sn-list-meta">{{ job.type or 'BODAS' }} · {{ job.boda_date or 'No date' }} · {{ job.location or 'No location' }}</div>
+                </div>
+                <span class="sn-chip yellow">{{ job.status or 'Cotizando' }}</span>
+              </div>
+              <div class="sn-progress mt-2"><div class="sn-progress-fill" style="width: {{ job.workflow_progress or 0 }}%;"></div></div>
+              <div class="sn-list-actions">
+                <a class="sn-btn sn-btn-sm" href="/jobs/{{ job.id }}">View Job</a>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="sn-muted">No jobs attached.</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== COTIZACIONES ===================== -->
+  <div class="client-tab-panel" id="tab-cotizaciones">
+    <section class="sn-card">
+      <div class="sn-card-head">
+        <div class="sn-card-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
+          Quotes
+        </div>
+        <button class="sn-btn-icon" type="button" onclick="openLeadModal()">+</button>
+      </div>
+      <div class="sn-card-body">
+        {% if quotes %}
+          <div class="sn-list">
+            {% for q in quotes %}
+            <div class="sn-list-item">
+              <div class="sn-list-row">
+                <div>
+                  <div class="sn-list-title">{{ q.paquete_nombre or q.id }}</div>
+                  <div class="sn-list-meta">{{ q.created or '' }} · {{ q.status or 'Draft' }}</div>
+                </div>
+                <div class="sn-money">Q{{ '{:,.2f}'.format(q.precio_total or 0) }}</div>
+              </div>
+              <div class="sn-list-actions">
+                <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}">View</a>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="sn-muted">Quotes will appear here.</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== CONTRATOS ===================== -->
+  <div class="client-tab-panel" id="tab-contratos">
+    <section class="sn-card">
+      <div class="sn-card-head">
+        <div class="sn-card-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6M9 16h6M8 4h8l3 3v13H5V4h3Z"/></svg>
+          Contracts
+        </div>
+      </div>
+      <div class="sn-card-body">
+        {% if contracts %}
+          <div class="sn-list">
+            {% for c in contracts %}
+            <div class="sn-list-item">
+              <div class="sn-list-row">
+                <div>
+                  <div class="sn-list-title">{{ c.tipo or 'Contract' }}</div>
+                  <div class="sn-list-meta">{{ c.created or '' }} · {{ c.status or 'Draft' }}</div>
+                </div>
+                {% if c.signed %}<span class="sn-chip green">Signed</span>{% else %}<span class="sn-chip gray">Not signed</span>{% endif %}
+              </div>
+              <div class="sn-list-actions">
+                <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf">View</a>
+                <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Send</button>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="sn-muted">No contract attached.</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== FACTURAS (todas las cuotas) ===================== -->
+  <div class="client-tab-panel" id="tab-facturas">
+    <section class="sn-card">
+      <div class="sn-card-head">
+        <div class="sn-card-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 3h10v18H7zM9 7h6M9 11h6M9 15h3"/></svg>
+          Invoices
+        </div>
+        <span class="sn-money">Q{{ '{:,.2f}'.format(total_due or 0) }}</span>
+      </div>
+      <div class="sn-card-body">
+        {% if payments %}
+          <div class="sn-list">
+            {% for p in payments %}
+            <div class="sn-list-item">
+              <div class="sn-list-row">
+                <div>
+                  <div class="sn-list-title">{{ p.invoice_id or p.id }}</div>
+                  <div class="sn-list-meta">{{ p.due_date or 'No due date' }} · {{ p.concepto or 'Invoice' }}</div>
+                </div>
+                <div class="sn-money">Q{{ '{:,.2f}'.format(p.amount or 0) }}</div>
+              </div>
+              <div class="sn-list-actions">
+                <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ p.id }}')">Send</button>
+                {% if p.status != 'Pagado' %}
+                <button class="sn-btn sn-btn-sm" type="button" onclick="markPaymentPaid('{{ p.id }}')">Record Payment</button>
+                {% else %}
+                <span class="sn-chip green">Paid</span>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="sn-muted">No invoices attached.</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== PAGOS (solo las cuotas ya pagadas) ===================== -->
+  <div class="client-tab-panel" id="tab-pagos">
+    <section class="sn-card">
+      <div class="sn-card-head">
+        <div class="sn-card-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 10h20M6 15h4M2 6h20a1 1 0 011 1v10a1 1 0 01-1 1H2a1 1 0 01-1-1V7a1 1 0 011-1z"/></svg>
+          Payment history
+        </div>
+      </div>
+      <div class="sn-card-body">
+        {% set paid_payments = payments|selectattr('status', 'equalto', 'Pagado')|list %}
+        {% if paid_payments %}
+          <div class="sn-list">
+            {% for p in paid_payments %}
+            <div class="sn-list-item">
+              <div class="sn-list-row">
+                <div>
+                  <div class="sn-list-title">{{ p.invoice_id or p.id }}</div>
+                  <div class="sn-list-meta">{{ p.paid_at or p.due_date or '' }} · {{ p.concepto or 'Payment' }}</div>
+                </div>
+                <div class="sn-money">Q{{ '{:,.2f}'.format(p.amount or 0) }}</div>
+              </div>
+              <span class="sn-chip green">Paid</span>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="sn-muted">No payments recorded yet.</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== CORREOS ===================== -->
+  <div class="client-tab-panel" id="tab-correos">
+    <section class="sn-card">
+      <div class="sn-card-head">
+        <div class="sn-card-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
+          Emails
+        </div>
+      </div>
+      <div class="sn-card-body">
+        {% if emails %}
+          <div class="sn-list">
+            {% for e in emails %}
+            <div class="sn-list-item">
+              <div class="sn-list-row">
+                <div>
+                  <div class="sn-list-title">{{ e.subject or '(sin asunto)' }}</div>
+                  <div class="sn-list-meta">{{ e.sent_at or '' }} · {{ e.to }}</div>
+                </div>
+                {% if e.status == 'failed' %}<span class="sn-chip red">Failed</span>
+                {% elif e.status == 'opened' or e.status == 'clicked' %}<span class="sn-chip green">Opened</span>
+                {% else %}<span class="sn-chip gray">Sent</span>{% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="sn-muted">No emails logged for this client yet.</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== NOTAS ===================== -->
+  <div class="client-tab-panel" id="tab-notas">
+    <section class="sn-card">
+      <div class="sn-card-head">
+        <div class="sn-card-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
+          Client Notes
+        </div>
+        <button class="sn-btn-icon" type="button" onclick="saveClientNotes()">+</button>
+      </div>
+      <div class="sn-card-body">
+        <textarea id="client-notes" class="form-input" rows="6" placeholder="Notes">{{ cliente.get('Notas') or '' }}</textarea>
+      </div>
+    </section>
+
+    <section class="sn-card">
+      <div class="sn-card-head">
+        <div class="sn-card-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M12 3l8 4v6c0 5-3.5 8-8 8s-8-3-8-8V7l8-4Z"/></svg>
+          Consent
+        </div>
+        <button class="sn-btn-icon" type="button" onclick="saveConsent()">+</button>
+      </div>
+      <div class="sn-card-body">
+        <label class="flex items-center gap-2 text-sm">
+          <input id="client-consent" type="checkbox" {% if 'consent' in (cliente.get('Notas') or '')|lower %}checked{% endif %}>
+          Client has approved communication and portal access
+        </label>
+      </div>
+    </section>
   </div>
 </section>
 
@@ -390,10 +481,71 @@
   </div>
 </div>
 
+<style>
+.client-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--sn-white);
+  border: 1px solid var(--sn-line);
+  border-radius: 14px;
+  margin-bottom: 14px;
+}
+.client-summary-avatar {
+  width: 44px; height: 44px; flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--sn-mint-soft);
+  color: var(--sn-green);
+  display: grid; place-items: center;
+  font-weight: 700; font-size: 16px;
+}
+.client-summary-copy { min-width: 0; flex: 1; }
+.client-summary-name { font-weight: 700; font-size: 15px; color: var(--sn-ink); }
+.client-summary-meta { font-size: 12px; color: var(--sn-muted); margin-top: 2px; }
+.client-summary-due { text-align: right; flex-shrink: 0; }
+
+.client-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--sn-line);
+  margin-bottom: 16px;
+  padding-bottom: 1px;
+}
+.client-tabs::-webkit-scrollbar { display: none; }
+.client-tab {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--sn-muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 14px;
+  min-height: 44px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.client-tab.active { color: var(--sn-green); border-bottom-color: var(--sn-green); }
+.client-tab-panel { display: none; }
+.client-tab-panel.active { display: block; }
+
+@media (max-width: 760px) {
+  .client-tabs { margin-left: -4px; margin-right: -4px; padding-left: 4px; padding-right: 4px; }
+}
+</style>
+
 <script>
 const CLIENT_ID = '{{ cliente.id }}';
 const CLIENT_EMAIL = {{ (cliente.get('Email') or '')|tojson }};
 const PORTAL_URL = {{ (cliente.get('Portal URL') or ('/portal/' ~ cliente.id))|tojson }};
+
+function showClientTab(name) {
+  document.querySelectorAll('.client-tab').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === name); });
+  document.querySelectorAll('.client-tab-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'tab-' + name); });
+}
 
 function openClientEdit() { document.getElementById('edit-client-modal').classList.add('open'); }
 function closeClientEdit() { document.getElementById('edit-client-modal').classList.remove('open'); }

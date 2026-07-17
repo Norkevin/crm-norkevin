@@ -4058,6 +4058,15 @@ def client_detail(client_id):
             if c.get('client_id') == client_id or c.get('job_id') in job_ids or c.get('lead_id') in lead_ids
         ]
         total_due = sum(float(p.get('amount') or 0) for p in payments_vinculados if p.get('status') != 'Pagado')
+
+        from src.mail_tracker import get_tracker
+        emails_vinculados = [
+            e for e in get_tracker().log
+            if e.get('lead_id') in lead_ids or e.get('job_id') in job_ids
+            or (client_email and _norm_email(e.get('to') or '') == client_email)
+        ]
+        emails_vinculados.sort(key=lambda e: e.get('sent_at') or '', reverse=True)
+
         return render_template('client_detail.html',
                                cliente=cliente,
                                jobs=jobs_vinculados,
@@ -4066,6 +4075,7 @@ def client_detail(client_id):
                                payments=payments_vinculados,
                                quotes=quotes_vinculadas,
                                contracts=contracts_vinculados,
+                               emails=emails_vinculados,
                                total_due=total_due,
                                parse_date=parse_date, days_until=days_until, q_money=q_money,
                                fmt_dt=fmt_dt)
@@ -4098,6 +4108,7 @@ def client_detail(client_id):
                            payments=[],
                            quotes=[],
                            contracts=[],
+                           emails=[],
                            total_due=0,
                            parse_date=parse_date, days_until=days_until, q_money=q_money,
                            fmt_dt=fmt_dt)

@@ -175,7 +175,7 @@
     </div>
   </div>
 
-  <div class="sn-table-shell" style="margin-top:18px;">
+  <div class="sn-table-shell stack-mobile" style="margin-top:18px;">
     <table class="sn-table">
       <thead>
         <tr>
@@ -189,7 +189,7 @@
       <tbody>
       {% for row in schedule %}
         <tr class="{{ 'is-selected' if row.is_selected else '' }}">
-          <td>
+          <td data-label="Status">
             {% if row.status == 'Pagado' %}
               <span class="sn-chip green">Paid</span>
             {% elif row.status == 'Late' %}
@@ -200,7 +200,7 @@
               <span class="sn-chip gray">Unpaid</span>
             {% endif %}
           </td>
-          <td>
+          <td data-label="Due">
             <div style="display:flex;align-items:center;gap:6px;">
               <span>{{ row.due_date_display_es or row.due_date or '-' }}</span>
               {% if row.status != 'Pagado' %}
@@ -209,9 +209,9 @@
             </div>
             {% if row.relative_due %}<div class="sn-list-meta">{{ row.relative_due }}</div>{% endif %}
           </td>
-          <td>{{ row.last_action_display or '-' }}</td>
-          <td style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(row.amount or 0) }}</span></td>
-          <td style="text-align:right;">
+          <td data-label="Last Action">{{ row.last_action_display or '-' }}</td>
+          <td data-label="Amount" style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(row.amount or 0) }}</span></td>
+          <td class="stack-actions" style="text-align:right;">
             <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;">
             {% if row.status == 'Pagado' %}
               <button class="sn-btn sn-btn-sm" type="button" onclick='sendInvoice({{ row.id|tojson }})'>Send Receipt</button>

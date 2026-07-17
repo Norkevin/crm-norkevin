@@ -56,7 +56,7 @@
     </div>
   </div>
 
-  <div class="sn-table-shell">
+  <div class="sn-table-shell stack-mobile">
     <table class="sn-table" id="leads-table">
       <thead>
         <tr>
@@ -75,15 +75,15 @@
             data-status="{{ lead.status or 'Nuevo' }}"
             data-text="{{ (lead.nombre ~ ' ' ~ (lead.email or '') ~ ' ' ~ (lead.tipo_evento or '') ~ ' ' ~ (lead.fuente or ''))|lower }}"
             onclick="goLead(event, '{{ lead.id }}')">
-          <td class="sn-ellipsis">{{ lead.created_display or lead.created or '—' }}</td>
-          <td class="sn-ellipsis">
+          <td class="sn-ellipsis" data-label="Created">{{ lead.created_display or lead.created or '—' }}</td>
+          <td class="sn-ellipsis" data-label="Lead Name">
             <div class="sn-row-name">
               <span class="sn-row-avatar">{{ (lead.nombre or '?')[:1]|upper }}</span>
               <span>{{ lead.nombre or 'Sin nombre' }}</span>
             </div>
           </td>
-          <td class="sn-ellipsis"><span class="sn-dot"></span>{{ lead.tipo_evento or 'BODAS' }}</td>
-          <td class="sn-ellipsis">
+          <td class="sn-ellipsis" data-label="Type"><span class="sn-dot"></span>{{ lead.tipo_evento or 'BODAS' }}</td>
+          <td class="sn-ellipsis" data-label="Boda Date">
             {% if lead.boda_date_display %}
               {{ lead.boda_date_display }}
               {% if lead.date_conflict %}
@@ -103,7 +103,7 @@
               No date <span class="sn-chip red">?</span>
             {% endif %}
           </td>
-          <td>
+          <td data-label="Mail Status">
             <div class="sn-mail-status">
             {% if lead.last_mail_subject %}
               <div class="sn-mail-subject">{{ lead.last_mail_subject|truncate(32) }}</div>
@@ -114,8 +114,8 @@
             {% endif %}
             </div>
           </td>
-          <td class="sn-ellipsis">{{ lead.next_task or 'Seguimiento Cliente' }}</td>
-          <td style="text-align:right;">
+          <td class="sn-ellipsis" data-label="Next Task">{{ lead.next_task or 'Seguimiento Cliente' }}</td>
+          <td class="stack-actions" style="text-align:right;">
             <button class="sn-menu-dots" type="button" title="Actions" onclick='openLeadActions(event, {
               id: {{ lead.id|tojson }},
               email: {{ (lead.email or "")|tojson }},
