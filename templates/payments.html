@@ -41,12 +41,10 @@
     <table class="sn-table" id="payments-table">
       <thead>
         <tr>
-          <th style="width:9%;">Status</th>
+          <th style="width:11%;">Status</th>
           <th style="width:16%;">Due</th>
-          <th style="width:14%;">Invoice ID</th>
-          <th style="width:15%;">Client</th>
-          <th style="width:28%;">Job</th>
-          <th style="width:13%;text-align:right;">Amount</th>
+          <th>Client &amp; Job</th>
+          <th style="width:15%;text-align:right;">Amount</th>
           <th style="width:5%;text-align:right;"></th>
         </tr>
       </thead>
@@ -77,9 +75,10 @@
               <span class="sn-muted">(in {{ p.days_until }} days)</span>
             {% endif %}
           </td>
-          <td class="sn-ellipsis" data-label="Invoice ID">{{ p.invoice_id or p.id }}</td>
-          <td class="sn-ellipsis" data-label="Client">{{ p.client_name }}</td>
-          <td class="sn-ellipsis" data-label="Job">{{ p.job_name }}</td>
+          <td class="sn-ellipsis" data-label="Client &amp; Job">
+            <div class="sn-ellipsis" style="font-weight:600;">{{ p.client_name }}</div>
+            <div class="sn-row-subtitle sn-ellipsis">{{ p.job_name }} &middot; {{ p.invoice_id or p.id }}</div>
+          </td>
           <td data-label="Amount" style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(p.amount) }}</span></td>
           <td class="stack-actions" style="text-align:right;" onclick="event.stopPropagation()">
             <button class="sn-menu-dots" type="button" title="Actions" onclick='openPaymentActions(event, {{ p.id|tojson }}, {{ (p.invoice_id or p.id)|tojson }}, {{ (p.job_id or "")|tojson }}, {{ (p.client_id or "")|tojson }}, {{ (p.status or "")|tojson }}, {{ (p.amount or 0)|tojson }})'>
@@ -89,7 +88,7 @@
         </tr>
         {% endfor %}
         {% if not payments %}
-        <tr><td colspan="7" style="text-align:center;padding:44px;color:var(--sn-muted);">No payments registered.</td></tr>
+        <tr><td colspan="5" style="text-align:center;padding:44px;color:var(--sn-muted);">No payments registered.</td></tr>
         {% endif %}
       </tbody>
     </table>

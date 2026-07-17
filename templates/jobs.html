@@ -56,11 +56,10 @@
     <table class="sn-table" id="jobs-table">
       <thead>
         <tr>
-          <th style="width: 170px;">Boda Date</th>
-          <th>Job Name</th>
-          <th style="width: 120px;">Job Type</th>
-          <th style="width: 500px;">Workflow Progress</th>
-          <th style="width: 210px;">Next Task</th>
+          <th style="width: 150px;">Date</th>
+          <th>Job</th>
+          <th style="width: 460px;">Progress</th>
+          <th style="width: 190px;">Next task</th>
           <th style="width: 44px;"></th>
         </tr>
       </thead>
@@ -71,7 +70,7 @@
             data-date="{{ job.boda_date or '' }}"
             data-name="{{ (job.nombre or '')|lower }}"
             onclick="goJob(event, '{{ job.id }}')">
-          <td class="sn-ellipsis" data-label="Boda Date">
+          <td class="sn-ellipsis" data-label="Date">
             {% if job.boda_date %}
               {{ job.boda_date_display or job.boda_date }}
               {% if job.dias_restantes is not none and job.dias_restantes >= 0 %}
@@ -90,21 +89,24 @@
               <span class="sn-muted">No date</span>
             {% endif %}
           </td>
-          <td class="sn-ellipsis" data-label="Job Name">
+          <td class="sn-ellipsis" data-label="Job">
             <div class="sn-row-name">
               <span class="sn-row-avatar">{{ (job.nombre or '?')[:1]|upper }}</span>
-              <span>{{ job.nombre or 'Sin nombre' }}</span>
+              <div style="min-width:0;">
+                <div class="sn-ellipsis">{{ job.nombre or 'Sin nombre' }}</div>
+                <div class="sn-row-subtitle"><span class="sn-dot"></span>{{ job.type or 'BODAS' }}</div>
+              </div>
             </div>
-          </td>
-          <td class="sn-ellipsis" data-label="Job Type">
-            <span class="sn-dot"></span>{{ job.type or 'BODAS' }}
           </td>
           <td data-label="Progress">
-            <div class="sn-progress" title="{{ job.workflow_progress }}%">
-              <div class="sn-progress-fill {% if job.type and job.type != 'Boda' %}cyan{% endif %}" style="width: {{ job.workflow_progress or 0 }}%;"></div>
+            <div class="sn-progress-wrap">
+              <div class="sn-progress" title="{{ job.workflow_progress }}%">
+                <div class="sn-progress-fill {% if job.type and job.type != 'Boda' %}cyan{% endif %}" style="width: {{ job.workflow_progress or 0 }}%;"></div>
+              </div>
+              <span class="sn-progress-pct">{{ job.workflow_progress or 0 }}%</span>
             </div>
           </td>
-          <td class="sn-ellipsis" data-label="Next Task">{{ job.next_task or 'Job complete' }}</td>
+          <td class="sn-ellipsis" data-label="Next task">{{ job.next_task or 'Job complete' }}</td>
           <td class="stack-actions" style="text-align:right;">
             <button class="sn-menu-dots" type="button" title="Actions" onclick="openRowMenu(event, '{{ job.id }}')">
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>

@@ -76,19 +76,22 @@
   padding: 14px;
   border: 1px solid var(--sn-line);
   border-radius: 14px;
-  background: var(--sn-row);
+  background: var(--sn-white);
   color: var(--sn-ink);
   text-align: left;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+  box-shadow: 0 1px 2px var(--sn-shadow-soft);
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, transform .1s ease;
 }
+.metric-tab:hover { border-color: var(--sn-line-dark); box-shadow: 0 4px 12px var(--sn-shadow-soft); }
+.metric-tab:active { transform: scale(.98); }
 .metric-tab.active {
   background: var(--sn-white);
   border-color: var(--metric-color, var(--sn-green));
-  box-shadow: 0 0 0 1px var(--metric-color, var(--sn-green)) inset;
+  box-shadow: 0 0 0 1.5px var(--metric-color, var(--sn-green)) inset, 0 4px 14px -4px var(--metric-color, var(--sn-green));
 }
 .metric-icon {
   width: 34px;
@@ -248,7 +251,7 @@
   grid-template-columns: 88px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 12px 18px;
+  padding: 9px 18px;
   border-bottom: 1px solid var(--sn-line);
   color: var(--sn-ink);
   font-size: 12px;

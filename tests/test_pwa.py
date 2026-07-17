@@ -77,7 +77,7 @@ def test_bottom_nav_present_and_has_five_items(auth_client):
     assert 'class="bottom-nav"' in html
     for path in ('/dashboard', '/clients', '/jobs', '/calendar'):
         assert f'data-nav="{path}"' in html
-    assert 'openBottomNavMore' in html
+    assert 'openMoreSheet' in html
 
 
 def test_icon_files_exist_and_are_reachable(client):

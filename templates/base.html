@@ -222,9 +222,66 @@ svg[stroke="currentColor"] rect {
   background: transparent;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: color .15s ease, transform .1s ease;
 }
+.bottom-nav-item:active { transform: scale(.92); }
 .bottom-nav-item svg { width: 21px; height: 21px; }
 .bottom-nav-item.active { color: var(--sn-green); }
+
+/* Menu "Mas" -- pantalla completa estilo iPhone, no un popup flotante
+   (Kevin: "se ve raro, muy vacio... lo convertiria en una pantalla"). */
+.more-sheet {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  background: var(--sn-white);
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  transform: translateY(12px);
+  opacity: 0;
+  transition: transform .18s ease, opacity .18s ease;
+}
+.more-sheet.open { display: flex; transform: translateY(0); opacity: 1; }
+.more-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--sn-line);
+}
+.more-sheet-profile { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.more-sheet-name { font-size: 15px; font-weight: 700; color: var(--sn-ink); }
+.more-sheet-email { font-size: 12.5px; color: var(--sn-muted); margin-top: 1px; }
+.more-sheet-close {
+  width: 36px; height: 36px; flex-shrink: 0;
+  border: none; border-radius: 999px;
+  background: var(--sn-surface-hover);
+  color: var(--sn-ink);
+  font-size: 20px;
+  display: grid; place-items: center;
+  cursor: pointer;
+}
+.more-sheet-list { padding: 10px 12px; }
+.more-sheet-list + .more-sheet-list { border-top: 8px solid var(--sn-surface-hover); margin-top: auto; }
+.more-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 52px;
+  padding: 0 10px;
+  border-radius: 12px;
+  color: var(--sn-ink);
+  font-size: 14.5px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background .15s ease;
+}
+.more-sheet-item:hover, .more-sheet-item:active { background: var(--sn-surface-hover); }
+.more-sheet-item svg { width: 19px; height: 19px; color: var(--sn-muted); flex-shrink: 0; }
+.more-sheet-item.danger { color: #B4232A; }
+.more-sheet-item.danger svg { color: #B4232A; }
 .topnav-item {
   width: auto;
   min-width: 0;
@@ -265,21 +322,22 @@ svg[stroke="currentColor"] rect {
 .gmail-warning-banner {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 24px;
+  gap: 8px;
+  padding: 5px 16px;
   background: #F7EEDD;
   color: #8a5f11;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   border-bottom: 1px solid #EDE0C4;
 }
+.gmail-warning-banner.dismissed { display: none; }
 :root[data-theme="dark"] .gmail-warning-banner {
   background: #2b230f;
   color: #e0b96b;
   border-bottom-color: #3d321a;
 }
 :root[data-theme="dark"] .gmail-warning-banner a { color: #e0b96b; }
-.gmail-warning-banner svg { width: 18px; height: 18px; flex-shrink: 0; }
+.gmail-warning-banner svg { width: 15px; height: 15px; flex-shrink: 0; }
 .gmail-warning-banner span { flex: 1; }
 .gmail-warning-banner a {
   color: #8a5f11;
@@ -287,6 +345,18 @@ svg[stroke="currentColor"] rect {
   text-decoration: underline;
   flex-shrink: 0;
 }
+.gmail-warning-banner-dismiss {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: .6;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+}
+.gmail-warning-banner-dismiss:hover { opacity: 1; }
 .pwa-banner {
   display: none;
   align-items: center;
@@ -588,16 +658,25 @@ a.sn-notification-item:hover {
   min-width: 0;
 }
 .sn-row-avatar {
-  width: 26px;
-  height: 26px;
+  width: 21px;
+  height: 21px;
   border-radius: 999px;
   background: var(--sn-green);
   color: #fff;
   display: grid;
   place-items: center;
-  font-size: 10.5px;
+  font-size: 9px;
   font-weight: 700;
   flex-shrink: 0;
+}
+.sn-row-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--sn-soft, var(--sn-muted));
+  font-weight: 400;
+  margin-top: 1px;
 }
 .sn-account-name { font-size: 15px; font-weight: 600; color: var(--sn-ink); }
 .sn-account-email { font-size: 12px; color: var(--sn-muted); margin-top: 2px; }
@@ -828,13 +907,13 @@ select.sn-input {
   background: var(--sn-green);
   color: #fff;
   border-color: var(--sn-green);
-  box-shadow: 0 1px 2px rgba(9, 124, 67, .15), 0 4px 10px -4px rgba(9, 124, 67, .35);
+  box-shadow: 0 1px 2px rgba(9, 124, 67, .12);
 }
 .sn-btn-primary:hover,
 .btn-primary:hover {
   background: var(--sn-green-dark);
   border-color: var(--sn-green-dark);
-  box-shadow: 0 2px 4px rgba(9, 124, 67, .18), 0 6px 14px -4px rgba(9, 124, 67, .4);
+  box-shadow: 0 2px 4px rgba(9, 124, 67, .16);
 }
 .sn-btn-icon {
   width: 30px;
@@ -919,18 +998,30 @@ select.sn-input {
   vertical-align: -2px;
   margin-right: 6px;
 }
+.sn-progress-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sn-progress {
   height: 8px;
   width: 100%;
   background: var(--sn-line-dark);
   border-radius: 999px;
   overflow: hidden;
+  flex: 1;
+  min-width: 40px;
 }
 .sn-progress-fill {
   height: 100%;
   width: 0%;
   background: var(--sn-yellow);
   border-radius: inherit;
+  transition: width .3s ease;
+}
+.sn-progress-pct {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sn-muted);
+  flex-shrink: 0;
+  min-width: 28px;
+  text-align: right;
 }
 .sn-progress-fill.cyan { background: var(--sn-cyan); }
 .sn-progress-fill.green { background: var(--sn-green); }
@@ -1424,9 +1515,9 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   .main-content { padding: 22px 12px calc(76px + env(safe-area-inset-bottom)); }
   .modal-overlay { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
   .gmail-warning-banner,
-  .pwa-banner { padding: 7px 14px; font-size: 12px; }
+  .pwa-banner { padding: 5px 14px; font-size: 11.5px; }
   .gmail-warning-banner svg,
-  .pwa-banner svg { width: 15px; height: 15px; }
+  .pwa-banner svg { width: 14px; height: 14px; }
   .bottom-nav { display: flex; }
   .sn-page-head { flex-direction: column; align-items: stretch; gap: 12px; }
   .sn-toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -1566,7 +1657,10 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   .table-responsive tr:hover td:last-child { background: #fbfbfb; }
 
   /* .stack-mobile: convierte una tabla en tarjetas apiladas en mobile,
-     en vez de obligar a hacer scroll horizontal. */
+     en vez de obligar a hacer scroll horizontal. Kevin (feedback de
+     diseño): "demasiado aire" y "las labels en mayuscula se sienten de
+     formulario" -- filas mas compactas, labels en gris claro sin
+     mayusculas forzadas. */
   .stack-mobile { border: none; box-shadow: none; background: transparent; }
   .stack-mobile .sn-table { min-width: 0; table-layout: auto; }
   .stack-mobile .sn-table thead { display: none; }
@@ -1574,43 +1668,47 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     display: block;
     background: #fff;
     border: 1px solid var(--sn-line);
-    border-radius: 18px;
-    margin-bottom: 10px;
-    padding: 4px 14px;
+    border-radius: 14px;
+    margin-bottom: 8px;
+    padding: 2px 12px;
     box-shadow: 0 1px 2px rgba(24, 24, 27, .03);
+    transition: box-shadow .15s ease, transform .1s ease;
   }
+  .stack-mobile .sn-table tr:active { transform: scale(.99); }
   .stack-mobile .sn-table td {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     height: auto;
-    min-height: 40px;
-    padding: 8px 0;
+    min-height: 30px;
+    padding: 5px 0;
     border-bottom: 1px solid var(--sn-line);
     position: static;
     box-shadow: none;
     background: transparent !important;
     text-align: right;
+    font-size: 13px;
   }
   .stack-mobile .sn-table td:last-child { border-bottom: none; }
   .stack-mobile .sn-table td[data-label]::before {
     content: attr(data-label);
-    font-size: 10.5px;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    color: var(--sn-muted);
-    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--sn-soft, var(--sn-muted));
+    font-weight: 500;
     flex-shrink: 0;
   }
   .stack-mobile .sn-table td.stack-actions {
     justify-content: flex-end;
     gap: 8px;
-    padding-top: 12px;
+    padding-top: 8px;
   }
   .stack-mobile .sn-table td:first-child { text-align: left; }
   .stack-mobile .sn-table td:first-child .sn-list-title,
   .stack-mobile .sn-table td:first-child > div:first-child { text-align: left; }
+  .stack-mobile .sn-table td .sn-progress-wrap,
   .stack-mobile .sn-table td .sn-progress { width: 140px; flex-shrink: 0; }
 }
 @media (max-width: 430px) {
@@ -1748,10 +1846,11 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 </header>
 
 {% if gmail_connected is defined and not gmail_connected %}
-<div class="gmail-warning-banner">
+<div class="gmail-warning-banner" id="gmail-warning-banner">
   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-8.99 3.75h.008v.008h-.008v-.008Z"/></svg>
-  <span>Gmail no está conectado — los correos que envíes (cotizaciones, contratos, recordatorios) no se están entregando de verdad.</span>
-  <a href="/settings">Conectar Gmail</a>
+  <span>Gmail no conectado — tus correos no se estan entregando.</span>
+  <a href="/settings">Conectar</a>
+  <button type="button" class="gmail-warning-banner-dismiss" onclick="dismissGmailBanner()" aria-label="Cerrar">&times;</button>
 </div>
 {% endif %}
 
@@ -1785,11 +1884,48 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 2v4M8 2v4M3 10h18"/></svg>
     Calendar
   </a>
-  <button type="button" class="bottom-nav-item" onclick="openBottomNavMore(event)">
+  <button type="button" class="bottom-nav-item" onclick="openMoreSheet()">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
     Mas
   </button>
 </nav>
+
+<div class="more-sheet" id="more-sheet">
+  <div class="more-sheet-head">
+    <div class="more-sheet-profile">
+      <div class="sn-avatar-letter">{{ (session.user_name or session.user_email or 'K')[:1]|upper }}</div>
+      <div>
+        <div class="more-sheet-name">{{ session.user_name or 'Kevin Lemus' }}</div>
+        <div class="more-sheet-email">{{ session.user_email or 'info@astralweddings.com' }}</div>
+      </div>
+    </div>
+    <button type="button" class="more-sheet-close" onclick="closeMoreSheet()" aria-label="Cerrar">&times;</button>
+  </div>
+  <div class="more-sheet-list">
+    <a class="more-sheet-item" href="/settings">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19.5 21a7.5 7.5 0 0 0-15 0M12 12.5a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"/></svg>
+      <span>Perfil</span>
+    </a>
+    <a class="more-sheet-item" href="/settings">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Configuración</span>
+    </a>
+    <a class="more-sheet-item" href="/payments">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M1 10h22"/></svg>
+      <span>Payments</span>
+    </a>
+    <a class="more-sheet-item" href="/leads">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 6v6l4 2"/></svg>
+      <span>Leads</span>
+    </a>
+  </div>
+  <div class="more-sheet-list">
+    <a class="more-sheet-item danger" href="/logout">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      <span>Cerrar sesión</span>
+    </a>
+  </div>
+</div>
 
 <main class="main-content">
   {% block content %}{% endblock %}
@@ -1988,6 +2124,19 @@ document.addEventListener('click', function(e) {
   var account = document.getElementById('account-menu');
   if (account && !account.contains(e.target)) account.classList.remove('open');
 });
+
+(function() {
+  var GMAIL_BANNER_KEY = 'flowcrm-gmail-banner-dismissed';
+  var banner = document.getElementById('gmail-warning-banner');
+  if (banner) {
+    try { if (sessionStorage.getItem(GMAIL_BANNER_KEY)) banner.classList.add('dismissed'); } catch (e) {}
+  }
+  window.dismissGmailBanner = function() {
+    var el = document.getElementById('gmail-warning-banner');
+    if (el) el.classList.add('dismissed');
+    try { sessionStorage.setItem(GMAIL_BANNER_KEY, '1'); } catch (e) {}
+  };
+})();
 
 function flashToast(message, type) {
   var container = document.querySelector('.toast-container') || (function() {
@@ -2208,14 +2357,13 @@ function openActionMenu(event, actions) {
   menu.style.top = top + 'px';
 }
 
-function openBottomNavMore(event) {
-  openActionMenu(event, [
-    { label: 'Leads', href: '/leads' },
-    { label: 'Payments', href: '/payments' },
-    { label: 'Settings', href: '/settings' },
-    { divider: true },
-    { label: 'Sign Out', href: '/logout' },
-  ]);
+function openMoreSheet() {
+  document.getElementById('more-sheet').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeMoreSheet() {
+  document.getElementById('more-sheet').classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -2235,6 +2383,7 @@ document.addEventListener('keydown', function(e) {
     closeActionMenu();
     closeHeaderPopovers();
     closeGlobalModal('upgrade-modal');
+    closeMoreSheet();
   }
 });
 </script>
