@@ -32,6 +32,7 @@
       <p class="text-sm text-ink-soft mb-6">Completa el formulario y te contactaremos en menos de 24 horas.</p>
 
       <form id="form-captacion" class="space-y-4">
+        <input type="hidden" name="tenant_slug" value="{{ tenant_slug }}">
         <div>
           <label class="label-simple">Nombre completo *</label>
           <input name="nombre" required class="field-simple">

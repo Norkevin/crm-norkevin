@@ -178,7 +178,10 @@ def test_invoice_view_subtotal_stays_fixed_after_overpayment(auth_client):
     import app as app_module
 
     quote_id = 'quote-' + uuid.uuid4().hex[:8]
-    app_module.store.upsert('quotes', {'id': quote_id, 'paquete_nombre': 'Test Package', 'status': 'Aceptada'})
+    app_module.store.upsert('quotes', {
+        'id': quote_id, 'paquete_nombre': 'Test Package', 'status': 'Aceptada',
+        'tenant_id': 'tenant-norkevin',
+    })
     jid, ids = _make_job_with_payments(app_module, [7500, 7500, 7500])
     for pid in ids:
         p = app_module.store.get('payments', pid)
@@ -206,7 +209,10 @@ def test_invoice_view_shows_partial_badge_on_every_credited_row(auth_client):
     import app as app_module
 
     quote_id = 'quote-' + uuid.uuid4().hex[:8]
-    app_module.store.upsert('quotes', {'id': quote_id, 'paquete_nombre': 'Test Package', 'status': 'Aceptada'})
+    app_module.store.upsert('quotes', {
+        'id': quote_id, 'paquete_nombre': 'Test Package', 'status': 'Aceptada',
+        'tenant_id': 'tenant-norkevin',
+    })
     jid, ids = _make_job_with_payments(app_module, [4500, 4500, 4500, 4500, 4500])
     for pid in ids:
         p = app_module.store.get('payments', pid)

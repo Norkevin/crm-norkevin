@@ -97,9 +97,26 @@ def client(flask_app, monkeypatch):
 
 @pytest.fixture()
 def auth_client(client):
-    """Cliente HTTP ya autenticado (simula haber pasado el login de Google)."""
+    """Cliente HTTP ya autenticado (simula haber pasado el login de Google)
+    para la cuenta Astral Weddings/tenant-norkevin -- el tenant_id que ya
+    usan practicamente todos los fixtures de datos de este repo. Para un
+    segundo tenant sintetico en un test de aislamiento, usar
+    login_as_tenant() en vez de este fixture."""
     with client.session_transaction() as sess:
         sess['logged_in'] = True
         sess['user_email'] = 'norkevinfoto@gmail.com'
         sess['user_name'] = 'Test User'
+        sess['tenant_id'] = 'tenant-norkevin'
+    return client
+
+
+def login_as_tenant(client, tenant_id, email='test@example.com', name='Test User'):
+    """Loguea el mismo test client como una cuenta/tenant distinta -- para
+    tests de aislamiento que necesitan probar 2+ cuentas en el mismo test
+    sin el overhead de pasar por el flujo real de Google OAuth."""
+    with client.session_transaction() as sess:
+        sess['logged_in'] = True
+        sess['user_email'] = email
+        sess['user_name'] = name
+        sess['tenant_id'] = tenant_id
     return client

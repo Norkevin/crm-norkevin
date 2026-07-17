@@ -36,14 +36,22 @@ class MailTracker:
         return store.list('mail_log')
 
     def log_email(self, to_email, subject, body='', template_id=None,
-                  lead_id=None, job_id=None, attachments=None):
-        """Entrega y registra un email."""
+                  lead_id=None, job_id=None, attachments=None, tenant_id=None):
+        """Entrega y registra un email.
+
+        tenant_id explicito: mail_log es tenant-scoped, y store.upsert()
+        solo auto-estampa el tenant_id de la SESION activa -- pero el hilo
+        de recordatorios en segundo plano (check_and_send_payment_reminders,
+        _auto_fire_due_job_steps) no tiene sesion, corre para las 3 cuentas
+        a la vez. Sin pasar el tenant_id del job/payment que esta procesando
+        en ese momento, el correo quedaria en mail_log sin cuenta asignada
+        (invisible para todos)."""
         delivery = send_email(
             to_email,
             subject,
             body or '',
             attachments=attachments or [],
-            metadata={'lead_id': lead_id, 'job_id': job_id, 'template_id': template_id},
+            metadata={'lead_id': lead_id, 'job_id': job_id, 'template_id': template_id, 'tenant_id': tenant_id},
         )
         entry = {
             'id': 'mail-' + uuid.uuid4().hex[:8],
@@ -65,6 +73,8 @@ class MailTracker:
             'delivery_message_id': delivery.message_id,
             'delivery_error': delivery.error,
         }
+        if tenant_id:
+            entry['tenant_id'] = tenant_id
         store.upsert('mail_log', entry)
         return entry
 

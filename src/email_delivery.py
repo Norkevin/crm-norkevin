@@ -172,7 +172,8 @@ def _send_resend(to_email, subject, body, *, attachments=None, metadata=None):
 
 def _send_gmail(to_email, subject, body, *, attachments=None, metadata=None):
     from . import gmail_delivery
-    ok, result = gmail_delivery.send_gmail(to_email, subject, body)
+    tenant_id = (metadata or {}).get('tenant_id')
+    ok, result = gmail_delivery.send_gmail(to_email, subject, body, tenant_id=tenant_id)
     if ok:
         return DeliveryResult(ok=True, provider='gmail', message_id=result, mode='real')
     return DeliveryResult(ok=False, provider='gmail', status='failed', error=result, mode='real')
@@ -182,10 +183,13 @@ def send_email(to_email, subject, body='', *, attachments=None, metadata=None):
     if not to_email:
         return DeliveryResult(ok=False, provider='none', status='failed', error='Destinatario vacio')
 
-    # Si Kevin conecto su Gmail, se usa automaticamente sin necesidad de
-    # tocar EMAIL_DELIVERY_MODE/EMAIL_PROVIDER.
+    # Si la cuenta activa conecto su Gmail, se usa automaticamente sin
+    # necesidad de tocar EMAIL_DELIVERY_MODE/EMAIL_PROVIDER. tenant_id
+    # explicito en metadata (lo agrega mail_tracker.log_email) porque esto
+    # puede correr sin sesion (hilo de recordatorios en segundo plano).
     from . import gmail_delivery
-    if gmail_delivery.is_connected():
+    tenant_id = (metadata or {}).get('tenant_id')
+    if gmail_delivery.is_connected(tenant_id=tenant_id):
         return _send_gmail(to_email, subject, body, attachments=attachments, metadata=metadata)
 
     mode = os.environ.get('EMAIL_DELIVERY_MODE', 'test').lower()

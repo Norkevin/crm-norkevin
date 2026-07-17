@@ -108,16 +108,57 @@
     <div class="settings-tile clickable" style="cursor:default;">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
       <h4>Payment Links (Recurrente)</h4>
-      {% if recurrente_configured %}
-        <p style="color:var(--sn-green);font-weight:600;">Conectado. Ya podes generar links de pago.</p>
-        {% if recurrente_test_mode %}
+      {% if recurrente_status.status == 'connected' %}
+        <p style="color:var(--sn-green);font-weight:600;">Conectado &middot; llave ...{{ recurrente_status.masked_key[-4:] }}</p>
+        {% if recurrente_status.mode == 'test' %}
         <p style="margin-top:6px;"><span class="sn-chip" style="background:#FEF3C7;color:#92400E;">MODO PRUEBA</span></p>
-        <p class="sn-muted" style="margin-top:6px;font-size:10px;">Los links que generes ahora son de prueba (no cobran de verdad). Para volver a modo real, quita <code>RECURRENTE_MODE=test</code> del <code>.env</code>.</p>
         {% endif %}
+        <div class="flex gap-2 mt-2" style="flex-wrap:wrap;">
+          <button class="sn-btn sn-btn-sm" type="button" onclick="testRecurrente()">Probar conexion</button>
+          <button class="sn-btn sn-btn-sm" type="button" onclick="openRecurrenteModal()">Actualizar credenciales</button>
+          <button class="sn-btn sn-btn-sm" type="button" style="color:#B4232A;" onclick="disconnectRecurrente()">Desconectar</button>
+        </div>
+      {% elif recurrente_status.status == 'error' %}
+        <p style="color:#B4232A;font-weight:600;">Error de conexion &middot; llave ...{{ recurrente_status.masked_key[-4:] }}</p>
+        <p class="sn-muted" style="margin-top:4px;font-size:11px;">{{ recurrente_status.error }}</p>
+        <div class="flex gap-2 mt-2" style="flex-wrap:wrap;">
+          <button class="sn-btn sn-btn-sm" type="button" onclick="testRecurrente()">Probar de nuevo</button>
+          <button class="sn-btn sn-btn-sm" type="button" onclick="openRecurrenteModal()">Actualizar credenciales</button>
+        </div>
       {% else %}
-        <p>Falta configurar <code>RECURRENTE_SECRET_KEY</code> en el <code>.env</code>.</p>
-        <p class="sn-muted" style="margin-top:6px;font-size:10px;">Obtene tu llave en Recurrente &gt; Configuracion &gt; Llaves API.</p>
+        <p>No conectado. Los links de pago no se generan hasta que conectes tu cuenta de Recurrente.</p>
+        <button class="sn-btn sn-btn-primary sn-btn-sm mt-2" type="button" onclick="openRecurrenteModal()">Conectar con Recurrente</button>
       {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="recurrente-modal">
+  <div class="modal-content" style="width:min(440px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('recurrente-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Conectar con Recurrente</h2>
+    <p class="sn-muted" style="font-size:13px;margin-top:-6px;margin-bottom:14px;">
+      Obtene tu llave en Recurrente &gt; Configuracion &gt; Llaves API. Se guarda
+      cifrada, solo esta cuenta la puede usar.
+    </p>
+    <div class="form-group">
+      <label class="form-label">Llave secreta (live)</label>
+      <input class="form-input" id="recurrente-secret-key" type="password" placeholder="sk_live_..." autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Llave secreta (prueba, opcional)</label>
+      <input class="form-input" id="recurrente-secret-key-test" type="password" placeholder="sk_test_..." autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Modo</label>
+      <select class="form-input" id="recurrente-mode">
+        <option value="live">Live (cobra de verdad)</option>
+        <option value="test">Prueba (no cobra de verdad)</option>
+      </select>
+    </div>
+    <div class="sn-actions" style="justify-content:space-between;">
+      <button class="sn-btn" type="button" onclick="closeModal('recurrente-modal')">Cancelar</button>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="saveRecurrenteCredentials()">Guardar</button>
     </div>
   </div>
 </div>
@@ -205,6 +246,26 @@
 </div>
 
 <!-- ============================================================
+     MIGRACION A 3 CUENTAS INDEPENDIENTES
+     ============================================================ -->
+<div class="mb-8">
+  <h3 class="settings-section-title" style="color:var(--sn-red,#DC2626);">Migracion a 3 cuentas independientes</h3>
+  <div class="sn-card white" style="padding:18px;border-color:#FCA5A5;">
+    <p class="sn-muted text-sm mb-4">
+      Convierte el CRM en 3 cuentas separadas (Astral Weddings, Norkevin
+      Photography, Ramiro Cruz Photo), cada una con su propio login de
+      Google y sus propios datos. Todo lo que existe hoy queda asignado a
+      Astral Weddings (es el unico negocio que uso el CRM hasta ahora). Se
+      hace un respaldo completo antes de escribir nada. Correlo UNA sola
+      vez.
+    </p>
+    <button class="sn-btn" type="button" style="border-color:#DC2626;color:#DC2626;" onclick="previewMultiTenantMigration()">
+      Ver que va a cambiar
+    </button>
+  </div>
+</div>
+
+<!-- ============================================================
      ZONA DE RIESGO (reiniciar datos de prueba)
      ============================================================ -->
 <div class="mb-8">
@@ -253,6 +314,26 @@
 </div>
 
 </section>
+
+<div class="modal-overlay" id="migrate-tenant-modal">
+  <div class="modal-content" style="width:min(560px,100%);">
+    <button type="button" class="modal-close" onclick="closeModal('migrate-tenant-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title">Migracion a 3 cuentas independientes</h2>
+    <p class="sn-muted" style="font-size:13px;margin-top:-6px;margin-bottom:14px;">
+      Esto es lo que va a pasar (nada se escribe todavia):
+    </p>
+    <div id="migrate-tenant-report" style="font-size:12px;max-height:280px;overflow-y:auto;border:1px solid var(--sn-line);border-radius:8px;padding:10px;margin-bottom:14px;font-family:monospace;white-space:pre-wrap;">
+      Cargando...
+    </div>
+    <div class="form-group">
+      <input class="form-input" id="migrate-tenant-confirm" placeholder="Escribe MIGRAR para ejecutar" autocomplete="off">
+    </div>
+    <div class="sn-actions" style="justify-content:space-between;">
+      <button class="sn-btn" type="button" onclick="closeModal('migrate-tenant-modal')">Cancelar</button>
+      <button class="sn-btn" type="button" style="background:#DC2626;color:#fff;border-color:#DC2626;" onclick="confirmMultiTenantMigration()">Ejecutar migracion</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="reset-data-modal">
   <div class="modal-content" style="width:min(460px,100%);">
@@ -417,6 +498,78 @@ function disconnectGmail() {
   if (!confirm('Desconectar Gmail? Los correos volveran a modo prueba (local outbox).')) return;
   apiPost('/api/settings/google/disconnect', {})
     .then(function() { flashToast('Gmail desconectado', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function openRecurrenteModal() {
+  document.getElementById('recurrente-secret-key').value = '';
+  document.getElementById('recurrente-secret-key-test').value = '';
+  openModal('recurrente-modal');
+}
+
+function saveRecurrenteCredentials() {
+  var secretKey = document.getElementById('recurrente-secret-key').value.trim();
+  var secretKeyTest = document.getElementById('recurrente-secret-key-test').value.trim();
+  var mode = document.getElementById('recurrente-mode').value;
+  if (!secretKey && !secretKeyTest) {
+    flashToast('Pega al menos una llave (live o de prueba)', 'error');
+    return;
+  }
+  apiPost('/api/settings/recurrente/connect', { secret_key: secretKey, secret_key_test: secretKeyTest, mode: mode })
+    .then(function() {
+      closeModal('recurrente-modal');
+      flashToast('Recurrente conectado', 'success');
+      setTimeout(function() { location.reload(); }, 600);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function testRecurrente() {
+  apiPost('/api/settings/recurrente/test', {})
+    .then(function(data) {
+      flashToast(data.ok ? 'Conexion valida' : ('Error: ' + (data.error || 'desconocido')), data.ok ? 'success' : 'error');
+      setTimeout(function() { location.reload(); }, 800);
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function disconnectRecurrente() {
+  if (!confirm('Desconectar Recurrente? No se van a poder generar mas links de pago hasta que reconectes.')) return;
+  apiPost('/api/settings/recurrente/disconnect', {})
+    .then(function() { flashToast('Recurrente desconectado', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function previewMultiTenantMigration() {
+  openModal('migrate-tenant-modal');
+  var box = document.getElementById('migrate-tenant-report');
+  box.textContent = 'Cargando...';
+  apiPost('/api/admin/migrate-to-multi-tenant', { confirm: 'MIGRAR', dry_run: true })
+    .then(function(data) {
+      if (data.dry_run) {
+        box.textContent = 'Cuentas a crear:\n' + data.would_create_tenants.join('\n')
+          + '\n\nRegistros por tabla y tenant_id actual:\n' + JSON.stringify(data.report, null, 2);
+      } else {
+        box.textContent = JSON.stringify(data, null, 2);
+      }
+    })
+    .catch(function(err) {
+      box.textContent = 'No se pudo cargar la vista previa: ' + err.message;
+    });
+}
+
+function confirmMultiTenantMigration() {
+  var typed = document.getElementById('migrate-tenant-confirm').value.trim();
+  if (typed !== 'MIGRAR') {
+    flashToast('Escribe MIGRAR (en mayusculas) para confirmar', 'error');
+    return;
+  }
+  apiPost('/api/admin/migrate-to-multi-tenant', { confirm: 'MIGRAR', dry_run: false })
+    .then(function(data) {
+      closeModal('migrate-tenant-modal');
+      flashToast('Migracion completada. Cerrando sesion para volver a entrar con la cuenta correcta...', 'success');
+      setTimeout(function() { window.location.href = '/logout'; }, 1800);
+    })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 

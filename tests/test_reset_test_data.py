@@ -18,12 +18,13 @@ def _seed_business_data(app_module):
 def test_reset_requires_typed_confirmation(auth_client):
     import app as app_module
     _seed_business_data(app_module)
-    before = len(app_module.store.list('leads'))
+    before = auth_client.get('/api/storage/status').get_json()['counts']
 
     resp = auth_client.post('/api/admin/reset-test-data', json={})
     assert resp.status_code == 400
     assert resp.get_json()['ok'] is False
-    assert len(app_module.store.list('leads')) == before, 'sin confirmacion no debe borrar nada'
+    after = auth_client.get('/api/storage/status').get_json()['counts']
+    assert after == before, 'sin confirmacion no debe borrar nada'
 
     resp = auth_client.post('/api/admin/reset-test-data', json={'confirm': 'borrar'})
     assert resp.status_code == 400, 'debe ser exactamente BORRAR (mayusculas)'

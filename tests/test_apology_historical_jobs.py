@@ -20,6 +20,7 @@ def _log_mail_for_job(app_module, job_id, to_email, delivered=True, status='sent
         'status': status,
         'sent_at': '2026-07-15T10:00:00',
         'delivery_provider': 'gmail_api' if delivered else 'local_outbox',
+        'tenant_id': 'tenant-norkevin',
     }
     app_module.store.upsert('mail_log', entry)
     return entry

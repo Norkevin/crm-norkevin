@@ -42,6 +42,7 @@ def test_contract_send_keeps_signing_link_even_with_a_template_missing_it(auth_c
         'id': tpl_id, 'name': 'Plantilla sin link', 'activo': True,
         'asunto': 'Tu contrato ya esta listo',
         'cuerpo': 'Hola %client_name%,\n\nTu contrato de bodas esta listo para revisar.\n\nSaludos.',
+        'tenant_id': 'tenant-norkevin',
     })
 
     resp = auth_client.post('/api/contracts/new', json={'job_id': job_id})

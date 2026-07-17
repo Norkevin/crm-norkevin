@@ -9,6 +9,11 @@ por eso usa un scope minimo y un callback distinto
 Reutiliza las mismas GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET del .env, pero
 Google exige que CADA redirect_uri este autorizado por separado en el
 proyecto de Google Cloud.
+
+Que email puede entrar y a que cuenta (3 cuentas independientes: Astral
+Weddings / Norkevin Photography / Ramiro Cruz Photo) ya NO se decide aca --
+vive en data/tenants.json (campo login_email de cada tenant), resuelto por
+_tenant_for_login_email() en app.py justo despues de exchange_code_for_email.
 """
 import json
 import os
@@ -23,11 +28,6 @@ USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
 
 def is_configured() -> bool:
     return bool(os.environ.get('GOOGLE_CLIENT_ID') and os.environ.get('GOOGLE_CLIENT_SECRET'))
-
-
-def allowed_emails():
-    raw = os.environ.get('ALLOWED_LOGIN_EMAILS', '')
-    return {e.strip().lower() for e in raw.split(',') if e.strip()}
 
 
 def build_login_url(redirect_uri, state):

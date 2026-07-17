@@ -108,6 +108,16 @@ app.secret_key = os.environ.get('FLASK_SECRET', 'norkevin-crm-dev-secret-change-
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.jinja_env.auto_reload = True
 
+# Aislamiento multi-tenant: JsonStore filtra automaticamente por
+# session['tenant_id'] en cuanto hay una sesion de Flask activa. Fuera de
+# un request (el hilo de recordatorios en segundo plano, scripts) el
+# resolver lanza RuntimeError y storage.py lo atrapa devolviendo None,
+# que a proposito significa "todas las cuentas" en ese contexto.
+store.tenant_resolver = lambda: session.get('tenant_id')
+
+from src import gmail_delivery as _gmail_delivery_module
+_gmail_delivery_module.tenant_resolver = lambda: session.get('tenant_id')
+
 
 @app.after_request
 def add_dev_cache_headers(response):
@@ -168,7 +178,16 @@ def _workflow_from_dict(d):
 
 
 def _persist_workflow_template(workflow):
-    """Guarda el template editado en data/workflow_templates.json."""
+    """Guarda el template editado en data/workflow_templates.json.
+    NOTA (multi-tenant): el WorkflowEngine registra templates por un id
+    fijo compartido (p.ej. 'production_workflow_v1'), no por tenant --
+    volver esto realmente independiente por cuenta requeriria que el motor
+    mismo indexe sus templates por (tenant_id, workflow_id), no solo
+    cambiar donde se guarda el archivo. Por ahora la automatizacion base
+    (que steps existen, que plantilla usa cada uno) es compartida entre
+    las 3 cuentas; lo que SI esta aislado por cuenta es el AVANCE de cada
+    job/lead dentro de esos steps (workflow_instances, ligado al job que
+    ya paso por el filtro de tenant al buscarlo)."""
     saved = store.get_dict('workflow_templates')
     saved[workflow.id] = workflow.to_dict()
     store.save_dict('workflow_templates', saved)
@@ -208,21 +227,59 @@ def trigger_workflow_for_quote_accepted(lead_id, lead_name, job_id=None):
     )
 
 # ============================================================
-# MULTI-TENANCY: filtrar por tenant
+# MULTI-TENANCY: 3 cuentas completamente independientes (Astral Weddings /
+# Norkevin Photography / Ramiro Cruz Photo). El tenant_id de la cuenta
+# logueada se fija UNA VEZ en session['tenant_id'] durante el login con
+# Google (ver auth_google_login_callback) y de ahi en mas es la unica
+# fuente de verdad -- ya no se puede "cambiar de cuenta" con un query
+# param, un ID o una peticion manual (Kevin fue explicito sobre esto).
+# El filtrado real por tenant_id vive en JsonStore (src/storage.py); estos
+# helpers son compatibilidad hacia atras para el codigo que ya los llama.
 # ============================================================
 def get_current_tenant_id():
-    """Retorna el tenant_id actual (default: tenant-norkevin)."""
-    # Por ahora leemos de query param o session
-    # En el futuro: sesiones o cookies
-    return request.args.get('tenant', 'tenant-norkevin')
+    """Tenant_id de la cuenta logueada en esta sesion, o None si no hay
+    sesion (login, rutas publicas, o el hilo de recordatorios en segundo
+    plano que corre fuera de cualquier request)."""
+    try:
+        return session.get('tenant_id')
+    except RuntimeError:
+        # Fuera de un contexto de request (hilo en segundo plano/scripts).
+        return None
 
 def filter_by_tenant(records, tenant_id=None):
-    """Filtra una lista de records por tenant_id."""
+    """Filtra una lista de records por tenant_id. store.list(...) ya viene
+    filtrado si hay una cuenta activa, asi que esto es principalmente para
+    los pocos call sites que reciben la lista ya construida."""
     if tenant_id is None:
         tenant_id = get_current_tenant_id()
-    if not tenant_id or tenant_id == 'all':
+    if not tenant_id:
         return records
     return [r for r in records if r.get('tenant_id') == tenant_id]
+
+
+def _tenant_for_login_email(email):
+    """tenants.json es la unica fuente de verdad de 'quien puede entrar y a
+    que cuenta' -- reemplaza a ALLOWED_LOGIN_EMAILS (que solo decia SI podia
+    entrar, no A CUAL cuenta, y podia desincronizarse). 'tenants' no es una
+    tabla tenant-scoped, asi que store.list() siempre devuelve las 3 aunque
+    todavia no haya sesion (estamos resolviendo justamente cual es)."""
+    email = (email or '').strip().lower()
+    if not email:
+        return None
+    for tenant in store.list('tenants'):
+        if (tenant.get('login_email') or '').strip().lower() == email:
+            return tenant
+    return None
+
+
+def _tenant_by_slug(slug):
+    slug = (slug or '').strip().lower()
+    if not slug:
+        return None
+    for tenant in store.list('tenants'):
+        if (tenant.get('slug') or '').strip().lower() == slug:
+            return tenant
+    return None
 
 def list_leads(tenant_id=None):
     if tenant_id is None:
@@ -1131,18 +1188,16 @@ def _build_recent_notifications(tenant_id):
 
 @app.context_processor
 def inject_tenant():
-    """Inyecta el tenant actual en todos los templates."""
-    tenant_id = request.args.get('tenant', 'tenant-norkevin')
-    tenants_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'tenants.json')
-    tenants = []
-    if os.path.exists(tenants_path):
-        try:
-            with open(tenants_path, 'r', encoding='utf-8') as f:
-                tenants = _json.load(f)
-        except Exception:
-            tenants = []
-    current = next((t for t in tenants if t['id'] == tenant_id), tenants[0] if tenants else {'id': 'tenant-norkevin', 'name': 'ASTRAL WEDDINGS', 'color': '#2F7D73', 'logo_letter': 'A'})
-    recent_notifications = _build_recent_notifications(tenant_id)
+    """Inyecta el tenant actual (el de la sesion logueada, no un query
+    param) en todos los templates. Nunca cae al 'primer tenant de la
+    lista' como placeholder -- eso filtraria el nombre/color de OTRA
+    cuenta a una sesion sin tenant resuelto (login, paginas publicas)."""
+    tenant_id = get_current_tenant_id()
+    tenants = store.list('tenants')
+    current = next((t for t in tenants if t['id'] == tenant_id), None) or {
+        'id': None, 'name': 'Flow CRM', 'color': '#2F7D73', 'logo_letter': 'F',
+    }
+    recent_notifications = _build_recent_notifications(tenant_id) if tenant_id else []
 
     from src import gmail_delivery
     try:
@@ -1152,7 +1207,11 @@ def inject_tenant():
 
     return {
         'current_tenant': current,
-        'all_tenants': tenants,
+        # Nunca se expone la lista completa de tenants a una sesion -- solo
+        # el propio. Nada la usa hoy (el selector es un <span> decorativo),
+        # pero mejor no dejar en el contexto de Jinja los nombres de las
+        # otras 2 cuentas.
+        'all_tenants': [current] if current.get('id') else [],
         'recent_notifications': recent_notifications,
         'unread_notifications_count': min(len(recent_notifications), 59),
         'gmail_connected': gmail_connected,
@@ -1163,25 +1222,21 @@ def inject_tenant():
 def api_notifications_recent():
     """Lo consulta el JS de la campana de notificaciones cada cierto tiempo
     y al abrirla, para que un lead nuevo se vea reflejado sin recargar."""
-    tenant_id = request.args.get('tenant', 'tenant-norkevin')
-    notifications = _build_recent_notifications(tenant_id)
+    tenant_id = get_current_tenant_id()
+    notifications = _build_recent_notifications(tenant_id) if tenant_id else []
     return jsonify({'ok': True, 'notifications': notifications, 'count': min(len(notifications), 59)})
 
 # HELPERS - Data access via JSON store (NO Notion)
 # ============================================================
 
-# Funciones de list_* definidas arriba con multi-tenancy
-# Compatibilidad (deprecadas):
-list_leads_all = lambda: store.list('leads')
-list_clients_all = lambda: store.list('clients')
-list_jobs_all = lambda: store.list('jobs')
-list_payments_all = lambda: store.list('payments')
-
 def list_calendar():
     return store.list('calendar')
 
-def get_settings():
-    return store.get_dict('settings')
+def get_settings(tenant_id=None):
+    """tenant_id explicito para las rutas publicas (formulario de contacto)
+    que no tienen sesion -- sin eso, get_tenant_dict caeria al archivo
+    compartido en vez de la config de la marca correcta."""
+    return store.get_tenant_dict('settings', tenant_id=tenant_id)
 
 
 def _package_config_view(package):
@@ -1221,8 +1276,8 @@ def _default_config_items(kind):
     return []
 
 
-def _config_items(kind):
-    settings = get_settings()
+def _config_items(kind, tenant_id=None):
+    settings = get_settings(tenant_id=tenant_id)
     saved = (settings.get('config') or {}).get(kind) or []
     by_id = {item.get('id'): dict(item) for item in _default_config_items(kind)}
     for item in saved:
@@ -1236,7 +1291,7 @@ def _config_items(kind):
 def _save_config_items(kind, items):
     settings = get_settings()
     settings.setdefault('config', {})[kind] = items
-    store.save_dict('settings', settings)
+    store.save_tenant_dict('settings', settings)
 
 
 def _upsert_config_item(kind, item_id, data):
@@ -1259,9 +1314,9 @@ def _upsert_config_item(kind, item_id, data):
 SOURCE_COLORS = ['#7d83f2', '#20a7dc', '#c65a09', '#10b981', '#f2c94c', '#94a3b8', '#8b5cf6', '#ef4444']
 
 
-def _configured_lead_sources(include_inactive=False):
+def _configured_lead_sources(include_inactive=False, tenant_id=None):
     sources = []
-    for idx, item in enumerate(_config_items('fuentes')):
+    for idx, item in enumerate(_config_items('fuentes', tenant_id=tenant_id)):
         name = (item.get('Name') or item.get('name') or '').strip()
         if not name:
             continue
@@ -1538,7 +1593,9 @@ def enrich_job_ops(job, cotizaciones=None):
 # publicas que los CLIENTES necesitan sin iniciar sesion (portal, ver/firmar
 # cotizacion y contrato, cuestionario, descargar PDFs, formularios de
 # contacto). Todo lo demas exige haber iniciado sesion con una cuenta de
-# Google autorizada (ALLOWED_LOGIN_EMAILS en el .env).
+# Google cuyo email coincida con el login_email de alguno de los 3 tenants
+# en data/tenants.json (_tenant_for_login_email) -- esa cuenta de Google
+# entra SOLO a su propia cuenta del CRM, nunca a las otras.
 # ============================================================
 import re as _re_auth
 
@@ -1558,6 +1615,8 @@ PUBLIC_PATTERNS = [
     _re_auth.compile(r'^/api/questionnaires/[^/]+/submit$'),
     _re_auth.compile(r'^/invoices/[^/]+/pdf$'),
     _re_auth.compile(r'^/files/[^/]+/download$'),
+    _re_auth.compile(r'^/contacto/[^/]+$'),
+    _re_auth.compile(r'^/captacion/[^/]+$'),
 ]
 
 
@@ -1628,13 +1687,29 @@ def auth_google_login_callback():
     except Exception as exc:
         return redirect(url_for('login_page', error=str(exc)))
 
-    if not email or email.lower() not in google_login.allowed_emails():
+    tenant = _tenant_for_login_email(email)
+    if not tenant:
+        # Bootstrap de un solo uso: produccion todavia puede tener el
+        # tenants.json viejo (sin login_email) la primera vez que este
+        # codigo corre -- sin este fallback, Kevin quedaria bloqueado de
+        # su propio CRM antes de poder ejecutar la migracion a multi-tenant
+        # desde Settings. Se cae al viejo ALLOWED_LOGIN_EMAILS + el primer
+        # tenant de la lista, PERO SOLO si ningun tenant tiene login_email
+        # configurado todavia -- en cuanto la migracion corre una vez, esta
+        # rama deja de poder activarse nunca mas.
+        all_tenants = store.list('tenants')
+        none_migrated_yet = bool(all_tenants) and not any(t.get('login_email') for t in all_tenants)
+        allowed_env = {e.strip().lower() for e in os.environ.get('ALLOWED_LOGIN_EMAILS', '').split(',') if e.strip()}
+        if none_migrated_yet and email.lower() in allowed_env:
+            tenant = all_tenants[0]
+    if not tenant or tenant.get('active') is False:
         return redirect(url_for('login_page', error='cuenta_no_autorizada'))
 
     session['logged_in'] = True
     session['user_email'] = email
     session['user_name'] = name
     session['user_picture'] = picture
+    session['tenant_id'] = tenant['id']
     session.permanent = True
     next_path = session.pop('login_next', '/dashboard')
     return redirect(next_path if next_path.startswith('/') else '/dashboard')
@@ -3181,6 +3256,48 @@ def api_settings_google_disconnect():
     return jsonify({'ok': True})
 
 
+# ============================================================
+# RECURRENTE por cuenta -- cada tenant conecta y administra su propia API
+# ============================================================
+@app.route('/api/settings/recurrente/status')
+def api_settings_recurrente_status():
+    from src import recurrente
+    return jsonify({'ok': True, **recurrente.connection_status()})
+
+
+@app.route('/api/settings/recurrente/connect', methods=['POST'])
+def api_settings_recurrente_connect():
+    """Conecta o actualiza las credenciales de Recurrente de la cuenta
+    activa. Las llaves nunca vuelven en la respuesta -- solo un booleano
+    y los ultimos 4 caracteres para que Kevin reconozca cual quedo puesta."""
+    from src import recurrente
+    data = request.get_json(silent=True) or {}
+    secret_key = (data.get('secret_key') or '').strip()
+    secret_key_test = (data.get('secret_key_test') or '').strip()
+    mode = (data.get('mode') or 'live').strip()
+    if not secret_key and not secret_key_test:
+        return jsonify({'ok': False, 'error': 'Pega al menos una llave (live o de prueba)'}), 400
+    recurrente.save_credentials(secret_key=secret_key, secret_key_test=secret_key_test, mode=mode)
+    logger.info(f"Recurrente conectado para {get_current_tenant_id()} por {session.get('user_email')}")
+    return jsonify({'ok': True, **recurrente.connection_status()})
+
+
+@app.route('/api/settings/recurrente/test', methods=['POST'])
+def api_settings_recurrente_test():
+    from src import recurrente
+    result = recurrente.test_connection()
+    status = recurrente.connection_status()
+    return jsonify({'ok': result.get('ok', False), 'error': result.get('error'), **status})
+
+
+@app.route('/api/settings/recurrente/disconnect', methods=['POST'])
+def api_settings_recurrente_disconnect():
+    from src import recurrente
+    recurrente.disconnect()
+    logger.info(f"Recurrente desconectado para {get_current_tenant_id()} por {session.get('user_email')}")
+    return jsonify({'ok': True})
+
+
 @app.route('/settings')
 def settings():
     """Settings generales del estudio."""
@@ -3224,6 +3341,7 @@ def settings():
                           gmail_redirect_uri=redirect_uri,
                           recurrente_configured=recurrente.is_configured(),
                           recurrente_test_mode=recurrente.is_test_mode(),
+                          recurrente_status=recurrente.connection_status(),
                           google_status=request.args.get('google_status'),
                           google_msg=request.args.get('google_msg'),
                           google_email_param=request.args.get('google_email'))
@@ -3455,6 +3573,160 @@ def api_admin_stop_historical_job_emails():
     return jsonify({'ok': True, 'fixed': fixed})
 
 
+# Los 3 tenants reales -- Astral Weddings reutiliza el id 'tenant-norkevin'
+# a proposito (es el que YA tienen todos los registros existentes, asi la
+# migracion no tiene que reasignar nada de esa cuenta, solo rellenar lo que
+# nunca tuvo tenant_id o quedo en el stub viejo 'tenant-astral').
+_MULTI_TENANT_REAL_TENANTS = [
+    {'id': 'tenant-norkevin', 'slug': 'astral-weddings', 'name': 'ASTRAL WEDDINGS',
+     'logo_letter': 'A', 'color': '#2F7D73', 'active': True, 'currency': 'GTQ',
+     'language': 'es', 'login_email': 'astralweddingsgt@gmail.com'},
+    {'id': 'tenant-norkevin-photography', 'slug': 'norkevin-photography', 'name': 'Norkevin Photography',
+     'logo_letter': 'N', 'color': '#0284C7', 'active': True, 'currency': 'GTQ',
+     'language': 'es', 'login_email': 'norkevinfoto@gmail.com'},
+    {'id': 'tenant-ramiro-cruz', 'slug': 'ramiro-cruz-photo', 'name': 'Ramiro Cruz Photo',
+     'logo_letter': 'R', 'color': '#7C3AED', 'active': True, 'currency': 'GTQ',
+     'language': 'es', 'login_email': 'ramirocruz10x@gmail.com'},
+]
+_MULTI_TENANT_KNOWN_OLD_IDS = {None, '', 'tenant-norkevin', 'tenant-astral'}
+# Union con los 3 ids reales: si la migracion ya corrio una vez, los
+# registros de Norkevin Photography/Ramiro Cruz ya traen su propio
+# tenant_id real (no uno de los stubs viejos) -- sin esto, volver a llamar
+# el endpoint (p.ej. para ver el dry-run actual) abortaria pensando que sus
+# propios datos ya migrados son "desconocidos".
+_MULTI_TENANT_KNOWN_IDS = _MULTI_TENANT_KNOWN_OLD_IDS | {t['id'] for t in _MULTI_TENANT_REAL_TENANTS}
+
+
+@app.route('/api/admin/migrate-to-multi-tenant', methods=['POST'])
+def api_admin_migrate_to_multi_tenant():
+    """Convierte el CRM de una sola cuenta implicita a 3 cuentas
+    completamente independientes (Astral Weddings / Norkevin Photography /
+    Ramiro Cruz Photo). Kevin: 'antes de hacer la migracion crea un
+    respaldo completo... si algun registro no tiene una cuenta claramente
+    identificada, no lo asignes al azar, dejalo marcado para revision'.
+
+    Todo lo que existe hoy le pertenece 100% a Astral Weddings (es el unico
+    negocio que uso este CRM hasta ahora) -- por eso el id 'tenant-norkevin'
+    se reutiliza sin cambios para esa cuenta, y el backfill solo toca
+    registros sin tenant_id o con el id del viejo stub 'tenant-astral'
+    (nunca tuvo datos reales). Si aparece CUALQUIER otro tenant_id
+    desconocido, esto aborta sin escribir nada.
+
+    dry_run=true (default) solo devuelve el reporte de conteos, no escribe
+    nada -- hay que llamarlo de nuevo con dry_run=false para ejecutar de
+    verdad."""
+    from src.storage import TENANT_SCOPED_TABLES
+    import shutil
+    from datetime import datetime as _dt
+
+    data = request.get_json(silent=True) or {}
+    if data.get('confirm') != 'MIGRAR':
+        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
+    dry_run = data.get('dry_run', True) not in (False, 'false', 0, '0')
+
+    report = {}
+    unexpected = {}
+    for table in sorted(TENANT_SCOPED_TABLES):
+        counts = {}
+        for r in store._read_raw(table):
+            tid = r.get('tenant_id') or '(sin tenant_id)'
+            counts[tid] = counts.get(tid, 0) + 1
+        report[table] = counts
+        for tid in counts:
+            real_tid = None if tid == '(sin tenant_id)' else tid
+            if real_tid not in _MULTI_TENANT_KNOWN_IDS:
+                unexpected.setdefault(table, []).append(tid)
+
+    if unexpected:
+        return jsonify({
+            'ok': False,
+            'error': 'Hay tenant_id que no reconozco -- no se toca nada hasta revisarlos a mano.',
+            'unexpected': unexpected,
+            'report': report,
+        }), 400
+
+    if dry_run:
+        return jsonify({
+            'ok': True, 'dry_run': True, 'report': report,
+            'would_create_tenants': [t['id'] for t in _MULTI_TENANT_REAL_TENANTS],
+        })
+
+    # 1. Respaldo completo (ademas del backup automatico que ya hace
+    #    JsonStore en cada _save individual).
+    backup_dir = os.path.join(store.data_dir, 'backups', f"pre-multi-tenant-{_dt.now().strftime('%Y%m%d_%H%M%S')}")
+    os.makedirs(backup_dir, exist_ok=True)
+    for fname in os.listdir(store.data_dir):
+        src = os.path.join(store.data_dir, fname)
+        if os.path.isfile(src) and fname.endswith('.json'):
+            shutil.copy2(src, os.path.join(backup_dir, fname))
+
+    # 2. tenants.json -> los 3 reales (reemplaza los 2 stub viejos).
+    store._save('tenants', _MULTI_TENANT_REAL_TENANTS)
+
+    # 3. Backfill: sin tenant_id o con el stub viejo -> Astral Weddings.
+    migrated = {}
+    for table in sorted(TENANT_SCOPED_TABLES):
+        records = store._read_raw(table)
+        changed = 0
+        for r in records:
+            if not r.get('tenant_id') or r.get('tenant_id') == 'tenant-astral':
+                r['tenant_id'] = 'tenant-norkevin'
+                changed += 1
+        if changed:
+            store._save(table, records)
+        migrated[table] = changed
+
+    # 4. Clonar plantillas/paquetes de Astral Weddings para que las otras 2
+    #    cuentas nuevas arranquen con algo funcional (no vacio) en vez de
+    #    heredar por accidente los de otra marca.
+    cloned = {}
+    for table in ('email_templates', 'packages'):
+        base_records = [r for r in store._read_raw(table) if r.get('tenant_id') == 'tenant-norkevin']
+        count = 0
+        for new_tenant in _MULTI_TENANT_REAL_TENANTS[1:]:
+            for rec in base_records:
+                clone = dict(rec)
+                clone['id'] = f"{rec['id']}-{new_tenant['id']}"
+                clone['tenant_id'] = new_tenant['id']
+                store.upsert(table, clone)
+                count += 1
+        cloned[table] = count
+
+    # 5. Los archivos tipo-dict que SI se separan por cuenta (settings,
+    #    token de Gmail, estado de OAuth) tambien son 100% de Astral
+    #    Weddings -- se copian a su version con sufijo de tenant en vez de
+    #    perderse. workflow_instances/workflow_history quedan compartidos
+    #    a proposito (ver nota en _persist_workflow_template).
+    for name in ('settings', 'google_oauth_state', 'google_token'):
+        old_path = os.path.join(store.data_dir, f'{name}.json')
+        new_path = os.path.join(store.data_dir, f'{name}_tenant-norkevin.json')
+        if os.path.exists(old_path) and not os.path.exists(new_path):
+            shutil.copy2(old_path, new_path)
+
+    # 6. Si Recurrente estaba configurado a la vieja usanza (una sola llave
+    #    global por variable de entorno), se migra a las credenciales
+    #    cifradas de Astral Weddings para no perder la conexion existente.
+    old_recurrente_key = os.environ.get('RECURRENTE_SECRET_KEY', '')
+    old_recurrente_key_test = os.environ.get('RECURRENTE_SECRET_KEY_TEST', '')
+    if old_recurrente_key or old_recurrente_key_test:
+        from src import recurrente as _recurrente_module
+        old_mode = 'test' if os.environ.get('RECURRENTE_MODE', 'live').strip().lower() == 'test' else 'live'
+        _recurrente_module.save_credentials(
+            secret_key=old_recurrente_key, secret_key_test=old_recurrente_key_test,
+            mode=old_mode, tenant_id='tenant-norkevin',
+        )
+
+    logger.info(
+        f"Migracion multi-tenant ejecutada por {session.get('user_email')}: "
+        f"migrated={migrated} cloned={cloned} backup={backup_dir}"
+    )
+    return jsonify({
+        'ok': True, 'dry_run': False, 'backup_dir': backup_dir,
+        'tenants': [t['id'] for t in _MULTI_TENANT_REAL_TENANTS],
+        'migrated': migrated, 'cloned': cloned,
+    })
+
+
 @app.route('/api/admin/historical-job-mail-log')
 def api_admin_historical_job_mail_log():
     """Kevin: 'hay que mandar una disculpa a los correos que mando'. Antes de
@@ -3633,14 +3905,27 @@ def api_settings_package_delete(package_id):
 
 
 @app.route('/captacion')
-def captacion_form():
-    """Formulario publico de captacion."""
-    return render_template('captacion.html', lead_sources=_configured_lead_sources())
+@app.route('/captacion/<tenant_slug>')
+def captacion_form(tenant_slug=None):
+    """Formulario publico de captacion (2do formulario publico, mismo
+    patron que /contacto: cada marca tiene su propia URL con slug)."""
+    if tenant_slug:
+        tenant = _tenant_by_slug(tenant_slug)
+        if not tenant:
+            abort(404)
+    else:
+        tenant = _tenant_by_slug('astral-weddings')
+    return render_template(
+        'captacion.html',
+        lead_sources=_configured_lead_sources(tenant_id=(tenant or {}).get('id')),
+        tenant_slug=(tenant or {}).get('slug', 'astral-weddings'),
+    )
 
 
 @app.route('/api/captacion', methods=['POST'])
 def api_captacion_submit():
-    """Recibe el formulario publico y crea un lead."""
+    """Recibe el formulario publico y crea un lead. Sin sesion -- el
+    tenant_id sale del tenant_slug validado, no de get_current_tenant_id()."""
     import uuid
     from datetime import datetime as _dt
 
@@ -3648,6 +3933,10 @@ def api_captacion_submit():
 
     if not data.get('nombre'):
         return jsonify({'ok': False, 'error': 'nombre requerido'}), 400
+
+    tenant = _tenant_by_slug(data.get('tenant_slug')) or _tenant_by_slug('astral-weddings')
+    if not tenant:
+        return jsonify({'ok': False, 'error': 'Cuenta no reconocida'}), 400
 
     lead_id = 'lead-' + uuid.uuid4().hex[:8]
     lead = {
@@ -3665,7 +3954,7 @@ def api_captacion_submit():
         'is_new': True,
         'next_task': 'Pendiente de contacto',
         'mail_status': 'ENVIADO',
-        'tenant_id': get_current_tenant_id(),
+        'tenant_id': tenant['id'],
     }
     upsert_lead(lead)
     client, _client_created = _ensure_client_for_lead(lead)
@@ -4391,9 +4680,15 @@ def api_job_delete_payments(job_id):
     if data.get('confirm') != 'BORRAR':
         return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
 
-    remaining = [p for p in store.list('payments') if p.get('job_id') != job_id]
-    deleted_count = len(store.list('payments')) - len(remaining)
-    store._save('payments', remaining)
+    # store.delete() opera sobre la tabla completa (todas las cuentas) y
+    # solo borra si el registro es de la cuenta activa -- a diferencia de
+    # armar 'remaining' filtrando store.list() (que ya viene acotado a
+    # esta cuenta) y volver a guardarlo entero con _save(), que borraria
+    # sin querer los pagos de las OTRAS 2 cuentas del archivo.
+    to_delete = [p['id'] for p in store.list('payments') if p.get('job_id') == job_id]
+    for pid in to_delete:
+        store.delete('payments', pid)
+    deleted_count = len(to_delete)
 
     logger.info(f"Pagos eliminados del job {job_id} por {session.get('user_email')}: {deleted_count}")
     return jsonify({'ok': True, 'deleted': deleted_count})
@@ -4439,6 +4734,7 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
         lead_id=job.get('lead_id'),
         job_id=job.get('id'),
         attachments=attachments or [],
+        tenant_id=job.get('tenant_id'),
     )
     return {
         'mail_id': entry['id'],
@@ -4630,6 +4926,7 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
                 lead_id=job.get('lead_id'),
                 job_id=job.get('id'),
                 attachments=[questionnaire['name']],
+                tenant_id=job.get('tenant_id'),
             )
             mail_id = entry['id']
             mail_warning = _mail_delivery_warning(entry)
@@ -5556,8 +5853,8 @@ def api_pago_create_payment_link(pago_id):
     if not pay:
         return jsonify({'ok': False, 'error': 'Pago no encontrado'}), 404
 
-    if not recurrente.is_configured():
-        return jsonify({'ok': False, 'error': 'Falta configurar RECURRENTE_SECRET_KEY en el .env'}), 400
+    if not recurrente.is_configured(tenant_id=pay.get('tenant_id')):
+        return jsonify({'ok': False, 'error': 'Recurrente no esta conectado para esta cuenta. Conectalo en Settings.'}), 400
 
     # 'amount' de una cuota pendiente YA es su saldo actual (se ajusta con
     # cada abono directo o credito recibido) -- cobrar eso directamente.
@@ -5572,11 +5869,12 @@ def api_pago_create_payment_link(pago_id):
     redirect_url = _client_facing_invoice_url(host, client, invoice_id)
 
     result = recurrente.create_checkout(
-        name=f'ASTRAL WEDDINGS - {concepto}',
+        name=concepto,
         amount_in_cents=round(amount * 100),
         currency='GTQ',
         success_url=redirect_url,
         cancel_url=redirect_url,
+        tenant_id=pay.get('tenant_id'),
     )
     if not result.get('ok'):
         return jsonify({'ok': False, 'error': result.get('error')}), 502
@@ -5746,14 +6044,15 @@ def check_and_send_payment_reminders(host_url=None):
         invoice_id = pay.get('invoice_id') or pay['id']
 
         payment_link = pay.get('payment_link_url')
-        if not payment_link and recurrente.is_configured() and amount > 0:
+        if not payment_link and recurrente.is_configured(tenant_id=pay.get('tenant_id')) and amount > 0:
             redirect_url = _client_facing_invoice_url(host, client, invoice_id)
             result = recurrente.create_checkout(
-                name=f"ASTRAL WEDDINGS - {pay.get('concepto') or invoice_id}",
+                name=pay.get('concepto') or invoice_id,
                 amount_in_cents=round(amount * 100),
                 currency='GTQ',
                 success_url=redirect_url,
                 cancel_url=redirect_url,
+                tenant_id=pay.get('tenant_id'),
             )
             if result.get('ok'):
                 payment_link = result.get('checkout_url')
@@ -5768,6 +6067,7 @@ def check_and_send_payment_reminders(host_url=None):
             body=body,
             lead_id=job.get('lead_id') if job else None,
             job_id=pay.get('job_id'),
+            tenant_id=pay.get('tenant_id'),
         )
         pay['reminder_sent_at'] = datetime.now().isoformat()
         store.upsert('payments', pay)
@@ -6047,14 +6347,20 @@ def api_client_update(client_id):
 
 
 def _notify_new_lead(lead, source_label):
-    """Le manda un correo a Kevin (el email de la empresa en Settings) cada
-    vez que entra un lead nuevo desde un formulario publico -- para que se
-    entere aunque no tenga el CRM abierto en ese momento."""
+    """Le manda un correo al dueno de la cuenta (el email de la empresa en
+    Settings DE ESE TENANT) cada vez que entra un lead nuevo desde un
+    formulario publico -- para que se entere aunque no tenga el CRM
+    abierto. tenant_id explicito en get_settings/log_email porque esto
+    corre desde una ruta publica (sin sesion, el lead ya trae su propio
+    tenant_id resuelto por el slug del formulario)."""
     from src.mail_tracker import get_tracker
 
-    to_email = (get_settings().get('company', {}) or {}).get('email') or 'norkevinfoto@gmail.com'
+    tenant_id = lead.get('tenant_id')
+    tenant = next((t for t in store.list('tenants') if t.get('id') == tenant_id), {})
+    company = (get_settings(tenant_id=tenant_id).get('company', {}) or {})
+    to_email = company.get('email') or tenant.get('login_email') or 'norkevinfoto@gmail.com'
     nombre = lead.get('nombre') or 'Sin nombre'
-    subject = f'Nuevo lead: {nombre} - ASTRAL WEDDINGS'
+    subject = f"Nuevo lead: {nombre} - {tenant.get('name') or 'Flow CRM'}"
     body_lines = [
         f'Te escribio un nuevo lead desde {source_label}.',
         '',
@@ -6070,21 +6376,47 @@ def _notify_new_lead(lead, source_label):
         body_lines += ['', 'Notas:', lead['notes']]
     body_lines += ['', f'Ver lead: /leads/{lead.get("id")}']
     try:
-        get_tracker().log_email(to_email=to_email, subject=subject, body='\n'.join(body_lines), lead_id=lead.get('id'))
+        get_tracker().log_email(
+            to_email=to_email, subject=subject, body='\n'.join(body_lines),
+            lead_id=lead.get('id'), tenant_id=tenant_id,
+        )
     except Exception as exc:
         logger.error(f'No se pudo notificar el lead nuevo por correo: {exc}')
 
 
 @app.route('/contacto')
-def formulario_lead():
-    """Formulario público para captar leads."""
-    return render_template('formulario.html', lead_sources=_configured_lead_sources())
+@app.route('/contacto/<tenant_slug>')
+def formulario_lead(tenant_slug=None):
+    """Formulario publico para captar leads -- cada marca tiene su propia
+    URL (/contacto/<slug>, p.ej. /contacto/norkevin-photography) para que
+    el lead quede asignado a la cuenta correcta sin depender de un query
+    param manipulable. /contacto sin slug (el link ya embebido en el sitio
+    de Astral Weddings hoy) sigue funcionando y cae en esa cuenta."""
+    if tenant_slug:
+        tenant = _tenant_by_slug(tenant_slug)
+        if not tenant:
+            abort(404)
+    else:
+        tenant = _tenant_by_slug('astral-weddings')
+    return render_template(
+        'formulario.html',
+        lead_sources=_configured_lead_sources(tenant_id=(tenant or {}).get('id')),
+        tenant_slug=(tenant or {}).get('slug', 'astral-weddings'),
+    )
 
 
 @app.route('/api/leads/nuevo', methods=['POST'])
 def crear_lead_publico():
-    """Crea un nuevo Lead desde el formulario público."""
+    """Crea un nuevo Lead desde el formulario público. Sin sesion (es un
+    endpoint publico), asi que el tenant_id NO sale de get_current_tenant_id()
+    -- sale del tenant_slug que /contacto/<slug> incrusto como campo oculto
+    del form, validado contra tenants.json (nunca del cliente inventando
+    un tenant_id directo)."""
     data = request.get_json() or {}
+
+    tenant = _tenant_by_slug(data.get('tenant_slug')) or _tenant_by_slug('astral-weddings')
+    if not tenant:
+        return jsonify({'ok': False, 'error': 'Cuenta no reconocida'}), 400
 
     # Validación mínima
     nombre = (data.get('nombre') or '').strip()
@@ -6133,7 +6465,7 @@ def crear_lead_publico():
         'is_new': True,
         'next_task': 'Pendiente de contacto',
         'mail_status': 'ENVIADO',
-        'tenant_id': get_current_tenant_id(),
+        'tenant_id': tenant['id'],
     }
     upsert_lead(lead)
     client, _client_created = _ensure_client_for_lead(lead)
@@ -6144,7 +6476,7 @@ def crear_lead_publico():
         workflow_id = instance.id
     except Exception:
         workflow_id = None
-    logger.info(f"Lead publico creado localmente: {lead['nombre']} ({email}) -> {lead_id}")
+    logger.info(f"Lead publico creado localmente para {tenant['id']}: {lead['nombre']} ({email}) -> {lead_id}")
     _notify_new_lead(lead, 'Formulario de contacto')
     return jsonify({'ok': True, 'id': lead_id, 'lead_id': lead_id, 'workflow_id': workflow_id})
 
@@ -6205,17 +6537,14 @@ def api_config_paquetes_create():
         'marca': data.get('Marca', 'ASTRAL WEDDINGS'),
         'active': bool(data.get('Activo', True)),
     }
-    packages = store.list('packages')
-    packages.append(package)
-    store._save('packages', packages)
+    store.upsert('packages', package)
     return jsonify({'ok': True, 'item': _package_config_view(package)})
 
 
 @app.route('/api/config/paquetes/<item_id>', methods=['PATCH'])
 def api_config_paquetes_update(item_id):
     data = request.get_json() or {}
-    packages = store.list('packages')
-    package = next((p for p in packages if p.get('id') == item_id), None)
+    package = store.get('packages', item_id)
     if not package:
         return jsonify({'ok': False, 'error': 'Paquete no encontrado'}), 404
     if 'Name' in data:
@@ -6226,7 +6555,7 @@ def api_config_paquetes_update(item_id):
         package['active'] = bool(data['Activo'])
     if 'Notas' in data:
         package['description'] = data['Notas'] or ''
-    store._save('packages', packages)
+    store.upsert('packages', package)
     return jsonify({'ok': True, 'item': _package_config_view(package)})
 
 
@@ -6708,7 +7037,7 @@ def api_settings_company_update():
     if 'phone' in data: s['company']['phone'] = data['phone']
     if 'bank_info' in data: s['company']['bank_info'] = data['bank_info']
 
-    store.save_dict('settings', s)
+    store.save_tenant_dict('settings', s)
     return jsonify({'ok': True, 'company': s['company']})
 
 
@@ -7353,7 +7682,7 @@ def client_portal(client_id):
     # asi que el cliente entraba a su portal y no tenia como pagar. Genera
     # el link on-demand aqui, igual que ya se hacia para los recordatorios.
     from src import recurrente
-    if recurrente.is_configured():
+    if recurrente.is_configured(tenant_id=client.get('tenant_id')):
         host = request.host_url.rstrip('/')
         for p in payments:
             if p.get('status') == 'Pagado' or p.get('payment_link_url'):
@@ -7364,11 +7693,12 @@ def client_portal(client_id):
             invoice_id = p.get('invoice_id') or p['id']
             redirect_url = _client_facing_invoice_url(host, client, invoice_id)
             result = recurrente.create_checkout(
-                name=f"ASTRAL WEDDINGS - {p.get('concepto') or invoice_id}",
+                name=p.get('concepto') or invoice_id,
                 amount_in_cents=round(amount * 100),
                 currency='GTQ',
                 success_url=redirect_url,
                 cancel_url=redirect_url,
+                tenant_id=client.get('tenant_id'),
             )
             if result.get('ok'):
                 p['payment_link_url'] = result.get('checkout_url')

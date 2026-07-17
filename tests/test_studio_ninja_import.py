@@ -164,11 +164,22 @@ def test_import_does_not_trigger_workflow_engine_or_send_mail(auth_client):
     import app as app_module
     from src.workflow.models import StepStatus
 
-    before_mail = len(app_module.store.list('mail_log')) + len(app_module.store.list('mail_outbox'))
+    def _mail_count():
+        # mail_log es tenant-scoped -- hay que medir con la MISMA sesion
+        # activa las dos veces (antes y despues), si no, una lectura sin
+        # contexto (todo el store, sin filtrar) contra una con sesion
+        # (solo tenant-norkevin) nunca van a coincidir aunque no se haya
+        # mandado nada de verdad.
+        with app_module.app.test_request_context():
+            from flask import session as _sess
+            _sess['tenant_id'] = 'tenant-norkevin'
+            return len(app_module.store.list('mail_log')) + len(app_module.store.list('mail_outbox'))
+
+    before_mail = _mail_count()
 
     auth_client.post('/api/admin/import-studio-ninja', json={'confirm': 'IMPORTAR', 'payload': SAMPLE_PAYLOAD})
 
-    after_mail = len(app_module.store.list('mail_log')) + len(app_module.store.list('mail_outbox'))
+    after_mail = _mail_count()
     assert after_mail == before_mail
 
     imported_job_ids = {j['id'] for j in app_module.store.list('jobs') if j['id'].startswith('boda-sn-test-')}
