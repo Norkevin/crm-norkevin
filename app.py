@@ -1698,10 +1698,18 @@ def auth_google_login_callback():
         # configurado todavia -- en cuanto la migracion corre una vez, esta
         # rama deja de poder activarse nunca mas.
         all_tenants = store.list('tenants')
-        none_migrated_yet = bool(all_tenants) and not any(t.get('login_email') for t in all_tenants)
+        # bool(all_tenants) descartado a proposito: si tenants.json nunca
+        # existio en el disco de Render (nada lo necesitaba antes de esto),
+        # store.list() devuelve [] -- eso TAMBIEN cuenta como "todavia no
+        # migrado", no como "no reconocido". Antes este chequeo exigia
+        # all_tenants no vacio y dejaba a Kevin bloqueado de su propia
+        # cuenta en un deploy fresco.
+        none_migrated_yet = not any(t.get('login_email') for t in all_tenants)
         allowed_env = {e.strip().lower() for e in os.environ.get('ALLOWED_LOGIN_EMAILS', '').split(',') if e.strip()}
         if none_migrated_yet and email.lower() in allowed_env:
-            tenant = all_tenants[0]
+            tenant = all_tenants[0] if all_tenants else {
+                'id': 'tenant-norkevin', 'name': 'ASTRAL WEDDINGS', 'active': True,
+            }
     if not tenant or tenant.get('active') is False:
         return redirect(url_for('login_page', error='cuenta_no_autorizada'))
 

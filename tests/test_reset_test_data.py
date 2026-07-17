@@ -32,11 +32,25 @@ def test_reset_requires_typed_confirmation(auth_client):
 
 def test_reset_wipes_business_tables_but_keeps_config(auth_client):
     import app as app_module
+    from flask import session as _sess
     _seed_business_data(app_module)
 
-    templates_before = list(app_module.store.list('email_templates'))
-    packages_before = list(app_module.store.list('packages'))
-    team_before = list(app_module.store.list('team'))
+    # Ambas mediciones (antes/despues) deben resolver el mismo tenant activo
+    # de forma explicita -- una llamada "pelada" a store.list() ve la sesion
+    # de la ULTIMA request real del test client, asi que medir "antes" sin
+    # haber hecho ninguna request todavia (sin filtrar) y "despues" de un
+    # POST autenticado (filtrado a tenant-norkevin) compara conjuntos
+    # distintos por diseño, no por perdida de datos real. Con datos locales
+    # de mas de un tenant en email_templates/packages (de una migracion real
+    # corrida antes en esta sesion), esa inconsistencia se nota.
+    def _snapshot(table):
+        with app_module.app.test_request_context():
+            _sess['tenant_id'] = 'tenant-norkevin'
+            return list(app_module.store.list(table))
+
+    templates_before = _snapshot('email_templates')
+    packages_before = _snapshot('packages')
+    team_before = _snapshot('team')
     assert templates_before, 'el entorno de pruebas ya deberia tener plantillas sembradas'
 
     resp = auth_client.post('/api/admin/reset-test-data', json={'confirm': 'BORRAR'})
@@ -48,9 +62,9 @@ def test_reset_wipes_business_tables_but_keeps_config(auth_client):
                   'questionnaires', 'files', 'mail_log', 'mail_outbox', 'calendar'):
         assert app_module.store.list(table) == [], f'{table} deberia quedar vacio'
 
-    assert app_module.store.list('email_templates') == templates_before
-    assert app_module.store.list('packages') == packages_before
-    assert app_module.store.list('team') == team_before
+    assert _snapshot('email_templates') == templates_before
+    assert _snapshot('packages') == packages_before
+    assert _snapshot('team') == team_before
 
 
 def test_reset_clears_workflow_engine_instances(auth_client):

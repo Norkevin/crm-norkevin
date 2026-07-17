@@ -85,3 +85,45 @@ def test_login_allows_whitelisted_email(client, monkeypatch):
 
     resp = client.get('/dashboard')
     assert resp.status_code == 200
+
+
+def test_login_bootstrap_works_when_tenants_json_never_existed(client, monkeypatch):
+    """Regresion de un bloqueo real en produccion: Kevin quedo fuera de su
+    propia cuenta porque el disco de Render nunca tuvo un data/tenants.json
+    (nada lo necesitaba antes de multi-tenant) -- store.list('tenants')
+    devolvia [] y el bootstrap exigia que la lista NO estuviera vacia antes
+    de activarse. El fixture de tests SI trae un tenants.json con los 3
+    tenants reales ya migrados, asi que hay que borrarlo a mano aca para
+    reproducir el estado real de un deploy fresco."""
+    import app as app_module
+    from src import google_login
+
+    # monkeypatch en vez de store._save('tenants', []): el store es un
+    # singleton compartido por TODA la sesion de pytest (no por test), asi
+    # que escribir la tabla de verdad dejaria 'tenants' vacio para
+    # cualquier test que corra despues de este.
+    real_list = app_module.store.list
+
+    def _fake_list(table):
+        if table == 'tenants':
+            return []
+        return real_list(table)
+
+    monkeypatch.setattr(app_module.store, 'list', _fake_list)
+
+    monkeypatch.setattr(google_login, 'exchange_code_for_email',
+                         lambda code, redirect_uri: ('astralweddingsgt@gmail.com', 'Kevin', ''))
+
+    with client.session_transaction() as sess:
+        sess['login_state'] = 'boot123'
+
+    resp = client.get('/auth/google/login/callback?code=fake&state=boot123')
+    assert resp.status_code == 302
+    assert 'cuenta_no_autorizada' not in resp.headers['Location'], (
+        'un email en ALLOWED_LOGIN_EMAILS no debe quedar bloqueado solo '
+        'porque tenants.json todavia no existe en el disco'
+    )
+    assert resp.headers['Location'].endswith('/dashboard')
+
+    resp = client.get('/dashboard')
+    assert resp.status_code == 200
