@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{% block title %}ASTRAL WEDDINGS · Flow CRM{% endblock %}</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0284C7">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Flow CRM">
 <script>
 (function() {
   try {
@@ -180,6 +186,45 @@ svg[stroke="currentColor"] rect {
   width: min(100%, 720px);
   min-width: 0;
 }
+
+/* Nav inferior fija -- solo mobile (ver @media max-width:760px mas abajo,
+   que la muestra con display:flex). Oculta en escritorio por defecto. */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10000;
+  background: var(--sn-white);
+  border-top: 1px solid var(--sn-line);
+  padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 2px;
+}
+.bottom-nav-item {
+  flex: 1;
+  min-width: 44px;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  color: var(--sn-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.bottom-nav-item svg { width: 21px; height: 21px; }
+.bottom-nav-item.active { color: var(--sn-green); }
 .topnav-item {
   width: auto;
   min-width: 0;
@@ -242,6 +287,49 @@ svg[stroke="currentColor"] rect {
   text-decoration: underline;
   flex-shrink: 0;
 }
+.pwa-banner {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 24px;
+  background: #E6F4FB;
+  color: #075985;
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 1px solid #C9E7F5;
+}
+.pwa-banner.visible { display: flex; }
+:root[data-theme="dark"] .pwa-banner {
+  background: #0d2836;
+  color: #7cc8e8;
+  border-bottom-color: #123243;
+}
+.pwa-banner svg { width: 18px; height: 18px; flex-shrink: 0; }
+.pwa-banner span { flex: 1; }
+.pwa-banner button.pwa-banner-action {
+  flex-shrink: 0;
+  border: none;
+  background: #075985;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+:root[data-theme="dark"] .pwa-banner button.pwa-banner-action { background: #0ea5e9; color: #06212c; }
+.pwa-banner button.pwa-banner-dismiss {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: .6;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+}
+.pwa-banner button.pwa-banner-dismiss:hover { opacity: 1; }
 .sn-icon-button {
   width: 44px;
   height: 44px;
@@ -1307,54 +1395,39 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     touch-action: manipulation;
   }
 
+  /* Nav inferior fija reemplaza al topnav horizontal dentro del header en
+     mobile -- header mas corto (Kevin: "reducir considerablemente la
+     altura del encabezado"), navegacion tipo app nativa. El .topnav de
+     escritorio no se borra, solo se oculta en este breakpoint. */
   .app-header {
     height: auto;
-    min-height: 78px;
-    grid-template-columns: 104px minmax(0, 1fr) 78px;
+    min-height: 56px;
+    grid-template-columns: auto 1fr auto;
     gap: 8px;
     padding: 8px 12px;
     overflow: hidden;
   }
   .brand-link { gap: 7px; }
-  .brand-mark { width: 34px; height: 34px; font-size: 13px; }
-  .brand-copy { max-width: 56px; }
+  .brand-mark { width: 32px; height: 32px; font-size: 13px; }
+  .brand-copy { max-width: 90px; }
   .brand-name { font-size: 11px; white-space: normal; line-height: 1.03; }
   .brand-sub { display: none; }
-  .topnav {
-    grid-column: auto;
-    width: 100%;
-    max-width: 100%;
-    justify-self: start;
-    justify-content: flex-start;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 0;
-    scrollbar-width: none;
-  }
-  .topnav::-webkit-scrollbar { display: none; }
-  .topnav-item {
-    flex-direction: column;
-    width: 50px;
-    min-width: 50px;
-    height: 70px;
-    padding: 0;
-    border-radius: 10px;
-    font-size: 9px;
-    gap: 4px;
-  }
-  .topnav-item svg { width: 18px; height: 18px; }
-  .topnav-label { display: block; }
+  .topnav { display: none; }
   .header-right {
     justify-self: end;
     justify-content: flex-end;
-    width: 78px;
-    min-width: 78px;
     gap: 6px;
   }
   .tenant-switcher { display: none; }
   .sn-icon-button { width: 36px; height: 36px; }
   .sn-icon-button svg { width: 16px; height: 16px; }
-  .main-content { padding: 22px 12px 40px; }
+  .main-content { padding: 22px 12px calc(76px + env(safe-area-inset-bottom)); }
+  .modal-overlay { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+  .gmail-warning-banner,
+  .pwa-banner { padding: 7px 14px; font-size: 12px; }
+  .gmail-warning-banner svg,
+  .pwa-banner svg { width: 15px; height: 15px; }
+  .bottom-nav { display: flex; }
   .sn-page-head { flex-direction: column; align-items: stretch; gap: 12px; }
   .sn-toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
   .sn-actions,
@@ -1538,28 +1611,25 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   .stack-mobile .sn-table td:first-child { text-align: left; }
   .stack-mobile .sn-table td:first-child .sn-list-title,
   .stack-mobile .sn-table td:first-child > div:first-child { text-align: left; }
+  .stack-mobile .sn-table td .sn-progress { width: 140px; flex-shrink: 0; }
 }
 @media (max-width: 430px) {
   .app-header {
-    grid-template-columns: 78px minmax(0, 1fr) 78px;
     padding-left: 8px;
     padding-right: 8px;
   }
-  .brand-mark { width: 32px; height: 32px; }
-  .brand-copy { max-width: 34px; }
+  .brand-mark { width: 30px; height: 30px; }
+  .brand-copy { max-width: 70px; }
   .brand-name {
     font-size: 9px;
     letter-spacing: .02em;
-  }
-  .topnav-item {
-    width: 48px;
-    min-width: 48px;
-    font-size: 8px;
   }
   .main-content { padding-left: 10px; padding-right: 10px; }
   .sn-page-title { font-size: 21px; }
   .sn-card { padding: 12px; }
   .sn-field-grid { grid-template-columns: 1fr; gap: 3px; }
+  .bottom-nav-item { font-size: 9px; }
+  .bottom-nav-item svg { width: 19px; height: 19px; }
 }
 
 </style>
@@ -1684,6 +1754,42 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   <a href="/settings">Conectar Gmail</a>
 </div>
 {% endif %}
+
+<div class="pwa-banner" id="pwa-update-banner">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.5 12a7.5 7.5 0 0113-5M19.5 12a7.5 7.5 0 01-13 5M8 4v4h4M16 20v-4h-4"/></svg>
+  <span>Hay una nueva version de Flow CRM disponible.</span>
+  <button type="button" class="pwa-banner-action" onclick="pwaApplyUpdate()">Actualizar</button>
+</div>
+
+<div class="pwa-banner" id="pwa-install-banner">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v13m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+  <span id="pwa-install-banner-text">Instala Flow CRM para acceder mas rapido, como una app.</span>
+  <button type="button" class="pwa-banner-action" id="pwa-install-btn" onclick="pwaTriggerInstall()">Instalar</button>
+  <button type="button" class="pwa-banner-dismiss" onclick="pwaDismissInstallBanner()" aria-label="Cerrar">&times;</button>
+</div>
+
+<nav class="bottom-nav" aria-label="Principal (mobile)">
+  <a href="/dashboard" class="bottom-nav-item" data-nav="/dashboard">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 22V12h6v10"/></svg>
+    Dashboard
+  </a>
+  <a href="/clients" class="bottom-nav-item" data-nav="/clients">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    Clients
+  </a>
+  <a href="/jobs" class="bottom-nav-item" data-nav="/jobs">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    Jobs
+  </a>
+  <a href="/calendar" class="bottom-nav-item" data-nav="/calendar">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 2v4M8 2v4M3 10h18"/></svg>
+    Calendar
+  </a>
+  <button type="button" class="bottom-nav-item" onclick="openBottomNavMore(event)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+    Mas
+  </button>
+</nav>
 
 <main class="main-content">
   {% block content %}{% endblock %}
@@ -1897,6 +2003,114 @@ function flashToast(message, type) {
   setTimeout(function() { t.remove(); }, 3200);
 }
 
+/* ============================================================
+   PWA: registro del service worker, aviso de actualizacion e
+   instalacion (Android/desktop via beforeinstallprompt, iOS via
+   instrucciones -- Safari no dispara ese evento).
+   ============================================================ */
+(function() {
+  var waitingWorker = null;
+  var reloaded = false;
+
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+
+  function showUpdateBanner(worker) {
+    waitingWorker = worker;
+    var el = document.getElementById('pwa-update-banner');
+    if (el) el.classList.add('visible');
+  }
+
+  window.pwaApplyUpdate = function() {
+    if (!waitingWorker) return;
+    waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+  };
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    });
+
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/service-worker.js').then(function(reg) {
+        if (reg.waiting && reg.active) {
+          showUpdateBanner(reg.waiting);
+        }
+        reg.addEventListener('updatefound', function() {
+          var newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', function() {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              showUpdateBanner(newWorker);
+            }
+          });
+        });
+      }).catch(function() { /* SW opcional -- si falla, el CRM sigue funcionando igual */ });
+    });
+  }
+
+  // ---- Instalacion: Android/desktop Chrome/Edge ----
+  var deferredInstallPrompt = null;
+  var INSTALL_DISMISS_KEY = 'flowcrm-install-dismissed';
+
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if (isStandalone()) return;
+    try { if (localStorage.getItem(INSTALL_DISMISS_KEY)) return; } catch (err) {}
+    var el = document.getElementById('pwa-install-banner');
+    if (el) el.classList.add('visible');
+  });
+
+  window.pwaTriggerInstall = function() {
+    var el = document.getElementById('pwa-install-banner');
+    if (!deferredInstallPrompt) {
+      if (el) el.classList.remove('visible');
+      return;
+    }
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.finally(function() {
+      deferredInstallPrompt = null;
+      if (el) el.classList.remove('visible');
+    });
+  };
+
+  window.pwaDismissInstallBanner = function() {
+    var el = document.getElementById('pwa-install-banner');
+    if (el) el.classList.remove('visible');
+    try { localStorage.setItem(INSTALL_DISMISS_KEY, '1'); } catch (err) {}
+  };
+
+  window.addEventListener('appinstalled', function() {
+    var el = document.getElementById('pwa-install-banner');
+    if (el) el.classList.remove('visible');
+  });
+
+  // ---- Instalacion: iOS Safari (no dispara beforeinstallprompt) ----
+  function isIosSafari() {
+    var ua = window.navigator.userAgent;
+    var isIos = /iphone|ipad|ipod/i.test(ua);
+    var isSafari = /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+    return isIos && isSafari;
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    if (!isIosSafari() || isStandalone()) return;
+    try { if (localStorage.getItem(INSTALL_DISMISS_KEY)) return; } catch (err) {}
+    var el = document.getElementById('pwa-install-banner');
+    var text = document.getElementById('pwa-install-banner-text');
+    var btn = document.getElementById('pwa-install-btn');
+    if (!el) return;
+    if (text) text.textContent = 'Para instalar Flow CRM: toca Compartir y luego "Agregar a inicio".';
+    if (btn) btn.style.display = 'none';
+    el.classList.add('visible');
+  });
+})();
+
+
 function warnIfMailNotDelivered(data) {
   // Cuando Gmail no esta conectado (o falla), el correo se registra como
   // "enviado" en local_outbox pero nunca llega de verdad al cliente -- el
@@ -1994,10 +2208,20 @@ function openActionMenu(event, actions) {
   menu.style.top = top + 'px';
 }
 
+function openBottomNavMore(event) {
+  openActionMenu(event, [
+    { label: 'Leads', href: '/leads' },
+    { label: 'Payments', href: '/payments' },
+    { label: 'Settings', href: '/settings' },
+    { divider: true },
+    { label: 'Sign Out', href: '/logout' },
+  ]);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var path = window.location.pathname;
   if (path === '/') path = '/dashboard';
-  document.querySelectorAll('.topnav-item').forEach(function(el) {
+  document.querySelectorAll('.topnav-item, .bottom-nav-item').forEach(function(el) {
     var nav = el.getAttribute('data-nav') || el.getAttribute('href');
     if (nav && (path === nav || path.indexOf(nav + '/') === 0)) {
       el.classList.add('active');

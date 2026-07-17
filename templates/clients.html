@@ -35,7 +35,7 @@
     </div>
   </div>
 
-  <div class="sn-table-shell">
+  <div class="sn-table-shell stack-mobile">
     <table class="sn-table" id="clients-table">
       <thead>
         <tr>
@@ -57,18 +57,18 @@
             data-balance="{{ c.balance_due or 0 }}"
             data-email="{{ c.email or '' }}"
             onclick="goClient(event, '{{ c.id }}')">
-          <td class="sn-ellipsis">{{ c.created_display or c.created or '—' }}</td>
-          <td class="sn-ellipsis">
+          <td class="sn-ellipsis" data-label="Created">{{ c.created_display or c.created or '—' }}</td>
+          <td class="sn-ellipsis" data-label="First Name">
             <div class="sn-row-name">
               <span class="sn-row-avatar">{{ (c.first_name or '?')[:1]|upper }}{{ (c.last_name or '')[:1]|upper }}</span>
               <span>{{ c.first_name or '—' }}</span>
             </div>
           </td>
-          <td class="sn-ellipsis">{{ c.last_name or '—' }}</td>
-          <td class="sn-ellipsis">{{ c.company or '—' }}</td>
-          <td class="sn-ellipsis">{{ c.phone or '—' }}</td>
-          <td class="sn-ellipsis">{{ c.email or '—' }}</td>
-          <td style="text-align:right;">
+          <td class="sn-ellipsis" data-label="Last Name">{{ c.last_name or '—' }}</td>
+          <td class="sn-ellipsis" data-label="Company">{{ c.company or '—' }}</td>
+          <td class="sn-ellipsis" data-label="Phone">{{ c.phone or '—' }}</td>
+          <td class="sn-ellipsis" data-label="Email">{{ c.email or '—' }}</td>
+          <td class="stack-actions" style="text-align:right;">
             <button class="sn-menu-dots" type="button" title="Actions" onclick="openClientActions(event, '{{ c.id }}', this.closest('tr').dataset.email)">
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
             </button>

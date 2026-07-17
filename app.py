@@ -1601,6 +1601,7 @@ import re as _re_auth
 
 PUBLIC_EXACT_PATHS = {
     '/login', '/logout', '/contacto', '/api/leads/nuevo', '/captacion', '/api/captacion',
+    '/manifest.webmanifest', '/service-worker.js', '/offline.html',
 }
 PUBLIC_PREFIXES = ('/portal/', '/static/', '/auth/google/login/')
 PUBLIC_PATTERNS = [
@@ -1643,6 +1644,33 @@ def _login_redirect_uri():
     host = request.host
     scheme = 'http' if host.startswith('127.0.0.1') or host.startswith('localhost') else 'https'
     return f'{scheme}://{host}' + url_for('auth_google_login_callback')
+
+
+@app.route('/manifest.webmanifest')
+def pwa_manifest():
+    """Servido en la raiz (no en /static/) por convencion, aunque el
+    archivo fisico vive en static/ -- el scope no depende de esto (lo
+    define el service worker), pero mantiene la URL consistente con
+    /service-worker.js."""
+    from flask import send_from_directory
+    return send_from_directory('static', 'manifest.webmanifest', mimetype='application/manifest+json')
+
+
+@app.route('/service-worker.js')
+def pwa_service_worker():
+    """Debe servirse desde la raiz del sitio (no /static/) para que su
+    scope por defecto cubra TODO el sitio, no solo /static/*."""
+    from flask import send_from_directory
+    repo_root = os.path.dirname(os.path.abspath(__file__))
+    response = send_from_directory(repo_root, 'service-worker.js', mimetype='application/javascript')
+    response.headers['Service-Worker-Allowed'] = '/'
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
+
+@app.route('/offline.html')
+def pwa_offline():
+    return render_template('offline.html')
 
 
 @app.route('/login')
