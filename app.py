@@ -1634,7 +1634,22 @@ def _require_login():
     if _is_public_path(request.path):
         return None
     if session.get('logged_in'):
-        return None
+        tenant_id = (session.get('tenant_id') or '').strip()
+        user_email = (session.get('user_email') or '').strip().lower()
+        tenant = next((t for t in store.list('tenants') if t.get('id') == tenant_id), None) if tenant_id else None
+        tenant_login_email = ((tenant or {}).get('login_email') or '').strip().lower()
+
+        # Si el navegador conserva una cookie vieja (antes de multi-tenant,
+        # de otra cuenta, o con datos incompletos), dejamos de intentar
+        # renderizar pantallas con una sesion corrupta y la "autocuramos"
+        # enviando al login otra vez en lugar de responder 500.
+        if tenant and user_email and (not tenant_login_email or tenant_login_email == user_email):
+            return None
+
+        session.clear()
+        if request.path.startswith('/api/'):
+            return jsonify({'ok': False, 'error': 'Sesion invalida o expirada, inicia sesion de nuevo'}), 401
+        return redirect(url_for('login_page', next=request.path, error='sesion_expirada'))
     if request.path.startswith('/api/'):
         return jsonify({'ok': False, 'error': 'Sesion expirada, inicia sesion de nuevo'}), 401
     return redirect(url_for('login_page', next=request.path))
