@@ -1763,8 +1763,7 @@ def logout():
 
 @app.route('/')
 def index():
-    if not request.args:
-        return redirect('/dashboard')
+    return redirect('/dashboard')
     """Calendar principal con bodas del mes en curso + próximas."""
     import calendar as _cal
     from datetime import date

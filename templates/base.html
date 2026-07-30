@@ -369,6 +369,9 @@ svg[stroke="currentColor"] rect {
   border-bottom: 1px solid #C9E7F5;
 }
 .pwa-banner.visible { display: flex; }
+:root:not([data-mobile-web="true"]) .pwa-banner {
+  display: none !important;
+}
 :root[data-theme="dark"] .pwa-banner {
   background: #0d2836;
   color: #7cc8e8;
@@ -400,6 +403,8 @@ svg[stroke="currentColor"] rect {
   padding: 4px;
 }
 .pwa-banner button.pwa-banner-dismiss:hover { opacity: 1; }
+.pwa-banner,
+#pwa-update-banner,
 .pwa-install-banner,
 #pwa-install-banner {
   display: none !important;
@@ -1880,12 +1885,6 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 </div>
 {% endif %}
 
-<div class="pwa-banner" id="pwa-update-banner">
-  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.5 12a7.5 7.5 0 0113-5M19.5 12a7.5 7.5 0 01-13 5M8 4v4h4M16 20v-4h-4"/></svg>
-  <span>Hay una nueva version de Flow CRM disponible.</span>
-  <button type="button" class="pwa-banner-action" onclick="pwaApplyUpdate()">Actualizar</button>
-</div>
-
 <nav class="bottom-nav" aria-label="Principal (mobile)">
   <a href="/dashboard" class="bottom-nav-item" data-nav="/dashboard">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 22V12h6v10"/></svg>
@@ -2270,6 +2269,9 @@ function flashToast(message, type) {
   document.addEventListener('DOMContentLoaded', function() {
     var legacyInstallBanner = document.getElementById('pwa-install-banner');
     if (legacyInstallBanner) legacyInstallBanner.remove();
+    var updateBanner = document.getElementById('pwa-update-banner');
+    if (updateBanner) updateBanner.remove();
+    document.querySelectorAll('.pwa-banner').forEach(function(el) { el.remove(); });
     document.querySelectorAll('.pwa-install-banner').forEach(function(el) { el.remove(); });
     if (!ENABLE_INSTALL_BANNER) return;
     if (!isIosSafari() || isStandalone()) return;
