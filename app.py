@@ -1471,8 +1471,40 @@ def days_until(date_str):
 # ============================================================
 
 def q_money(v) -> str:
-    if v is None: return 'Q0'
-    return f"Q{v:,.0f}".replace(',', ',')
+    amount = coerce_amount(v, 0.0)
+    return f"Q{amount:,.0f}".replace(',', ',')
+
+
+def coerce_amount(value, default=0.0) -> float:
+    """Convierte montos reales del CRM a float sin romper vistas.
+
+    En produccion hay datos que a veces vienen como:
+    - numeros puros
+    - strings con prefijo de moneda: `Q74,982.15`
+    - strings vacios o campos parciales
+
+    El dashboard y varias vistas no deben caerse por eso.
+    """
+    if value is None:
+        return float(default)
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    raw = str(value).strip()
+    if not raw:
+        return float(default)
+
+    negative = raw.startswith('(') and raw.endswith(')')
+    cleaned = re.sub(r'[^0-9,.\-]', '', raw)
+    cleaned = cleaned.replace(',', '')
+    if cleaned in ('', '-', '.', '-.'):
+        return float(default)
+
+    try:
+        parsed = float(cleaned)
+    except Exception:
+        return float(default)
+    return -abs(parsed) if negative else parsed
 
 
 def parse_date(s) -> str:
@@ -1879,7 +1911,7 @@ def dashboard():
     # Workflow events
     workflow_events = workflow_engine.get_history(limit=10) if hasattr(workflow_engine, 'get_history') else []
 
-    total_upcoming = sum(j.get('price_total', 0) for j in upcoming_jobs)
+    total_upcoming = sum(coerce_amount(j.get('price_total') or j.get('Total facturado al cliente (Q)')) for j in upcoming_jobs)
 
     # === GRAFICA 1: Ingresos por mes (ultimos 6 meses) ===
     monthly_income = []
@@ -1895,14 +1927,14 @@ def dashboard():
             month_key = paid[:7] if paid else ''
             for m in monthly_income:
                 if m['key'] == month_key:
-                    m['amount'] += p.get('amount', 0)
+                    m['amount'] += coerce_amount(p.get('amount'))
                     break
 
     # === GRAFICA 2: Pie chart ===
     all_payments = _visible_billable_payments()
-    total_paid = sum(p.get('amount', 0) for p in all_payments if p.get('status') == 'Pagado')
-    total_pending = sum(p.get('amount', 0) for p in all_payments if p.get('status') == 'Pendiente')
-    total_late = sum(p.get('amount', 0) for p in all_payments if p.get('status') == 'Late')
+    total_paid = sum(coerce_amount(p.get('amount')) for p in all_payments if p.get('status') == 'Pagado')
+    total_pending = sum(coerce_amount(p.get('amount')) for p in all_payments if p.get('status') == 'Pendiente')
+    total_late = sum(coerce_amount(p.get('amount')) for p in all_payments if p.get('status') == 'Late')
 
     total_amount = total_paid + total_pending + total_late
     paid_pct = (total_paid / total_amount) if total_amount > 0 else 0
@@ -2052,7 +2084,7 @@ def dashboard():
                 key = _bucket_key(_parse_iso_day(job.get('boda_date') or job.get('created')), range_key)
                 if key in keys_index:
                     session_series[keys_index[key]] += 1
-                    revenue_series[keys_index[key]] += float(job.get('price_total') or job.get('Total facturado al cliente (Q)') or 0)
+                    revenue_series[keys_index[key]] += coerce_amount(job.get('price_total') or job.get('Total facturado al cliente (Q)'))
 
             job_by_id = {job.get('id'): job for job in all_dashboard_jobs}
             lead_by_id = {lead.get('id'): lead for lead in all_dashboard_leads}
@@ -2064,7 +2096,7 @@ def dashboard():
                     continue
                 key = _bucket_key(_parse_iso_day(payment.get('paid_date') or payment.get('fecha_pago') or payment.get('sent_at') or payment.get('due_date')), range_key)
                 if key in keys_index:
-                    amount = float(payment.get('amount') or 0)
+                    amount = coerce_amount(payment.get('amount'))
                     if payment.get('status') == 'Pagado':
                         payment_series[keys_index[key]] += amount
 
@@ -2090,7 +2122,7 @@ def dashboard():
     paid_by_year = defaultdict(lambda: [0.0] * 12)
     projected_by_year = defaultdict(lambda: [0.0] * 12)
     for p in all_dashboard_payments:
-        amount = float(p.get('amount') or 0)
+        amount = coerce_amount(p.get('amount'))
         if p.get('status') == 'Pagado':
             paid_day = _parse_iso_day(p.get('paid_date') or p.get('fecha_pago') or p.get('sent_at') or p.get('due_date'))
             if paid_day:
@@ -2121,6 +2153,8 @@ def dashboard():
             'total_projected': sum(projected),
         })
 
+    total_unpaid = total_pending + total_late
+
     return render_template('dashboard.html',
                            today=today,
                            current_year=today.year,
@@ -2129,7 +2163,8 @@ def dashboard():
                            workflow_events=workflow_events,
                            total_upcoming=total_upcoming,
                            total_income=total_paid,
-                           total_pending=total_pending + total_late,
+                           total_pending=total_unpaid,
+                           total_unpaid=total_unpaid,
                            monthly_income=monthly_income,
                            pie_segments=pie_segments,
                            lead_source_stats=lead_source_stats,
@@ -3171,11 +3206,11 @@ def payments_list():
     ))
 
     # Totales
-    total_due = sum(p.get('amount', 0) for p in payments_all if p.get('status') != 'Pagado')
-    total_expected = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Pendiente' and p.get('days_until'))
-    total_unpaid = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Pendiente')
-    total_late = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Late')
-    total_paid = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Pagado')
+    total_due = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') != 'Pagado')
+    total_expected = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Pendiente' and p.get('days_until'))
+    total_unpaid = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Pendiente')
+    total_late = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Late')
+    total_paid = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Pagado')
 
     return render_template('payments.html',
                           payments=payments_all,
