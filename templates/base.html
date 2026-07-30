@@ -2171,16 +2171,48 @@ function flashToast(message, type) {
 }
 
 /* ============================================================
-   PWA: registro del service worker, aviso de actualizacion e
-   instalacion (Android/desktop via beforeinstallprompt, iOS via
-   instrucciones -- Safari no dispara ese evento).
+   PWA/web shell
+
+   Decision de producto: en navegador normal queremos una version
+   web limpia, sin comportamiento de app instalada ni service workers
+   persistentes que dejen shells viejos pegados (especialmente en Mac,
+   donde Kevin seguia viendo fallos fuera de incognito). Por eso:
+
+   1. limpiamos registros/caches viejos automaticamente;
+   2. desactivamos el registro del service worker en la web;
+   3. dejamos el resto del CRM funcionando como sitio normal.
    ============================================================ */
 (function() {
   var waitingWorker = null;
   var reloaded = false;
+  var ENABLE_PWA_SHELL = false;
 
   function isStandalone() {
     return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+
+  function purgeLegacyPwaState() {
+    if (!('serviceWorker' in navigator)) return Promise.resolve();
+    return navigator.serviceWorker.getRegistrations()
+      .then(function(registrations) {
+        return Promise.all((registrations || []).map(function(reg) {
+          return reg.unregister();
+        }));
+      })
+      .catch(function() { return []; })
+      .then(function() {
+        if (!('caches' in window) || !window.caches.keys) return [];
+        return window.caches.keys().then(function(keys) {
+          return Promise.all(
+            (keys || [])
+              .filter(function(key) {
+                return key.indexOf('flowcrm-') === 0 || key.indexOf('workbox-') === 0;
+              })
+              .map(function(key) { return window.caches.delete(key); })
+          );
+        });
+      })
+      .catch(function() { return []; });
   }
 
   function showUpdateBanner(worker) {
@@ -2194,7 +2226,7 @@ function flashToast(message, type) {
     waitingWorker.postMessage({ type: 'SKIP_WAITING' });
   };
 
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator && ENABLE_PWA_SHELL) {
     navigator.serviceWorker.addEventListener('controllerchange', function() {
       if (reloaded) return;
       reloaded = true;
@@ -2216,6 +2248,10 @@ function flashToast(message, type) {
           });
         });
       }).catch(function() { /* SW opcional -- si falla, el CRM sigue funcionando igual */ });
+    });
+  } else if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      purgeLegacyPwaState();
     });
   }
 
