@@ -8,7 +8,7 @@ import time
 import threading
 import logging
 from datetime import datetime, date, timedelta
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort, session
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort, session, make_response
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -1691,9 +1691,24 @@ def pwa_offline():
 @app.route('/login')
 def login_page():
     from src import google_login
-    return render_template('login.html',
-                            google_configured=google_login.is_configured(),
-                            next_path=request.args.get('next', '/dashboard'))
+    response = make_response(render_template(
+        'login.html',
+        google_configured=google_login.is_configured(),
+        next_path=request.args.get('next', '/dashboard')
+    ))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+
+    # Safari/Chrome pueden conservar una mezcla fea de cookie vieja,
+    # service worker y almacenamiento local cuando el usuario vuelve desde
+    # una sesion corrupta. Si el backend ya decidio que esa sesion expiro,
+    # aprovechamos la pantalla de login para pedirle al navegador que limpie
+    # el estado del sitio y vuelva a arrancar "en limpio".
+    if request.args.get('error') == 'sesion_expirada':
+        response.headers['Clear-Site-Data'] = '"cache", "cookies", "storage"'
+
+    return response
 
 
 @app.route('/auth/google/login/start')
