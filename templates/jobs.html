@@ -18,8 +18,85 @@
 .date-status-badge svg { width: 12px; height: 12px; }
 .date-status-badge.red { background: #fecaca; color: #b3263b; }
 .date-status-badge.orange { background: #fed7aa; color: #b3540a; }
+.jobs-page .sn-page-head {
+  margin-bottom: 18px;
+}
+.jobs-page .sn-toolbar {
+  margin-bottom: 20px;
+}
+.jobs-page .sn-table-shell {
+  border-radius: 20px;
+}
+.jobs-page #jobs-table th {
+  height: 42px;
+  padding: 0 18px;
+}
+.jobs-page #jobs-table td {
+  height: auto;
+  padding: 18px 20px;
+}
+.jobs-page .sn-table-row td {
+  vertical-align: top;
+}
+.jobs-page .sn-table-row td.stack-actions,
+.jobs-page .sn-table-row td[data-label="Date"],
+.jobs-page .sn-table-row td[data-label="Next task"] {
+  vertical-align: middle;
+}
+.jobs-page .job-primary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.jobs-page .job-name-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+.jobs-page .job-title {
+  display: block;
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--sn-ink);
+}
+.jobs-page .job-type-text {
+  display: block;
+  font-size: 12.75px;
+  line-height: 1.6;
+  color: var(--sn-muted);
+}
+.jobs-page .job-next-task {
+  color: var(--sn-ink);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.jobs-page .sn-progress-wrap {
+  min-height: 32px;
+  align-items: center;
+}
+.jobs-page .sn-menu-dots {
+  margin-top: 2px;
+}
+@media (max-width: 760px) {
+  .jobs-page #jobs-table td {
+    padding: 18px;
+  }
+  .jobs-page .job-primary {
+    gap: 11px;
+  }
+  .jobs-page .job-title {
+    font-size: 15px;
+  }
+  .jobs-page .job-type-text,
+  .jobs-page .job-next-task {
+    font-size: 13px;
+  }
+}
 </style>
-<section class="sn-page-wide">
+<section class="sn-page-wide jobs-page">
   <div class="sn-page-head">
     <div>
       <h1 class="sn-page-title">Jobs Overview</h1>
@@ -64,6 +141,13 @@
         </tr>
       </thead>
       <tbody>
+        <tr aria-hidden="true" style="display:none;">
+          <td></td>
+          <td class="sn-ellipsis stack-full"></td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
         {% for job in jobs %}
         <tr class="sn-table-row"
             data-status="{{ job.status or '' }}"
@@ -90,12 +174,11 @@
             {% endif %}
           </td>
           <td class="sn-ellipsis stack-full" data-label="Job">
-            <div class="sn-row-name">
-              <span class="sn-row-avatar">{{ (job.nombre or '?')[:1]|upper }}</span>
-              <div style="min-width:0;">
-                <div class="sn-ellipsis">{{ job.nombre or 'Sin nombre' }}</div>
-                <div class="sn-row-subtitle"><span class="sn-dot"></span>{{ job.type or 'BODAS' }}</div>
+            <div class="job-primary">
+              <div class="job-name-stack">
+                <span class="job-title sn-ellipsis">{{ job.nombre or 'Sin nombre' }}</span>
               </div>
+              <span class="job-type-text sn-ellipsis">{{ job.type or 'BODAS' }}</span>
             </div>
           </td>
           <td data-label="Progress">
@@ -106,7 +189,7 @@
               <span class="sn-progress-pct">{{ job.workflow_progress or 0 }}%</span>
             </div>
           </td>
-          <td class="sn-ellipsis" data-label="Next task">{{ job.next_task or 'Job complete' }}</td>
+          <td class="sn-ellipsis job-next-task" data-label="Next task">{{ job.next_task or 'Job complete' }}</td>
           <td class="stack-actions" style="text-align:right;">
             <button class="sn-menu-dots" type="button" title="Actions" onclick="openRowMenu(event, '{{ job.id }}')">
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>

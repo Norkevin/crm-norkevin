@@ -5,7 +5,81 @@
 {% block topbar_title %}Payments{% endblock %}
 
 {% block content %}
-<section class="sn-page-wide">
+<style>
+  .payments-page .sn-table-shell {
+    overflow: hidden;
+  }
+
+  .payments-page .sn-table thead th {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  .payments-page .sn-table tbody td {
+    padding-top: 22px;
+    padding-bottom: 22px;
+    vertical-align: top;
+  }
+
+  .payments-page .sn-table-row {
+    transition: background-color 140ms ease;
+  }
+
+  .payments-page .sn-table-row:hover {
+    background: #fbfcff;
+  }
+
+  .payments-page .sn-payment-due {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    line-height: 1.6;
+  }
+
+  .payments-page .sn-payment-primary {
+    display: block;
+    font-size: 15.5px;
+    font-weight: 700;
+    line-height: 1.5;
+    letter-spacing: 0;
+    color: var(--sn-text);
+  }
+
+  .payments-page .sn-payment-secondary {
+    display: block;
+    margin-top: 10px;
+    font-size: 12.75px;
+    line-height: 1.65;
+    color: var(--sn-muted);
+  }
+
+  .payments-page .sn-payment-amount {
+    display: inline-block;
+    padding-top: 6px;
+    font-size: 16px;
+  }
+
+  .payments-page .stack-actions {
+    vertical-align: middle;
+  }
+
+  @media (max-width: 900px) {
+    .payments-page .sn-table tbody td {
+      padding-top: 18px;
+      padding-bottom: 18px;
+    }
+
+    .payments-page .sn-payment-primary {
+      font-size: 15px;
+    }
+
+    .payments-page .sn-payment-secondary {
+      margin-top: 8px;
+      font-size: 12.5px;
+    }
+  }
+</style>
+<section class="sn-page-wide payments-page">
   <div class="sn-page-head">
     <div>
       <h1 class="sn-page-title">Payments Overview</h1>
@@ -68,18 +142,20 @@
             {% endif %}
           </td>
           <td class="sn-ellipsis" data-label="Due">
-            {{ p.due_date_display or p.due_date or 'No due date' }}
+            <div class="sn-payment-due">
+              <span>{{ p.due_date_display or p.due_date or 'No due date' }}</span>
             {% if p.days_ago %}
               <span class="sn-muted" style="color:#b3263b;">({{ p.days_ago }} days ago)</span>
             {% elif p.days_until %}
               <span class="sn-muted">(in {{ p.days_until }} days)</span>
             {% endif %}
+            </div>
           </td>
           <td class="sn-ellipsis stack-full" data-label="Client &amp; Job">
-            <div class="sn-ellipsis" style="font-weight:600;">{{ p.client_name }}</div>
-            <div class="sn-row-subtitle sn-ellipsis">{{ p.job_name }} &middot; {{ p.invoice_id or p.id }}</div>
+            <span class="sn-payment-primary sn-ellipsis">{{ p.client_name }}</span>
+            <span class="sn-payment-secondary sn-ellipsis">{{ p.job_name }} &middot; {{ p.invoice_id or p.id }}</span>
           </td>
-          <td data-label="Amount" style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(p.amount) }}</span></td>
+          <td data-label="Amount" style="text-align:right;"><span class="sn-money sn-payment-amount">Q{{ '{:,.2f}'.format(p.amount) }}</span></td>
           <td class="stack-actions" style="text-align:right;" onclick="event.stopPropagation()">
             <button class="sn-menu-dots" type="button" title="Actions" onclick='openPaymentActions(event, {{ p.id|tojson }}, {{ (p.invoice_id or p.id)|tojson }}, {{ (p.job_id or "")|tojson }}, {{ (p.client_id or "")|tojson }}, {{ (p.status or "")|tojson }}, {{ (p.amount or 0)|tojson }})'>
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>

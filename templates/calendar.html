@@ -191,6 +191,7 @@
 .calendar-sidebar {
   position: sticky;
   top: 96px;
+  padding-top: 0;
 }
 .upcoming-events { margin-bottom: 16px; }
 .upcoming-events-head { font-size: 13px; font-weight: 600; color: var(--sn-muted); margin-bottom: 10px; }
@@ -250,7 +251,7 @@
 }
 @media (max-width: 1100px) {
   .calendar-layout { grid-template-columns: 1fr; }
-  .calendar-sidebar { position: static; order: -1; }
+  .calendar-sidebar { position: static; order: -1; padding-top: 0; }
 }
 .calendar-shell {
   background: var(--sn-white);
