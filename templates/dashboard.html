@@ -427,53 +427,6 @@
   </a>
   {% endif %}
 
-  <div class="dashboard-section-label">Proximos eventos y actividad reciente</div>
-  <div class="dashboard-lists">
-    <div class="dashboard-list-card">
-      <div class="dashboard-list-head">
-        <div class="dashboard-list-title">Upcoming Session &amp; Appointments</div>
-        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/jobs?new=1">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-          Add New
-        </a>
-      </div>
-      {% for j in upcoming_jobs[:5] %}
-      <a class="dashboard-row" href="/jobs/{{ j.id }}">
-        <span>{{ j.boda_date or 'No date' }}</span>
-        <span>
-          <span class="dashboard-row-main">{{ j.nombre }}</span>
-          <span class="dashboard-row-sub">{{ j.location or 'Sin ubicacion' }}</span>
-        </span>
-        <span class="sn-chip green">Job</span>
-      </a>
-      {% else %}
-      <div class="text-center py-6 text-ink-soft text-sm">Sin sesiones proximas</div>
-      {% endfor %}
-    </div>
-
-    <div class="dashboard-list-card">
-      <div class="dashboard-list-head">
-        <div class="dashboard-list-title">Most Recent Leads</div>
-        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/leads?new=1">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-          Add New
-        </a>
-      </div>
-      {% for l in recent_leads %}
-      <a class="dashboard-row" href="/leads/{{ l.id }}">
-        <span>{{ l.created or 'Today' }}</span>
-        <span>
-          <span class="dashboard-row-main">{{ l.nombre }}</span>
-          <span class="dashboard-row-sub">{{ l.email or l.fuente or '' }}</span>
-        </span>
-        <span class="sn-chip cyan">{{ l.mail_status or 'OPEN' }}</span>
-      </a>
-      {% else %}
-      <div class="text-center py-6 text-ink-soft text-sm">Sin leads recientes</div>
-      {% endfor %}
-    </div>
-  </div>
-
   <div class="dashboard-section-label">Ventas y graficas</div>
   <div class="dashboard-panel">
     <div class="dashboard-controls">
@@ -554,6 +507,53 @@
         <div class="text-center py-6 text-ink-soft text-sm">Sin fuentes</div>
         {% endif %}
       </div>
+    </div>
+  </div>
+
+  <div class="dashboard-section-label">Proximos eventos y actividad reciente</div>
+  <div class="dashboard-lists">
+    <div class="dashboard-list-card">
+      <div class="dashboard-list-head">
+        <div class="dashboard-list-title">Upcoming Session &amp; Appointments</div>
+        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/jobs?new=1">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          Add New
+        </a>
+      </div>
+      {% for j in upcoming_jobs[:5] %}
+      <a class="dashboard-row" href="/jobs/{{ j.id }}">
+        <span>{{ j.boda_date or 'No date' }}</span>
+        <span>
+          <span class="dashboard-row-main">{{ j.nombre }}</span>
+          <span class="dashboard-row-sub">{{ j.location or 'Sin ubicacion' }}</span>
+        </span>
+        <span class="sn-chip green">Job</span>
+      </a>
+      {% else %}
+      <div class="text-center py-6 text-ink-soft text-sm">Sin sesiones proximas</div>
+      {% endfor %}
+    </div>
+
+    <div class="dashboard-list-card">
+      <div class="dashboard-list-head">
+        <div class="dashboard-list-title">Most Recent Leads</div>
+        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/leads?new=1">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          Add New
+        </a>
+      </div>
+      {% for l in recent_leads %}
+      <a class="dashboard-row" href="/leads/{{ l.id }}">
+        <span>{{ l.created or 'Today' }}</span>
+        <span>
+          <span class="dashboard-row-main">{{ l.nombre }}</span>
+          <span class="dashboard-row-sub">{{ l.email or l.fuente or '' }}</span>
+        </span>
+        <span class="sn-chip cyan">{{ l.mail_status or 'OPEN' }}</span>
+      </a>
+      {% else %}
+      <div class="text-center py-6 text-ink-soft text-sm">Sin leads recientes</div>
+      {% endfor %}
     </div>
   </div>
 </section>
