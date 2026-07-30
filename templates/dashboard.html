@@ -408,25 +408,6 @@
 </style>
 
 <section class="dashboard-shell">
-  {% if total_pending %}
-  <a class="dashboard-pending-banner {{ 'urgent' if total_late else '' }}" href="/payments">
-    <div class="dashboard-pending-icon">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2 10h20M6 15h4M2 6h20a1 1 0 011 1v10a1 1 0 01-1 1H2a1 1 0 01-1-1V7a1 1 0 011-1z"/></svg>
-    </div>
-    <div class="dashboard-pending-copy">
-      <div class="dashboard-pending-label">Pagos pendientes de cobrar</div>
-      <div class="dashboard-pending-value">Q{{ '{:,.0f}'.format(total_pending) }}</div>
-    </div>
-    {% if total_late %}
-    <div class="dashboard-pending-late">
-      <span class="dashboard-pending-late-value">Q{{ '{:,.0f}'.format(total_late) }}</span>
-      <span class="dashboard-pending-late-label">atrasado</span>
-    </div>
-    {% endif %}
-    <svg class="dashboard-pending-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
-  </a>
-  {% endif %}
-
   <div class="dashboard-section-label">Ventas y graficas</div>
   <div class="dashboard-panel">
     <div class="dashboard-controls">
@@ -509,6 +490,25 @@
       </div>
     </div>
   </div>
+
+  {% if total_pending %}
+  <a class="dashboard-pending-banner {{ 'urgent' if total_late else '' }}" href="/payments">
+    <div class="dashboard-pending-icon">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2 10h20M6 15h4M2 6h20a1 1 0 011 1v10a1 1 0 01-1 1H2a1 1 0 01-1-1V7a1 1 0 011-1z"/></svg>
+    </div>
+    <div class="dashboard-pending-copy">
+      <div class="dashboard-pending-label">Pagos pendientes de cobrar</div>
+      <div class="dashboard-pending-value">Q{{ '{:,.0f}'.format(total_pending) }}</div>
+    </div>
+    {% if total_late %}
+    <div class="dashboard-pending-late">
+      <span class="dashboard-pending-late-value">Q{{ '{:,.0f}'.format(total_late) }}</span>
+      <span class="dashboard-pending-late-label">atrasado</span>
+    </div>
+    {% endif %}
+    <svg class="dashboard-pending-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
+  </a>
+  {% endif %}
 
   <div class="dashboard-section-label">Proximos eventos y actividad reciente</div>
   <div class="dashboard-lists">

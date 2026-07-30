@@ -33,7 +33,7 @@
 }
 .jobs-page #jobs-table td {
   height: auto;
-  padding: 18px 20px;
+  padding: 30px 24px;
 }
 .jobs-page .sn-table-row td {
   vertical-align: top;
@@ -46,32 +46,37 @@
 .jobs-page .job-primary {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   min-width: 0;
 }
 .jobs-page .job-name-stack {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 10px;
   min-width: 0;
 }
 .jobs-page .job-title {
   display: block;
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: 15.75px;
+  line-height: 1.7;
   font-weight: 600;
   color: var(--sn-ink);
 }
 .jobs-page .job-type-text {
   display: block;
-  font-size: 12.75px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.92;
   color: var(--sn-muted);
+}
+.jobs-page .sn-row-avatar,
+.jobs-page .job-avatar,
+.jobs-page .avatar-circle {
+  display: none !important;
 }
 .jobs-page .job-next-task {
   color: var(--sn-ink);
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 13.25px;
+  line-height: 1.88;
 }
 .jobs-page .sn-progress-wrap {
   min-height: 32px;
@@ -82,10 +87,10 @@
 }
 @media (max-width: 760px) {
   .jobs-page #jobs-table td {
-    padding: 18px;
+    padding: 22px 18px;
   }
   .jobs-page .job-primary {
-    gap: 11px;
+    gap: 12px;
   }
   .jobs-page .job-title {
     font-size: 15px;

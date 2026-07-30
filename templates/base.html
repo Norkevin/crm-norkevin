@@ -400,6 +400,10 @@ svg[stroke="currentColor"] rect {
   padding: 4px;
 }
 .pwa-banner button.pwa-banner-dismiss:hover { opacity: 1; }
+.pwa-install-banner,
+#pwa-install-banner {
+  display: none !important;
+}
 .sn-icon-button {
   width: 44px;
   height: 44px;
@@ -2266,6 +2270,7 @@ function flashToast(message, type) {
   document.addEventListener('DOMContentLoaded', function() {
     var legacyInstallBanner = document.getElementById('pwa-install-banner');
     if (legacyInstallBanner) legacyInstallBanner.remove();
+    document.querySelectorAll('.pwa-install-banner').forEach(function(el) { el.remove(); });
     if (!ENABLE_INSTALL_BANNER) return;
     if (!isIosSafari() || isStandalone()) return;
     try { if (localStorage.getItem(INSTALL_DISMISS_KEY)) return; } catch (err) {}
