@@ -411,6 +411,16 @@ svg[stroke="currentColor"] rect {
 [data-install-banner] {
   display: none !important;
 }
+body:not(.is-native-app) .pwa-banner,
+body:not(.is-native-app) #pwa-update-banner,
+body:not(.is-native-app) .pwa-install-banner,
+body:not(.is-native-app) #pwa-install-banner,
+body:not(.is-native-app) [data-pwa-banner],
+body:not(.is-native-app) [data-install-banner] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
 .sn-icon-button {
   width: 44px;
   height: 44px;

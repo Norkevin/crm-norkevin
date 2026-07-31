@@ -557,6 +557,19 @@
   </a>
   {% endif %}
 
+  <div class="dashboard-panel-intro" style="margin-top:24px;">
+    <div class="dashboard-intro-stat">
+      <div class="dashboard-intro-stat-label">Total cobrado</div>
+      <div class="dashboard-intro-stat-value">Q{{ '{:,.0f}'.format(total_paid) }}</div>
+      <div class="dashboard-intro-stat-meta">Pagos confirmados registrados en el CRM.</div>
+    </div>
+    <div class="dashboard-intro-stat">
+      <div class="dashboard-intro-stat-label">Saldo pendiente</div>
+      <div class="dashboard-intro-stat-value">Q{{ '{:,.0f}'.format(total_unpaid) }}</div>
+      <div class="dashboard-intro-stat-meta">Montos que todavia siguen abiertos en facturas.</div>
+    </div>
+  </div>
+
   <div class="dashboard-section-label">Proximos eventos y actividad reciente</div>
   <div class="dashboard-lists">
     <div class="dashboard-list-card">
@@ -601,19 +614,6 @@
       {% else %}
       <div class="text-center py-6 text-ink-soft text-sm">Sin leads recientes</div>
       {% endfor %}
-    </div>
-  </div>
-
-  <div class="dashboard-panel-intro" style="margin-top:24px;">
-    <div class="dashboard-intro-stat">
-      <div class="dashboard-intro-stat-label">Total cobrado</div>
-      <div class="dashboard-intro-stat-value">Q{{ '{:,.0f}'.format(total_paid) }}</div>
-      <div class="dashboard-intro-stat-meta">Pagos confirmados registrados en el CRM.</div>
-    </div>
-    <div class="dashboard-intro-stat">
-      <div class="dashboard-intro-stat-label">Saldo pendiente</div>
-      <div class="dashboard-intro-stat-value">Q{{ '{:,.0f}'.format(total_unpaid) }}</div>
-      <div class="dashboard-intro-stat-meta">Montos que todavia siguen abiertos en facturas.</div>
     </div>
   </div>
 </section>
