@@ -54,22 +54,22 @@
   text-transform: uppercase;
   letter-spacing: .04em;
   color: var(--sn-muted);
-  margin: 28px 0 12px;
+  margin: 34px 0 14px;
 }
 .dashboard-section-label:first-child { margin-top: 0; }
 .dashboard-panel {
   border: 1px solid var(--sn-line-dark);
   border-radius: 22px;
   background: var(--sn-white);
-  padding: 30px;
+  padding: 34px;
   box-shadow: 0 10px 30px -24px rgba(15, 23, 42, .28);
 }
 .dashboard-panel-intro {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 18px;
   align-items: stretch;
-  margin-top: 18px;
+  margin-top: 0;
 }
 .dashboard-intro-summary {
   display: grid;
@@ -307,9 +307,9 @@
 }
 .dashboard-lists {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  margin-top: 16px;
+  grid-template-columns: minmax(0, 1.16fr) minmax(0, .84fr);
+  gap: 24px;
+  margin-top: 20px;
 }
 .dashboard-list-card {
   border: 1px solid var(--sn-line-dark);
@@ -334,9 +334,9 @@
 .dashboard-row {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: 16px;
   align-items: center;
-  padding: 14px 20px;
+  padding: 18px 22px;
   border-bottom: 1px solid var(--sn-line);
   color: var(--sn-ink);
   font-size: 13px;
@@ -494,7 +494,7 @@
           <button class="metric-tab" type="button" data-metric="payments" style="--metric-color:#6B7280;" onclick="setDashboardMetric('payments')">
             <span class="metric-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h2m4 0h4M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/></svg></span>
             <div class="metric-label">Pagos</div>
-            <div class="metric-value" id="dashboard-payments-value">Q{{ '{:,.0f}'.format(total_paid) }} <span style="color:#7d8490;">(Q0)</span></div>
+            <div class="metric-value" id="dashboard-payments-value">Q{{ '{:,.0f}'.format(total_paid) }}</div>
           </button>
           <button class="metric-tab active" type="button" data-metric="revenue" style="--metric-color:#075985;" onclick="setDashboardMetric('revenue')">
             <span class="metric-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l7-3v13M9 19l-6 2V8l6-2m0 13l7-2V6m0 0l6-2v13l-6 2"/></svg></span>
@@ -536,18 +536,6 @@
       </div>
     </div>
 
-    <div class="dashboard-panel-intro">
-      <div class="dashboard-intro-stat">
-        <div class="dashboard-intro-stat-label">Total cobrado</div>
-        <div class="dashboard-intro-stat-value">Q{{ '{:,.0f}'.format(total_paid) }}</div>
-        <div class="dashboard-intro-stat-meta">Pagos confirmados registrados en el CRM.</div>
-      </div>
-      <div class="dashboard-intro-stat">
-        <div class="dashboard-intro-stat-label">Saldo pendiente</div>
-        <div class="dashboard-intro-stat-value">Q{{ '{:,.0f}'.format(total_unpaid) }}</div>
-        <div class="dashboard-intro-stat-meta">Montos que todavia siguen abiertos en facturas.</div>
-      </div>
-    </div>
   </div>
 
   {% if total_pending %}
@@ -613,6 +601,19 @@
       {% else %}
       <div class="text-center py-6 text-ink-soft text-sm">Sin leads recientes</div>
       {% endfor %}
+    </div>
+  </div>
+
+  <div class="dashboard-panel-intro" style="margin-top:24px;">
+    <div class="dashboard-intro-stat">
+      <div class="dashboard-intro-stat-label">Total cobrado</div>
+      <div class="dashboard-intro-stat-value">Q{{ '{:,.0f}'.format(total_paid) }}</div>
+      <div class="dashboard-intro-stat-meta">Pagos confirmados registrados en el CRM.</div>
+    </div>
+    <div class="dashboard-intro-stat">
+      <div class="dashboard-intro-stat-label">Saldo pendiente</div>
+      <div class="dashboard-intro-stat-value">Q{{ '{:,.0f}'.format(total_unpaid) }}</div>
+      <div class="dashboard-intro-stat-meta">Montos que todavia siguen abiertos en facturas.</div>
     </div>
   </div>
 </section>
@@ -914,7 +915,7 @@ function updateDashboard() {
   var payload = currentDashboardPayload();
   document.getElementById('dashboard-leads-value').textContent = payload.totals.leads || 0;
   document.getElementById('dashboard-sessions-value').textContent = payload.totals.sessions || 0;
-  document.getElementById('dashboard-payments-value').innerHTML = money(payload.totals.payments) + ' <span style="color:#7d8490;">(Q0)</span>';
+  document.getElementById('dashboard-payments-value').textContent = money(payload.totals.payments);
   var currentYearSeries = REVENUE_SERIES.find(function(s) { return String(s.year) === String(CURRENT_YEAR); });
   document.getElementById('dashboard-revenue-value').textContent = currentYearSeries ? money(currentYearSeries.total) : money(0);
   if (dashboardMetric === 'revenue') {

@@ -406,7 +406,9 @@ svg[stroke="currentColor"] rect {
 .pwa-banner,
 #pwa-update-banner,
 .pwa-install-banner,
-#pwa-install-banner {
+#pwa-install-banner,
+[data-pwa-banner],
+[data-install-banner] {
   display: none !important;
 }
 .sn-icon-button {
@@ -2309,6 +2311,14 @@ function flashToast(message, type) {
     if (updateBanner) updateBanner.remove();
     document.querySelectorAll('.pwa-banner').forEach(function(el) { el.remove(); });
     document.querySelectorAll('.pwa-install-banner').forEach(function(el) { el.remove(); });
+    document.querySelectorAll('[data-pwa-banner], [data-install-banner]').forEach(function(el) { el.remove(); });
+    document.querySelectorAll('div, section, aside').forEach(function(el) {
+      var text = (el.textContent || '').trim();
+      if (!text) return;
+      if (text.includes('Instala Flow CRM para acceder mas rapido') || text.includes('como una app.')) {
+        el.remove();
+      }
+    });
     if (!ENABLE_INSTALL_BANNER) return;
     if (!isIosSafari() || isStandalone()) return;
     try { if (localStorage.getItem(INSTALL_DISMISS_KEY)) return; } catch (err) {}
