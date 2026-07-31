@@ -5,7 +5,88 @@
 {% block topbar_title %}Clients{% endblock %}
 
 {% block content %}
-<section class="sn-page-wide">
+<style>
+.clients-page .sn-page-head {
+  margin-bottom: 16px;
+}
+.clients-page .sn-toolbar {
+  margin: 0 0 14px;
+}
+.clients-page .sn-table-shell {
+  border-radius: 16px;
+}
+.clients-page #clients-table th {
+  height: 38px;
+  padding: 0 18px;
+}
+.clients-page #clients-table td {
+  height: auto;
+  padding: 10px 18px;
+}
+.clients-page .sn-table-row td {
+  vertical-align: top;
+}
+.clients-page .sn-table-row td.stack-actions,
+.clients-page .sn-table-row td[data-label="Created"],
+.clients-page .sn-table-row td[data-label="Phone"],
+.clients-page .sn-table-row td[data-label="Company"] {
+  vertical-align: middle;
+}
+.clients-page .client-primary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.clients-page .client-name-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.clients-page .client-first-name,
+.clients-page .client-last-name {
+  display: block;
+  font-size: 14.5px;
+  line-height: 1.28;
+  font-weight: 600;
+  color: var(--sn-ink);
+}
+.clients-page .client-last-name {
+  font-weight: 500;
+}
+.clients-page .client-email-text {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--sn-muted);
+}
+.clients-page .client-meta {
+  color: var(--sn-ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.clients-page .sn-menu-dots {
+  margin-top: 2px;
+}
+@media (max-width: 760px) {
+  .clients-page #clients-table td {
+    padding: 13px 18px;
+  }
+  .clients-page .client-primary {
+    gap: 6px;
+  }
+  .clients-page .client-first-name,
+  .clients-page .client-last-name {
+    font-size: 15px;
+  }
+  .clients-page .client-email-text,
+  .clients-page .client-meta {
+    font-size: 13px;
+  }
+}
+</style>
+
+<section class="sn-page-wide clients-page">
   <div class="sn-page-head">
     <div>
       <h1 class="sn-page-title">Clients Overview</h1>
@@ -56,17 +137,19 @@
             data-email="{{ c.email or '' }}"
             onclick="goClient(event, '{{ c.id }}')">
           <td class="sn-ellipsis stack-full" data-label="Client">
-            <div class="sn-row-name">
-              <span class="sn-row-avatar">{{ (c.first_name or '?')[:1]|upper }}{{ (c.last_name or '')[:1]|upper }}</span>
-              <div style="min-width:0;">
-                <div class="sn-ellipsis">{{ c.first_name or '' }} {{ c.last_name or '' }}</div>
-                <div class="sn-row-subtitle sn-ellipsis">{{ c.email or '—' }}</div>
+            <div class="client-primary">
+              <div class="client-name-stack">
+                <span class="client-first-name sn-ellipsis">{{ c.first_name or 'Sin nombre' }}</span>
+                {% if c.last_name %}
+                <span class="client-last-name sn-ellipsis">{{ c.last_name }}</span>
+                {% endif %}
               </div>
+              <div class="client-email-text sn-ellipsis">{{ c.email or '—' }}</div>
             </div>
           </td>
-          <td class="sn-ellipsis" data-label="Company">{{ c.company or '—' }}</td>
-          <td class="sn-ellipsis" data-label="Phone">{{ c.phone or '—' }}</td>
-          <td class="sn-ellipsis" data-label="Created">{{ c.created_display or c.created or '—' }}</td>
+          <td class="sn-ellipsis client-meta" data-label="Company">{{ c.company or '—' }}</td>
+          <td class="sn-ellipsis client-meta" data-label="Phone">{{ c.phone or '—' }}</td>
+          <td class="sn-ellipsis client-meta" data-label="Created">{{ c.created_display or c.created or '—' }}</td>
           <td class="stack-actions" style="text-align:right;">
             <button class="sn-menu-dots" type="button" title="Actions" onclick="openClientActions(event, '{{ c.id }}', this.closest('tr').dataset.email)">
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
