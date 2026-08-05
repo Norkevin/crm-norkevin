@@ -24,7 +24,7 @@ def test_base_template_defines_dark_surface_levels_not_just_invert(auth_client):
     assert ':root[data-theme="dark"]' in html
     # Deben existir al menos 3 niveles de superficie distintos entre si
     # (fondo, tarjeta/input, hover) -- no solo negro puro repetido.
-    assert '--sn-canvas: #05070a' in html
+    assert '#05070a' in html, 'el fondo oscuro (canvas) debe seguir partiendo de este tono'
     assert '--sn-white: #090d12' in html
     assert '--sn-surface-hover: #121a23' in html
     assert '--sn-ink: #f3f6f9' in html, 'el texto primario debe aclararse en modo oscuro'

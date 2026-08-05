@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{% block title %}ASTRAL WEDDINGS · Flow CRM{% endblock %}</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#0284C7">
+<meta name="theme-color" content="#0D9488">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -25,10 +25,10 @@
 {% include "_tailwind_config.html" %}
 <style>
 :root {
-  --sn-green: #0284C7;
-  --sn-green-dark: #075985;
-  --sn-mint: #E0F2FE;
-  --sn-mint-soft: #F0F9FF;
+  --sn-green: #0D9488;
+  --sn-green-dark: #0F766E;
+  --sn-mint: #CCFBF1;
+  --sn-mint-soft: #F0FDFA;
   --sn-ink: #111827;
   --sn-muted: #6B7280;
   --sn-soft: #9CA3AF;
@@ -42,16 +42,22 @@
   --sn-cyan: #06b6d4;
   --sn-blue: #0284C7;
   --sn-red: #dc2626;
-  --sn-canvas: #F7F7FB;
+  --sn-canvas: linear-gradient(165deg, #EAF5F2 0%, #F3F7F6 40%, #EEF1F4 100%);
   /* Niveles de superficie -- separados de --sn-white/--sn-row para que el
      tema oscuro pueda distinguir tarjeta vs input vs hover sin que todo
      colapse al mismo gris (ver seccion 1 del feedback de Kevin). */
   --sn-surface-2: #F3F4F6;
   --sn-surface-hover: #F6F7F9;
-  --sn-focus-ring: rgba(2, 132, 199, .12);
+  --sn-focus-ring: rgba(13, 148, 136, .15);
   --sn-shadow-soft: rgba(24, 24, 27, .04);
-  --sn-shadow-card: rgba(15, 23, 42, .06);
+  --sn-shadow-card: rgba(15, 23, 42, .07);
   --sn-overlay: rgba(15, 18, 22, .6);
+  /* Radio grande unificado para cards/tablas (pass de rediseno "premium",
+     antes cada pagina definia su propio valor 16-20px suelto). */
+  --sn-radius-lg: 20px;
+  --sn-sidebar-bg: #10151c;
+  --sn-sidebar-ink: rgba(255, 255, 255, .55);
+  --sn-sidebar-hover: rgba(255, 255, 255, .08);
 }
 
 /* Kevin: 'ver todo en modo oscuro para cuando trabajo de noche no
@@ -63,7 +69,7 @@
    cada template. Toggle en Settings, persistido en localStorage y
    aplicado sin flash via el script inline en <head>. */
 :root[data-theme="dark"] {
-  --sn-canvas: #05070a;
+  --sn-canvas: linear-gradient(165deg, #05070a 0%, #070a0e 100%);
   --sn-white: #090d12;
   --sn-row: #0d131a;
   --sn-panel: #0d131a;
@@ -74,9 +80,9 @@
   --sn-ink: #f3f6f9;
   --sn-muted: #aab4c0;
   --sn-soft: #7f8a98;
-  --sn-mint: #0d2536;
-  --sn-mint-soft: #0a1c2b;
-  --sn-focus-ring: rgba(56, 189, 248, .18);
+  --sn-mint: #0b2b28;
+  --sn-mint-soft: #081f1c;
+  --sn-focus-ring: rgba(45, 212, 191, .18);
   --sn-shadow-soft: rgba(0, 0, 0, .35);
   --sn-shadow-card: rgba(0, 0, 0, .45);
   --sn-overlay: rgba(0, 0, 0, .72);
@@ -400,6 +406,71 @@ svg[stroke="currentColor"] rect {
   padding: 4px;
 }
 .pwa-banner button.pwa-banner-dismiss:hover { opacity: 1; }
+
+/* Sidebar oscura de iconos (solo escritorio) -- reemplaza el topnav como
+   navegacion principal. El topnav y su markup no se borran (los oculta esta
+   misma media query) para no tener que tocar el JS que marca .active por
+   data-nav; el bottom-nav de mobile sigue intacto debajo de 761px. */
+.app-sidebar { display: none; }
+@media (min-width: 761px) {
+  .app-sidebar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 76px;
+    padding: 20px 0 22px;
+    background: var(--sn-sidebar-bg);
+    z-index: 10001;
+  }
+  .sidebar-brand {
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, var(--sn-green) 0%, var(--sn-green-dark) 100%);
+    flex-shrink: 0;
+  }
+  .sidebar-brand img { width: 24px; height: 24px; display: block; }
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .sidebar-item {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    color: var(--sn-sidebar-ink);
+    transition: background .15s ease, color .15s ease;
+  }
+  .sidebar-item svg { width: 20px; height: 20px; stroke-width: 1.6; }
+  .sidebar-item:hover { background: var(--sn-sidebar-hover); color: #fff; }
+  .sidebar-item.active { background: var(--sn-green); color: #fff; }
+  .sidebar-bottom {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .app-header {
+    margin-left: 76px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding-left: 28px;
+  }
+  .app-header .brand-link { display: none; }
+  .topnav { display: none; }
+}
 .sn-icon-button {
   width: 44px;
   height: 44px;
@@ -780,6 +851,9 @@ a.sn-notification-item:hover {
   margin: 0 auto;
   padding: 30px 30px 80px;
 }
+@media (min-width: 761px) {
+  .main-content { margin-left: 76px; }
+}
 
 .sn-page {
   width: 100%;
@@ -945,8 +1019,8 @@ select.sn-input {
   background: var(--sn-white);
   overflow: hidden;
   border: 1px solid var(--sn-line);
-  border-radius: 18px;
-  box-shadow: 0 1px 2px var(--sn-shadow-soft);
+  border-radius: var(--sn-radius-lg);
+  box-shadow: 0 2px 10px var(--sn-shadow-soft);
 }
 .sn-table,
 .table-responsive {
@@ -1113,9 +1187,9 @@ select.sn-input {
 .kpi-card {
   background: var(--sn-panel);
   border: 1px solid var(--sn-line-dark);
-  border-radius: 18px;
-  padding: 14px;
-  box-shadow: 0 1px 2px var(--sn-shadow-soft);
+  border-radius: var(--sn-radius-lg);
+  padding: 16px;
+  box-shadow: 0 2px 10px var(--sn-shadow-soft);
   transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
 }
 .sn-card.white,
@@ -1124,7 +1198,7 @@ a.sn-card:hover,
 a.kpi-card:hover,
 .sn-card.clickable:hover,
 .kpi-card.clickable:hover {
-  box-shadow: 0 4px 16px -4px var(--sn-shadow-card);
+  box-shadow: 0 10px 28px -8px var(--sn-shadow-card);
   border-color: var(--sn-line-dark);
   transform: translateY(-1px);
 }
@@ -1236,11 +1310,11 @@ a.kpi-card:hover,
   letter-spacing: .06em;
   color: #fff;
 }
-.workflow-rail.lead { background: #0284C7; }
-.workflow-rail.production { background: #111827; }
-.workflow-rail.delivery { background: #6B7280; }
-:root[data-theme="dark"] .workflow-rail.production { background: #2b3745; }
-:root[data-theme="dark"] .workflow-rail.delivery { background: #445261; }
+.workflow-rail.lead { background: #0D9488; }
+.workflow-rail.production { background: #7C3AED; }
+.workflow-rail.delivery { background: #D97706; }
+:root[data-theme="dark"] .workflow-rail.production { background: #8B5CF6; }
+:root[data-theme="dark"] .workflow-rail.delivery { background: #F59E0B; }
 .workflow-steps { display: flex; flex-direction: column; gap: 6px; }
 .workflow-step {
   min-height: 47px;
@@ -1755,6 +1829,37 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 </style>
 </head>
 <body>
+
+<nav class="app-sidebar" aria-label="Principal (escritorio)">
+  <a href="/dashboard" class="sidebar-brand" title="Flow CRM">
+    <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="Flow CRM">
+  </a>
+  <div class="sidebar-nav">
+    <a href="/dashboard" class="sidebar-item" data-nav="/dashboard" title="Dashboard">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 22V12h6v10"/></svg>
+    </a>
+    <a href="/clients" class="sidebar-item" data-nav="/clients" title="Clients">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </a>
+    <a href="/leads" class="sidebar-item" data-nav="/leads" title="Leads">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 6v6l4 2"/></svg>
+    </a>
+    <a href="/jobs" class="sidebar-item" data-nav="/jobs" title="Jobs">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    </a>
+    <a href="/calendar" class="sidebar-item" data-nav="/calendar" title="Calendar">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 2v4M8 2v4M3 10h18"/></svg>
+    </a>
+    <a href="/payments" class="sidebar-item" data-nav="/payments" title="Payments">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M1 10h22"/></svg>
+    </a>
+  </div>
+  <div class="sidebar-bottom">
+    <a href="/settings" class="sidebar-item" data-nav="/settings" title="Settings">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </a>
+  </div>
+</nav>
 
 <header class="app-header">
   <a href="/dashboard" class="brand-link">
@@ -2387,7 +2492,7 @@ function closeMoreSheet() {
 document.addEventListener('DOMContentLoaded', function() {
   var path = window.location.pathname;
   if (path === '/') path = '/dashboard';
-  document.querySelectorAll('.topnav-item, .bottom-nav-item').forEach(function(el) {
+  document.querySelectorAll('.topnav-item, .bottom-nav-item, .sidebar-item').forEach(function(el) {
     var nav = el.getAttribute('data-nav') || el.getAttribute('href');
     if (nav && (path === nav || path.indexOf(nav + '/') === 0)) {
       el.classList.add('active');
