@@ -5,6 +5,14 @@
 
 {% block content %}
 
+<section class="sn-page-wide">
+<div class="sn-page-head">
+  <div>
+    <h1 class="sn-page-title">Fotografos y Videografos</h1>
+    <div class="sn-breadcrumbs">{{ partners|length }} colaboradores externos disponibles para bodas y eventos.</div>
+  </div>
+</div>
+
 <!-- Filtros -->
 <form method="get" class="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
   <select name="estado" onchange="this.form.submit()" class="bg-paper-pure border border-line rounded-lg px-3 py-2 text-sm">
@@ -76,4 +84,5 @@
 </div>
 {% endif %}
 </div>
+</section>
 {% endblock %}

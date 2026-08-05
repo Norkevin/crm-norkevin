@@ -44,6 +44,10 @@
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
         </button>
       </div>
+      <div class="sn-progress-wrap" style="margin-bottom:16px;">
+        <div class="sn-progress"><div class="sn-progress-fill" style="width: {{ job.workflow_progress or 0 }}%;"></div></div>
+        <span class="sn-progress-pct">{{ job.workflow_progress or 0 }}%</span>
+      </div>
 
       {% if lead_steps %}
       <div class="workflow-list mb-3">
@@ -330,6 +334,16 @@
         {% endif %}
       </div>
 
+      <div class="sn-tabs" id="job-detail-tabs-nav">
+        <button class="sn-tab active" data-tab-target="invoices" onclick="switchTab(this,'job-detail-tabs')">Facturas <span class="sn-tab-count">{{ invoice_groups|length }}</span></button>
+        <button class="sn-tab" data-tab-target="quotes" onclick="switchTab(this,'job-detail-tabs')">Cotizaciones <span class="sn-tab-count">{{ quotes|length }}</span></button>
+        <button class="sn-tab" data-tab-target="contracts" onclick="switchTab(this,'job-detail-tabs')">Contratos <span class="sn-tab-count">{{ contracts|length }}</span></button>
+        <button class="sn-tab" data-tab-target="questionnaires" onclick="switchTab(this,'job-detail-tabs')">Cuestionarios <span class="sn-tab-count">{{ questionnaires|length }}</span></button>
+        <button class="sn-tab" data-tab-target="files" onclick="switchTab(this,'job-detail-tabs')">Archivos <span class="sn-tab-count">{{ files|length }}</span></button>
+        <button class="sn-tab" data-tab-target="notes" onclick="switchTab(this,'job-detail-tabs')">Notas</button>
+      </div>
+
+      <div class="sn-tab-panel active" data-tab-panel="invoices" data-tab-group="job-detail-tabs">
       <div class="sn-card wide">
         <div class="sn-card-head">
           <div class="sn-card-title">
@@ -389,7 +403,9 @@
           {% endfor %}
         </div>
       </div>
+      </div>
 
+      <div class="sn-tab-panel" data-tab-panel="quotes" data-tab-group="job-detail-tabs">
       <div class="sn-card wide">
         <div class="sn-card-head">
           <div class="sn-card-title">
@@ -422,7 +438,9 @@
           {% endfor %}
         </div>
       </div>
+      </div>
 
+      <div class="sn-tab-panel" data-tab-panel="contracts" data-tab-group="job-detail-tabs">
       <div class="sn-card wide">
         <div class="sn-card-head">
           <div class="sn-card-title">
@@ -466,7 +484,9 @@
           {% endfor %}
         </div>
       </div>
+      </div>
 
+      <div class="sn-tab-panel" data-tab-panel="questionnaires" data-tab-group="job-detail-tabs">
       <div class="sn-card wide">
         <div class="sn-card-head">
           <div class="sn-card-title">Questionnaires</div>
@@ -497,7 +517,9 @@
           {% endfor %}
         </div>
       </div>
+      </div>
 
+      <div class="sn-tab-panel" data-tab-panel="files" data-tab-group="job-detail-tabs">
       <div class="sn-card wide">
         <div class="sn-card-head">
           <div class="sn-card-title">Files <span class="sn-chip gray">UP TO 50MB</span></div>
@@ -528,7 +550,9 @@
           {% endfor %}
         </div>
       </div>
+      </div>
 
+      <div class="sn-tab-panel" data-tab-panel="notes" data-tab-group="job-detail-tabs">
       <div class="sn-card wide">
         <div class="sn-card-head">
           <div class="sn-card-title">Notes</div>
@@ -542,6 +566,7 @@
             <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('notes-modal')">View / Edit</button>
           </div>
         </div>
+      </div>
       </div>
     </aside>
   </div>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Settings · ASTRAL WEDDINGS CRM{% endblock %}
-{% block header %}Settings{% endblock %}
-{% block subtitle %}Empresa, sistema, captacion y templates{% endblock %}
+{% block header %}Configuracion{% endblock %}
+{% block subtitle %}Empresa, sistema, captacion y templates.{% endblock %}
 
 {% block topbar_title %}Settings{% endblock %}
 
@@ -10,13 +10,14 @@
 <style>
 .settings-tile {
   background: var(--sn-white);
-  border: 1px solid var(--sn-line-dark);
-  border-radius: 6px;
+  border: 1px solid rgba(16, 24, 40, .04);
+  border-radius: var(--sn-radius-md);
+  box-shadow: var(--sn-shadow-resting);
   padding: 16px;
   display: block;
 }
 .settings-tile.clickable { cursor: pointer; transition: box-shadow .15s ease, border-color .15s ease, background .15s ease; }
-.settings-tile.clickable:hover { box-shadow: 0 6px 18px var(--sn-shadow-card); border-color: var(--sn-line-dark); background: var(--sn-surface-hover); }
+.settings-tile.clickable:hover { box-shadow: var(--sn-shadow-hover); border-color: var(--sn-line-dark); background: var(--sn-surface-hover); }
 .settings-tile.disabled { opacity: .55; cursor: default; }
 .settings-tile svg { width: 22px; height: 22px; color: var(--sn-green); margin-bottom: 8px; }
 .settings-tile h4 { font-size: 13px; font-weight: 600; color: var(--sn-ink); margin: 0 0 4px; }
@@ -37,6 +38,13 @@
 .settings-section-title { font-size: 15px; font-weight: 600; color: var(--sn-ink); margin: 0 0 12px; }
 @media (max-width: 760px) { .settings-grid { grid-template-columns: 1fr; } }
 </style>
+
+<div class="sn-page-head">
+  <div>
+    <h1 class="sn-page-title">Configuracion</h1>
+    <div class="sn-breadcrumbs">Empresa, apariencia, integraciones y datos de la cuenta.</div>
+  </div>
+</div>
 
 <!-- Company card (destacado arriba) -->
 <div class="sn-card white mb-5" style="padding:18px;">

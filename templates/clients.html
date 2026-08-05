@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Clients Overview · {{ current_tenant.name }}{% endblock %}
-{% block header %}Clients Overview{% endblock %}
+{% block header %}Clientes{% endblock %}
 {% block subtitle %}{{ clients|length }} clients{% endblock %}
 {% block topbar_title %}Clients{% endblock %}
 
@@ -86,8 +86,8 @@
 <section class="sn-page-wide clients-page">
   <div class="sn-page-head">
     <div>
-      <h1 class="sn-page-title">Clients Overview</h1>
-      <div class="sn-breadcrumbs">Dashboard &gt; Clients Overview</div>
+      <h1 class="sn-page-title">Clientes</h1>
+      <div class="sn-breadcrumbs">Administra la informacion de contacto y el historial de cada cliente.</div>
     </div>
     <div class="sn-actions">
       <button class="sn-btn" type="button" onclick="importClients()">

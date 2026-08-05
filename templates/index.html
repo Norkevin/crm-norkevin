@@ -1,41 +1,41 @@
 {% extends "base.html" %}
 {% block title %}Calendar · ASTRAL WEDDINGS CRM{% endblock %}
-{% block header %}Calendar{% endblock %}
+{% block header %}Calendario{% endblock %}
 {% block subtitle %}{{ month_name }} {{ year }}{% endblock %}
 
 {% block content %}
-
-<div class="card">
-  <div class="flex items-center justify-between mb-4">
-    <a href="/?year={{ prev_year }}&month={{ prev_month }}" class="text-sm text-ink-soft hover:text-ink">
-      < Anterior
-    </a>
-    <h2 class="text-lg font-semibold text-ink">{{ month_name }} {{ year }}</h2>
-    <a href="/?year={{ next_year }}&month={{ next_month }}" class="text-sm text-ink-soft hover:text-ink">
-      Siguiente >
-    </a>
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Calendario</h1>
+      <div class="sn-breadcrumbs">{{ month_name }} {{ year }}</div>
+    </div>
+    <div class="sn-actions">
+      <a class="sn-btn" href="/?year={{ prev_year }}&month={{ prev_month }}">&lsaquo; Anterior</a>
+      <a class="sn-btn" href="/?year={{ next_year }}&month={{ next_month }}">Siguiente &rsaquo;</a>
+    </div>
   </div>
 
-  <div class="grid grid-cols-7 gap-px bg-line border border-line rounded-lg overflow-hidden">
-    {% for d in day_names %}
-    <div class="bg-paper-pure px-3 py-2 text-xs font-semibold text-ink-soft uppercase tracking-wide text-center">{{ d }}</div>
-    {% endfor %}
-
-    {% for week in weeks %}
-      {% for cell in week %}
-      <div class="bg-paper-pure min-h-[100px] p-2 {% if not cell.in_month %}opacity-40{% endif %}">
-        <div class="text-xs {% if cell.today %}inline-block w-6 h-6 rounded-full bg-gold text-white text-center leading-6 font-semibold{% else %}text-ink-soft{% endif %}">{{ cell.day }}</div>
-        {% for evt in cell.events %}
-        <div class="mt-1 px-1.5 py-0.5 rounded text-[10px] truncate
-          {% if evt.type == 'wedding' %}bg-rose-100 text-rose-700 font-medium
-          {% else %}bg-gold-soft text-gold-deep{% endif %}">
-          {{ evt.title }}
+  <div class="sn-table-shell" style="overflow:hidden;">
+    <div style="display:grid;grid-template-columns:repeat(7, minmax(0,1fr));border-bottom:1px solid var(--sn-line);">
+      {% for d in day_names %}
+      <div style="padding:11px;text-align:center;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--sn-muted);">{{ d }}</div>
+      {% endfor %}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7, minmax(0,1fr));">
+      {% for week in weeks %}
+        {% for cell in week %}
+        <div style="min-height:100px;padding:8px;border-right:1px solid rgba(16,24,40,.06);border-bottom:1px solid rgba(16,24,40,.06);{% if not cell.in_month %}opacity:.4;{% endif %}">
+          <div style="font-size:12px;{% if cell.today %}display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;border-radius:999px;background:var(--sn-green);color:#fff;font-weight:600;{% else %}color:var(--sn-muted);{% endif %}">{{ cell.day }}</div>
+          {% for evt in cell.events %}
+          <div class="sn-chip {% if evt.type == 'wedding' %}pink{% else %}yellow{% endif %}" style="margin-top:4px;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {{ evt.title }}
+          </div>
+          {% endfor %}
         </div>
         {% endfor %}
-      </div>
       {% endfor %}
-    {% endfor %}
+    </div>
   </div>
-</div>
-
+</section>
 {% endblock %}

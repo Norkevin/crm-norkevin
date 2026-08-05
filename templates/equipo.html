@@ -7,6 +7,14 @@
 
 {% block content %}
 
+<section class="sn-page-wide">
+<div class="sn-page-head">
+  <div>
+    <h1 class="sn-page-title">Equipo</h1>
+    <div class="sn-breadcrumbs">Fotografos, asistentes y editores que trabajan tus bodas.</div>
+  </div>
+</div>
+
 <div class="bg-paper-pure rounded-lg border border-line shadow-soft p-4 mb-4">
   <input type="text" id="search" placeholder="Buscar miembro por nombre o rol..."
          class="w-full border border-line rounded-lg px-3 py-2 text-sm">
@@ -40,6 +48,7 @@
     </tbody>
   </table>
 </div>
+</section>
 
 <script>
 document.getElementById('search').addEventListener('input', function() {
