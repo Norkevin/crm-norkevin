@@ -138,6 +138,13 @@
         </tr>
       </thead>
       <tbody>
+        <tr aria-hidden="true" style="display:none;">
+          <td></td>
+          <td class="sn-ellipsis stack-full"></td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
         {% for job in jobs %}
         <tr class="sn-table-row"
             data-status="{{ job.status or '' }}"

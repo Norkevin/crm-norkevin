@@ -375,6 +375,9 @@ svg[stroke="currentColor"] rect {
   border-bottom: 1px solid #C9E7F5;
 }
 .pwa-banner.visible { display: flex; }
+:root:not([data-mobile-web="true"]) .pwa-banner {
+  display: none !important;
+}
 :root[data-theme="dark"] .pwa-banner {
   background: #0d2836;
   color: #7cc8e8;
@@ -470,6 +473,24 @@ svg[stroke="currentColor"] rect {
   }
   .app-header .brand-link { display: none; }
   .topnav { display: none; }
+}
+.pwa-banner,
+#pwa-update-banner,
+.pwa-install-banner,
+#pwa-install-banner,
+[data-pwa-banner],
+[data-install-banner] {
+  display: none !important;
+}
+body:not(.is-native-app) .pwa-banner,
+body:not(.is-native-app) #pwa-update-banner,
+body:not(.is-native-app) .pwa-install-banner,
+body:not(.is-native-app) #pwa-install-banner,
+body:not(.is-native-app) [data-pwa-banner],
+body:not(.is-native-app) [data-install-banner] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 .sn-icon-button {
   width: 44px;
@@ -1981,12 +2002,6 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 </div>
 {% endif %}
 
-<div class="pwa-banner" id="pwa-update-banner">
-  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.5 12a7.5 7.5 0 0113-5M19.5 12a7.5 7.5 0 01-13 5M8 4v4h4M16 20v-4h-4"/></svg>
-  <span>Hay una nueva version de Flow CRM disponible.</span>
-  <button type="button" class="pwa-banner-action" onclick="pwaApplyUpdate()">Actualizar</button>
-</div>
-
 <nav class="bottom-nav" aria-label="Principal (mobile)">
   <a href="/dashboard" class="bottom-nav-item" data-nav="/dashboard">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 22V12h6v10"/></svg>
@@ -2273,16 +2288,48 @@ function flashToast(message, type) {
 }
 
 /* ============================================================
-   PWA: registro del service worker, aviso de actualizacion e
-   instalacion (Android/desktop via beforeinstallprompt, iOS via
-   instrucciones -- Safari no dispara ese evento).
+   PWA/web shell
+
+   Decision de producto: en navegador normal queremos una version
+   web limpia, sin comportamiento de app instalada ni service workers
+   persistentes que dejen shells viejos pegados (especialmente en Mac,
+   donde Kevin seguia viendo fallos fuera de incognito). Por eso:
+
+   1. limpiamos registros/caches viejos automaticamente;
+   2. desactivamos el registro del service worker en la web;
+   3. dejamos el resto del CRM funcionando como sitio normal.
    ============================================================ */
 (function() {
   var waitingWorker = null;
   var reloaded = false;
+  var ENABLE_PWA_SHELL = false;
 
   function isStandalone() {
     return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+
+  function purgeLegacyPwaState() {
+    if (!('serviceWorker' in navigator)) return Promise.resolve();
+    return navigator.serviceWorker.getRegistrations()
+      .then(function(registrations) {
+        return Promise.all((registrations || []).map(function(reg) {
+          return reg.unregister();
+        }));
+      })
+      .catch(function() { return []; })
+      .then(function() {
+        if (!('caches' in window) || !window.caches.keys) return [];
+        return window.caches.keys().then(function(keys) {
+          return Promise.all(
+            (keys || [])
+              .filter(function(key) {
+                return key.indexOf('flowcrm-') === 0 || key.indexOf('workbox-') === 0;
+              })
+              .map(function(key) { return window.caches.delete(key); })
+          );
+        });
+      })
+      .catch(function() { return []; });
   }
 
   function showUpdateBanner(worker) {
@@ -2296,7 +2343,7 @@ function flashToast(message, type) {
     waitingWorker.postMessage({ type: 'SKIP_WAITING' });
   };
 
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator && ENABLE_PWA_SHELL) {
     navigator.serviceWorker.addEventListener('controllerchange', function() {
       if (reloaded) return;
       reloaded = true;
@@ -2318,6 +2365,10 @@ function flashToast(message, type) {
           });
         });
       }).catch(function() { /* SW opcional -- si falla, el CRM sigue funcionando igual */ });
+    });
+  } else if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      purgeLegacyPwaState();
     });
   }
 
@@ -2369,6 +2420,20 @@ function flashToast(message, type) {
   }
 
   document.addEventListener('DOMContentLoaded', function() {
+    var legacyInstallBanner = document.getElementById('pwa-install-banner');
+    if (legacyInstallBanner) legacyInstallBanner.remove();
+    var updateBanner = document.getElementById('pwa-update-banner');
+    if (updateBanner) updateBanner.remove();
+    document.querySelectorAll('.pwa-banner').forEach(function(el) { el.remove(); });
+    document.querySelectorAll('.pwa-install-banner').forEach(function(el) { el.remove(); });
+    document.querySelectorAll('[data-pwa-banner], [data-install-banner]').forEach(function(el) { el.remove(); });
+    document.querySelectorAll('div, section, aside').forEach(function(el) {
+      var text = (el.textContent || '').trim();
+      if (!text) return;
+      if (text.includes('Instala Flow CRM para acceder mas rapido') || text.includes('como una app.')) {
+        el.remove();
+      }
+    });
     if (!ENABLE_INSTALL_BANNER) return;
     if (!isIosSafari() || isStandalone()) return;
     try { if (localStorage.getItem(INSTALL_DISMISS_KEY)) return; } catch (err) {}

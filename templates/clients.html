@@ -125,6 +125,13 @@
         </tr>
       </thead>
       <tbody>
+        <tr aria-hidden="true" style="display:none;">
+          <td class="sn-ellipsis stack-full"></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
         {% for c in clients %}
         <tr class="sn-table-row"
             data-text="{{ (c.first_name ~ ' ' ~ c.last_name ~ ' ' ~ (c.company or '') ~ ' ' ~ (c.phone or '') ~ ' ' ~ (c.email or ''))|lower }}"

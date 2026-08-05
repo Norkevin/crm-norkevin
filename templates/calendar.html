@@ -183,8 +183,8 @@
 <style>
 .calendar-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
   align-items: start;
 }
 .calendar-main { min-width: 0; }
@@ -192,9 +192,23 @@
   position: sticky;
   top: 96px;
   padding-top: 74px;
+  align-self: start;
 }
-.upcoming-events { margin-bottom: 16px; }
-.upcoming-events-head { font-size: 13px; font-weight: 600; color: var(--sn-muted); margin-bottom: 10px; }
+.upcoming-events {
+  margin-bottom: 0;
+  padding: 18px;
+  background: var(--sn-white);
+  border: 1px solid var(--sn-line);
+  border-radius: var(--sn-radius-lg);
+  box-shadow: 0 12px 28px -26px rgba(15, 23, 42, .45);
+}
+.upcoming-events-head {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sn-ink);
+  margin-bottom: 14px;
+  letter-spacing: .01em;
+}
 .upcoming-events-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -207,10 +221,10 @@
   text-align: left;
   background: var(--sn-white);
   border: 1px solid var(--sn-line);
-  border-radius: 12px;
-  padding: 9px 12px;
+  border-radius: 14px;
+  padding: 12px 14px;
   cursor: pointer;
-  box-shadow: 0 1px 2px var(--sn-shadow-soft);
+  box-shadow: 0 8px 20px -22px rgba(15, 23, 42, .32);
   transition: box-shadow .15s ease, border-color .15s ease, transform .1s ease;
 }
 .upcoming-event-card:hover { box-shadow: 0 8px 22px var(--sn-shadow-card); border-color: var(--sn-line-dark); }

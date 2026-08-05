@@ -8,7 +8,7 @@ import time
 import threading
 import logging
 from datetime import datetime, date, timedelta
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort, session
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort, session, make_response
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -1471,8 +1471,40 @@ def days_until(date_str):
 # ============================================================
 
 def q_money(v) -> str:
-    if v is None: return 'Q0'
-    return f"Q{v:,.0f}".replace(',', ',')
+    amount = coerce_amount(v, 0.0)
+    return f"Q{amount:,.0f}".replace(',', ',')
+
+
+def coerce_amount(value, default=0.0) -> float:
+    """Convierte montos reales del CRM a float sin romper vistas.
+
+    En produccion hay datos que a veces vienen como:
+    - numeros puros
+    - strings con prefijo de moneda: `Q74,982.15`
+    - strings vacios o campos parciales
+
+    El dashboard y varias vistas no deben caerse por eso.
+    """
+    if value is None:
+        return float(default)
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    raw = str(value).strip()
+    if not raw:
+        return float(default)
+
+    negative = raw.startswith('(') and raw.endswith(')')
+    cleaned = re.sub(r'[^0-9,.\-]', '', raw)
+    cleaned = cleaned.replace(',', '')
+    if cleaned in ('', '-', '.', '-.'):
+        return float(default)
+
+    try:
+        parsed = float(cleaned)
+    except Exception:
+        return float(default)
+    return -abs(parsed) if negative else parsed
 
 
 def parse_date(s) -> str:
@@ -1634,7 +1666,33 @@ def _require_login():
     if _is_public_path(request.path):
         return None
     if session.get('logged_in'):
-        return None
+        tenant_id = (session.get('tenant_id') or '').strip()
+        user_email = (session.get('user_email') or '').strip().lower()
+        tenant = next((t for t in store.list('tenants') if t.get('id') == tenant_id), None) if tenant_id else None
+        tenant_login_email = ((tenant or {}).get('login_email') or '').strip().lower()
+
+        # Si el navegador conserva una cookie vieja (antes de multi-tenant,
+        # de otra cuenta, o con datos incompletos), dejamos de intentar
+        # renderizar pantallas con una sesion corrupta y la "autocuramos"
+        # enviando al login otra vez en lugar de responder 500.
+        if tenant and user_email and (not tenant_login_email or tenant_login_email == user_email):
+            return None
+
+        # Mismo bootstrap de un solo uso que auth_google_login_callback: si
+        # ningun tenant tiene login_email configurado todavia (deploy fresco
+        # o tenants.json recien migrado), no hay con que validar la sesion
+        # que el propio login bootstrap acaba de crear -- confiamos en ella
+        # en vez de invalidarla en el siguiente request.
+        if tenant_id and user_email:
+            all_tenants = store.list('tenants')
+            none_migrated_yet = not any(t.get('login_email') for t in all_tenants)
+            if none_migrated_yet:
+                return None
+
+        session.clear()
+        if request.path.startswith('/api/'):
+            return jsonify({'ok': False, 'error': 'Sesion invalida o expirada, inicia sesion de nuevo'}), 401
+        return redirect(url_for('login_page', next=request.path, error='sesion_expirada'))
     if request.path.startswith('/api/'):
         return jsonify({'ok': False, 'error': 'Sesion expirada, inicia sesion de nuevo'}), 401
     return redirect(url_for('login_page', next=request.path))
@@ -1676,9 +1734,24 @@ def pwa_offline():
 @app.route('/login')
 def login_page():
     from src import google_login
-    return render_template('login.html',
-                            google_configured=google_login.is_configured(),
-                            next_path=request.args.get('next', '/dashboard'))
+    response = make_response(render_template(
+        'login.html',
+        google_configured=google_login.is_configured(),
+        next_path=request.args.get('next', '/dashboard')
+    ))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+
+    # Safari/Chrome pueden conservar una mezcla fea de cookie vieja,
+    # service worker y almacenamiento local cuando el usuario vuelve desde
+    # una sesion corrupta. Si el backend ya decidio que esa sesion expiro,
+    # aprovechamos la pantalla de login para pedirle al navegador que limpie
+    # el estado del sitio y vuelva a arrancar "en limpio".
+    if request.args.get('error') == 'sesion_expirada':
+        response.headers['Clear-Site-Data'] = '"cache", "cookies", "storage"'
+
+    return response
 
 
 @app.route('/auth/google/login/start')
@@ -1763,8 +1836,7 @@ def logout():
 
 @app.route('/')
 def index():
-    if not request.args:
-        return redirect('/dashboard')
+    return redirect('/dashboard')
     """Calendar principal con bodas del mes en curso + próximas."""
     import calendar as _cal
     from datetime import date
@@ -1850,7 +1922,7 @@ def dashboard():
     # Workflow events
     workflow_events = workflow_engine.get_history(limit=10) if hasattr(workflow_engine, 'get_history') else []
 
-    total_upcoming = sum(j.get('price_total', 0) for j in upcoming_jobs)
+    total_upcoming = sum(coerce_amount(j.get('price_total') or j.get('Total facturado al cliente (Q)')) for j in upcoming_jobs)
 
     # === GRAFICA 1: Ingresos por mes (ultimos 6 meses) ===
     monthly_income = []
@@ -1866,14 +1938,14 @@ def dashboard():
             month_key = paid[:7] if paid else ''
             for m in monthly_income:
                 if m['key'] == month_key:
-                    m['amount'] += p.get('amount', 0)
+                    m['amount'] += coerce_amount(p.get('amount'))
                     break
 
     # === GRAFICA 2: Pie chart ===
     all_payments = _visible_billable_payments()
-    total_paid = sum(p.get('amount', 0) for p in all_payments if p.get('status') == 'Pagado')
-    total_pending = sum(p.get('amount', 0) for p in all_payments if p.get('status') == 'Pendiente')
-    total_late = sum(p.get('amount', 0) for p in all_payments if p.get('status') == 'Late')
+    total_paid = sum(coerce_amount(p.get('amount')) for p in all_payments if p.get('status') == 'Pagado')
+    total_pending = sum(coerce_amount(p.get('amount')) for p in all_payments if p.get('status') == 'Pendiente')
+    total_late = sum(coerce_amount(p.get('amount')) for p in all_payments if p.get('status') == 'Late')
 
     total_amount = total_paid + total_pending + total_late
     paid_pct = (total_paid / total_amount) if total_amount > 0 else 0
@@ -2023,7 +2095,7 @@ def dashboard():
                 key = _bucket_key(_parse_iso_day(job.get('boda_date') or job.get('created')), range_key)
                 if key in keys_index:
                     session_series[keys_index[key]] += 1
-                    revenue_series[keys_index[key]] += float(job.get('price_total') or job.get('Total facturado al cliente (Q)') or 0)
+                    revenue_series[keys_index[key]] += coerce_amount(job.get('price_total') or job.get('Total facturado al cliente (Q)'))
 
             job_by_id = {job.get('id'): job for job in all_dashboard_jobs}
             lead_by_id = {lead.get('id'): lead for lead in all_dashboard_leads}
@@ -2035,7 +2107,7 @@ def dashboard():
                     continue
                 key = _bucket_key(_parse_iso_day(payment.get('paid_date') or payment.get('fecha_pago') or payment.get('sent_at') or payment.get('due_date')), range_key)
                 if key in keys_index:
-                    amount = float(payment.get('amount') or 0)
+                    amount = coerce_amount(payment.get('amount'))
                     if payment.get('status') == 'Pagado':
                         payment_series[keys_index[key]] += amount
 
@@ -2061,7 +2133,7 @@ def dashboard():
     paid_by_year = defaultdict(lambda: [0.0] * 12)
     projected_by_year = defaultdict(lambda: [0.0] * 12)
     for p in all_dashboard_payments:
-        amount = float(p.get('amount') or 0)
+        amount = coerce_amount(p.get('amount'))
         if p.get('status') == 'Pagado':
             paid_day = _parse_iso_day(p.get('paid_date') or p.get('fecha_pago') or p.get('sent_at') or p.get('due_date'))
             if paid_day:
@@ -2092,6 +2164,8 @@ def dashboard():
             'total_projected': sum(projected),
         })
 
+    total_unpaid = total_pending + total_late
+
     return render_template('dashboard.html',
                            today=today,
                            current_year=today.year,
@@ -2100,7 +2174,8 @@ def dashboard():
                            workflow_events=workflow_events,
                            total_upcoming=total_upcoming,
                            total_income=total_paid,
-                           total_pending=total_pending + total_late,
+                           total_pending=total_unpaid,
+                           total_unpaid=total_unpaid,
                            monthly_income=monthly_income,
                            pie_segments=pie_segments,
                            lead_source_stats=lead_source_stats,
@@ -3142,11 +3217,11 @@ def payments_list():
     ))
 
     # Totales
-    total_due = sum(p.get('amount', 0) for p in payments_all if p.get('status') != 'Pagado')
-    total_expected = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Pendiente' and p.get('days_until'))
-    total_unpaid = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Pendiente')
-    total_late = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Late')
-    total_paid = sum(p.get('amount', 0) for p in payments_all if p.get('status') == 'Pagado')
+    total_due = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') != 'Pagado')
+    total_expected = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Pendiente' and p.get('days_until'))
+    total_unpaid = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Pendiente')
+    total_late = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Late')
+    total_paid = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Pagado')
 
     return render_template('payments.html',
                           payments=payments_all,

@@ -2,9 +2,9 @@
 designer): 'todo pesa igual... dale una jerarquia mucho mas clara al
 Dashboard para que lo mas importante destaque primero'. El dashboard ya
 calculaba total_pending/total_late para un pie chart que nunca se
-renderizaba -- se reutiliza esa data para un banner destacado arriba de
-todo, y Proximos eventos / Actividad reciente se movieron antes que la
-seccion de Ventas y graficas."""
+renderizaba -- se reutiliza esa data para un banner destacado y la
+jerarquia visual ahora pone Ventas y graficas primero, seguida por
+Proximos eventos / Actividad reciente."""
 import uuid
 
 
@@ -56,15 +56,15 @@ def test_pending_payments_banner_is_urgent_when_late(auth_client):
     assert 'atrasado' in html
 
 
-def test_upcoming_events_and_recent_activity_come_before_sales_and_charts(auth_client):
+def test_sales_and_charts_come_before_upcoming_events_and_recent_activity(auth_client):
     resp = auth_client.get('/dashboard')
     html = resp.get_data(as_text=True)
     events_idx = html.find('Proximos eventos y actividad reciente')
     sales_idx = html.find('Ventas y graficas')
     assert events_idx != -1 and sales_idx != -1
-    assert events_idx < sales_idx, 'proximos eventos/actividad debe ir antes que ventas/graficas'
+    assert sales_idx < events_idx, 'ventas/graficas debe ir antes que proximos eventos/actividad'
 
     lists_idx = html.find('<div class="dashboard-lists">')
     panel_idx = html.find('<div class="dashboard-panel">')
     assert lists_idx != -1 and panel_idx != -1
-    assert lists_idx < panel_idx, 'el bloque de listas debe renderizarse antes que el panel de analitica'
+    assert panel_idx < lists_idx, 'el panel de analitica debe renderizarse antes que el bloque de listas'

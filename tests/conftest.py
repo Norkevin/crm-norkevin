@@ -80,6 +80,19 @@ def flask_app(_isolated_environment):
     return app_module.app
 
 
+@pytest.fixture(autouse=True)
+def _restore_tenants_table(_isolated_environment):
+    """login_as_tenant() hace upsert de tenants sinteticos para pasar la
+    guarda de _require_login (app.py) -- el store es un singleton para
+    toda la sesion de pytest, asi que sin este snapshot/restore esos
+    tenants (o un login_email pisado sobre uno real) se filtran a
+    cualquier test que corra despues en la misma sesion."""
+    import app as app_module
+    snapshot = [dict(t) for t in app_module.store.list('tenants')]
+    yield
+    app_module.store._save('tenants', snapshot)
+
+
 @pytest.fixture()
 def client(flask_app, monkeypatch):
     """Cliente HTTP de pruebas. El envio de correo esta parchado a un fake
@@ -104,7 +117,7 @@ def auth_client(client):
     login_as_tenant() en vez de este fixture."""
     with client.session_transaction() as sess:
         sess['logged_in'] = True
-        sess['user_email'] = 'norkevinfoto@gmail.com'
+        sess['user_email'] = 'astralweddingsgt@gmail.com'
         sess['user_name'] = 'Test User'
         sess['tenant_id'] = 'tenant-norkevin'
     return client
@@ -113,7 +126,16 @@ def auth_client(client):
 def login_as_tenant(client, tenant_id, email='test@example.com', name='Test User'):
     """Loguea el mismo test client como una cuenta/tenant distinta -- para
     tests de aislamiento que necesitan probar 2+ cuentas en el mismo test
-    sin el overhead de pasar por el flujo real de Google OAuth."""
+    sin el overhead de pasar por el flujo real de Google OAuth.
+
+    _require_login (app.py) valida que exista un registro en `tenants` cuyo
+    login_email coincida con la sesion -- se hace upsert de uno sintetico
+    aca para que los tenants de prueba (que no existen en tenants.json)
+    sigan pasando esa guarda."""
+    import app as app_module
+    app_module.store.upsert('tenants', {
+        'id': tenant_id, 'name': tenant_id, 'login_email': email, 'active': True,
+    })
     with client.session_transaction() as sess:
         sess['logged_in'] = True
         sess['user_email'] = email
