@@ -190,17 +190,17 @@
 .calendar-main { min-width: 0; }
 .calendar-sidebar {
   position: sticky;
-  top: 96px;
-  padding-top: 74px;
+  top: 80px;
+  padding-top: 54px;
   align-self: start;
 }
 .upcoming-events {
   margin-bottom: 0;
   padding: 18px;
   background: var(--sn-white);
-  border: 1px solid var(--sn-line);
+  border: 1px solid rgba(16, 24, 40, .04);
   border-radius: var(--sn-radius-lg);
-  box-shadow: 0 12px 28px -26px rgba(15, 23, 42, .45);
+  box-shadow: var(--sn-shadow-resting);
 }
 .upcoming-events-head {
   font-size: 13px;
@@ -269,10 +269,10 @@
 }
 .calendar-shell {
   background: var(--sn-white);
-  border: 1px solid var(--sn-line);
-  border-radius: 18px;
+  border: 1px solid rgba(16, 24, 40, .04);
+  border-radius: var(--sn-radius-lg);
   overflow: hidden;
-  box-shadow: 0 1px 2px var(--sn-shadow-soft);
+  box-shadow: var(--sn-shadow-resting);
 }
 .calendar-head,
 .calendar-grid {
@@ -280,8 +280,8 @@
   grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 .calendar-head > div {
-  background: var(--sn-row);
-  border-bottom: 1px solid var(--sn-line);
+  background: transparent;
+  border-bottom: 1px solid rgba(16, 24, 40, .07);
   padding: 11px;
   text-align: center;
   font-size: 10.5px;
@@ -292,8 +292,8 @@
 }
 .calendar-cell {
   min-height: 126px;
-  border-right: 1px solid var(--sn-line);
-  border-bottom: 1px solid var(--sn-line);
+  border-right: 1px solid rgba(16, 24, 40, .06);
+  border-bottom: 1px solid rgba(16, 24, 40, .06);
   padding: 8px;
   background: var(--sn-white);
   transition: background .12s ease;

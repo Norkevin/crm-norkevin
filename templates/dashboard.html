@@ -39,7 +39,7 @@
 .dashboard-ring-label { font-size: 8.5px; color: var(--sn-muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
 .dashboard-shell {
   width: 100%;
-  max-width: 1540px;
+  max-width: var(--content-max);
   margin: 0 auto;
 }
 /* Jerarquia del dashboard (Kevin, feedback de diseño: "todo pesa igual,
@@ -81,20 +81,20 @@
 .dashboard-pending-late-label { display: block; font-size: 10px; opacity: .8; }
 .dashboard-pending-arrow { width: 18px; height: 18px; flex-shrink: 0; opacity: .7; }
 .dashboard-section-label {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: .05em;
   color: var(--sn-muted);
-  margin: 34px 0 14px;
+  margin: 28px 0 12px;
 }
 .dashboard-section-label:first-child { margin-top: 0; }
 .dashboard-panel {
-  border: 1px solid var(--sn-line-dark);
-  border-radius: 22px;
+  border: 1px solid rgba(16, 24, 40, .04);
+  border-radius: var(--sn-radius-lg);
   background: var(--sn-white);
-  padding: 34px;
-  box-shadow: 0 10px 30px -24px rgba(15, 23, 42, .28);
+  padding: 22px;
+  box-shadow: var(--sn-shadow-resting);
 }
 .dashboard-panel-intro {
   display: grid;
@@ -110,9 +110,10 @@
 }
 .dashboard-intro-stat {
   padding: 18px 18px 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(72, 105, 176, .12);
-  background: linear-gradient(180deg, #ffffff, #f7f9fd);
+  border-radius: var(--sn-radius-md);
+  border: 1px solid rgba(16, 24, 40, .05);
+  background: var(--sn-white);
+  box-shadow: var(--sn-shadow-resting);
 }
 .dashboard-intro-stat-label {
   font-size: 12px;
@@ -175,62 +176,60 @@
 }
 .revenue-card,
 .source-card {
-  border: 1px solid var(--sn-line-dark);
-  border-radius: 22px;
+  border: 1px solid rgba(16, 24, 40, .04);
+  border-radius: var(--sn-radius-lg);
   background: var(--sn-white);
   min-width: 0;
   overflow: hidden;
-  box-shadow: 0 10px 24px -24px rgba(15, 23, 42, .28);
+  box-shadow: var(--sn-shadow-resting);
 }
 .metric-tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  padding: 22px 22px 10px;
+  gap: 12px;
+  padding: 18px 18px 6px;
 }
 .metric-tab {
-  min-height: 110px;
-  padding: 20px 18px;
-  border: 1px solid rgba(15, 23, 42, .10);
-  border-radius: 18px;
+  padding: 14px;
+  border: 1px solid rgba(16, 24, 40, .05);
+  border-radius: var(--sn-radius-md);
   background: var(--sn-white);
   color: var(--sn-ink);
   text-align: left;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  box-shadow: 0 1px 2px var(--sn-shadow-soft);
-  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, transform .1s ease;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--sn-shadow-resting);
+  transition: box-shadow .15s ease, transform .1s ease;
 }
-.metric-tab:hover { border-color: var(--sn-line-dark); box-shadow: 0 4px 12px var(--sn-shadow-soft); }
+.metric-tab:hover { box-shadow: var(--sn-shadow-hover); }
 .metric-tab:active { transform: scale(.98); }
 .metric-tab.active {
-  background: var(--sn-white);
-  border-color: var(--metric-color, var(--sn-green));
-  box-shadow: 0 0 0 1.5px var(--metric-color, var(--sn-green)) inset, 0 4px 14px -4px var(--metric-color, var(--sn-green));
+  box-shadow: 0 0 0 1.5px var(--metric-color, var(--sn-green)) inset, var(--sn-shadow-hover);
 }
 .metric-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--sn-radius-sm);
   display: inline-grid;
   place-items: center;
   background: color-mix(in srgb, var(--metric-color, var(--sn-green)) 16%, white);
   color: var(--metric-color, var(--sn-green));
   flex-shrink: 0;
 }
-.metric-icon svg { width: 18px; height: 18px; }
-.metric-label { font-size: 12.5px; font-weight: 500; color: var(--sn-muted); }
-.metric-value { font-size: 22px; font-weight: 700; line-height: 1.1; }
+.metric-icon svg { width: 19px; height: 19px; }
+.metric-copy { min-width: 0; }
+.metric-label { font-size: 12px; font-weight: 500; color: var(--sn-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.metric-value { font-size: 22px; font-weight: 700; line-height: 1.25; margin-top: 1px; }
 .chart-frame {
   position: relative;
-  min-height: 430px;
-  padding: 28px 30px 18px;
+  min-height: 360px;
+  padding: 20px 20px 14px;
   border-top: 1px solid var(--sn-line);
-  margin-top: 14px;
+  margin-top: 10px;
 }
-.chart-frame svg { width: 100%; height: 360px; display: block; }
+.chart-frame svg { width: 100%; height: 300px; display: block; }
 .chart-tooltip {
   position: absolute;
   display: none;
@@ -294,12 +293,12 @@
 }
 .chart-legend-toggle:hover .chart-legend-toggle-hint { display: inline; }
 .source-card {
-  padding: 22px 20px 18px;
+  padding: 18px 18px 16px;
 }
 .source-card h2 {
-  margin: 0 0 20px;
-  font-size: 18px;
-  font-weight: 700;
+  margin: 0 0 16px;
+  font-size: 15px;
+  font-weight: 600;
 }
 .source-bars {
   display: flex;
@@ -344,24 +343,24 @@
   margin-top: 20px;
 }
 .dashboard-list-card {
-  border: 1px solid var(--sn-line-dark);
-  border-radius: 20px;
+  border: 1px solid rgba(16, 24, 40, .04);
+  border-radius: var(--sn-radius-lg);
   background: var(--sn-white);
   min-height: 210px;
   overflow: hidden;
-  box-shadow: 0 1px 2px var(--sn-shadow-soft);
+  box-shadow: var(--sn-shadow-resting);
 }
 .dashboard-list-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 20px;
+  padding: 16px 18px;
   border-bottom: 1px solid var(--sn-line);
 }
 .dashboard-list-title {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 14.5px;
+  font-weight: 600;
 }
 .dashboard-row-avatar {
   width: 32px;
@@ -380,7 +379,7 @@
   grid-template-columns: 32px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 18px 22px;
+  padding: 12px 18px;
   border-bottom: 1px solid var(--sn-line);
   color: var(--sn-ink);
   font-size: 13px;
@@ -546,23 +545,31 @@
         <div class="metric-tabs">
           <button class="metric-tab" type="button" data-metric="leads" style="--metric-color:#0D9488;" onclick="setDashboardMetric('leads')">
             <span class="metric-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></span>
-            <div class="metric-label">Leads</div>
-            <div class="metric-value" id="dashboard-leads-value">{{ recent_leads|length }}</div>
+            <div class="metric-copy">
+              <div class="metric-label">Leads</div>
+              <div class="metric-value" id="dashboard-leads-value">{{ recent_leads|length }}</div>
+            </div>
           </button>
           <button class="metric-tab" type="button" data-metric="sessions" style="--metric-color:#7C3AED;" onclick="setDashboardMetric('sessions')">
             <span class="metric-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></span>
-            <div class="metric-label">Sesiones</div>
-            <div class="metric-value" id="dashboard-sessions-value">{{ upcoming_jobs|length }}</div>
+            <div class="metric-copy">
+              <div class="metric-label">Sesiones</div>
+              <div class="metric-value" id="dashboard-sessions-value">{{ upcoming_jobs|length }}</div>
+            </div>
           </button>
           <button class="metric-tab" type="button" data-metric="payments" style="--metric-color:#D97706;" onclick="setDashboardMetric('payments')">
             <span class="metric-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h2m4 0h4M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/></svg></span>
-            <div class="metric-label">Pagos</div>
-            <div class="metric-value" id="dashboard-payments-value">Q{{ '{:,.0f}'.format(total_paid) }}</div>
+            <div class="metric-copy">
+              <div class="metric-label">Pagos</div>
+              <div class="metric-value" id="dashboard-payments-value">Q{{ '{:,.0f}'.format(total_paid) }}</div>
+            </div>
           </button>
           <button class="metric-tab active" type="button" data-metric="revenue" style="--metric-color:#0F766E;" onclick="setDashboardMetric('revenue')">
             <span class="metric-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l7-3v13M9 19l-6 2V8l6-2m0 13l7-2V6m0 0l6-2v13l-6 2"/></svg></span>
-            <div class="metric-label">Comparativo</div>
-            <div class="metric-value" id="dashboard-revenue-value"></div>
+            <div class="metric-copy">
+              <div class="metric-label">Comparativo</div>
+              <div class="metric-value" id="dashboard-revenue-value"></div>
+            </div>
           </button>
         </div>
 
@@ -645,53 +652,6 @@
       </div>
       {% for j in upcoming_jobs[:5] %}
       <a class="dashboard-row" href="/jobs/{{ j.id }}">
-        <span>{{ j.boda_date or 'No date' }}</span>
-        <span>
-          <span class="dashboard-row-main">{{ j.nombre }}</span>
-          <span class="dashboard-row-sub">{{ j.location or 'Sin ubicacion' }}</span>
-        </span>
-        <span class="sn-chip green">Job</span>
-      </a>
-      {% else %}
-      <div class="text-center py-6 text-ink-soft text-sm">Sin sesiones proximas</div>
-      {% endfor %}
-    </div>
-
-    <div class="dashboard-list-card">
-      <div class="dashboard-list-head">
-        <div class="dashboard-list-title">Leads recientes</div>
-        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/leads?new=1">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-          Nuevo
-        </a>
-      </div>
-      {% for l in recent_leads %}
-      <a class="dashboard-row" href="/leads/{{ l.id }}">
-        <span>{{ l.created or 'Today' }}</span>
-        <span>
-          <span class="dashboard-row-main">{{ l.nombre }}</span>
-          <span class="dashboard-row-sub">{{ l.email or l.fuente or '' }}</span>
-        </span>
-        <span class="sn-chip cyan">{{ l.mail_status or 'OPEN' }}</span>
-      </a>
-      {% else %}
-      <div class="text-center py-6 text-ink-soft text-sm">Sin leads recientes</div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <div class="dashboard-section-label">Proximos eventos y actividad reciente</div>
-  <div class="dashboard-lists">
-    <div class="dashboard-list-card">
-      <div class="dashboard-list-head">
-        <div class="dashboard-list-title">Upcoming Session &amp; Appointments</div>
-        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/jobs?new=1">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-          Add New
-        </a>
-      </div>
-      {% for j in upcoming_jobs[:5] %}
-      <a class="dashboard-row" href="/jobs/{{ j.id }}">
         <span class="dashboard-row-avatar">{{ (j.nombre or '?')[:1]|upper }}</span>
         <span>
           <span class="dashboard-row-main">{{ j.nombre }}</span>
@@ -706,10 +666,10 @@
 
     <div class="dashboard-list-card">
       <div class="dashboard-list-head">
-        <div class="dashboard-list-title">Most Recent Leads</div>
+        <div class="dashboard-list-title">Leads recientes</div>
         <a class="sn-btn sn-btn-primary sn-btn-sm" href="/leads?new=1">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-          Add New
+          Nuevo
         </a>
       </div>
       {% for l in recent_leads %}
