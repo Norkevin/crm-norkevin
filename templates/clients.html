@@ -141,14 +141,17 @@
             data-email="{{ c.email or '' }}"
             onclick="goClient(event, '{{ c.id }}')">
           <td class="sn-ellipsis stack-full" data-label="Client">
-            <div class="client-primary">
-              <div class="client-name-stack">
-                <span class="client-first-name sn-ellipsis">{{ c.first_name or 'Sin nombre' }}</span>
-                {% if c.last_name %}
-                <span class="client-last-name sn-ellipsis">{{ c.last_name }}</span>
-                {% endif %}
+            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+              <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (c.first_name or '?')[:1]|upper }}{{ (c.last_name or '')[:1]|upper }}</span>
+              <div class="client-primary">
+                <div class="client-name-stack">
+                  <span class="client-first-name sn-ellipsis">{{ c.first_name or 'Sin nombre' }}</span>
+                  {% if c.last_name %}
+                  <span class="client-last-name sn-ellipsis">{{ c.last_name }}</span>
+                  {% endif %}
+                </div>
+                <div class="client-email-text sn-ellipsis">{{ c.email or '—' }}</div>
               </div>
-              <div class="client-email-text sn-ellipsis">{{ c.email or '—' }}</div>
             </div>
           </td>
           <td class="sn-ellipsis client-meta" data-label="Company">{{ c.company or '—' }}</td>
@@ -300,6 +303,11 @@ function openClientModal() {
   document.getElementById('client-modal').classList.add('open');
   setTimeout(function() { document.getElementById('client-first').focus(); }, 50);
 }
+document.addEventListener('DOMContentLoaded', function() {
+  if (new URLSearchParams(window.location.search).get('new') === '1') {
+    openClientModal();
+  }
+});
 
 function closeClientModal() {
   document.getElementById('client-modal').classList.remove('open');

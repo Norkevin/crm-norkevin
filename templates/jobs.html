@@ -171,11 +171,14 @@
             {% endif %}
           </td>
           <td class="sn-ellipsis stack-full" data-label="Job">
-            <div class="job-primary">
-              <div class="job-name-stack">
-                <span class="job-title sn-ellipsis">{{ job.nombre or 'Sin nombre' }}</span>
+            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+              <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (job.nombre or '?')[:1]|upper }}</span>
+              <div class="job-primary">
+                <div class="job-name-stack">
+                  <span class="job-title sn-ellipsis">{{ job.nombre or 'Sin nombre' }}</span>
+                </div>
+                <span class="job-type-text sn-ellipsis">{{ job.type or 'BODAS' }}</span>
               </div>
-              <span class="job-type-text sn-ellipsis">{{ job.type or 'BODAS' }}</span>
             </div>
           </td>
           <td data-label="Progress">

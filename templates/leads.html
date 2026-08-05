@@ -78,7 +78,7 @@
           <td class="sn-ellipsis" data-label="Created">{{ lead.created_display or lead.created or '—' }}</td>
           <td class="sn-ellipsis stack-full" data-label="Lead Name">
             <div class="sn-row-name">
-              <span class="sn-row-avatar">{{ (lead.nombre or '?')[:1]|upper }}</span>
+              <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (lead.nombre or '?')[:1]|upper }}</span>
               <span>{{ lead.nombre or 'Sin nombre' }}</span>
             </div>
           </td>

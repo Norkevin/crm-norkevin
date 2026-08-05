@@ -251,7 +251,7 @@
   flex-shrink: 0;
 }
 .upcoming-event-badge.lead { background: #0D9488; }
-.upcoming-event-badge.job { background: #7C3AED; }
+.upcoming-event-badge.job { background: #2563EB; }
 .upcoming-event-badge.event { background: #D97706; }
 .upcoming-event-title { font-size: 13.5px; font-weight: 600; color: var(--sn-ink); }
 .upcoming-event-date { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 11.5px; color: var(--sn-muted); }
@@ -343,7 +343,7 @@
   color: #fff;
 }
 .calendar-event-badge.lead { background: #0D9488; }
-.calendar-event-badge.job { background: #7C3AED; }
+.calendar-event-badge.job { background: #2563EB; }
 .calendar-event-badge.event { background: #D97706; }
 .calendar-event-title {
   width: 100%;
@@ -419,6 +419,11 @@ function openEventModal() {
   document.getElementById('event-modal').classList.add('open');
   setTimeout(function() { document.getElementById('event-title').focus(); }, 50);
 }
+document.addEventListener('DOMContentLoaded', function() {
+  if (new URLSearchParams(window.location.search).get('new') === '1') {
+    openEventModal();
+  }
+});
 
 function closeEventModal() {
   document.getElementById('event-modal').classList.remove('open');

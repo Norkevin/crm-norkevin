@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{% block title %}ASTRAL WEDDINGS · Flow CRM{% endblock %}</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#0D9488">
+<meta name="theme-color" content="#6D5AE6">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -25,10 +25,15 @@
 {% include "_tailwind_config.html" %}
 <style>
 :root {
-  --sn-green: #0D9488;
-  --sn-green-dark: #0F766E;
-  --sn-mint: #CCFBF1;
-  --sn-mint-soft: #F0FDFA;
+  /* v4: acento violeta/indigo -- Kevin senalo una referencia especifica
+     (dashboard SaaS lavanda) despues de ver el v3 en teal. Se mantiene el
+     *nombre* de la variable (--sn-green) para no romper los ~100+ usos
+     existentes, solo cambia el valor -- mismo patron que el cambio azul->
+     teal de la v1. */
+  --sn-green: #6D5AE6;
+  --sn-green-dark: #5849BE;
+  --sn-mint: #EDE9FE;
+  --sn-mint-soft: #F5F3FF;
   --sn-ink: #111827;
   --sn-muted: #6B7280;
   --sn-soft: #9CA3AF;
@@ -51,7 +56,7 @@
      colapse al mismo gris (ver seccion 1 del feedback de Kevin). */
   --sn-surface-2: #F3F4F6;
   --sn-surface-hover: #F6F7F9;
-  --sn-focus-ring: rgba(13, 148, 136, .15);
+  --sn-focus-ring: rgba(109, 90, 230, .15);
   --sn-shadow-soft: rgba(16, 24, 40, .06);
   --sn-shadow-card: rgba(16, 24, 40, .10);
   --sn-overlay: rgba(15, 18, 22, .6);
@@ -94,9 +99,9 @@
   --sn-ink: #f3f6f9;
   --sn-muted: #aab4c0;
   --sn-soft: #7f8a98;
-  --sn-mint: #0b2b28;
-  --sn-mint-soft: #081f1c;
-  --sn-focus-ring: rgba(45, 212, 191, .18);
+  --sn-mint: #211c3d;
+  --sn-mint-soft: #191530;
+  --sn-focus-ring: rgba(139, 124, 246, .22);
   --sn-shadow-soft: rgba(0, 0, 0, .35);
   --sn-shadow-card: rgba(0, 0, 0, .45);
   --sn-shadow-resting: 0 1px 2px rgba(0, 0, 0, .3), 0 1px 3px rgba(0, 0, 0, .35);
@@ -846,6 +851,26 @@ a.sn-notification-item:hover {
   font-weight: 700;
   flex-shrink: 0;
 }
+/* v4: avatares de color con iniciales para filas de tabla (Clientes/Jobs/
+   Leads) -- Kevin compartio una referencia que los usa en vez de solo
+   texto. Paleta rotativa via loop.index0 %% 6, puramente visual, no
+   depende de ningun dato nuevo. */
+.sn-row-avatar-lg {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.sn-row-avatar-lg.c0 { background: #EDE9FE; color: #5849BE; }
+.sn-row-avatar-lg.c1 { background: #DBEAFE; color: #1D4ED8; }
+.sn-row-avatar-lg.c2 { background: #FCE7F3; color: #BE185D; }
+.sn-row-avatar-lg.c3 { background: #FEF3C7; color: #92400E; }
+.sn-row-avatar-lg.c4 { background: #D1FAE5; color: #047857; }
+.sn-row-avatar-lg.c5 { background: #FFE4E6; color: #BE123C; }
 .sn-row-subtitle {
   display: flex;
   align-items: center;
@@ -1574,9 +1599,9 @@ a.kpi-card:hover,
   color: #fff;
 }
 .workflow-rail.lead { background: #0D9488; }
-.workflow-rail.production { background: #7C3AED; }
+.workflow-rail.production { background: #2563EB; }
 .workflow-rail.delivery { background: #D97706; }
-:root[data-theme="dark"] .workflow-rail.production { background: #8B5CF6; }
+:root[data-theme="dark"] .workflow-rail.production { background: #3B82F6; }
 :root[data-theme="dark"] .workflow-rail.delivery { background: #F59E0B; }
 .workflow-steps { display: flex; flex-direction: column; gap: 8px; }
 .workflow-step {
@@ -2138,7 +2163,10 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   </div>
   <div class="sidebar-bottom">
     <div class="sidebar-account" title="{{ current_tenant.name|default('ASTRAL WEDDINGS') }}">
-      <span class="sidebar-account-avatar">{{ (session.user_name or session.user_email or 'K')[:1]|upper }}</span>
+      <span class="sidebar-account-avatar">
+        {% if session.user_picture %}<img src="{{ session.user_picture }}" alt="" style="width:100%;height:100%;border-radius:999px;object-fit:cover;">
+        {% else %}{{ (session.user_name or session.user_email or 'K')[:1]|upper }}{% endif %}
+      </span>
       <span class="sidebar-account-copy">
         <span class="sidebar-account-tenant">{{ current_tenant.name|default('ASTRAL WEDDINGS') }}</span>
         <span class="sidebar-account-email">{{ session.user_name or session.user_email or '' }}</span>
@@ -2193,6 +2221,17 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   </nav>
 
   <div class="header-right">
+    <div class="header-popover-wrap" style="position:relative;">
+      <button class="sn-icon-button" type="button" title="Agregar" onclick="toggleQuickAddMenu(event)" style="background:var(--sn-green);color:#fff;border-color:var(--sn-green);">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+      </button>
+      <div class="tenant-menu" id="quick-add-menu" style="right:0;top:calc(100% + 8px);">
+        <a class="tenant-menu-item" href="/clients?new=1">Nuevo cliente</a>
+        <a class="tenant-menu-item" href="/leads?new=1">Nuevo lead</a>
+        <a class="tenant-menu-item" href="/jobs?new=1">Nuevo job</a>
+        <a class="tenant-menu-item" href="/calendar?new=1">Nuevo evento</a>
+      </div>
+    </div>
     <div class="header-popover-wrap">
       <button class="sn-icon-button" type="button" title="Notificaciones" onclick="toggleNotifications(event)">
         <span id="notif-bell-badge">
@@ -2248,12 +2287,16 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       <span class="tenant-name">{{ current_tenant.name|default('ASTRAL WEDDINGS') }}</span>
     </div>
     <div class="header-popover-wrap">
-      <button class="sn-icon-button" type="button" title="Cuenta" onclick="toggleAccountMenu(event)">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19.5 21a7.5 7.5 0 0 0-15 0M12 12.5a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"/></svg>
+      <button class="sn-icon-button" type="button" title="Cuenta" onclick="toggleAccountMenu(event)" style="padding:0;overflow:hidden;">
+        {% if session.user_picture %}<img src="{{ session.user_picture }}" alt="" style="width:100%;height:100%;object-fit:cover;">
+        {% else %}<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19.5 21a7.5 7.5 0 0 0-15 0M12 12.5a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"/></svg>{% endif %}
       </button>
       <div class="sn-account-menu" id="account-menu" onclick="event.stopPropagation()">
         <div class="sn-account-profile">
-          <div class="sn-avatar-letter">{{ (session.user_name or session.user_email or 'K')[:1]|upper }}</div>
+          <div class="sn-avatar-letter">
+            {% if session.user_picture %}<img src="{{ session.user_picture }}" alt="" style="width:100%;height:100%;border-radius:999px;object-fit:cover;">
+            {% else %}{{ (session.user_name or session.user_email or 'K')[:1]|upper }}{% endif %}
+          </div>
           <div>
             <div class="sn-account-name">{{ session.user_name or 'Kevin Lemus' }}</div>
             <div class="sn-account-email">{{ session.user_email or 'info@astralweddings.com' }}</div>
@@ -2305,7 +2348,10 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 <div class="more-sheet" id="more-sheet">
   <div class="more-sheet-head">
     <div class="more-sheet-profile">
-      <div class="sn-avatar-letter">{{ (session.user_name or session.user_email or 'K')[:1]|upper }}</div>
+      <div class="sn-avatar-letter">
+        {% if session.user_picture %}<img src="{{ session.user_picture }}" alt="" style="width:100%;height:100%;border-radius:999px;object-fit:cover;">
+        {% else %}{{ (session.user_name or session.user_email or 'K')[:1]|upper }}{% endif %}
+      </div>
       <div>
         <div class="more-sheet-name">{{ session.user_name or 'Kevin Lemus' }}</div>
         <div class="more-sheet-email">{{ session.user_email or 'info@astralweddings.com' }}</div>
@@ -2564,6 +2610,15 @@ function toggleSidebarCollapse() {
   var collapsed = document.body.classList.toggle('sidebar-collapsed');
   try { localStorage.setItem('flowcrm-sidebar-collapsed', collapsed ? '1' : '0'); } catch (e) {}
 }
+
+function toggleQuickAddMenu(event) {
+  event.stopPropagation();
+  document.getElementById('quick-add-menu').classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  var menu = document.getElementById('quick-add-menu');
+  if (menu && !menu.contains(e.target)) menu.classList.remove('open');
+});
 
 /* Tabs reutilizables: <div class="sn-tabs"><button class="sn-tab
    active" data-tab-target="pagos" onclick="switchTab(this,'job-tabs')">

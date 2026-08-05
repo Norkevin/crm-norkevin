@@ -135,6 +135,67 @@
   line-height: 1.55;
   color: #667085;
 }
+
+/* v4: fila de widgets nuevos (Tareas, Estado de pagos, Actividad reciente)
+   -- Kevin senalo una referencia especifica que los incluye. Reusan datos
+   que el backend ya calculaba pero nunca se mostraban (pie_segments,
+   recent_notifications) en vez de inventar features nuevas. */
+.dashboard-widgets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+.dashboard-widget-card {
+  border: 1px solid rgba(16, 24, 40, .04);
+  border-radius: var(--sn-radius-lg);
+  background: var(--sn-white);
+  box-shadow: var(--sn-shadow-resting);
+  padding: 18px;
+  min-width: 0;
+}
+.dashboard-widget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.dashboard-widget-title { font-size: 14px; font-weight: 600; color: var(--sn-ink); }
+.dashboard-task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--sn-line);
+  font-size: 12.5px;
+}
+.dashboard-task-row:last-child { border-bottom: none; }
+.dashboard-task-check {
+  width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px;
+  border-radius: 5px; border: 1.5px solid var(--sn-line-dark);
+}
+.dashboard-task-copy { min-width: 0; flex: 1; }
+.dashboard-task-title { color: var(--sn-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-task-due { font-size: 10.5px; color: var(--sn-muted); margin-top: 2px; }
+.dashboard-task-due.urgent { color: #dc2626; font-weight: 600; }
+.dashboard-donut-wrap { display: flex; align-items: center; gap: 16px; }
+.dashboard-donut-legend { display: flex; flex-direction: column; gap: 8px; font-size: 11.5px; flex: 1; min-width: 0; }
+.dashboard-donut-legend-row { display: flex; align-items: center; gap: 6px; }
+.dashboard-donut-dot { width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0; }
+.dashboard-donut-legend-label { color: var(--sn-muted); flex: 1; }
+.dashboard-donut-legend-value { color: var(--sn-ink); font-weight: 600; }
+.dashboard-activity-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--sn-line); }
+.dashboard-activity-row:last-child { border-bottom: none; }
+.dashboard-activity-icon {
+  width: 28px; height: 28px; flex-shrink: 0; border-radius: 999px;
+  display: grid; place-items: center; background: var(--sn-mint-soft); color: var(--sn-green-dark);
+}
+.dashboard-activity-icon svg { width: 14px; height: 14px; }
+.dashboard-activity-copy { min-width: 0; }
+.dashboard-activity-title { font-size: 12px; color: var(--sn-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-activity-meta { font-size: 10.5px; color: var(--sn-muted); margin-top: 1px; }
+@media (max-width: 900px) { .dashboard-widgets { grid-template-columns: 1fr; } }
+
 .dashboard-controls {
   display: flex;
   align-items: center;
@@ -550,7 +611,7 @@
               <div class="metric-value" id="dashboard-leads-value">{{ recent_leads|length }}</div>
             </div>
           </button>
-          <button class="metric-tab" type="button" data-metric="sessions" style="--metric-color:#7C3AED;" onclick="setDashboardMetric('sessions')">
+          <button class="metric-tab" type="button" data-metric="sessions" style="--metric-color:#2563EB;" onclick="setDashboardMetric('sessions')">
             <span class="metric-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></span>
             <div class="metric-copy">
               <div class="metric-label">Sesiones</div>
@@ -637,6 +698,77 @@
       <div class="dashboard-intro-stat-label">Saldo pendiente</div>
       <div class="dashboard-intro-stat-value">Q{{ '{:,.0f}'.format(total_unpaid) }}</div>
       <div class="dashboard-intro-stat-meta">Montos que todavia siguen abiertos en facturas.</div>
+    </div>
+  </div>
+
+  <div class="dashboard-widgets">
+    <div class="dashboard-widget-card">
+      <div class="dashboard-widget-head">
+        <div class="dashboard-widget-title">Tareas</div>
+      </div>
+      {% for j in upcoming_jobs[:4] %}
+      <a class="dashboard-task-row" href="/jobs/{{ j.id }}" style="text-decoration:none;color:inherit;">
+        <span class="dashboard-task-check"></span>
+        <span class="dashboard-task-copy">
+          <span class="dashboard-task-title">{{ j.next_task or 'Job complete' }} &middot; {{ j.nombre }}</span>
+          <span class="dashboard-task-due {{ 'urgent' if j.dias_restantes is not none and j.dias_restantes <= 3 else '' }}">
+            {% if j.dias_restantes == 0 %}Hoy{% elif j.dias_restantes == 1 %}Manana{% elif j.dias_restantes is not none %}En {{ j.dias_restantes }} dias{% else %}Sin fecha{% endif %}
+          </span>
+        </span>
+      </a>
+      {% else %}
+      <div class="sn-muted" style="font-size:12.5px;">Sin tareas pendientes.</div>
+      {% endfor %}
+    </div>
+
+    <div class="dashboard-widget-card">
+      <div class="dashboard-widget-head">
+        <div class="dashboard-widget-title">Estado de pagos</div>
+      </div>
+      {% if pie_segments %}
+      <div class="dashboard-donut-wrap">
+        <svg width="88" height="88" viewBox="0 0 200 200">
+          {% for seg in pie_segments %}
+          <path d="{{ seg.path }}" fill="{{ seg.color }}"></path>
+          {% endfor %}
+          <circle cx="100" cy="100" r="52" fill="var(--sn-white)"></circle>
+        </svg>
+        <div class="dashboard-donut-legend">
+          {% for seg in pie_segments %}
+          <div class="dashboard-donut-legend-row">
+            <span class="dashboard-donut-dot" style="background:{{ seg.color }};"></span>
+            <span class="dashboard-donut-legend-label">{{ seg.label }}</span>
+            <span class="dashboard-donut-legend-value">Q{{ '{:,.0f}'.format(seg.amount) }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <div class="sn-muted" style="font-size:12.5px;">Sin pagos registrados todavia.</div>
+      {% endif %}
+    </div>
+
+    <div class="dashboard-widget-card">
+      <div class="dashboard-widget-head">
+        <div class="dashboard-widget-title">Actividad reciente</div>
+      </div>
+      {% for n in recent_notifications[:5] %}
+      <div class="dashboard-activity-row">
+        <span class="dashboard-activity-icon">
+          {% if n.type == 'mail' %}
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
+          {% else %}
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m7-9a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/></svg>
+          {% endif %}
+        </span>
+        <span class="dashboard-activity-copy">
+          <span class="dashboard-activity-title">{{ n.title }}</span>
+          <span class="dashboard-activity-meta">{{ n.age or n.date or '' }}</span>
+        </span>
+      </div>
+      {% else %}
+      <div class="sn-muted" style="font-size:12.5px;">Sin actividad reciente.</div>
+      {% endfor %}
     </div>
   </div>
 
@@ -795,7 +927,7 @@ function smoothPath(points) {
   return d;
 }
 
-var METRIC_COLORS = { leads: '#0D9488', sessions: '#7C3AED', payments: '#D97706', revenue: '#0F766E' };
+var METRIC_COLORS = { leads: '#0D9488', sessions: '#2563EB', payments: '#D97706', revenue: '#0F766E' };
 
 function drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usableW, usableH, max, formatAxis) {
   // Kevin: 'las lineas blancas en la grafica no me gustan, quitalas' --
