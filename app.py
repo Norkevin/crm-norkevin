@@ -1916,6 +1916,19 @@ def dashboard():
             pass
     upcoming_jobs.sort(key=lambda j: j.get('dias_restantes', 999))
 
+    # Kevin: para la tabla "Recent jobs" del dashboard (mismo patron que ya
+    # usa /jobs) -- solo nombre de cliente y progreso del workflow, nada de
+    # logica nueva.
+    _dash_clients_by_id = {c['id']: c for c in _canonical_clients()}
+    for j in upcoming_jobs[:5]:
+        client = _dash_clients_by_id.get(j.get('client_id'))
+        j['client_name'] = f"{client.get('first_name', '')} {client.get('last_name', '')}".strip() if client else 'Sin cliente'
+        try:
+            _, prog, _ = compute_workflow_steps_for_job(j)
+            j['workflow_progress'] = prog
+        except Exception:
+            j['workflow_progress'] = 0
+
     # Recent leads (ultimos 5)
     recent_leads = sorted(_open_leads(), key=lambda l: l.get('created', ''), reverse=True)[:5]
 

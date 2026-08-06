@@ -196,6 +196,20 @@
 .dashboard-activity-meta { font-size: 10.5px; color: var(--sn-muted); margin-top: 1px; }
 @media (max-width: 900px) { .dashboard-widgets { grid-template-columns: 1fr; } }
 
+.dashboard-jobs-table-wrap { overflow-x: auto; }
+.dashboard-jobs-table { width: 100%; border-collapse: collapse; }
+.dashboard-jobs-table th {
+  text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--sn-muted); padding: 0 12px 10px; white-space: nowrap;
+}
+.dashboard-jobs-table td { padding: 11px 12px; border-top: 1px solid rgba(16,24,40,.06); font-size: 13px; vertical-align: middle; }
+.dashboard-jobs-table tr.dashboard-jobs-row { cursor: pointer; }
+.dashboard-jobs-table tr.dashboard-jobs-row:hover td { background: var(--sn-mint-soft); }
+.dashboard-jobs-job-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dashboard-jobs-job-name { font-weight: 600; color: var(--sn-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dashboard-jobs-progress-wrap { display: flex; align-items: center; gap: 8px; min-width: 90px; }
+.dashboard-jobs-progress-pct { font-size: 11.5px; color: var(--sn-muted); flex-shrink: 0; width: 30px; text-align: right; }
+
 .dashboard-controls {
   display: flex;
   align-items: center;
@@ -769,6 +783,46 @@
       {% else %}
       <div class="sn-muted" style="font-size:12.5px;">Sin actividad reciente.</div>
       {% endfor %}
+    </div>
+  </div>
+
+  <div class="dashboard-section-label">Recent jobs</div>
+  <div class="dashboard-panel">
+    <div class="dashboard-jobs-table-wrap">
+      <table class="dashboard-jobs-table">
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Client</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Progress</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for j in upcoming_jobs[:5] %}
+          <tr class="dashboard-jobs-row" onclick="window.location.href='/jobs/{{ j.id }}'">
+            <td>
+              <div class="dashboard-jobs-job-cell">
+                <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (j.nombre or '?')[:1]|upper }}</span>
+                <span class="dashboard-jobs-job-name">{{ j.nombre or 'Sin nombre' }}</span>
+              </div>
+            </td>
+            <td>{{ j.client_name or 'Sin cliente' }}</td>
+            <td>{{ j.boda_date or 'Sin fecha' }}</td>
+            <td><span class="sn-chip green">{{ j.status or 'Activo' }}</span></td>
+            <td>
+              <div class="dashboard-jobs-progress-wrap">
+                <div class="sn-progress"><div class="sn-progress-fill" style="width:{{ j.workflow_progress or 0 }}%;"></div></div>
+                <span class="dashboard-jobs-progress-pct">{{ j.workflow_progress or 0 }}%</span>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5"><div class="sn-muted" style="padding:8px 0;">Sin jobs proximos.</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 
