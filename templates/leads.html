@@ -149,6 +149,7 @@
       </tbody>
     </table>
   </div>
+  <div class="sn-pagination" id="leads-pagination"></div>
 </section>
 
 <div class="modal-overlay" id="lead-modal">
@@ -249,17 +250,49 @@ function goLead(event, id) {
   window.location.href = '/leads/' + id;
 }
 
+var LEADS_PAGE_SIZE = 12;
+var leadsPage = 1;
+
 function filterLeads() {
+  leadsPage = 1;
+  renderLeadsRows();
+}
+
+function renderLeadsRows() {
   var q = (document.getElementById('lead-search').value || '').trim().toLowerCase();
   var status = document.getElementById('lead-status-filter').value;
-  document.querySelectorAll('#leads-table tbody tr').forEach(function(row) {
-    if (!row.dataset.text) return;
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#leads-table tbody tr[data-text]'));
+  var matched = rows.filter(function(row) {
     var rowStatus = row.dataset.status || 'Nuevo';
     var open = rowStatus !== 'Convertido' && rowStatus !== 'Perdido';
     var statusOk = status === 'all' || (status === 'open' ? open : rowStatus === status);
     var searchOk = !q || row.dataset.text.indexOf(q) !== -1;
-    row.style.display = statusOk && searchOk ? '' : 'none';
+    return statusOk && searchOk;
   });
+  var totalPages = Math.max(1, Math.ceil(matched.length / LEADS_PAGE_SIZE));
+  if (leadsPage > totalPages) leadsPage = totalPages;
+  var start = (leadsPage - 1) * LEADS_PAGE_SIZE;
+  var pageRows = matched.slice(start, start + LEADS_PAGE_SIZE);
+  rows.forEach(function(row) { row.style.display = 'none'; });
+  pageRows.forEach(function(row) { row.style.display = ''; });
+  renderLeadsPagination(totalPages, matched.length);
+}
+
+function renderLeadsPagination(totalPages, totalMatched) {
+  var el = document.getElementById('leads-pagination');
+  if (!el) return;
+  if (totalMatched === 0 || totalPages <= 1) { el.innerHTML = ''; return; }
+  var html = '<button class="sn-pagination-btn" ' + (leadsPage === 1 ? 'disabled' : '') + ' onclick="goLeadsPage(' + (leadsPage - 1) + ')" aria-label="Anterior">&lsaquo;</button>';
+  for (var i = 1; i <= totalPages; i++) {
+    html += '<button class="sn-pagination-btn' + (i === leadsPage ? ' active' : '') + '" onclick="goLeadsPage(' + i + ')">' + i + '</button>';
+  }
+  html += '<button class="sn-pagination-btn" ' + (leadsPage === totalPages ? 'disabled' : '') + ' onclick="goLeadsPage(' + (leadsPage + 1) + ')" aria-label="Siguiente">&rsaquo;</button>';
+  el.innerHTML = html;
+}
+
+function goLeadsPage(p) {
+  leadsPage = p;
+  renderLeadsRows();
 }
 
 function workflowStepForTask(taskName) {
@@ -422,6 +455,7 @@ document.addEventListener('keydown', function(event) {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
+  renderLeadsRows();
   if (new URLSearchParams(window.location.search).get('new') === '1') {
     openLeadModal();
   }

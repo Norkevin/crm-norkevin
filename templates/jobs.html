@@ -200,6 +200,7 @@
       </tbody>
     </table>
   </div>
+  <div class="sn-pagination" id="jobs-pagination"></div>
 </section>
 
 <div class="modal-overlay" id="job-modal">
@@ -260,11 +261,20 @@ function goJob(event, id) {
   window.location.href = '/jobs/' + id;
 }
 
+var JOBS_PAGE_SIZE = 12;
+var jobsPage = 1;
+
 function filterJobs() {
+  jobsPage = 1;
+  renderJobsRows();
+}
+
+function renderJobsRows() {
   var q = (document.getElementById('job-search').value || '').trim().toLowerCase();
   var status = document.getElementById('job-status-filter').value;
   var today = new Date().toISOString().slice(0, 10);
-  document.querySelectorAll('#jobs-table tbody tr').forEach(function(row) {
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#jobs-table tbody tr[data-name]'));
+  var matched = rows.filter(function(row) {
     var name = row.getAttribute('data-name') || '';
     var rowStatus = row.getAttribute('data-status') || '';
     var active = rowStatus !== 'Archivado' && rowStatus !== 'Listo';
@@ -278,8 +288,32 @@ function filterJobs() {
       (status === 'completed' && completed) ||
       (status === 'archived' && archived);
     var searchOk = !q || name.indexOf(q) !== -1;
-    row.style.display = statusOk && searchOk ? '' : 'none';
+    return statusOk && searchOk;
   });
+  var totalPages = Math.max(1, Math.ceil(matched.length / JOBS_PAGE_SIZE));
+  if (jobsPage > totalPages) jobsPage = totalPages;
+  var start = (jobsPage - 1) * JOBS_PAGE_SIZE;
+  var pageRows = matched.slice(start, start + JOBS_PAGE_SIZE);
+  rows.forEach(function(row) { row.style.display = 'none'; });
+  pageRows.forEach(function(row) { row.style.display = ''; });
+  renderJobsPagination(totalPages, matched.length);
+}
+
+function renderJobsPagination(totalPages, totalMatched) {
+  var el = document.getElementById('jobs-pagination');
+  if (!el) return;
+  if (totalMatched === 0 || totalPages <= 1) { el.innerHTML = ''; return; }
+  var html = '<button class="sn-pagination-btn" ' + (jobsPage === 1 ? 'disabled' : '') + ' onclick="goJobsPage(' + (jobsPage - 1) + ')" aria-label="Anterior">&lsaquo;</button>';
+  for (var i = 1; i <= totalPages; i++) {
+    html += '<button class="sn-pagination-btn' + (i === jobsPage ? ' active' : '') + '" onclick="goJobsPage(' + i + ')">' + i + '</button>';
+  }
+  html += '<button class="sn-pagination-btn" ' + (jobsPage === totalPages ? 'disabled' : '') + ' onclick="goJobsPage(' + (jobsPage + 1) + ')" aria-label="Siguiente">&rsaquo;</button>';
+  el.innerHTML = html;
+}
+
+function goJobsPage(p) {
+  jobsPage = p;
+  renderJobsRows();
 }
 
 function openRowMenu(event, jobId) {

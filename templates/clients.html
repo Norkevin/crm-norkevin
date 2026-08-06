@@ -175,6 +175,7 @@
       </tbody>
     </table>
   </div>
+  <div class="sn-pagination" id="clients-pagination"></div>
 </section>
 
 <div class="modal-overlay" id="client-modal">
@@ -245,23 +246,44 @@ function goClient(event, id) {
   window.location.href = '/clients/' + id;
 }
 
+var CLIENTS_PAGE_SIZE = 12;
+var clientsPage = 1;
+
 function filterClients() {
+  clientsPage = 1;
+  renderClientsRows();
+}
+
+function renderClientsRows() {
   var q = (document.getElementById('client-search').value || '').trim().toLowerCase();
-  var filterEl = document.getElementById('client-filter');
-  var filter = filterEl ? filterEl.value : 'active';
-  document.querySelectorAll('#clients-table tbody tr').forEach(function(row) {
-    if (!row.dataset.text) return;
-    var jobs = Number(row.dataset.jobs || 0);
-    var balance = Number(row.dataset.balance || 0);
-    var status = row.dataset.status || 'Activo';
-    var filterOk = filter === 'all'
-      || (filter === 'active' && status !== 'Archivado' && status !== 'Inactivo')
-      || (filter === 'with-jobs' && jobs > 0)
-      || (filter === 'balance' && balance > 0)
-      || status === filter;
-    var searchOk = !q || row.dataset.text.indexOf(q) !== -1;
-    row.style.display = filterOk && searchOk ? '' : 'none';
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#clients-table tbody tr[data-text]'));
+  var matched = rows.filter(function(row) {
+    return !q || row.dataset.text.indexOf(q) !== -1;
   });
+  var totalPages = Math.max(1, Math.ceil(matched.length / CLIENTS_PAGE_SIZE));
+  if (clientsPage > totalPages) clientsPage = totalPages;
+  var start = (clientsPage - 1) * CLIENTS_PAGE_SIZE;
+  var pageRows = matched.slice(start, start + CLIENTS_PAGE_SIZE);
+  rows.forEach(function(row) { row.style.display = 'none'; });
+  pageRows.forEach(function(row) { row.style.display = ''; });
+  renderClientsPagination(totalPages, matched.length);
+}
+
+function renderClientsPagination(totalPages, totalMatched) {
+  var el = document.getElementById('clients-pagination');
+  if (!el) return;
+  if (totalMatched === 0 || totalPages <= 1) { el.innerHTML = ''; return; }
+  var html = '<button class="sn-pagination-btn" ' + (clientsPage === 1 ? 'disabled' : '') + ' onclick="goClientsPage(' + (clientsPage - 1) + ')" aria-label="Anterior">&lsaquo;</button>';
+  for (var i = 1; i <= totalPages; i++) {
+    html += '<button class="sn-pagination-btn' + (i === clientsPage ? ' active' : '') + '" onclick="goClientsPage(' + i + ')">' + i + '</button>';
+  }
+  html += '<button class="sn-pagination-btn" ' + (clientsPage === totalPages ? 'disabled' : '') + ' onclick="goClientsPage(' + (clientsPage + 1) + ')" aria-label="Siguiente">&rsaquo;</button>';
+  el.innerHTML = html;
+}
+
+function goClientsPage(p) {
+  clientsPage = p;
+  renderClientsRows();
 }
 
 function openClientActions(event, id, email) {
@@ -304,6 +326,7 @@ function openClientModal() {
   setTimeout(function() { document.getElementById('client-first').focus(); }, 50);
 }
 document.addEventListener('DOMContentLoaded', function() {
+  renderClientsRows();
   if (new URLSearchParams(window.location.search).get('new') === '1') {
     openClientModal();
   }
