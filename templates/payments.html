@@ -183,6 +183,7 @@
       <span class="sn-muted">Paid:</span><span class="sn-money">Q{{ '{:,.2f}'.format(total_paid) }}</span>
     </div>
   </div>
+  <div class="sn-pagination" id="payments-pagination"></div>
 </section>
 
 <div class="modal-overlay" id="payment-record-modal">
@@ -233,16 +234,48 @@
 </div>
 
 <script>
+var PAYMENTS_PAGE_SIZE = 12;
+var paymentsPage = 1;
+
 function filterPayments() {
+  paymentsPage = 1;
+  renderPaymentsRows();
+}
+
+function renderPaymentsRows() {
   var q = (document.getElementById('payment-search').value || '').trim().toLowerCase();
   var status = document.getElementById('payment-status-filter').value;
-  document.querySelectorAll('#payments-table tbody tr').forEach(function(row) {
-    if (!row.dataset.text) return;
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#payments-table tbody tr[data-text]'));
+  var matched = rows.filter(function(row) {
     var rowStatus = row.dataset.status || '';
     var statusOk = status === 'all' || rowStatus === status || (status === 'unpaid' && rowStatus !== 'Pagado');
     var searchOk = !q || row.dataset.text.indexOf(q) !== -1;
-    row.style.display = statusOk && searchOk ? '' : 'none';
+    return statusOk && searchOk;
   });
+  var totalPages = Math.max(1, Math.ceil(matched.length / PAYMENTS_PAGE_SIZE));
+  if (paymentsPage > totalPages) paymentsPage = totalPages;
+  var start = (paymentsPage - 1) * PAYMENTS_PAGE_SIZE;
+  var pageRows = matched.slice(start, start + PAYMENTS_PAGE_SIZE);
+  rows.forEach(function(row) { row.style.display = 'none'; });
+  pageRows.forEach(function(row) { row.style.display = ''; });
+  renderPaymentsPagination(totalPages, matched.length);
+}
+
+function renderPaymentsPagination(totalPages, totalMatched) {
+  var el = document.getElementById('payments-pagination');
+  if (!el) return;
+  if (totalMatched === 0 || totalPages <= 1) { el.innerHTML = ''; return; }
+  var html = '<button class="sn-pagination-btn" ' + (paymentsPage === 1 ? 'disabled' : '') + ' onclick="goPaymentsPage(' + (paymentsPage - 1) + ')" aria-label="Anterior">&lsaquo;</button>';
+  for (var i = 1; i <= totalPages; i++) {
+    html += '<button class="sn-pagination-btn' + (i === paymentsPage ? ' active' : '') + '" onclick="goPaymentsPage(' + i + ')">' + i + '</button>';
+  }
+  html += '<button class="sn-pagination-btn" ' + (paymentsPage === totalPages ? 'disabled' : '') + ' onclick="goPaymentsPage(' + (paymentsPage + 1) + ')" aria-label="Siguiente">&rsaquo;</button>';
+  el.innerHTML = html;
+}
+
+function goPaymentsPage(p) {
+  paymentsPage = p;
+  renderPaymentsRows();
 }
 
 function goPayment(event, jobId, clientId) {

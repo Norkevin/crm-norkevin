@@ -49,6 +49,13 @@
     </div>
   </div>
 
+  <div class="sn-toolbar">
+    <div class="sn-toolbar-left"></div>
+    <div class="sn-toolbar-right">
+      <input id="invoice-search" class="sn-search" type="search" placeholder="Search" oninput="filterInvoices()">
+    </div>
+  </div>
+
   <div class="sn-table-shell stack-mobile">
     <table class="sn-table" id="invoices-table">
       <thead>
@@ -63,7 +70,7 @@
       </thead>
       <tbody>
         {% for inv in invoices %}
-        <tr class="sn-table-row" onclick="window.location.href='/invoices/{{ inv.invoice_id }}'">
+        <tr class="sn-table-row" data-text="{{ ((inv.title or '') ~ ' ' ~ (inv.client_name or '') ~ ' ' ~ (inv.job_name or '') ~ ' ' ~ (inv.invoice_id or ''))|lower }}" onclick="window.location.href='/invoices/{{ inv.invoice_id }}'">
           <td class="sn-ellipsis stack-full" data-label="Factura">
             <div style="display:flex;align-items:center;gap:10px;min-width:0;">
               <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (inv.client_name or '?')[:1]|upper }}</span>
@@ -87,5 +94,50 @@
       </tbody>
     </table>
   </div>
+  <div class="sn-pagination" id="invoices-pagination"></div>
 </section>
+
+<script>
+var INVOICES_PAGE_SIZE = 12;
+var invoicesPage = 1;
+
+function filterInvoices() {
+  invoicesPage = 1;
+  renderInvoicesRows();
+}
+
+function renderInvoicesRows() {
+  var q = (document.getElementById('invoice-search').value || '').trim().toLowerCase();
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#invoices-table tbody tr[data-text]'));
+  var matched = rows.filter(function(row) {
+    return !q || row.dataset.text.indexOf(q) !== -1;
+  });
+  var totalPages = Math.max(1, Math.ceil(matched.length / INVOICES_PAGE_SIZE));
+  if (invoicesPage > totalPages) invoicesPage = totalPages;
+  var start = (invoicesPage - 1) * INVOICES_PAGE_SIZE;
+  var pageRows = matched.slice(start, start + INVOICES_PAGE_SIZE);
+  rows.forEach(function(row) { row.style.display = 'none'; });
+  pageRows.forEach(function(row) { row.style.display = ''; });
+  renderInvoicesPagination(totalPages, matched.length);
+}
+
+function renderInvoicesPagination(totalPages, totalMatched) {
+  var el = document.getElementById('invoices-pagination');
+  if (!el) return;
+  if (totalMatched === 0 || totalPages <= 1) { el.innerHTML = ''; return; }
+  var html = '<button class="sn-pagination-btn" ' + (invoicesPage === 1 ? 'disabled' : '') + ' onclick="goInvoicesPage(' + (invoicesPage - 1) + ')" aria-label="Anterior">&lsaquo;</button>';
+  for (var i = 1; i <= totalPages; i++) {
+    html += '<button class="sn-pagination-btn' + (i === invoicesPage ? ' active' : '') + '" onclick="goInvoicesPage(' + i + ')">' + i + '</button>';
+  }
+  html += '<button class="sn-pagination-btn" ' + (invoicesPage === totalPages ? 'disabled' : '') + ' onclick="goInvoicesPage(' + (invoicesPage + 1) + ')" aria-label="Siguiente">&rsaquo;</button>';
+  el.innerHTML = html;
+}
+
+function goInvoicesPage(p) {
+  invoicesPage = p;
+  renderInvoicesRows();
+}
+
+document.addEventListener('DOMContentLoaded', renderInvoicesRows);
+</script>
 {% endblock %}

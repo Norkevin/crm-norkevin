@@ -49,6 +49,13 @@
     </div>
   </div>
 
+  <div class="sn-toolbar">
+    <div class="sn-toolbar-left"></div>
+    <div class="sn-toolbar-right">
+      <input id="quote-search" class="sn-search" type="search" placeholder="Search" oninput="filterQuotes()">
+    </div>
+  </div>
+
   <div class="sn-table-shell stack-mobile">
     <table class="sn-table" id="quotes-table">
       <thead>
@@ -62,7 +69,7 @@
       </thead>
       <tbody>
         {% for q in quotes %}
-        <tr class="sn-table-row" onclick="window.location.href='/quotes/{{ q.id }}'">
+        <tr class="sn-table-row" data-text="{{ ((q.paquete_nombre or '') ~ ' ' ~ (q.client_name or '') ~ ' ' ~ (q.ref_name or ''))|lower }}" onclick="window.location.href='/quotes/{{ q.id }}'">
           <td class="sn-ellipsis stack-full" data-label="Cotizacion">
             <div style="display:flex;align-items:center;gap:10px;min-width:0;">
               <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (q.client_name or '?')[:1]|upper }}</span>
@@ -85,5 +92,50 @@
       </tbody>
     </table>
   </div>
+  <div class="sn-pagination" id="quotes-pagination"></div>
 </section>
+
+<script>
+var QUOTES_PAGE_SIZE = 12;
+var quotesPage = 1;
+
+function filterQuotes() {
+  quotesPage = 1;
+  renderQuotesRows();
+}
+
+function renderQuotesRows() {
+  var q = (document.getElementById('quote-search').value || '').trim().toLowerCase();
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#quotes-table tbody tr[data-text]'));
+  var matched = rows.filter(function(row) {
+    return !q || row.dataset.text.indexOf(q) !== -1;
+  });
+  var totalPages = Math.max(1, Math.ceil(matched.length / QUOTES_PAGE_SIZE));
+  if (quotesPage > totalPages) quotesPage = totalPages;
+  var start = (quotesPage - 1) * QUOTES_PAGE_SIZE;
+  var pageRows = matched.slice(start, start + QUOTES_PAGE_SIZE);
+  rows.forEach(function(row) { row.style.display = 'none'; });
+  pageRows.forEach(function(row) { row.style.display = ''; });
+  renderQuotesPagination(totalPages, matched.length);
+}
+
+function renderQuotesPagination(totalPages, totalMatched) {
+  var el = document.getElementById('quotes-pagination');
+  if (!el) return;
+  if (totalMatched === 0 || totalPages <= 1) { el.innerHTML = ''; return; }
+  var html = '<button class="sn-pagination-btn" ' + (quotesPage === 1 ? 'disabled' : '') + ' onclick="goQuotesPage(' + (quotesPage - 1) + ')" aria-label="Anterior">&lsaquo;</button>';
+  for (var i = 1; i <= totalPages; i++) {
+    html += '<button class="sn-pagination-btn' + (i === quotesPage ? ' active' : '') + '" onclick="goQuotesPage(' + i + ')">' + i + '</button>';
+  }
+  html += '<button class="sn-pagination-btn" ' + (quotesPage === totalPages ? 'disabled' : '') + ' onclick="goQuotesPage(' + (quotesPage + 1) + ')" aria-label="Siguiente">&rsaquo;</button>';
+  el.innerHTML = html;
+}
+
+function goQuotesPage(p) {
+  quotesPage = p;
+  renderQuotesRows();
+}
+
+document.addEventListener('DOMContentLoaded', renderQuotesRows);
+</script>
 {% endblock %}
