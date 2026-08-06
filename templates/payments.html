@@ -45,7 +45,7 @@
     font-weight: 700;
     line-height: 1.45;
     letter-spacing: 0;
-    color: var(--sn-text);
+    color: var(--sn-ink);
   }
 
   .payments-page .sn-payment-secondary {
@@ -66,6 +66,23 @@
   .payments-page .sn-table tbody td[data-label="Amount"] {
     vertical-align: middle;
   }
+
+  .payments-page .payment-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .payments-page .payment-stat-card {
+    border: 1px solid rgba(16, 24, 40, .04);
+    border-radius: var(--sn-radius-lg);
+    background: var(--sn-white);
+    padding: 16px 18px;
+    box-shadow: var(--sn-shadow-resting);
+  }
+  .payments-page .payment-stat-label { font-size: 12px; color: var(--sn-muted); }
+  .payments-page .payment-stat-value { font-size: 22px; font-weight: 700; color: var(--sn-ink); margin-top: 4px; }
+  @media (max-width: 760px) { .payments-page .payment-stats { grid-template-columns: 1fr; } }
 
   @media (max-width: 900px) {
     .payments-page .sn-table tbody td {
@@ -94,10 +111,21 @@
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
         Export Payments
       </a>
-      <div style="text-align:right;min-width:155px;">
-        <div class="sn-money" style="font-size:22px;">Q{{ '{:,.2f}'.format(total_due) }}</div>
-        <div class="sn-list-meta">Total Due</div>
-      </div>
+    </div>
+  </div>
+
+  <div class="payment-stats">
+    <div class="payment-stat-card">
+      <div class="payment-stat-label">Total pendiente</div>
+      <div class="payment-stat-value">Q{{ '{:,.0f}'.format(total_due) }}</div>
+    </div>
+    <div class="payment-stat-card">
+      <div class="payment-stat-label">Atrasado</div>
+      <div class="payment-stat-value">Q{{ '{:,.0f}'.format(total_late) }}</div>
+    </div>
+    <div class="payment-stat-card">
+      <div class="payment-stat-label">Cobrado</div>
+      <div class="payment-stat-value">Q{{ '{:,.0f}'.format(total_paid) }}</div>
     </div>
   </div>
 
@@ -156,8 +184,13 @@
             </div>
           </td>
           <td class="sn-ellipsis stack-full" data-label="Client &amp; Job">
-            <span class="sn-payment-primary sn-ellipsis">{{ p.client_name }}</span>
-            <span class="sn-payment-secondary sn-ellipsis">{{ p.job_name }} &middot; {{ p.invoice_id or p.id }}</span>
+            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+              <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (p.client_name or '?')[:1]|upper }}</span>
+              <div style="min-width:0;">
+                <span class="sn-payment-primary sn-ellipsis">{{ p.client_name }}</span>
+                <span class="sn-payment-secondary sn-ellipsis">{{ p.job_name }} &middot; {{ p.invoice_id or p.id }}</span>
+              </div>
+            </div>
           </td>
           <td data-label="Amount" style="text-align:right;"><span class="sn-money sn-payment-amount">Q{{ '{:,.2f}'.format(p.amount) }}</span></td>
           <td class="stack-actions" style="text-align:right;" onclick="event.stopPropagation()">

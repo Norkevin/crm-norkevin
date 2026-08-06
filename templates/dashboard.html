@@ -138,23 +138,6 @@
   margin-bottom: 14px;
 }
 .dashboard-widget-title { font-size: 14px; font-weight: 600; color: var(--sn-ink); }
-.dashboard-task-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--sn-line);
-  font-size: 12.5px;
-}
-.dashboard-task-row:last-child { border-bottom: none; }
-.dashboard-task-check {
-  width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px;
-  border-radius: 5px; border: 1.5px solid var(--sn-line-dark);
-}
-.dashboard-task-copy { min-width: 0; flex: 1; }
-.dashboard-task-title { display: block; color: var(--sn-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dashboard-task-due { font-size: 10.5px; color: var(--sn-muted); margin-top: 2px; }
-.dashboard-task-due.urgent { color: #dc2626; font-weight: 600; }
 .dashboard-donut-wrap { display: flex; align-items: center; gap: 16px; }
 .dashboard-donut-legend { display: flex; flex-direction: column; gap: 8px; font-size: 11.5px; flex: 1; min-width: 0; }
 .dashboard-donut-legend-row { display: flex; align-items: center; gap: 6px; }
@@ -779,25 +762,6 @@
         <span class="dashboard-ring-label">Cobrado</span>
       </div>
     </div>
-  </div>
-
-  <div class="dashboard-widget-card">
-    <div class="dashboard-widget-head">
-      <div class="dashboard-widget-title">Tareas</div>
-    </div>
-    {% for j in upcoming_jobs[:4] %}
-    <a class="dashboard-task-row" href="/jobs/{{ j.id }}" style="text-decoration:none;color:inherit;">
-      <span class="dashboard-task-check"></span>
-      <span class="dashboard-task-copy">
-        <span class="dashboard-task-title">{{ j.next_task or 'Job complete' }} &middot; {{ j.nombre }}</span>
-        <span class="dashboard-task-due {{ 'urgent' if j.dias_restantes is not none and j.dias_restantes <= 3 else '' }}">
-          {% if j.dias_restantes == 0 %}Hoy{% elif j.dias_restantes == 1 %}Manana{% elif j.dias_restantes is not none %}En {{ j.dias_restantes }} dias{% else %}Sin fecha{% endif %}
-        </span>
-      </span>
-    </a>
-    {% else %}
-    <div class="sn-muted" style="font-size:12.5px;">Sin tareas pendientes.</div>
-    {% endfor %}
   </div>
 
   <div class="dashboard-list-card">
