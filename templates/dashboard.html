@@ -266,16 +266,17 @@
   padding: 18px 18px 6px;
 }
 .metric-tab {
-  padding: 14px;
+  padding: 16px;
   border: 1px solid rgba(16, 24, 40, .05);
-  border-radius: var(--sn-radius-md);
+  border-radius: var(--sn-radius-lg);
   background: var(--sn-white);
   color: var(--sn-ink);
   text-align: left;
   cursor: pointer;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   box-shadow: var(--sn-shadow-resting);
   transition: box-shadow .15s ease, transform .1s ease;
 }
@@ -285,19 +286,19 @@
   box-shadow: 0 0 0 1.5px var(--metric-color, var(--sn-green)) inset, var(--sn-shadow-hover);
 }
 .metric-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--sn-radius-sm);
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
   display: inline-grid;
   place-items: center;
   background: color-mix(in srgb, var(--metric-color, var(--sn-green)) 16%, white);
   color: var(--metric-color, var(--sn-green));
   flex-shrink: 0;
 }
-.metric-icon svg { width: 19px; height: 19px; }
-.metric-copy { min-width: 0; }
+.metric-icon svg { width: 17px; height: 17px; }
+.metric-copy { min-width: 0; width: 100%; }
 .metric-label { font-size: 12px; font-weight: 500; color: var(--sn-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.metric-value { font-size: 22px; font-weight: 700; line-height: 1.25; margin-top: 1px; }
+.metric-value { font-size: 22px; font-weight: 700; line-height: 1.25; margin-top: 2px; }
 .metric-delta { font-size: 11px; font-weight: 600; margin-top: 3px; white-space: nowrap; }
 .metric-delta.up { color: #059669; }
 .metric-delta.down { color: #DC2626; }
