@@ -348,6 +348,69 @@ svg[stroke="currentColor"] rect {
   gap: 10px;
   min-width: 0;
 }
+.header-search-wrap { display: none; min-width: 0; padding-right: 24px; }
+@media (min-width: 992px) {
+  .header-search-wrap { display: flex; align-items: center; }
+}
+.header-search { position: relative; display: flex; align-items: center; width: 100%; max-width: 420px; }
+.header-search svg { position: absolute; left: 12px; width: 16px; height: 16px; color: var(--sn-muted); pointer-events: none; }
+.header-search input {
+  width: 100%;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--sn-line);
+  background: var(--sn-canvas);
+  padding: 0 12px 0 36px;
+  font-size: 13.5px;
+  color: var(--sn-ink);
+  outline: none;
+  font-family: inherit;
+}
+.header-search input:focus { border-color: var(--sn-green); box-shadow: 0 0 0 3px var(--sn-focus-ring); }
+.header-search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--sn-white);
+  border: 1px solid var(--sn-line);
+  border-radius: var(--sn-radius-md);
+  box-shadow: var(--sn-shadow-hover);
+  max-height: 360px;
+  overflow-y: auto;
+  display: none;
+  z-index: 1000;
+}
+.header-search-results.open { display: block; }
+.header-search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  text-decoration: none;
+  color: inherit;
+}
+.header-search-result-item:hover { background: var(--sn-surface-hover); }
+.header-search-result-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--sn-muted);
+  flex-shrink: 0;
+  width: 46px;
+}
+.header-search-result-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--sn-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.header-search-result-sub { font-size: 11px; color: var(--sn-muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.header-search-empty { padding: 14px 12px; font-size: 12.5px; color: var(--sn-muted); }
 .gmail-warning-banner {
   display: flex;
   align-items: center;
@@ -2236,6 +2299,14 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     </a>
   </nav>
 
+  <div class="header-search-wrap">
+    <div class="header-search">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" stroke-width="1.8"/><path stroke-linecap="round" stroke-width="1.8" d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" id="global-search-input" placeholder="Buscar clientes, jobs, leads..." autocomplete="off" oninput="handleGlobalSearch(event)" onfocus="handleGlobalSearchFocus()">
+      <div class="header-search-results" id="global-search-results"></div>
+    </div>
+  </div>
+
   <div class="header-right">
     <div class="header-popover-wrap" style="position:relative;">
       <button class="sn-icon-button" type="button" title="Agregar" onclick="toggleQuickAddMenu(event)" style="background:var(--sn-green);color:#fff;border-color:var(--sn-green);">
@@ -2642,6 +2713,49 @@ function toggleQuickAddMenu(event) {
 document.addEventListener('click', function(e) {
   var menu = document.getElementById('quick-add-menu');
   if (menu && !menu.contains(e.target)) menu.classList.remove('open');
+});
+
+var globalSearchTimer = null;
+function _escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function handleGlobalSearch(event) {
+  var q = event.target.value.trim();
+  clearTimeout(globalSearchTimer);
+  var box = document.getElementById('global-search-results');
+  if (!q || q.length < 2) { box.classList.remove('open'); box.innerHTML = ''; return; }
+  globalSearchTimer = setTimeout(function() {
+    fetch('/api/search?q=' + encodeURIComponent(q))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var items = data.results || [];
+        var typeLabels = { lead: 'Lead', job: 'Job', client: 'Cliente', payment: 'Pago', quote: 'Cotizacion' };
+        if (!items.length) {
+          box.innerHTML = '<div class="header-search-empty">Sin resultados para "' + _escapeHtml(q) + '"</div>';
+        } else {
+          box.innerHTML = items.slice(0, 8).map(function(item) {
+            return '<a class="header-search-result-item" href="' + _escapeHtml(item.url) + '">' +
+              '<span class="header-search-result-type">' + _escapeHtml(typeLabels[item.type] || item.type) + '</span>' +
+              '<span class="header-search-result-name">' + _escapeHtml(item.title) +
+              '<span class="header-search-result-sub">' + _escapeHtml(item.subtitle || '') + '</span></span></a>';
+          }).join('');
+        }
+        box.classList.add('open');
+      })
+      .catch(function() {});
+  }, 200);
+}
+function handleGlobalSearchFocus() {
+  var box = document.getElementById('global-search-results');
+  if (box.innerHTML.trim()) box.classList.add('open');
+}
+document.addEventListener('click', function(e) {
+  var wrap = document.querySelector('.header-search-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('global-search-results').classList.remove('open');
+  }
 });
 
 /* Tabs reutilizables: <div class="sn-tabs"><button class="sn-tab

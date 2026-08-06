@@ -1925,6 +1925,7 @@ def dashboard():
     # usa /jobs) -- solo nombre de cliente y progreso del workflow, nada de
     # logica nueva.
     _dash_clients_by_id = {c['id']: c for c in _canonical_clients()}
+    _month_abbrs_es = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC']
     for j in upcoming_jobs[:5]:
         client = _dash_clients_by_id.get(j.get('client_id'))
         j['client_name'] = f"{client.get('first_name', '')} {client.get('last_name', '')}".strip() if client else 'Sin cliente'
@@ -1933,6 +1934,13 @@ def dashboard():
             j['workflow_progress'] = prog
         except Exception:
             j['workflow_progress'] = 0
+        try:
+            _bd = date.fromisoformat(j.get('boda_date'))
+            j['event_day'] = _bd.day
+            j['event_month_abbr'] = _month_abbrs_es[_bd.month - 1]
+        except Exception:
+            j['event_day'] = None
+            j['event_month_abbr'] = None
 
     # Recent leads (ultimos 5)
     recent_leads = sorted(_open_leads(), key=lambda l: l.get('created', ''), reverse=True)[:5]

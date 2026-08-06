@@ -184,6 +184,7 @@
 .dashboard-donut-dot { width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0; }
 .dashboard-donut-legend-label { color: var(--sn-muted); flex: 1; }
 .dashboard-donut-legend-value { color: var(--sn-ink); font-weight: 600; }
+.dashboard-donut-legend-pct { color: var(--sn-muted); font-weight: 500; }
 .dashboard-activity-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--sn-line); }
 .dashboard-activity-row:last-child { border-bottom: none; }
 .dashboard-activity-icon {
@@ -477,6 +478,49 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.dashboard-event-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--sn-line);
+  color: var(--sn-ink);
+  font-size: 13px;
+  transition: background .12s ease;
+}
+.dashboard-event-row:hover { background: var(--sn-surface-hover); }
+.dashboard-event-row:last-child { border-bottom: 0; }
+.dashboard-event-date-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--sn-mint-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.dashboard-event-day { font-size: 15px; font-weight: 700; color: var(--sn-green-dark); line-height: 1.1; }
+.dashboard-event-month { font-size: 9px; font-weight: 600; letter-spacing: .03em; color: var(--sn-green-dark); text-transform: uppercase; }
+.dashboard-event-copy { min-width: 0; }
+.dashboard-event-title {
+  display: block;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard-event-sub {
+  display: block;
+  color: var(--sn-muted);
+  font-size: 11px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .source-modal-table {
   width: 100%;
   border-collapse: collapse;
@@ -752,7 +796,7 @@
           <div class="dashboard-donut-legend-row">
             <span class="dashboard-donut-dot" style="background:{{ seg.color }};"></span>
             <span class="dashboard-donut-legend-label">{{ seg.label }}</span>
-            <span class="dashboard-donut-legend-value">Q{{ '{:,.0f}'.format(seg.amount) }}</span>
+            <span class="dashboard-donut-legend-value">Q{{ '{:,.0f}'.format(seg.amount) }} <span class="dashboard-donut-legend-pct">({{ (seg.pct * 100)|round|int }}%)</span></span>
           </div>
           {% endfor %}
         </div>
@@ -837,11 +881,20 @@
         </a>
       </div>
       {% for j in upcoming_jobs[:5] %}
-      <a class="dashboard-row" href="/jobs/{{ j.id }}">
-        <span class="dashboard-row-avatar">{{ (j.nombre or '?')[:1]|upper }}</span>
-        <span>
-          <span class="dashboard-row-main">{{ j.nombre }}</span>
-          <span class="dashboard-row-sub">{{ j.boda_date or 'No date' }} &middot; {{ j.location or 'Sin ubicacion' }}</span>
+      <a class="dashboard-event-row" href="/jobs/{{ j.id }}">
+        {% if j.event_day %}
+        <span class="dashboard-event-date-badge">
+          <span class="dashboard-event-day">{{ j.event_day }}</span>
+          <span class="dashboard-event-month">{{ j.event_month_abbr }}</span>
+        </span>
+        {% else %}
+        <span class="dashboard-event-date-badge">
+          <span class="dashboard-event-month">?</span>
+        </span>
+        {% endif %}
+        <span class="dashboard-event-copy">
+          <span class="dashboard-event-title">{{ j.nombre }}</span>
+          <span class="dashboard-event-sub">{{ j.location or 'Sin ubicacion' }}</span>
         </span>
         <span class="sn-chip green">Job</span>
       </a>
