@@ -298,6 +298,9 @@
 .metric-copy { min-width: 0; }
 .metric-label { font-size: 12px; font-weight: 500; color: var(--sn-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .metric-value { font-size: 22px; font-weight: 700; line-height: 1.25; margin-top: 1px; }
+.metric-delta { font-size: 11px; font-weight: 600; margin-top: 3px; white-space: nowrap; }
+.metric-delta.up { color: #059669; }
+.metric-delta.down { color: #DC2626; }
 .chart-frame {
   position: relative;
   min-height: 360px;
@@ -667,6 +670,9 @@
             <div class="metric-copy">
               <div class="metric-label">Leads</div>
               <div class="metric-value" id="dashboard-leads-value">{{ recent_leads|length }}</div>
+              {% if stat_deltas.leads is not none %}
+              <div class="metric-delta {{ 'up' if stat_deltas.leads >= 0 else 'down' }}">{{ '↗' if stat_deltas.leads >= 0 else '↘' }} {{ stat_deltas.leads|abs }}% vs mes anterior</div>
+              {% endif %}
             </div>
           </button>
           <button class="metric-tab" type="button" data-metric="sessions" style="--metric-color:#2563EB;" onclick="setDashboardMetric('sessions')">
@@ -674,6 +680,9 @@
             <div class="metric-copy">
               <div class="metric-label">Sesiones</div>
               <div class="metric-value" id="dashboard-sessions-value">{{ upcoming_jobs|length }}</div>
+              {% if stat_deltas.sessions is not none %}
+              <div class="metric-delta {{ 'up' if stat_deltas.sessions >= 0 else 'down' }}">{{ '↗' if stat_deltas.sessions >= 0 else '↘' }} {{ stat_deltas.sessions|abs }}% vs mes anterior</div>
+              {% endif %}
             </div>
           </button>
           <button class="metric-tab" type="button" data-metric="payments" style="--metric-color:#D97706;" onclick="setDashboardMetric('payments')">
@@ -681,6 +690,9 @@
             <div class="metric-copy">
               <div class="metric-label">Pagos</div>
               <div class="metric-value" id="dashboard-payments-value">Q{{ '{:,.0f}'.format(total_paid) }}</div>
+              {% if stat_deltas.payments is not none %}
+              <div class="metric-delta {{ 'up' if stat_deltas.payments >= 0 else 'down' }}">{{ '↗' if stat_deltas.payments >= 0 else '↘' }} {{ stat_deltas.payments|abs }}% vs mes anterior</div>
+              {% endif %}
             </div>
           </button>
           <button class="metric-tab active" type="button" data-metric="revenue" style="--metric-color:#0F766E;" onclick="setDashboardMetric('revenue')">
@@ -688,6 +700,9 @@
             <div class="metric-copy">
               <div class="metric-label">Comparativo</div>
               <div class="metric-value" id="dashboard-revenue-value"></div>
+              {% if stat_deltas.revenue is not none %}
+              <div class="metric-delta {{ 'up' if stat_deltas.revenue >= 0 else 'down' }}">{{ '↗' if stat_deltas.revenue >= 0 else '↘' }} {{ stat_deltas.revenue|abs }}% vs mes anterior</div>
+              {% endif %}
             </div>
           </button>
         </div>
