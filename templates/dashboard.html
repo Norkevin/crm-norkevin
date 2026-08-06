@@ -606,19 +606,6 @@
 <section class="dashboard-shell">
 <div class="dashboard-grid">
 <div class="dashboard-main">
-  <div class="dashboard-panel dashboard-greeting">
-    <div class="dashboard-greeting-copy">
-      <div class="dashboard-greeting-label">Buen dia,</div>
-      <div class="dashboard-greeting-name">{{ session.user_name or 'Kevin' }}</div>
-      <div class="dashboard-greeting-role">{{ current_tenant.name|default('Flow CRM') }}</div>
-    </div>
-    <div class="dashboard-ring" style="background: conic-gradient(var(--sn-green) 0% {{ collected_pct }}%, var(--sn-line) {{ collected_pct }}% 100%);">
-      <div class="dashboard-ring-hole">
-        <span class="dashboard-ring-value">{{ collected_pct|round|int }}%</span>
-        <span class="dashboard-ring-label">Cobrado</span>
-      </div>
-    </div>
-  </div>
 
   <div class="dashboard-section-label">Ventas y graficas</div>
   <div class="dashboard-panel">
@@ -780,6 +767,20 @@
 </div>
 
 <div class="dashboard-rail">
+  <div class="dashboard-panel dashboard-greeting">
+    <div class="dashboard-greeting-copy">
+      <div class="dashboard-greeting-label">Buen dia,</div>
+      <div class="dashboard-greeting-name">{{ session.user_name or 'Kevin' }}</div>
+      <div class="dashboard-greeting-role">{{ current_tenant.name|default('Flow CRM') }}</div>
+    </div>
+    <div class="dashboard-ring" style="background: conic-gradient(var(--sn-green) 0% {{ collected_pct }}%, var(--sn-line) {{ collected_pct }}% 100%);">
+      <div class="dashboard-ring-hole">
+        <span class="dashboard-ring-value">{{ collected_pct|round|int }}%</span>
+        <span class="dashboard-ring-label">Cobrado</span>
+      </div>
+    </div>
+  </div>
+
   <div class="dashboard-widget-card">
     <div class="dashboard-widget-head">
       <div class="dashboard-widget-title">Tareas</div>
@@ -1051,7 +1052,8 @@ function wireChartTooltips(svg, formatFn) {
     tooltip.style.display = 'block';
     var svgRect = svg.getBoundingClientRect();
     var frameRect = frame.getBoundingClientRect();
-    var scaleX = svgRect.width / 900;
+    var viewBoxWidth = svg.viewBox.baseVal.width || 900;
+    var scaleX = svgRect.width / viewBoxWidth;
     var scaleY = svgRect.height / 380;
     var cx = parseFloat(circle.getAttribute('cx')) * scaleX + (svgRect.left - frameRect.left);
     var cy = parseFloat(circle.getAttribute('cy')) * scaleY + (svgRect.top - frameRect.top);
@@ -1074,10 +1076,22 @@ function wireChartTooltips(svg, formatFn) {
   }
 }
 
+function chartPixelWidth(svg) {
+  // Kevin: "la tipografia esta estirada la de los meses" -- viewBox fijo
+  // en 900 con preserveAspectRatio="none" estira TODO el contenido del SVG
+  // (texto incluido) de forma no uniforme para llenar el ancho real de la
+  // tarjeta, deformando las letras. Midiendo el ancho real del contenedor
+  // y usandolo como viewBox, el SVG ya no necesita estirarse -- se dibuja
+  // 1:1 en su tamano real y el texto no se deforma.
+  var rect = svg.parentElement.getBoundingClientRect();
+  return Math.max(320, Math.round(rect.width));
+}
+
 function drawDashboardChart(labels, values, metric) {
   var svg = document.getElementById('dashboard-chart');
-  var width = 900;
+  var width = chartPixelWidth(svg);
   var height = 380;
+  svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
   var paddingX = 58;
   var paddingTop = 24;
   var paddingBottom = 42;
@@ -1147,12 +1161,13 @@ function toggleRevenueYear(year) {
 
 function drawRevenueComparisonChart() {
   var svg = document.getElementById('dashboard-chart');
-  var width = 900, height = 380, paddingX = 58, paddingTop = 24, paddingBottom = 42;
+  var width = chartPixelWidth(svg), height = 380, paddingX = 58, paddingTop = 24, paddingBottom = 42;
+  svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
   var usableW = width - paddingX * 2;
   var usableH = height - paddingTop - paddingBottom;
 
   if (!REVENUE_SERIES.length) {
-    svg.innerHTML = '<text x="450" y="150" text-anchor="middle" font-size="13" fill="var(--sn-muted)">Sin pagos registrados todavia</text>';
+    svg.innerHTML = '<text x="' + (width / 2) + '" y="150" text-anchor="middle" font-size="13" fill="var(--sn-muted)">Sin pagos registrados todavia</text>';
     document.getElementById('dashboard-chart-legend').innerHTML = '';
     return;
   }
@@ -1243,5 +1258,18 @@ document.addEventListener('keydown', function(event) {
   if (event.key === 'Escape') closeDashboardModal('lead-source-modal');
 });
 document.addEventListener('DOMContentLoaded', updateDashboard);
+// Kevin: la tipografia del chart quedaba estirada en la primera pintura --
+// el ancho real de la tarjeta puede correrse un poco cuando la fuente web
+// termina de cargar despues del primer render. Se vuelve a dibujar una vez
+// que las fuentes ya cargaron, para que el viewBox quede exacto.
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(function() { updateDashboard(); });
+}
+
+var _dashboardResizeTimer = null;
+window.addEventListener('resize', function() {
+  clearTimeout(_dashboardResizeTimer);
+  _dashboardResizeTimer = setTimeout(updateDashboard, 150);
+});
 </script>
 {% endblock %}

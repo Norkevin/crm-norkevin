@@ -35,22 +35,12 @@
   gap: 3px;
   min-width: 0;
 }
-.clients-page .client-name-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.clients-page .client-first-name,
-.clients-page .client-last-name {
+.clients-page .client-full-name {
   display: block;
   font-size: 14.5px;
-  line-height: 1.28;
+  line-height: 1.3;
   font-weight: 600;
   color: var(--sn-ink);
-}
-.clients-page .client-last-name {
-  font-weight: 500;
 }
 .clients-page .client-email-text {
   font-size: 12.5px;
@@ -72,8 +62,7 @@
   .clients-page .client-primary {
     gap: 6px;
   }
-  .clients-page .client-first-name,
-  .clients-page .client-last-name {
+  .clients-page .client-full-name {
     font-size: 15px;
   }
   .clients-page .client-email-text,
@@ -117,10 +106,10 @@
     <table class="sn-table" id="clients-table">
       <thead>
         <tr>
-          <th>Client</th>
-          <th style="width: 160px;">Company</th>
-          <th style="width: 140px;">Phone</th>
-          <th style="width: 120px;">Created</th>
+          <th style="width: 340px;">Client</th>
+          <th style="width: 220px;">Company</th>
+          <th style="width: 180px;">Phone</th>
+          <th style="width: 160px;">Created</th>
           <th style="width: 44px;"></th>
         </tr>
       </thead>
@@ -144,12 +133,7 @@
             <div style="display:flex;align-items:center;gap:10px;min-width:0;">
               <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (c.first_name or '?')[:1]|upper }}{{ (c.last_name or '')[:1]|upper }}</span>
               <div class="client-primary">
-                <div class="client-name-stack">
-                  <span class="client-first-name sn-ellipsis">{{ c.first_name or 'Sin nombre' }}</span>
-                  {% if c.last_name %}
-                  <span class="client-last-name sn-ellipsis">{{ c.last_name }}</span>
-                  {% endif %}
-                </div>
+                <span class="client-full-name sn-ellipsis">{{ c.first_name or 'Sin nombre' }}{% if c.last_name %} {{ c.last_name }}{% endif %}</span>
                 <div class="client-email-text sn-ellipsis">{{ c.email or '—' }}</div>
               </div>
             </div>
