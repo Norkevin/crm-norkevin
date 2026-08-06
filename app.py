@@ -2083,33 +2083,6 @@ def dashboard():
     all_dashboard_jobs = _canonical_jobs()
     all_dashboard_payments = _visible_billable_payments()
 
-    # Kevin: %-vs-mes-anterior para las 4 tarjetas de arriba (Leads/Sesiones/
-    # Pagos/Comparativo), igual que la referencia -- comparacion real mes
-    # actual vs mes calendario anterior, no inventada.
-    _this_month_start = today.replace(day=1)
-    _last_month_end = _this_month_start - timedelta(days=1)
-    _last_month_start = _last_month_end.replace(day=1)
-
-    def _month_delta_pct(this_total, last_total):
-        if last_total <= 0:
-            return None
-        return round((this_total - last_total) / last_total * 100, 1)
-
-    _leads_this = sum(1 for l in all_dashboard_leads if _parse_iso_day(l.get('created')) and _parse_iso_day(l.get('created')) >= _this_month_start)
-    _leads_last = sum(1 for l in all_dashboard_leads if _parse_iso_day(l.get('created')) and _last_month_start <= _parse_iso_day(l.get('created')) <= _last_month_end)
-    _sessions_this = sum(1 for j in all_dashboard_jobs if _parse_iso_day(j.get('boda_date')) and _parse_iso_day(j.get('boda_date')) >= _this_month_start)
-    _sessions_last = sum(1 for j in all_dashboard_jobs if _parse_iso_day(j.get('boda_date')) and _last_month_start <= _parse_iso_day(j.get('boda_date')) <= _last_month_end)
-    _payments_this = sum(coerce_amount(p.get('amount')) for p in all_dashboard_payments if p.get('status') == 'Pagado' and _parse_iso_day(p.get('paid_date') or p.get('fecha_pago')) and _parse_iso_day(p.get('paid_date') or p.get('fecha_pago')) >= _this_month_start)
-    _payments_last = sum(coerce_amount(p.get('amount')) for p in all_dashboard_payments if p.get('status') == 'Pagado' and _parse_iso_day(p.get('paid_date') or p.get('fecha_pago')) and _last_month_start <= _parse_iso_day(p.get('paid_date') or p.get('fecha_pago')) <= _last_month_end)
-    _revenue_this = sum(coerce_amount(j.get('price_total')) for j in all_dashboard_jobs if _parse_iso_day(j.get('boda_date')) and _parse_iso_day(j.get('boda_date')) >= _this_month_start)
-    _revenue_last = sum(coerce_amount(j.get('price_total')) for j in all_dashboard_jobs if _parse_iso_day(j.get('boda_date')) and _last_month_start <= _parse_iso_day(j.get('boda_date')) <= _last_month_end)
-
-    stat_deltas = {
-        'leads': _month_delta_pct(_leads_this, _leads_last),
-        'sessions': _month_delta_pct(_sessions_this, _sessions_last),
-        'payments': _month_delta_pct(_payments_this, _payments_last),
-        'revenue': _month_delta_pct(_revenue_this, _revenue_last),
-    }
     job_type_labels = sorted({
         (j.get('type') or j.get('tipo_evento') or 'BODAS')
         for j in all_dashboard_jobs
@@ -2237,8 +2210,7 @@ def dashboard():
                            job_type_labels=job_type_labels,
                            total_paid=total_paid,
                            total_late=total_late,
-                           revenue_comparison_series=revenue_comparison_series,
-                           stat_deltas=stat_deltas)
+                           revenue_comparison_series=revenue_comparison_series)
 
 
 def _format_pretty_date(value):
