@@ -28,9 +28,12 @@ def test_account_and_notification_menus_use_theme_variables(auth_client):
     assert 'var(--sn-white)' in menu_block
 
 
-def test_dashboard_chart_no_longer_draws_dashed_grid_lines(auth_client):
+def test_dashboard_chart_grid_colors_use_theme_variables(auth_client):
+    """Nota: Kevin luego pidio explicitamente (sesion posterior) guias
+    verticales punteadas para alinear cada punto con su mes -- esas SI usan
+    stroke-dasharray a proposito, asi que ya no se prueba su ausencia. Lo
+    que sigue vigente es que los colores de la grilla no queden hardcodeados."""
     resp = auth_client.get('/dashboard')
     html = resp.get_data(as_text=True)
-    assert 'stroke-dasharray' not in html
     assert '#EEF0F3' not in html, 'la linea gris clara de la grilla no debe seguir hardcodeada'
     assert '#9AA1AB' not in html, 'el texto de los ejes no debe seguir hardcodeado, debe usar var(--sn-muted)'

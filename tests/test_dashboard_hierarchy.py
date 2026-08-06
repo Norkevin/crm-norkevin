@@ -10,20 +10,11 @@ sigue siendo lo primero en la columna principal."""
 import uuid
 
 
-def test_pending_payments_banner_hidden_when_nothing_pending(auth_client):
-    """Con datos de prueba vacios (fixture limpio) no debe haber pagos
-    pendientes, asi que el banner no debe aparecer -- no se debe mostrar
-    un 'Q0 pendiente' vacio."""
-    import app as app_module
-    for p in app_module.store.list('payments'):
-        app_module.store.delete('payments', p['id'])
-
-    resp = auth_client.get('/dashboard')
-    html = resp.get_data(as_text=True)
-    assert 'class="dashboard-pending-banner' not in html
-
-
-def test_pending_payments_banner_shows_amount_and_links_to_payments(auth_client):
+def test_pending_payments_banner_removed_per_kevin_feedback(auth_client):
+    """Kevin (sesion posterior, viendo el banner verde en vivo): 'elimina
+    esto no me gusta'. El banner destacado de pagos pendientes se quito por
+    completo del dashboard -- el dato de Saldo pendiente sigue disponible
+    en la tarjeta 'Total cobrado / Saldo pendiente' de siempre."""
     import app as app_module
     suffix = uuid.uuid4().hex[:6]
     app_module.store.upsert('payments', {
@@ -34,28 +25,9 @@ def test_pending_payments_banner_shows_amount_and_links_to_payments(auth_client)
 
     resp = auth_client.get('/dashboard')
     html = resp.get_data(as_text=True)
-    assert 'class="dashboard-pending-banner' in html
-    assert 'href="/payments"' in html
-    assert 'Q3,200' in html
-    banner_tag_start = html.index('<a class="dashboard-pending-banner')
-    banner_tag_end = html.index('>', banner_tag_start)
-    assert 'urgent' not in html[banner_tag_start:banner_tag_end], \
-        'sin pagos atrasados, el banner no debe usar el estilo rojo urgente'
-
-
-def test_pending_payments_banner_is_urgent_when_late(auth_client):
-    import app as app_module
-    suffix = uuid.uuid4().hex[:6]
-    app_module.store.upsert('payments', {
-        'id': f'pay-hier-late-{suffix}', 'invoice_id': f'INV-LATE-{suffix}',
-        'amount': 1500, 'status': 'Late', 'due_date': '2026-01-01',
-        'tenant_id': 'tenant-norkevin',
-    })
-
-    resp = auth_client.get('/dashboard')
-    html = resp.get_data(as_text=True)
-    assert 'dashboard-pending-banner urgent' in html
-    assert 'atrasado' in html
+    assert '<a class="dashboard-pending-banner' not in html
+    assert 'Pagos pendientes de cobrar' not in html
+    assert 'Saldo pendiente' in html
 
 
 def test_sales_and_charts_render_in_main_column_before_the_side_rail(auth_client):

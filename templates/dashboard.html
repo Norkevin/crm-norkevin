@@ -57,44 +57,6 @@
   .dashboard-grid { grid-template-columns: 1fr; }
   .dashboard-rail { margin-top: 20px; }
 }
-/* Jerarquia del dashboard (Kevin, feedback de diseño: "todo pesa igual,
-   dale jerarquia a lo mas importante") -- lo que representa dinero
-   pendiente de cobrar va primero y con mas peso visual que el resto. */
-.dashboard-pending-banner {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px 20px;
-  margin-bottom: 14px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #0F766E, #0D9488);
-  color: #fff;
-  text-decoration: none;
-  box-shadow: 0 6px 20px -8px rgba(13, 148, 136, .45);
-  transition: transform .12s ease, box-shadow .15s ease;
-}
-.dashboard-pending-banner:hover { transform: translateY(-1px); box-shadow: 0 10px 26px -8px rgba(13, 148, 136, .55); }
-.dashboard-pending-banner.urgent { background: linear-gradient(135deg, #7f1d1d, #b3263b); box-shadow: 0 6px 20px -8px rgba(179, 38, 59, .45); }
-.dashboard-pending-icon {
-  width: 42px; height: 42px; flex-shrink: 0;
-  border-radius: 12px;
-  background: rgba(255,255,255,.15);
-  display: grid; place-items: center;
-}
-.dashboard-pending-icon svg { width: 21px; height: 21px; }
-.dashboard-pending-copy { min-width: 0; flex: 1; }
-.dashboard-pending-label { font-size: 12px; font-weight: 500; opacity: .85; }
-.dashboard-pending-value { font-size: 24px; font-weight: 700; margin-top: 1px; }
-.dashboard-pending-late {
-  flex-shrink: 0;
-  text-align: right;
-  padding: 6px 12px;
-  border-radius: 10px;
-  background: rgba(0,0,0,.18);
-}
-.dashboard-pending-late-value { display: block; font-size: 14px; font-weight: 700; }
-.dashboard-pending-late-label { display: block; font-size: 10px; opacity: .8; }
-.dashboard-pending-arrow { width: 18px; height: 18px; flex-shrink: 0; opacity: .7; }
 .dashboard-section-label {
   font-size: 11.5px;
   font-weight: 600;
@@ -323,12 +285,12 @@
 .metric-delta.down { color: #DC2626; }
 .chart-frame {
   position: relative;
-  min-height: 360px;
+  min-height: 440px;
   padding: 20px 20px 14px;
   border-top: 1px solid var(--sn-line);
   margin-top: 10px;
 }
-.chart-frame svg { width: 100%; height: 300px; display: block; }
+.chart-frame svg { width: 100%; height: 380px; display: block; }
 .chart-tooltip {
   position: absolute;
   display: none;
@@ -383,6 +345,7 @@
   font-size: 12px;
 }
 .chart-legend-toggle:hover { background: var(--sn-mint-soft); }
+.chart-legend-toggle-total { margin-left: 6px; font-weight: 600; color: var(--sn-muted); }
 .chart-legend-toggle-hint {
   display: none;
   margin-left: 8px;
@@ -579,14 +542,11 @@
   .dashboard-intro-summary {
     grid-template-columns: 1fr;
   }
-  .dashboard-pending-banner { padding: 12px 14px; gap: 10px; }
   .dashboard-greeting { padding: 14px; }
   .dashboard-ring { width: 68px; height: 68px; }
   .dashboard-ring-hole { width: 52px; height: 52px; }
   .dashboard-ring-value { font-size: 13px; }
   .dashboard-greeting-name { font-size: 17px; }
-  .dashboard-pending-value { font-size: 19px; }
-  .dashboard-pending-icon { width: 36px; height: 36px; }
   .dashboard-section-label { margin: 16px 0 6px; font-size: 11px; }
   .dashboard-control-right {
     display: grid;
@@ -730,7 +690,7 @@
         </div>
 
         <div class="chart-frame">
-          <svg id="dashboard-chart" viewBox="0 0 900 300" preserveAspectRatio="none" role="img" aria-label="Dashboard chart"></svg>
+          <svg id="dashboard-chart" viewBox="0 0 900 380" preserveAspectRatio="none" role="img" aria-label="Dashboard chart"></svg>
           <div class="chart-tooltip" id="dashboard-chart-tooltip"></div>
           <div class="chart-legend" id="dashboard-chart-legend">
             <span><i class="legend-dot" style="background:#0D9488;"></i>Current period</span>
@@ -739,49 +699,9 @@
         </div>
       </div>
 
-      <div class="source-card">
-        <h2>Fuentes de leads</h2>
-        {% if lead_source_stats %}
-        <div class="source-bars">
-          {% for source in lead_source_stats[:6] %}
-          <div class="source-bar-row">
-            <div class="source-bar-label" title="{{ source.label }}">{{ source.label }}</div>
-            <div class="source-bar-track">
-              <div class="source-bar-fill" style="width:{{ source.bar_pct }}%;background:{{ source.color }};"></div>
-            </div>
-            <div class="source-bar-count">{{ source.leads }}</div>
-          </div>
-          {% endfor %}
-        </div>
-        <div style="text-align:center;">
-          <button class="sn-btn sn-btn-sm" type="button" onclick="openDashboardModal('lead-source-modal')">Ver todo</button>
-        </div>
-        {% else %}
-        <div class="text-center py-6 text-ink-soft text-sm">Sin fuentes</div>
-        {% endif %}
-      </div>
     </div>
 
   </div>
-
-  {% if total_pending %}
-  <a class="dashboard-pending-banner {{ 'urgent' if total_late else '' }}" href="/payments">
-    <div class="dashboard-pending-icon">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2 10h20M6 15h4M2 6h20a1 1 0 011 1v10a1 1 0 01-1 1H2a1 1 0 01-1-1V7a1 1 0 011-1z"/></svg>
-    </div>
-    <div class="dashboard-pending-copy">
-      <div class="dashboard-pending-label">Pagos pendientes de cobrar</div>
-      <div class="dashboard-pending-value">Q{{ '{:,.0f}'.format(total_pending) }}</div>
-    </div>
-    {% if total_late %}
-    <div class="dashboard-pending-late">
-      <span class="dashboard-pending-late-value">Q{{ '{:,.0f}'.format(total_late) }}</span>
-      <span class="dashboard-pending-late-label">atrasado</span>
-    </div>
-    {% endif %}
-    <svg class="dashboard-pending-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
-  </a>
-  {% endif %}
 
   <div class="dashboard-panel-intro" style="margin-top:24px;">
     <div class="dashboard-intro-stat">
@@ -942,7 +862,11 @@
       <div class="dashboard-widget-title">Actividad reciente</div>
     </div>
     {% for n in recent_notifications[:5] %}
+    {% if n.url %}
+    <a class="dashboard-activity-row" href="{{ n.url }}" style="text-decoration:none;color:inherit;">
+    {% else %}
     <div class="dashboard-activity-row">
+    {% endif %}
       <span class="dashboard-activity-icon">
         {% if n.type == 'mail' %}
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
@@ -954,10 +878,38 @@
         <span class="dashboard-activity-title">{{ n.title }}</span>
         <span class="dashboard-activity-meta">{{ n.age or n.date or '' }}</span>
       </span>
+    {% if n.url %}
+    </a>
+    {% else %}
     </div>
+    {% endif %}
     {% else %}
     <div class="sn-muted" style="font-size:12.5px;">Sin actividad reciente.</div>
     {% endfor %}
+  </div>
+
+  <div class="dashboard-widget-card">
+    <div class="dashboard-widget-head">
+      <div class="dashboard-widget-title">Fuentes de leads</div>
+    </div>
+    {% if lead_source_stats %}
+    <div class="source-bars">
+      {% for source in lead_source_stats[:6] %}
+      <div class="source-bar-row">
+        <div class="source-bar-label" title="{{ source.label }}">{{ source.label }}</div>
+        <div class="source-bar-track">
+          <div class="source-bar-fill" style="width:{{ source.bar_pct }}%;background:{{ source.color }};"></div>
+        </div>
+        <div class="source-bar-count">{{ source.leads }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="text-align:center;margin-top:8px;">
+      <button class="sn-btn sn-btn-sm" type="button" onclick="openDashboardModal('lead-source-modal')">Ver todo</button>
+    </div>
+    {% else %}
+    <div class="sn-muted" style="font-size:12.5px;">Sin fuentes todavia.</div>
+    {% endif %}
   </div>
 </div>
 </div>
@@ -1100,7 +1052,7 @@ function wireChartTooltips(svg, formatFn) {
     var svgRect = svg.getBoundingClientRect();
     var frameRect = frame.getBoundingClientRect();
     var scaleX = svgRect.width / 900;
-    var scaleY = svgRect.height / 300;
+    var scaleY = svgRect.height / 380;
     var cx = parseFloat(circle.getAttribute('cx')) * scaleX + (svgRect.left - frameRect.left);
     var cy = parseFloat(circle.getAttribute('cy')) * scaleY + (svgRect.top - frameRect.top);
     tooltip.style.left = cx + 'px';
@@ -1125,7 +1077,7 @@ function wireChartTooltips(svg, formatFn) {
 function drawDashboardChart(labels, values, metric) {
   var svg = document.getElementById('dashboard-chart');
   var width = 900;
-  var height = 300;
+  var height = 380;
   var paddingX = 58;
   var paddingTop = 24;
   var paddingBottom = 42;
@@ -1195,7 +1147,7 @@ function toggleRevenueYear(year) {
 
 function drawRevenueComparisonChart() {
   var svg = document.getElementById('dashboard-chart');
-  var width = 900, height = 300, paddingX = 58, paddingTop = 24, paddingBottom = 42;
+  var width = 900, height = 380, paddingX = 58, paddingTop = 24, paddingBottom = 42;
   var usableW = width - paddingX * 2;
   var usableH = height - paddingTop - paddingBottom;
 
@@ -1212,6 +1164,16 @@ function drawRevenueComparisonChart() {
 
   var html = '<defs></defs>';
   html += drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usableW, usableH, max, money);
+
+  // Kevin: los puntos de la grafica deben quedar bien alineados con cada
+  // mes -- se agrega una guia vertical tenue debajo de cada punto, en la
+  // misma coordenada x que las etiquetas de mes, para que el ojo conecte
+  // el punto exacto con su mes sin ambiguedad.
+  MONTH_LABELS.forEach(function(m, i) {
+    var x = paddingX + usableW * i / 11;
+    html += '<line x1="' + x.toFixed(1) + '" y1="' + paddingTop + '" x2="' + x.toFixed(1) + '" y2="' + (height - paddingBottom)
+      + '" stroke="var(--sn-line)" stroke-width="1" stroke-dasharray="2,3"/>';
+  });
 
   visibleSeries.forEach(function(series, sIdx) {
     var pts = series.values.map(function(v, i) {
@@ -1248,6 +1210,7 @@ function drawRevenueComparisonChart() {
     var isHidden = hiddenRevenueYears.has(String(s.year));
     return '<button type="button" class="chart-legend-toggle" style="opacity:' + (isHidden ? '.4' : '1') + ';" onclick="toggleRevenueYear(\'' + s.year + '\')">'
       + '<i class="legend-dot" style="background:' + s.color + ';"></i>' + s.year
+      + '<span class="chart-legend-toggle-total">' + money(s.total) + '</span>'
       + '<span class="chart-legend-toggle-hint">' + (isHidden ? 'Mostrar' : 'Ocultar') + '</span></button>';
   }).join('');
   document.getElementById('dashboard-chart-legend').innerHTML = legendHtml;
