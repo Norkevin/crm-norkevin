@@ -28,6 +28,19 @@
   height: 38px;
   padding: 0 18px;
 }
+/* Kevin probo en un Macbook Air 13" y la columna Job (nombre+avatar) se
+   aplastaba casi a 0 en anchos de laptop intermedios (~990-1300px),
+   porque las demas columnas son anchos fijos y "Job" es la unica flexible.
+   Se sube el min-width de la tabla para que, en vez de seguir aplastando
+   Job, aparezca scroll horizontal (ya soportado por sn-table-shell) antes
+   de que Job se vuelva ilegible. Solo por encima de 760px -- debajo de eso
+   la tabla pasa a tarjetas apiladas (.stack-mobile) y no debe tener este
+   min-width o rompe ese layout movil. */
+@media (min-width: 761px) {
+  .jobs-page #jobs-table {
+    min-width: 980px;
+  }
+}
 .jobs-page #jobs-table td {
   height: auto;
   padding: 10px 18px;
