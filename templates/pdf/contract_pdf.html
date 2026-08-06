@@ -17,9 +17,7 @@
   .quote-label { font-size: 8px; letter-spacing: 3px; opacity: 0.7; }
   .quote-id { font-size: 18px; font-weight: 300; margin-top: 4px; }
 
-  .tabs { display: flex; gap: 0; margin-top: 30px; }
-  .tab { padding: 10px 20px; font-size: 9px; letter-spacing: 2px; opacity: 0.5; border-bottom: 1px solid rgba(255,255,255,0.3); }
-  .tab.active { opacity: 1; border-bottom: 2px solid white; }
+  .doc-type-label { margin-top: 30px; font-size: 9px; letter-spacing: 3px; opacity: 0.75; text-transform: uppercase; border-top: 1px solid rgba(255,255,255,0.25); padding-top: 14px; }
 
   .body { padding: 50px 60px; }
   .section-label { font-size: 9px; letter-spacing: 2px; color: #6B7280; margin-bottom: 8px; text-transform: uppercase; }
@@ -59,12 +57,7 @@
         <div class="quote-id">{{ contract.id }}</div>
       </div>
     </div>
-    <div class="tabs">
-      <div class="tab">INICIO</div>
-      <div class="tab">COTIZACION</div>
-      <div class="tab active">CONTRATO</div>
-      <div class="tab">FACTURA</div>
-    </div>
+    <div class="doc-type-label">Contrato</div>
   </div>
 
   <div class="body">
