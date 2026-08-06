@@ -42,6 +42,21 @@
   max-width: var(--content-max);
   margin: 0 auto;
 }
+/* Layout de 2 columnas -- Kevin pidio que se parezca a la referencia con
+   columna principal + rail lateral fijo (Tareas/Proximas sesiones/Estado
+   de pagos/Actividad reciente), en vez de todo apilado a ancho completo. */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+  align-items: start;
+}
+.dashboard-main { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.dashboard-rail { display: flex; flex-direction: column; gap: 20px; }
+@media (max-width: 1100px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .dashboard-rail { margin-top: 20px; }
+}
 /* Jerarquia del dashboard (Kevin, feedback de diseño: "todo pesa igual,
    dale jerarquia a lo mas importante") -- lo que representa dinero
    pendiente de cobrar va primero y con mas peso visual que el resto. */
@@ -625,6 +640,8 @@
 </style>
 
 <section class="dashboard-shell">
+<div class="dashboard-grid">
+<div class="dashboard-main">
   <div class="dashboard-panel dashboard-greeting">
     <div class="dashboard-greeting-copy">
       <div class="dashboard-greeting-label">Buen dia,</div>
@@ -775,77 +792,6 @@
     </div>
   </div>
 
-  <div class="dashboard-widgets">
-    <div class="dashboard-widget-card">
-      <div class="dashboard-widget-head">
-        <div class="dashboard-widget-title">Tareas</div>
-      </div>
-      {% for j in upcoming_jobs[:4] %}
-      <a class="dashboard-task-row" href="/jobs/{{ j.id }}" style="text-decoration:none;color:inherit;">
-        <span class="dashboard-task-check"></span>
-        <span class="dashboard-task-copy">
-          <span class="dashboard-task-title">{{ j.next_task or 'Job complete' }} &middot; {{ j.nombre }}</span>
-          <span class="dashboard-task-due {{ 'urgent' if j.dias_restantes is not none and j.dias_restantes <= 3 else '' }}">
-            {% if j.dias_restantes == 0 %}Hoy{% elif j.dias_restantes == 1 %}Manana{% elif j.dias_restantes is not none %}En {{ j.dias_restantes }} dias{% else %}Sin fecha{% endif %}
-          </span>
-        </span>
-      </a>
-      {% else %}
-      <div class="sn-muted" style="font-size:12.5px;">Sin tareas pendientes.</div>
-      {% endfor %}
-    </div>
-
-    <div class="dashboard-widget-card">
-      <div class="dashboard-widget-head">
-        <div class="dashboard-widget-title">Estado de pagos</div>
-      </div>
-      {% if pie_segments %}
-      <div class="dashboard-donut-wrap">
-        <svg width="88" height="88" viewBox="0 0 200 200">
-          {% for seg in pie_segments %}
-          <path d="{{ seg.path }}" fill="{{ seg.color }}"></path>
-          {% endfor %}
-          <circle cx="100" cy="100" r="52" fill="var(--sn-white)"></circle>
-        </svg>
-        <div class="dashboard-donut-legend">
-          {% for seg in pie_segments %}
-          <div class="dashboard-donut-legend-row">
-            <span class="dashboard-donut-dot" style="background:{{ seg.color }};"></span>
-            <span class="dashboard-donut-legend-label">{{ seg.label }}</span>
-            <span class="dashboard-donut-legend-value">Q{{ '{:,.0f}'.format(seg.amount) }} <span class="dashboard-donut-legend-pct">({{ (seg.pct * 100)|round|int }}%)</span></span>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% else %}
-      <div class="sn-muted" style="font-size:12.5px;">Sin pagos registrados todavia.</div>
-      {% endif %}
-    </div>
-
-    <div class="dashboard-widget-card">
-      <div class="dashboard-widget-head">
-        <div class="dashboard-widget-title">Actividad reciente</div>
-      </div>
-      {% for n in recent_notifications[:5] %}
-      <div class="dashboard-activity-row">
-        <span class="dashboard-activity-icon">
-          {% if n.type == 'mail' %}
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
-          {% else %}
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m7-9a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/></svg>
-          {% endif %}
-        </span>
-        <span class="dashboard-activity-copy">
-          <span class="dashboard-activity-title">{{ n.title }}</span>
-          <span class="dashboard-activity-meta">{{ n.age or n.date or '' }}</span>
-        </span>
-      </div>
-      {% else %}
-      <div class="sn-muted" style="font-size:12.5px;">Sin actividad reciente.</div>
-      {% endfor %}
-    </div>
-  </div>
-
   <div class="dashboard-section-label">Recent jobs</div>
   <div class="dashboard-panel">
     <div class="dashboard-jobs-table-wrap">
@@ -886,61 +832,131 @@
     </div>
   </div>
 
-  <div class="dashboard-section-label">Proximos eventos y actividad reciente</div>
-  <div class="dashboard-lists">
-    <div class="dashboard-list-card">
-      <div class="dashboard-list-head">
-        <div class="dashboard-list-title">Proximas sesiones y citas</div>
-        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/jobs?new=1">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-          Nuevo
-        </a>
-      </div>
-      {% for j in upcoming_jobs[:5] %}
-      <a class="dashboard-event-row" href="/jobs/{{ j.id }}">
-        {% if j.event_day %}
-        <span class="dashboard-event-date-badge">
-          <span class="dashboard-event-day">{{ j.event_day }}</span>
-          <span class="dashboard-event-month">{{ j.event_month_abbr }}</span>
-        </span>
-        {% else %}
-        <span class="dashboard-event-date-badge">
-          <span class="dashboard-event-month">?</span>
-        </span>
-        {% endif %}
-        <span class="dashboard-event-copy">
-          <span class="dashboard-event-title">{{ j.nombre }}</span>
-          <span class="dashboard-event-sub">{{ j.location or 'Sin ubicacion' }}</span>
-        </span>
-        <span class="sn-chip green">Job</span>
+  <div class="dashboard-list-card" style="margin-top:20px;">
+    <div class="dashboard-list-head">
+      <div class="dashboard-list-title">Leads recientes</div>
+      <a class="sn-btn sn-btn-primary sn-btn-sm" href="/leads?new=1">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Nuevo
       </a>
-      {% else %}
-      <div class="text-center py-6 text-ink-soft text-sm">Sin sesiones proximas</div>
-      {% endfor %}
     </div>
-
-    <div class="dashboard-list-card">
-      <div class="dashboard-list-head">
-        <div class="dashboard-list-title">Leads recientes</div>
-        <a class="sn-btn sn-btn-primary sn-btn-sm" href="/leads?new=1">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-          Nuevo
-        </a>
-      </div>
-      {% for l in recent_leads %}
-      <a class="dashboard-row" href="/leads/{{ l.id }}">
-        <span class="dashboard-row-avatar">{{ (l.nombre or '?')[:1]|upper }}</span>
-        <span>
-          <span class="dashboard-row-main">{{ l.nombre }}</span>
-          <span class="dashboard-row-sub">{{ l.created or 'Today' }} &middot; {{ l.email or l.fuente or '' }}</span>
-        </span>
-        <span class="sn-chip cyan">{{ l.mail_status or 'OPEN' }}</span>
-      </a>
-      {% else %}
-      <div class="text-center py-6 text-ink-soft text-sm">Sin leads recientes</div>
-      {% endfor %}
-    </div>
+    {% for l in recent_leads %}
+    <a class="dashboard-row" href="/leads/{{ l.id }}">
+      <span class="dashboard-row-avatar">{{ (l.nombre or '?')[:1]|upper }}</span>
+      <span>
+        <span class="dashboard-row-main">{{ l.nombre }}</span>
+        <span class="dashboard-row-sub">{{ l.created or 'Today' }} &middot; {{ l.email or l.fuente or '' }}</span>
+      </span>
+      <span class="sn-chip cyan">{{ l.mail_status or 'OPEN' }}</span>
+    </a>
+    {% else %}
+    <div class="text-center py-6 text-ink-soft text-sm">Sin leads recientes</div>
+    {% endfor %}
   </div>
+</div>
+
+<div class="dashboard-rail">
+  <div class="dashboard-widget-card">
+    <div class="dashboard-widget-head">
+      <div class="dashboard-widget-title">Tareas</div>
+    </div>
+    {% for j in upcoming_jobs[:4] %}
+    <a class="dashboard-task-row" href="/jobs/{{ j.id }}" style="text-decoration:none;color:inherit;">
+      <span class="dashboard-task-check"></span>
+      <span class="dashboard-task-copy">
+        <span class="dashboard-task-title">{{ j.next_task or 'Job complete' }} &middot; {{ j.nombre }}</span>
+        <span class="dashboard-task-due {{ 'urgent' if j.dias_restantes is not none and j.dias_restantes <= 3 else '' }}">
+          {% if j.dias_restantes == 0 %}Hoy{% elif j.dias_restantes == 1 %}Manana{% elif j.dias_restantes is not none %}En {{ j.dias_restantes }} dias{% else %}Sin fecha{% endif %}
+        </span>
+      </span>
+    </a>
+    {% else %}
+    <div class="sn-muted" style="font-size:12.5px;">Sin tareas pendientes.</div>
+    {% endfor %}
+  </div>
+
+  <div class="dashboard-list-card">
+    <div class="dashboard-list-head">
+      <div class="dashboard-list-title">Proximas sesiones y citas</div>
+      <a class="sn-btn sn-btn-primary sn-btn-sm" href="/jobs?new=1">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+        Nuevo
+      </a>
+    </div>
+    {% for j in upcoming_jobs[:5] %}
+    <a class="dashboard-event-row" href="/jobs/{{ j.id }}">
+      {% if j.event_day %}
+      <span class="dashboard-event-date-badge">
+        <span class="dashboard-event-day">{{ j.event_day }}</span>
+        <span class="dashboard-event-month">{{ j.event_month_abbr }}</span>
+      </span>
+      {% else %}
+      <span class="dashboard-event-date-badge">
+        <span class="dashboard-event-month">?</span>
+      </span>
+      {% endif %}
+      <span class="dashboard-event-copy">
+        <span class="dashboard-event-title">{{ j.nombre }}</span>
+        <span class="dashboard-event-sub">{{ j.location or 'Sin ubicacion' }}</span>
+      </span>
+      <span class="sn-chip green">Job</span>
+    </a>
+    {% else %}
+    <div class="text-center py-6 text-ink-soft text-sm">Sin sesiones proximas</div>
+    {% endfor %}
+  </div>
+
+  <div class="dashboard-widget-card">
+    <div class="dashboard-widget-head">
+      <div class="dashboard-widget-title">Estado de pagos</div>
+    </div>
+    {% if pie_segments %}
+    <div class="dashboard-donut-wrap">
+      <svg width="88" height="88" viewBox="0 0 200 200">
+        {% for seg in pie_segments %}
+        <path d="{{ seg.path }}" fill="{{ seg.color }}"></path>
+        {% endfor %}
+        <circle cx="100" cy="100" r="52" fill="var(--sn-white)"></circle>
+      </svg>
+      <div class="dashboard-donut-legend">
+        {% for seg in pie_segments %}
+        <div class="dashboard-donut-legend-row">
+          <span class="dashboard-donut-dot" style="background:{{ seg.color }};"></span>
+          <span class="dashboard-donut-legend-label">{{ seg.label }}</span>
+          <span class="dashboard-donut-legend-value">Q{{ '{:,.0f}'.format(seg.amount) }} <span class="dashboard-donut-legend-pct">({{ (seg.pct * 100)|round|int }}%)</span></span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="sn-muted" style="font-size:12.5px;">Sin pagos registrados todavia.</div>
+    {% endif %}
+  </div>
+
+  <div class="dashboard-widget-card">
+    <div class="dashboard-widget-head">
+      <div class="dashboard-widget-title">Actividad reciente</div>
+    </div>
+    {% for n in recent_notifications[:5] %}
+    <div class="dashboard-activity-row">
+      <span class="dashboard-activity-icon">
+        {% if n.type == 'mail' %}
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
+        {% else %}
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m7-9a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/></svg>
+        {% endif %}
+      </span>
+      <span class="dashboard-activity-copy">
+        <span class="dashboard-activity-title">{{ n.title }}</span>
+        <span class="dashboard-activity-meta">{{ n.age or n.date or '' }}</span>
+      </span>
+    </div>
+    {% else %}
+    <div class="sn-muted" style="font-size:12.5px;">Sin actividad reciente.</div>
+    {% endfor %}
+  </div>
+</div>
+</div>
 </section>
 
 <div class="modal-overlay" id="lead-source-modal">
