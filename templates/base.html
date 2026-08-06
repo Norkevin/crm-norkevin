@@ -25,58 +25,69 @@
 {% include "_tailwind_config.html" %}
 <style>
 :root {
-  /* v4: acento violeta/indigo -- Kevin senalo una referencia especifica
-     (dashboard SaaS lavanda) despues de ver el v3 en teal. Se mantiene el
-     *nombre* de la variable (--sn-green) para no romper los ~100+ usos
-     existentes, solo cambia el valor -- mismo patron que el cambio azul->
-     teal de la v1. */
-  --sn-green: #6D5AE6;
-  --sn-green-dark: #5849BE;
-  --sn-mint: #EDE9FE;
-  --sn-mint-soft: #F5F3FF;
+  /* v5: tokens exactos del brief de rediseno integral de Kevin -- se
+     mantienen los *nombres* de variable existentes (--sn-green, etc.) para
+     no romper los ~100+ usos ya escritos en toda la app, pero los valores
+     ahora son los que Kevin definio explicitamente (paleta, radios,
+     sombras, anchos). Mismo patron de "cambiar el valor, no el nombre" que
+     v1-v4. */
+  --sn-green: #7357F6;
+  --sn-green-dark: #6447EE;
+  --sn-green-active: #5638DC;
+  --sn-mint: #F0EDFF;
+  --sn-mint-soft: #F7F5FF;
   --sn-ink: #111827;
-  --sn-muted: #6B7280;
-  --sn-soft: #9CA3AF;
-  --sn-line: #E4E7EC;
-  --sn-line-dark: #DCE0E7;
-  --sn-row: #F6F7F9;
-  --sn-panel: #F6F7F9;
+  --sn-muted: #667085;
+  --sn-soft: #98A2B3;
+  --sn-disabled: #B5BDC9;
+  --sn-line: #E7EAF0;
+  --sn-line-dark: #D7DCE5;
+  --sn-row: #F4F5F9;
+  --sn-panel: #F4F5F9;
   --sn-white: #ffffff;
-  --sn-yellow: #f59e0b;
+  --sn-yellow: #F59E0B;
+  --sn-yellow-soft: #FFF5DF;
   --sn-pink: #f43f5e;
-  --sn-cyan: #06b6d4;
-  --sn-blue: #0284C7;
-  --sn-red: #dc2626;
-  /* v2: fondo plano gris-lavanda palido (Notion/Linear) en vez del
-     gradiente diagonal de v1 -- Kevin: 'se siente demasiado plano/basico,
-     falta que se note un sistema de diseno real'. */
-  --sn-canvas: #F5F6FA;
+  --sn-cyan: #4F7CFF;
+  --sn-cyan-soft: #EDF2FF;
+  --sn-blue: #4F7CFF;
+  --sn-red: #EF5B5B;
+  --sn-red-soft: #FEEEEE;
+  --sn-success: #2FB66D;
+  --sn-success-soft: #EAF8F0;
+  /* Fondo general de la app -- Kevin: "fondo muy claro" en el brief. */
+  --sn-canvas: #F7F8FC;
   /* Niveles de superficie -- separados de --sn-white/--sn-row para que el
      tema oscuro pueda distinguir tarjeta vs input vs hover sin que todo
-     colapse al mismo gris (ver seccion 1 del feedback de Kevin). */
-  --sn-surface-2: #F3F4F6;
-  --sn-surface-hover: #F6F7F9;
-  --sn-focus-ring: rgba(109, 90, 230, .15);
-  --sn-shadow-soft: rgba(16, 24, 40, .06);
-  --sn-shadow-card: rgba(16, 24, 40, .10);
+     colapse al mismo gris. */
+  --sn-surface-2: #F4F5F9;
+  --sn-surface-hover: #F8F7FF;
+  --sn-focus-ring: rgba(115, 87, 246, .15);
+  --sn-shadow-soft: rgba(16, 24, 40, .04);
+  --sn-shadow-card: rgba(16, 24, 40, .045);
   --sn-overlay: rgba(15, 18, 22, .6);
-  /* v2: escala real de elevacion para que las tarjetas "floten" por sombra
-     en vez de por borde grueso -- reemplaza el radio/sombra unico de v1. */
-  --sn-shadow-resting: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .08);
-  --sn-shadow-hover: 0 4px 12px rgba(16, 24, 40, .10), 0 2px 6px rgba(16, 24, 40, .06);
-  --sn-radius-sm: 10px;
-  --sn-radius-md: 14px;
-  --sn-radius-lg: 18px;
-  /* v2: contenedor con ancho maximo -- Kevin: 'en un monitor de 27" todo
-     se estira de extremo a extremo y se ve vacio/desordenado'. */
-  --content-max: 1360px;
-  /* v2: sidebar clara con icono+texto (reemplaza la oscura solo-icono de
-     v1, que no calzaba con las referencias reales que compartio Kevin). */
-  --sn-sidebar-width: 232px;
+  /* Escala de elevacion segun brief: shadow-xs/sm/card/modal. */
+  --sn-shadow-resting: 0 1px 2px rgba(16, 24, 40, .03), 0 3px 10px rgba(16, 24, 40, .04);
+  --sn-shadow-hover: 0 8px 24px rgba(16, 24, 40, .045);
+  --sn-shadow-modal: 0 24px 80px rgba(16, 24, 40, .16);
+  --sn-radius-sm: 8px;
+  --sn-radius-md: 12px;
+  --sn-radius-lg: 16px;
+  --sn-radius-xl: 20px;
+  /* Contenedor con ancho maximo -- brief pide 1540px para contenido normal,
+     1180px para lectura (documentos/formularios), 1320px para detalle. */
+  --content-max: 1540px;
+  --content-readable: 1180px;
+  --content-detail: 1320px;
+  --page-padding-x: 40px;
+  --page-padding-y: 32px;
+  /* Sidebar clara con icono+texto, ancho del brief (248px). */
+  --sn-sidebar-width: 248px;
   --sn-sidebar-bg: #FBFBFD;
   --sn-sidebar-ink: var(--sn-muted);
   --sn-sidebar-active-bg: var(--sn-mint-soft);
   --sn-sidebar-hover: var(--sn-surface-hover);
+  --sn-topbar-height: 72px;
 }
 
 /* Kevin: 'ver todo en modo oscuro para cuando trabajo de noche no
@@ -150,7 +161,7 @@ svg[stroke="currentColor"] rect {
   position: sticky;
   top: 0;
   z-index: 10000;
-  height: 64px;
+  height: var(--sn-topbar-height);
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr) 300px;
   align-items: center;
