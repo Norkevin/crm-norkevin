@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Quotes Overview · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}Cotizaciones{% endblock %}
+{% block subtitle %}{{ quotes|length }} cotizaciones{% endblock %}
+
+{% block content %}
+<style>
+.quotes-page .sn-page-head { margin-bottom: 16px; }
+.quotes-page .quote-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.quotes-page .quote-stat-card {
+  border: 1px solid rgba(16, 24, 40, .04);
+  border-radius: var(--sn-radius-lg);
+  background: var(--sn-white);
+  padding: 16px 18px;
+  box-shadow: var(--sn-shadow-resting);
+}
+.quotes-page .quote-stat-label { font-size: 12px; color: var(--sn-muted); }
+.quotes-page .quote-stat-value { font-size: 22px; font-weight: 700; color: var(--sn-ink); margin-top: 4px; }
+@media (max-width: 760px) { .quotes-page .quote-stats { grid-template-columns: 1fr; } }
+.quotes-page .quote-primary { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.quotes-page .quote-title { font-size: 14.5px; font-weight: 600; color: var(--sn-ink); }
+.quotes-page .quote-sub { font-size: 12.5px; color: var(--sn-muted); }
+</style>
+<section class="sn-page-wide quotes-page">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Cotizaciones</h1>
+      <div class="sn-breadcrumbs">Todas las cotizaciones enviadas a clientes y leads.</div>
+    </div>
+  </div>
+
+  <div class="quote-stats">
+    <div class="quote-stat-card">
+      <div class="quote-stat-label">Enviadas / Aceptadas</div>
+      <div class="quote-stat-value">{{ total_sent }}</div>
+    </div>
+    <div class="quote-stat-card">
+      <div class="quote-stat-label">Aceptadas</div>
+      <div class="quote-stat-value">{{ total_accepted }}</div>
+    </div>
+    <div class="quote-stat-card">
+      <div class="quote-stat-label">Valor total</div>
+      <div class="quote-stat-value">Q{{ '{:,.0f}'.format(total_value) }}</div>
+    </div>
+  </div>
+
+  <div class="sn-table-shell stack-mobile">
+    <table class="sn-table" id="quotes-table">
+      <thead>
+        <tr>
+          <th style="width: 260px;">Cotizacion</th>
+          <th style="width: 180px;">Cliente</th>
+          <th style="width: 130px;">Monto</th>
+          <th style="width: 130px;">Estado</th>
+          <th style="width: 130px;">Creada</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for q in quotes %}
+        <tr class="sn-table-row" onclick="window.location.href='/quotes/{{ q.id }}'">
+          <td class="sn-ellipsis stack-full" data-label="Cotizacion">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+              <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (q.client_name or '?')[:1]|upper }}</span>
+              <div class="quote-primary">
+                <span class="quote-title sn-ellipsis">{{ q.paquete_nombre or 'Cotizacion' }}</span>
+                <span class="quote-sub sn-ellipsis">{{ q.ref_name }}</span>
+              </div>
+            </div>
+          </td>
+          <td class="sn-ellipsis" data-label="Cliente">{{ q.client_name }}</td>
+          <td data-label="Monto">Q{{ '{:,.0f}'.format(q.precio_total or 0) }}</td>
+          <td data-label="Estado">
+            <span class="sn-chip {{ 'green' if q.status == 'Aceptada' else ('cyan' if q.status == 'Enviada' else 'yellow') }}">{{ q.status or 'Borrador' }}</span>
+          </td>
+          <td class="sn-ellipsis" data-label="Creada">{{ q.created or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5"><div class="sn-muted" style="padding:14px 0;">Todavia no hay cotizaciones.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

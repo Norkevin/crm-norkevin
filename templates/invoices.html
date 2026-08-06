@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Invoices Overview · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}Facturas{% endblock %}
+{% block subtitle %}{{ invoices|length }} facturas{% endblock %}
+
+{% block content %}
+<style>
+.invoices-page .sn-page-head { margin-bottom: 16px; }
+.invoices-page .invoice-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.invoices-page .invoice-stat-card {
+  border: 1px solid rgba(16, 24, 40, .04);
+  border-radius: var(--sn-radius-lg);
+  background: var(--sn-white);
+  padding: 16px 18px;
+  box-shadow: var(--sn-shadow-resting);
+}
+.invoices-page .invoice-stat-label { font-size: 12px; color: var(--sn-muted); }
+.invoices-page .invoice-stat-value { font-size: 22px; font-weight: 700; color: var(--sn-ink); margin-top: 4px; }
+@media (max-width: 760px) { .invoices-page .invoice-stats { grid-template-columns: 1fr; } }
+.invoices-page .invoice-primary { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.invoices-page .invoice-title { font-size: 14.5px; font-weight: 600; color: var(--sn-ink); }
+.invoices-page .invoice-sub { font-size: 12.5px; color: var(--sn-muted); }
+</style>
+<section class="sn-page-wide invoices-page">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Facturas</h1>
+      <div class="sn-breadcrumbs">Todas las facturas generadas a partir de cotizaciones aceptadas.</div>
+    </div>
+  </div>
+
+  <div class="invoice-stats">
+    <div class="invoice-stat-card">
+      <div class="invoice-stat-label">Total facturado</div>
+      <div class="invoice-stat-value">Q{{ '{:,.0f}'.format(total_billed) }}</div>
+    </div>
+    <div class="invoice-stat-card">
+      <div class="invoice-stat-label">Cobrado</div>
+      <div class="invoice-stat-value">Q{{ '{:,.0f}'.format(total_paid) }}</div>
+    </div>
+    <div class="invoice-stat-card">
+      <div class="invoice-stat-label">Saldo pendiente</div>
+      <div class="invoice-stat-value">Q{{ '{:,.0f}'.format(total_balance) }}</div>
+    </div>
+  </div>
+
+  <div class="sn-table-shell stack-mobile">
+    <table class="sn-table" id="invoices-table">
+      <thead>
+        <tr>
+          <th style="width: 260px;">Factura</th>
+          <th style="width: 180px;">Cliente</th>
+          <th style="width: 130px;">Total</th>
+          <th style="width: 130px;">Saldo</th>
+          <th style="width: 130px;">Estado</th>
+          <th style="width: 130px;">Proximo pago</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr class="sn-table-row" onclick="window.location.href='/invoices/{{ inv.invoice_id }}'">
+          <td class="sn-ellipsis stack-full" data-label="Factura">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+              <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (inv.client_name or '?')[:1]|upper }}</span>
+              <div class="invoice-primary">
+                <span class="invoice-title sn-ellipsis">{{ inv.title }}</span>
+                <span class="invoice-sub sn-ellipsis">{{ inv.job_name }} &middot; {{ inv.invoice_id }}</span>
+              </div>
+            </div>
+          </td>
+          <td class="sn-ellipsis" data-label="Cliente">{{ inv.client_name }}</td>
+          <td data-label="Total">Q{{ '{:,.0f}'.format(inv.total) }}</td>
+          <td data-label="Saldo">Q{{ '{:,.0f}'.format(inv.balance) }}</td>
+          <td data-label="Estado">
+            <span class="sn-chip {{ 'green' if inv.status == 'Pagado' else ('red' if inv.status == 'Late' else 'yellow') }}">{{ inv.status }}</span>
+          </td>
+          <td class="sn-ellipsis" data-label="Proximo pago">{{ inv.next_due_display }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6"><div class="sn-muted" style="padding:14px 0;">Todavia no hay facturas.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

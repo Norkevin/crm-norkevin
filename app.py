@@ -301,6 +301,11 @@ def list_payments(tenant_id=None):
         tenant_id = get_current_tenant_id()
     return filter_by_tenant(store.list('payments'), tenant_id)
 
+def list_quotes(tenant_id=None):
+    if tenant_id is None:
+        tenant_id = get_current_tenant_id()
+    return filter_by_tenant(store.list('quotes'), tenant_id)
+
 
 def _visible_billable_payments(tenant_id=None):
     """Pagos que deben verse en Payments/Dashboard.
@@ -3190,6 +3195,54 @@ def api_job_trigger_step(job_id):
         'message': f'Step "{result.get("step")}" completado' +
                    (f'. {result.get("pagos_equipo_generados")} pagos al equipo generados.' if result.get('pagos_equipo_generados') else '')
     })
+
+
+@app.route('/invoices')
+def invoices_list():
+    """Invoices Overview: una fila por factura (agrupa cuotas de un mismo
+    quote/invoice_id), igual que la agrupacion que ya existe en job_detail
+    pero a traves de todos los jobs en vez de uno solo."""
+    payments_all = _visible_billable_payments()
+    clients = {c['id']: c for c in list_clients()}
+    jobs = {j['id']: j for j in list_jobs()}
+    quotes_by_id = {q['id']: q for q in list_quotes()}
+
+    invoice_groups_map = {}
+    for p in sorted(payments_all, key=lambda row: (row.get('quote_id') or row.get('invoice_id') or '', row.get('due_date') or '', row.get('cuota') or 0)):
+        group_key = p.get('quote_id') or p.get('invoice_id') or p.get('id')
+        quote = quotes_by_id.get(p.get('quote_id')) or {}
+        job = jobs.get(p.get('job_id'))
+        client = clients.get(p.get('client_id'))
+        group = invoice_groups_map.setdefault(group_key, {
+            'invoice_id': p.get('invoice_id') or p.get('id'),
+            'title': quote.get('paquete_nombre') or p.get('concepto') or p.get('invoice_id') or 'Invoice',
+            'client_name': f"{client['first_name']} {client['last_name']}" if client else 'Sin cliente',
+            'job_name': job.get('nombre') if job else 'Sin job',
+            'total': 0.0,
+            'paid': 0.0,
+            'next_due': '',
+            'status': 'Pagado',
+        })
+        group['total'] += coerce_amount(p.get('amount') or p.get('original_amount'))
+        group['paid'] += coerce_amount(p.get('amount')) if p.get('status') == 'Pagado' else 0.0
+        if p.get('status') != 'Pagado':
+            group['status'] = p.get('status') or 'Pendiente'
+            if not group['next_due'] or (p.get('due_date') or '') < group['next_due']:
+                group['next_due'] = p.get('due_date') or ''
+
+    invoices = []
+    for group in invoice_groups_map.values():
+        group['balance'] = max(group['total'] - group['paid'], 0)
+        group['next_due_display'] = _format_date_es(group.get('next_due')) or group.get('next_due') or '-'
+        invoices.append(group)
+    invoices.sort(key=lambda g: (0 if g['status'] != 'Pagado' else 1, g.get('next_due') or ''))
+
+    total_billed = sum(g['total'] for g in invoices)
+    total_paid = sum(g['paid'] for g in invoices)
+    total_balance = sum(g['balance'] for g in invoices)
+
+    return render_template('invoices.html', invoices=invoices,
+                          total_billed=total_billed, total_paid=total_paid, total_balance=total_balance)
 
 
 @app.route('/payments')
@@ -7240,6 +7293,32 @@ def _quote_plan_choices(quote):
     if choices:
         return sorted(set(int(c) for c in choices if int(c) > 0))
     return [1, 2, 3, 4]
+
+
+@app.route('/quotes')
+def quotes_list():
+    """Quotes Overview: todas las cotizaciones del tenant, sin importar
+    si ya se convirtieron en job o siguen ligadas a un lead."""
+    quotes = list_quotes()
+    clients = {c['id']: c for c in list_clients()}
+    jobs = {j['id']: j for j in list_jobs()}
+    leads = {l['id']: l for l in list_leads()}
+
+    for q in quotes:
+        client = clients.get(q.get('client_id'))
+        q['client_name'] = f"{client['first_name']} {client['last_name']}" if client else 'Sin cliente'
+        job = jobs.get(q.get('job_id'))
+        lead = leads.get(q.get('lead_id'))
+        q['ref_name'] = (job or {}).get('nombre') or (lead or {}).get('nombre') or '—'
+
+    quotes.sort(key=lambda q: q.get('created') or '', reverse=True)
+
+    total_sent = sum(1 for q in quotes if q.get('status') in ('Enviada', 'Aceptada'))
+    total_accepted = sum(1 for q in quotes if q.get('status') == 'Aceptada')
+    total_value = sum(coerce_amount(q.get('precio_total')) for q in quotes)
+
+    return render_template('quotes.html', quotes=quotes,
+                          total_sent=total_sent, total_accepted=total_accepted, total_value=total_value)
 
 
 @app.route('/quotes/<quote_id>')
