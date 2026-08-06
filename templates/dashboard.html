@@ -190,7 +190,7 @@
   border-radius: 5px; border: 1.5px solid var(--sn-line-dark);
 }
 .dashboard-task-copy { min-width: 0; flex: 1; }
-.dashboard-task-title { color: var(--sn-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-task-title { display: block; color: var(--sn-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-task-due { font-size: 10.5px; color: var(--sn-muted); margin-top: 2px; }
 .dashboard-task-due.urgent { color: #dc2626; font-weight: 600; }
 .dashboard-donut-wrap { display: flex; align-items: center; gap: 16px; }
@@ -207,9 +207,9 @@
   display: grid; place-items: center; background: var(--sn-mint-soft); color: var(--sn-green-dark);
 }
 .dashboard-activity-icon svg { width: 14px; height: 14px; }
-.dashboard-activity-copy { min-width: 0; }
-.dashboard-activity-title { font-size: 12px; color: var(--sn-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dashboard-activity-meta { font-size: 10.5px; color: var(--sn-muted); margin-top: 1px; }
+.dashboard-activity-copy { min-width: 0; flex: 1 1 0; }
+.dashboard-activity-title { display: block; font-size: 12px; color: var(--sn-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-activity-meta { display: block; font-size: 10.5px; color: var(--sn-muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 900px) { .dashboard-widgets { grid-template-columns: 1fr; } }
 
 .dashboard-jobs-table-wrap { overflow-x: auto; }
@@ -222,7 +222,7 @@
 .dashboard-jobs-table tr.dashboard-jobs-row { cursor: pointer; }
 .dashboard-jobs-table tr.dashboard-jobs-row:hover td { background: var(--sn-mint-soft); }
 .dashboard-jobs-job-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.dashboard-jobs-job-name { font-weight: 600; color: var(--sn-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dashboard-jobs-job-name { display: block; min-width: 0; font-weight: 600; color: var(--sn-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dashboard-jobs-progress-wrap { display: flex; align-items: center; gap: 8px; min-width: 90px; }
 .dashboard-jobs-progress-pct { font-size: 11.5px; color: var(--sn-muted); flex-shrink: 0; width: 30px; text-align: right; }
 
@@ -260,9 +260,13 @@
 .segmented button:last-child,
 .segmented a:last-child { border-right: 0; }
 .segmented .active { background: var(--sn-surface-hover); }
+/* La columna principal ahora es mas angosta (comparte espacio con el rail
+   lateral fijo de 340px), asi que "Fuentes de leads" ya no cabe al costado
+   del grafico sin dejar las tarjetas de metricas demasiado apretadas --
+   se apila debajo del grafico en vez de al costado. */
 .dashboard-analytics {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 348px;
+  display: flex;
+  flex-direction: column;
   gap: 22px;
 }
 .revenue-card,
