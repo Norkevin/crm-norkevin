@@ -1889,6 +1889,121 @@ def index():
                           day_names=['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'])
 
 
+def _compute_custom_range_payload(start_day, end_day):
+    """Igual que los rangos preseteados (7/30/mtd/ytd) de dashboard(), pero
+    para un rango de fechas arbitrario que el usuario elige con el
+    calendario -- Kevin: 'quiero ver cuanto he ganado de fecha a fecha'.
+    Bucket diario (como '7'/'30'), tope de 366 dias para no generar series
+    gigantes por error de seleccion."""
+    from datetime import date as _date, timedelta as _timedelta
+
+    if end_day < start_day:
+        start_day, end_day = end_day, start_day
+    max_days = 366
+    total_days = (end_day - start_day).days + 1
+    if total_days > max_days:
+        end_day = start_day + _timedelta(days=max_days - 1)
+        total_days = max_days
+
+    days = [start_day + _timedelta(days=i) for i in range(total_days)]
+    if total_days > 62:
+        labels = [d.strftime('%d %b') if d.day in (1, 15) else '' for d in days]
+    else:
+        labels = [d.strftime('%d %b') for d in days]
+    date_label = f"{start_day.strftime('%d %b %Y')} - {end_day.strftime('%d %b %Y')}"
+    base_keys = [d.isoformat() for d in days]
+    keys_index = {key: idx for idx, key in enumerate(base_keys)}
+
+    all_leads = _open_leads()
+    all_jobs = _canonical_jobs()
+    all_payments = _visible_billable_payments()
+    job_type_labels = sorted({
+        (j.get('type') or j.get('tipo_evento') or 'BODAS') for j in all_jobs
+    } | {
+        (l.get('tipo_evento') or 'BODAS') for l in all_leads
+    } | {'All Job Types'})
+
+    def _parse_day(value):
+        if not value:
+            return None
+        try:
+            return _date.fromisoformat(str(value)[:10])
+        except Exception:
+            return None
+
+    job_by_id = {j.get('id'): j for j in all_jobs}
+    lead_by_id = {l.get('id'): l for l in all_leads}
+
+    job_types_payload = {}
+    for job_type in job_type_labels:
+        lead_series = [0] * total_days
+        session_series = [0] * total_days
+        payment_series = [0] * total_days
+        revenue_series = [0] * total_days
+
+        for lead in all_leads:
+            lead_type = lead.get('tipo_evento') or 'BODAS'
+            if job_type != 'All Job Types' and lead_type != job_type:
+                continue
+            d = _parse_day(lead.get('created'))
+            idx = keys_index.get(d.isoformat()) if d else None
+            if idx is not None:
+                lead_series[idx] += 1
+
+        for job in all_jobs:
+            current_type = job.get('type') or job.get('tipo_evento') or 'BODAS'
+            if job_type != 'All Job Types' and current_type != job_type:
+                continue
+            d = _parse_day(job.get('boda_date') or job.get('created'))
+            idx = keys_index.get(d.isoformat()) if d else None
+            if idx is not None:
+                session_series[idx] += 1
+                revenue_series[idx] += coerce_amount(job.get('price_total') or job.get('Total facturado al cliente (Q)'))
+
+        for payment in all_payments:
+            job = job_by_id.get(payment.get('job_id')) or {}
+            lead = lead_by_id.get(job.get('lead_id')) or {}
+            current_type = job.get('type') or job.get('tipo_evento') or lead.get('tipo_evento') or 'BODAS'
+            if job_type != 'All Job Types' and current_type != job_type:
+                continue
+            d = _parse_day(payment.get('paid_date') or payment.get('fecha_pago') or payment.get('sent_at') or payment.get('due_date'))
+            idx = keys_index.get(d.isoformat()) if d else None
+            if idx is not None and payment.get('status') == 'Pagado':
+                payment_series[idx] += coerce_amount(payment.get('amount'))
+
+        job_types_payload[job_type] = {
+            'leads': lead_series,
+            'sessions': session_series,
+            'payments': payment_series,
+            'revenue': revenue_series,
+            'totals': {
+                'leads': sum(lead_series),
+                'sessions': sum(session_series),
+                'payments': sum(payment_series),
+                'revenue': sum(revenue_series),
+            }
+        }
+
+    return {'labels': labels, 'dateLabel': date_label, 'jobTypes': job_types_payload}
+
+
+@app.route('/api/dashboard/custom-range')
+def api_dashboard_custom_range():
+    """Endpoint para el selector de calendario del dashboard -- devuelve la
+    misma forma de datos que los rangos preseteados pero para las fechas
+    exactas que el usuario elija."""
+    start_str = (request.args.get('start') or '').strip()
+    end_str = (request.args.get('end') or '').strip()
+    try:
+        start_day = date.fromisoformat(start_str)
+        end_day = date.fromisoformat(end_str)
+    except Exception:
+        return jsonify({'ok': False, 'error': 'Fechas invalidas'}), 400
+    payload = _compute_custom_range_payload(start_day, end_day)
+    payload['ok'] = True
+    return jsonify(payload)
+
+
 @app.route('/dashboard')
 def dashboard():
     """Dashboard con KPIs + graficas de ingresos.

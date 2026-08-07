@@ -184,6 +184,34 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+.dashboard-range-popover-wrap { position: relative; }
+.dashboard-range-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 230px;
+  cursor: pointer;
+}
+.dashboard-range-trigger svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--sn-muted); }
+.dashboard-range-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-range-popover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 260px;
+  background: var(--sn-white);
+  border: 1px solid var(--sn-line);
+  border-radius: var(--sn-radius-md);
+  box-shadow: var(--sn-shadow-hover);
+  padding: 16px;
+  z-index: 500;
+}
+.dashboard-range-popover.open { display: block; }
+.dashboard-range-popover-title { font-size: 12.5px; font-weight: 600; color: var(--sn-ink); margin-bottom: 12px; }
+.dashboard-range-popover-row { margin-bottom: 12px; }
+.dashboard-range-popover-row label { display: block; font-size: 11.5px; color: var(--sn-muted); margin-bottom: 4px; }
+.dashboard-range-popover-row .form-input { width: 100%; }
 .segmented {
   display: inline-flex;
   border: 1px solid var(--sn-line);
@@ -534,6 +562,8 @@
     grid-template-columns: 1fr;
     width: 100%;
   }
+  .dashboard-range-trigger { width: 100%; }
+  .dashboard-range-popover { left: 0; right: 0; width: auto; }
   .segmented {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -603,12 +633,24 @@
           <button type="button" data-range="mtd" onclick="setDashboardRange('mtd')">Mes</button>
           <button type="button" data-range="ytd" class="active" onclick="setDashboardRange('ytd')">Ano</button>
         </div>
-        <select id="dashboard-date-select" class="sn-select" style="width:230px;" onchange="setDashboardRange(this.value)">
-          <option value="mtd">{{ dashboard_data.mtd.dateLabel }}</option>
-          <option value="7">{{ dashboard_data['7'].dateLabel }}</option>
-          <option value="30">{{ dashboard_data['30'].dateLabel }}</option>
-          <option value="ytd" selected>{{ dashboard_data.ytd.dateLabel }}</option>
-        </select>
+        <div class="dashboard-range-popover-wrap">
+          <button type="button" class="sn-select dashboard-range-trigger" id="dashboard-range-trigger" onclick="toggleDateRangePopover(event)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 2v4M8 2v4M3 10h18"/></svg>
+            <span id="dashboard-range-trigger-label">{{ dashboard_data.ytd.dateLabel }}</span>
+          </button>
+          <div class="dashboard-range-popover" id="dashboard-range-popover" onclick="event.stopPropagation()">
+            <div class="dashboard-range-popover-title">Elegi un rango personalizado</div>
+            <div class="dashboard-range-popover-row">
+              <label for="dashboard-range-start">Desde</label>
+              <input type="date" id="dashboard-range-start" class="form-input">
+            </div>
+            <div class="dashboard-range-popover-row">
+              <label for="dashboard-range-end">Hasta</label>
+              <input type="date" id="dashboard-range-end" class="form-input">
+            </div>
+            <button type="button" class="sn-btn sn-btn-primary sn-btn-sm" style="width:100%;justify-content:center;" onclick="applyCustomDateRange()">Ver este rango</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -939,8 +981,46 @@ function setDashboardRange(range) {
   document.querySelectorAll('[data-range]').forEach(function(btn) {
     btn.classList.toggle('active', btn.getAttribute('data-range') === dashboardRange);
   });
-  document.getElementById('dashboard-date-select').value = dashboardRange;
+  var range_data = DASHBOARD_DATA[dashboardRange];
+  if (range_data) {
+    document.getElementById('dashboard-range-trigger-label').textContent = range_data.dateLabel;
+  }
   updateDashboard();
+}
+
+function toggleDateRangePopover(event) {
+  event.stopPropagation();
+  document.getElementById('dashboard-range-popover').classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  var pop = document.getElementById('dashboard-range-popover');
+  if (pop && pop.classList.contains('open') && !pop.contains(e.target) && e.target.id !== 'dashboard-range-trigger') {
+    pop.classList.remove('open');
+  }
+});
+
+function applyCustomDateRange() {
+  var start = document.getElementById('dashboard-range-start').value;
+  var end = document.getElementById('dashboard-range-end').value;
+  if (!start || !end) {
+    flashToast('Elegi una fecha de inicio y una de fin', 'error');
+    return;
+  }
+  fetch('/api/dashboard/custom-range?start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(end))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) {
+        flashToast(data.error || 'No se pudo cargar ese rango', 'error');
+        return;
+      }
+      DASHBOARD_DATA['custom'] = data;
+      dashboardRange = 'custom';
+      document.querySelectorAll('[data-range]').forEach(function(btn) { btn.classList.remove('active'); });
+      document.getElementById('dashboard-range-trigger-label').textContent = data.dateLabel;
+      document.getElementById('dashboard-range-popover').classList.remove('open');
+      updateDashboard();
+    })
+    .catch(function() { flashToast('Error de red, intenta de nuevo', 'error'); });
 }
 
 function setDashboardMetric(metric) {

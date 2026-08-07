@@ -1732,8 +1732,14 @@ a.kpi-card:hover,
 }
 
 .detail-grid-right {
+  /* Kevin probo en un Macbook Air 13": con Job y Client lado a lado en 2
+     columnas, cada tarjeta quedaba comprimida a ~170-250px dentro de esta
+     columna lateral (que ya de por si es angosta, 340-662px, dentro del
+     grid mas grande del detalle de job) -- telefonos, correos y
+     direcciones se cortaban. Se apilan siempre en 1 columna: a este ancho
+     una tarjeta completa se ve mejor que dos comprimidas. */
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 .detail-grid-right > .wide,
