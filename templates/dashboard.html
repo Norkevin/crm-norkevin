@@ -52,7 +52,13 @@
   align-items: start;
 }
 .dashboard-main { display: flex; flex-direction: column; gap: 0; min-width: 0; }
-.dashboard-rail { display: flex; flex-direction: column; gap: 20px; }
+/* Kevin: "quiero que las cajas de la derecha esten a la misma altura del
+   cuadro de la grafica" -- la columna principal arranca con la etiqueta
+   "VENTAS Y GRAFICAS" antes de su primer panel, pero el rail no tiene esa
+   etiqueta, asi que su primera tarjeta quedaba mas arriba que el panel del
+   grafico. Se agrega el mismo espacio (medido en vivo: 29px) para que
+   ambos arranquen exactamente a la misma altura. */
+.dashboard-rail { display: flex; flex-direction: column; gap: 20px; margin-top: 29px; }
 @media (max-width: 1100px) {
   .dashboard-grid { grid-template-columns: 1fr; }
   .dashboard-rail { margin-top: 20px; }
