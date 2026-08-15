@@ -5151,6 +5151,32 @@ QUESTIONNAIRE_QUESTIONS = [
 ]
 
 
+@app.route('/api/admin/debug-production-workflow')
+def api_debug_production_workflow():
+    """Kevin: 'todas las bodas tienen 9 cuestionarios!!!!!' -- eso apunta a
+    la PLANTILLA (PRODUCTION_WORKFLOW), no a reenvios sueltos: si el
+    workflow de Production tiene el paso 'Cuestionario cliente' repetido 9
+    veces, cada job nuevo dispara 9 envios reales. Este endpoint muestra
+    los steps EXACTOS que se estan usando ahora mismo (el override
+    guardado por el Workflow Editor si existe, o el default) para
+    confirmar antes de tocar nada."""
+    tmpl = PRODUCTION_WORKFLOW()
+    has_override = bool(store.get_dict('workflow_templates').get('production_workflow_v1'))
+    steps = [
+        {'id': s.id, 'name': s.name,
+         'action_type': s.action_type.value if hasattr(s.action_type, 'value') else str(s.action_type)}
+        for s in tmpl.steps
+    ]
+    questionnaire_steps = [s for s in steps if s['action_type'] == 'send_questionnaire']
+    return jsonify({
+        'ok': True,
+        'usando_override_guardado': has_override,
+        'total_steps': len(steps),
+        'steps': steps,
+        'pasos_de_cuestionario': len(questionnaire_steps),
+    })
+
+
 @app.route('/api/admin/cleanup-duplicate-questionnaires')
 def api_cleanup_duplicate_questionnaires():
     """Kevin: 'porque hay 9 cuestionarios por boda? no tiene sentido' --
