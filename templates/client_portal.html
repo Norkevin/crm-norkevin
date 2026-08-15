@@ -19,44 +19,54 @@
   body { background: #F7F8FC; color: var(--pc-ink); font-family: 'Inter', sans-serif; }
   .brand { color: var(--pc-blue); }
 
-  /* Hero: degradado sutil + resplandores, mismo lenguaje que las
-     cotizaciones/contratos publicos (_document_style.html) para que el
-     portal se sienta parte del mismo sistema, no una pagina aparte. */
-  .portal-hero {
-    background: radial-gradient(120% 160% at 0% 0%, #382A7A 0%, var(--pc-hero-bg) 46%, #100B2A 100%);
+  /* Hero a sangre completa (no una tarjeta flotando en la pagina gris) --
+     Kevin: "haz algo mejor, yo se que puedes". El contenido de abajo
+     (barra de navegacion + resumen de pago) sube con margen negativo y se
+     monta sobre el borde inferior del hero, creando una sensacion de
+     capas/profundidad en vez de "hero -> luego una lista de cajas". */
+  .portal-hero-wrap {
+    background: radial-gradient(130% 180% at 15% 0%, #382A7A 0%, var(--pc-hero-bg) 45%, #0C0824 100%);
     color: #fff;
-    border-radius: 24px;
-    padding: 32px 28px;
     position: relative;
     overflow: hidden;
+    padding-bottom: 76px;
   }
-  .portal-hero::before {
+  .portal-hero-wrap::before {
     content: '';
     position: absolute;
-    right: -60px; top: -80px;
-    width: 220px; height: 220px;
+    right: -120px; top: -160px;
+    width: 420px; height: 420px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(115,87,246,.5) 0%, rgba(115,87,246,0) 70%);
+    background: radial-gradient(circle, rgba(115,87,246,.45) 0%, rgba(115,87,246,0) 70%);
   }
-  .portal-hero::after {
+  .portal-hero-wrap::after {
     content: '';
-    position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
-    background: linear-gradient(90deg, var(--pc-blue), #A594FF 55%, transparent);
+    position: absolute;
+    left: -80px; bottom: -140px;
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,.05) 0%, rgba(255,255,255,0) 70%);
+  }
+  .portal-hero {
+    position: relative;
+    max-width: 74rem;
+    margin: 0 auto;
+    padding: 44px 24px 0;
   }
   .portal-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; position: relative; z-index: 1; }
-  .portal-hero-greeting { font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
-  .portal-hero-sub { font-size: 13px; color: rgba(255,255,255,.65); margin-top: 4px; }
+  .portal-hero-greeting { font-size: 32px; font-weight: 600; letter-spacing: -.015em; }
+  .portal-hero-sub { font-size: 13.5px; color: rgba(255,255,255,.65); margin-top: 5px; }
   .portal-countdown {
     text-align: center;
     background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.14);
-    border-radius: 16px;
-    padding: 14px 22px;
+    border: 1px solid rgba(255,255,255,.16);
+    border-radius: 18px;
+    padding: 16px 26px;
     backdrop-filter: blur(2px);
   }
-  .portal-countdown-num { font-size: 34px; font-weight: 700; line-height: 1; }
-  .portal-countdown-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.65); margin-top: 4px; }
-  .portal-hero-meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 22px; position: relative; z-index: 1; }
+  .portal-countdown-num { font-size: 38px; font-weight: 700; line-height: 1; background: linear-gradient(90deg, #fff, #E4DDFF); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .portal-countdown-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.65); margin-top: 5px; }
+  .portal-hero-meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 24px; position: relative; z-index: 1; }
   .portal-hero-meta-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,.85); }
   .portal-hero-meta-item svg { width: 16px; height: 16px; stroke: rgba(255,255,255,.6); flex-shrink: 0; }
 
@@ -64,7 +74,7 @@
   .portal-journey {
     display: flex;
     align-items: center;
-    margin-top: 26px;
+    margin-top: 28px;
     position: relative;
     z-index: 1;
   }
@@ -94,33 +104,58 @@
   .portal-progress-track { height: 10px; border-radius: 999px; background: #EEF0F3; overflow: hidden; }
   .portal-progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--pc-blue), var(--pc-blue-dark)); }
 
-  /* Nav tiles */
-  .portal-nav-tile {
+  /* Contenido apilado sobre el borde del hero */
+  .portal-content { position: relative; z-index: 1; margin-top: -56px; }
+
+  /* Barra de navegacion: pills horizontales sobre fondo blanco, no una
+     grilla de cajas iguales -- se ve como un selector de secciones de
+     app, no como una lista mas. */
+  .portal-nav-strip {
+    display: flex;
+    gap: 6px;
     background: #fff;
     border-radius: 18px;
-    border: 1px solid rgba(16, 24, 40, .04);
-    padding: 18px;
-    box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.08);
-    transition: box-shadow .15s ease, transform .15s ease;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    padding: 6px;
+    box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 20px 40px -24px rgba(16,24,40,.22);
+    overflow-x: auto;
   }
-  .portal-nav-tile:hover { box-shadow: 0 4px 12px rgba(16,24,40,.10), 0 2px 6px rgba(16,24,40,.06); transform: translateY(-1px); }
+  .portal-nav-pill {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    border-radius: 13px;
+    text-decoration: none;
+    color: var(--pc-ink);
+    white-space: nowrap;
+    transition: background .12s ease;
+    flex: 1 1 0;
+    justify-content: center;
+  }
+  .portal-nav-pill:hover { background: #F4F5F9; }
   .portal-nav-icon {
-    width: 38px; height: 38px; border-radius: 11px;
-    display: grid; place-items: center; color: #fff;
+    width: 26px; height: 26px; border-radius: 8px;
+    display: grid; place-items: center; color: #fff; flex-shrink: 0;
   }
-  .portal-nav-icon svg { width: 19px; height: 19px; }
+  .portal-nav-icon svg { width: 14px; height: 14px; }
+  .portal-nav-pill .label { font-size: 13px; font-weight: 600; }
+  .portal-nav-pill .count { font-size: 11px; color: var(--pc-muted); font-weight: 500; }
+  @media (max-width: 640px) { .portal-nav-pill .count { display: none; } .portal-nav-pill { flex: 0 0 auto; } }
 
-  /* Section cards */
+  /* Section cards -- grilla de 2 columnas con una franja de color por
+     tipo de documento en vez de una lista identica de cajas blancas. */
+  .portal-sections-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 860px) { .portal-sections-grid { grid-template-columns: 1fr; } }
+  .portal-sections-grid .span-2 { grid-column: 1 / -1; }
   .portal-section {
     background: #fff;
     border-radius: 20px;
     border: 1px solid var(--pc-line);
-    padding: 24px;
+    border-left: 4px solid var(--section-accent, var(--pc-blue));
+    padding: 22px 24px;
     box-shadow: 0 1px 2px rgba(15,23,42,.03);
   }
+  .portal-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .portal-section-head .portal-nav-icon { width: 30px; height: 30px; }
+  .portal-section-head .portal-nav-icon svg { width: 15px; height: 15px; }
   .portal-item {
     border: 1px solid var(--pc-line);
     border-radius: 14px;
@@ -159,6 +194,8 @@
     .portal-hero-top { flex-direction: column; }
     .portal-countdown { align-self: stretch; }
     .portal-journey-label { display: none; }
+    .portal-content { margin-top: -36px; }
+    .portal-nav-pill .label { font-size: 12px; }
   }
 </style>
 </head>
@@ -180,9 +217,7 @@
     <a href="/" class="portal-header-exit">Salir</a>
   </header>
 
-  <div class="max-w-5xl mx-auto px-6 py-8 space-y-6">
-
-    <!-- Hero -->
+  <div class="portal-hero-wrap">
     <div class="portal-hero">
       <div class="portal-hero-top">
         <div>
@@ -249,6 +284,48 @@
       </div>
       {% endif %}
     </div>
+  </div>
+
+  <div class="portal-content max-w-5xl mx-auto px-6 pb-10 space-y-6">
+
+    <!-- Tabs / Secciones -->
+    <div class="portal-nav-strip">
+      <a href="#quotes" class="portal-nav-pill">
+        <div class="portal-nav-icon" style="background:#7357F6;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
+        </div>
+        <span class="label">Cotizaciones</span>
+        <span class="count">{{ quotes|length }}</span>
+      </a>
+      <a href="#contracts" class="portal-nav-pill">
+        <div class="portal-nav-icon" style="background:#111827;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.5 11 14.5l4-4.5M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
+        </div>
+        <span class="label">Contratos</span>
+        <span class="count">{{ contracts|length }}</span>
+      </a>
+      <a href="#invoices" class="portal-nav-pill">
+        <div class="portal-nav-icon" style="background:#334155;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><path stroke-linecap="round" d="M1 10h22"/></svg>
+        </div>
+        <span class="label">Facturas</span>
+        <span class="count">{{ invoice_groups|length }}</span>
+      </a>
+      <a href="#questionnaires" class="portal-nav-pill">
+        <div class="portal-nav-icon" style="background:#2563EB;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
+        </div>
+        <span class="label">Cuestionarios</span>
+        <span class="count">{{ questionnaires|length }}</span>
+      </a>
+      <a href="#galeria" class="portal-nav-pill">
+        <div class="portal-nav-icon" style="background:#6B7280;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="m21 15-5-5L5 21"/></svg>
+        </div>
+        <span class="label">Galeria</span>
+        <span class="count">{{ files|length }}</span>
+      </a>
+    </div>
 
     <!-- Payment summary -->
     {% if total_all > 0 %}
@@ -275,64 +352,16 @@
     </div>
     {% endif %}
 
-    <!-- Tabs / Secciones -->
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div class="portal-sections-grid">
 
-      <a href="#quotes" class="portal-nav-tile">
+    <!-- Cotizaciones -->
+    <div id="quotes" class="portal-section" style="--section-accent:#7357F6;">
+      <div class="portal-section-head">
         <div class="portal-nav-icon" style="background:#7357F6;">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
         </div>
-        <div>
-          <div class="font-semibold text-ink text-sm">Cotizaciones</div>
-          <div class="text-xs text-ink-soft">{{ quotes|length }} propuesta{{ 's' if quotes|length != 1 else '' }}</div>
-        </div>
-      </a>
-
-      <a href="#contracts" class="portal-nav-tile">
-        <div class="portal-nav-icon" style="background:#111827;">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.5 11 14.5l4-4.5M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
-        </div>
-        <div>
-          <div class="font-semibold text-ink text-sm">Contratos</div>
-          <div class="text-xs text-ink-soft">{{ contracts|length }} documento{{ 's' if contracts|length != 1 else '' }}</div>
-        </div>
-      </a>
-
-      <a href="#invoices" class="portal-nav-tile">
-        <div class="portal-nav-icon" style="background:#334155;">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><path stroke-linecap="round" d="M1 10h22"/></svg>
-        </div>
-        <div>
-          <div class="font-semibold text-ink text-sm">Facturas</div>
-          <div class="text-xs text-ink-soft">{{ invoice_groups|length }} factura{{ 's' if invoice_groups|length != 1 else '' }}</div>
-        </div>
-      </a>
-
-      <a href="#questionnaires" class="portal-nav-tile">
-        <div class="portal-nav-icon" style="background:#2563EB;">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
-        </div>
-        <div>
-          <div class="font-semibold text-ink text-sm">Cuestionarios</div>
-          <div class="text-xs text-ink-soft">{{ questionnaires|length }} pendiente{{ 's' if questionnaires|length != 1 else '' }}</div>
-        </div>
-      </a>
-
-      <a href="#galeria" class="portal-nav-tile">
-        <div class="portal-nav-icon" style="background:#6B7280;">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="m21 15-5-5L5 21"/></svg>
-        </div>
-        <div>
-          <div class="font-semibold text-ink text-sm">Galeria</div>
-          <div class="text-xs text-ink-soft">{{ files|length }} archivo{{ 's' if files|length != 1 else '' }}</div>
-        </div>
-      </a>
-
-    </div>
-
-    <!-- Cotizaciones -->
-    <div id="quotes" class="portal-section">
-      <h2 class="text-lg font-semibold text-ink mb-4">Cotizaciones</h2>
+        <h2 class="text-lg font-semibold text-ink">Cotizaciones</h2>
+      </div>
       {% if quotes %}
       <div class="space-y-3">
         {% for q in quotes %}
@@ -374,8 +403,13 @@
     </div>
 
     <!-- Contratos -->
-    <div id="contracts" class="portal-section">
-      <h2 class="text-lg font-semibold text-ink mb-4">Contratos</h2>
+    <div id="contracts" class="portal-section" style="--section-accent:#111827;">
+      <div class="portal-section-head">
+        <div class="portal-nav-icon" style="background:#111827;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.5 11 14.5l4-4.5M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
+        </div>
+        <h2 class="text-lg font-semibold text-ink">Contratos</h2>
+      </div>
       {% if contracts %}
       <div class="space-y-3">
         {% for c in contracts %}
@@ -407,8 +441,13 @@
     </div>
 
     <!-- Facturas -->
-    <div id="invoices" class="portal-section">
-      <h2 class="text-lg font-semibold text-ink mb-4">Facturas</h2>
+    <div id="invoices" class="portal-section" style="--section-accent:#334155;">
+      <div class="portal-section-head">
+        <div class="portal-nav-icon" style="background:#334155;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><path stroke-linecap="round" d="M1 10h22"/></svg>
+        </div>
+        <h2 class="text-lg font-semibold text-ink">Facturas</h2>
+      </div>
       {% if invoice_groups %}
       <div class="space-y-3">
         {% for g in invoice_groups %}
@@ -481,8 +520,13 @@
     </div>
 
     <!-- Cuestionarios -->
-    <div id="questionnaires" class="portal-section">
-      <h2 class="text-lg font-semibold text-ink mb-4">Cuestionarios</h2>
+    <div id="questionnaires" class="portal-section" style="--section-accent:#2563EB;">
+      <div class="portal-section-head">
+        <div class="portal-nav-icon" style="background:#2563EB;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
+        </div>
+        <h2 class="text-lg font-semibold text-ink">Cuestionarios</h2>
+      </div>
       {% if questionnaires %}
       <div class="space-y-2">
         {% for q in questionnaires %}
@@ -504,8 +548,13 @@
     </div>
 
     <!-- Galeria / Archivos -->
-    <div id="galeria" class="portal-section">
-      <h2 class="text-lg font-semibold text-ink mb-4">Galeria y Archivos</h2>
+    <div id="galeria" class="portal-section span-2" style="--section-accent:#6B7280;">
+      <div class="portal-section-head">
+        <div class="portal-nav-icon" style="background:#6B7280;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="m21 15-5-5L5 21"/></svg>
+        </div>
+        <h2 class="text-lg font-semibold text-ink">Galeria y Archivos</h2>
+      </div>
       {% if files %}
       <div class="space-y-2">
         {% for f in files %}
@@ -525,6 +574,8 @@
       {% else %}
       <p class="text-sm text-ink-soft text-center py-6">Sin archivos por el momento.</p>
       {% endif %}
+    </div>
+
     </div>
 
   </div>

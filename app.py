@@ -2850,18 +2850,30 @@ def api_lead_create_questionnaire(lead_id):
     data = request.get_json() or {}
     job = get_job(lead.get('lead_id_job', '')) if lead.get('lead_id_job') else None
     client = get_client(lead.get('client_id', '')) if lead.get('client_id') else None
-    questionnaire = {
-        'id': 'questionnaire-' + uuid.uuid4().hex[:8],
-        'lead_id': lead_id,
-        'client_id': lead.get('client_id', ''),
-        'job_id': lead.get('lead_id_job', ''),
-        'name': data.get('name') or 'Cuestionario de Bodas Generico',
-        'template_name': 'Cuestionario de Bodas Generico',
-        'questions': data.get('questions') or QUESTIONNAIRE_QUESTIONS,
-        'status': data.get('status') or ('Sent' if data.get('send_email', True) else 'Draft'),
-        'created': datetime.now().isoformat()[:10],
-        'tenant_id': lead.get('tenant_id') or get_current_tenant_id(),
-    }
+    # Kevin: "porque hay 9 cuestionarios por boda? no tiene sentido" -- este
+    # endpoint creaba uno nuevo en CADA llamada (reenviar, recordatorio,
+    # etc.) sin revisar si ya habia uno pendiente para el mismo lead, a
+    # diferencia del flujo desde Job que si reutiliza su borrador. Ahora
+    # reutiliza el cuestionario existente para este lead mientras no este
+    # ya Respondido, igual que hace _create_job_questionnaire.
+    questionnaire = next(
+        (q for q in store.list('questionnaires')
+         if q.get('lead_id') == lead_id and q.get('status') != 'Respondido'),
+        None,
+    )
+    if questionnaire is None:
+        questionnaire = {
+            'id': 'questionnaire-' + uuid.uuid4().hex[:8],
+            'lead_id': lead_id,
+            'client_id': lead.get('client_id', ''),
+            'job_id': lead.get('lead_id_job', ''),
+            'created': datetime.now().isoformat()[:10],
+            'tenant_id': lead.get('tenant_id') or get_current_tenant_id(),
+        }
+    questionnaire['name'] = data.get('name') or questionnaire.get('name') or 'Cuestionario de Bodas Generico'
+    questionnaire['template_name'] = 'Cuestionario de Bodas Generico'
+    questionnaire['questions'] = data.get('questions') or questionnaire.get('questions') or QUESTIONNAIRE_QUESTIONS
+    questionnaire['status'] = data.get('status') or ('Sent' if data.get('send_email', True) else 'Draft')
     store.upsert('questionnaires', questionnaire)
 
     questionnaire_path = f"/questionnaires/{questionnaire['id']}"
@@ -5139,6 +5151,47 @@ QUESTIONNAIRE_QUESTIONS = [
 ]
 
 
+@app.route('/api/admin/cleanup-duplicate-questionnaires')
+def api_cleanup_duplicate_questionnaires():
+    """Kevin: 'porque hay 9 cuestionarios por boda? no tiene sentido' --
+    limpieza de una sola vez para los duplicados que se acumularon antes
+    del fix en api_lead_create_questionnaire / api_job_create_questionnaire
+    (creaban uno nuevo en cada reenvio en vez de reutilizar el existente).
+    Visita esta URL una vez logueado para limpiar los duplicados del tenant
+    actual: agrupa por job_id (o lead_id si no hay job), conserva el
+    respondido si existe, si no el mas reciente, y borra el resto. Segura
+    de correr mas de una vez (no hace nada si ya no hay duplicados)."""
+    tenant_id = get_current_tenant_id()
+    all_qs = [q for q in store.list('questionnaires') if q.get('tenant_id') == tenant_id]
+    groups = {}
+    for q in all_qs:
+        key = q.get('job_id') or q.get('lead_id') or q.get('client_id') or q.get('id')
+        groups.setdefault(key, []).append(q)
+
+    kept = []
+    removed = []
+    for key, group in groups.items():
+        if len(group) <= 1:
+            kept.extend(group)
+            continue
+        answered = [q for q in group if q.get('status') == 'Respondido']
+        winner = max(answered, key=lambda q: q.get('answered_at') or q.get('created') or '') if answered \
+            else max(group, key=lambda q: q.get('created') or '')
+        kept.append(winner)
+        for q in group:
+            if q is not winner:
+                removed.append(q)
+                store.delete('questionnaires', q['id'])
+
+    return jsonify({
+        'ok': True,
+        'grupos_revisados': len(groups),
+        'cuestionarios_eliminados': len(removed),
+        'cuestionarios_conservados': len(kept),
+        'eliminados_ids': [q['id'] for q in removed],
+    })
+
+
 @app.route('/questionnaires/<questionnaire_id>')
 def questionnaire_view(questionnaire_id):
     """Vista web del cuestionario (cliente): formulario para completar los detalles de la boda."""
@@ -5201,9 +5254,13 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
         if questionnaire and questionnaire.get('job_id') != job.get('id'):
             questionnaire = None
     if questionnaire is None and reuse_draft:
+        # No solo 'Draft': un reenvio (Sent -> Sent otra vez) tampoco debe
+        # crear un registro nuevo mientras el cliente no lo haya
+        # respondido -- ver api_lead_create_questionnaire para el mismo
+        # fix del lado de leads.
         questionnaire = next(
             (q for q in store.list('questionnaires')
-             if q.get('job_id') == job.get('id') and q.get('status') == 'Draft'),
+             if q.get('job_id') == job.get('id') and q.get('status') != 'Respondido'),
             None,
         )
     if questionnaire is None:
@@ -5307,6 +5364,7 @@ def api_job_create_questionnaire(job_id):
         send_email=data.get('send_email', True),
         host_url=request.url_root,
         questionnaire_id=data.get('questionnaire_id'),
+        reuse_draft=True,
     )
 
     workflow = _complete_job_workflow_step(
