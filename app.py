@@ -4,6 +4,7 @@ Arquitectura: Notion-first. SQLite solo para cache de sesión.
 """
 import os
 import re
+import hmac
 import time
 import threading
 import logging
@@ -1621,6 +1622,88 @@ def enrich_job_ops(job, cotizaciones=None):
 
 
 # ============================================================
+# INTEGRACION DE SOLO LECTURA CON LAS GALERIAS
+# ============================================================
+@app.route('/api/integrations/gallery/jobs')
+def api_gallery_job_search():
+    """Busca jobs Astral y devuelve solo datos necesarios para destinatarios.
+
+    La credencial es servidor-a-servidor. Nunca se expone al navegador y este
+    endpoint no permite crear, editar ni enviar nada desde FlowingCRM.
+    """
+    configured_token = (os.environ.get('GALLERY_INTEGRATION_TOKEN') or '').strip()
+    supplied = request.headers.get('Authorization', '')
+    supplied_token = supplied[7:].strip() if supplied.startswith('Bearer ') else ''
+    if not configured_token or not supplied_token or not hmac.compare_digest(configured_token, supplied_token):
+        return jsonify({'ok': False, 'error': 'Unauthorized'}), 401
+
+    query = (request.args.get('q') or '').strip().lower()
+    if len(query) < 2:
+        return jsonify({'ok': False, 'error': 'Escribe al menos 2 caracteres'}), 400
+
+    astral_tenant_id = 'tenant-norkevin'
+    jobs = [j for j in store.list('jobs') if j.get('tenant_id') == astral_tenant_id]
+    clients = {
+        c.get('id'): c for c in store.list('clients')
+        if c.get('tenant_id') == astral_tenant_id
+    }
+    leads = {
+        lead.get('id'): lead for lead in store.list('leads')
+        if lead.get('tenant_id') == astral_tenant_id
+    }
+
+    results = []
+    for job in jobs:
+        contacts = []
+        seen = set()
+        for role, client_id in (
+            ('Cliente principal', job.get('client_id')),
+            ('Cliente adicional', job.get('secondary_client_id')),
+            ('Wedding planner', job.get('planner_client_id')),
+        ):
+            client = clients.get(client_id) or {}
+            email = _norm_email(client.get('email'))
+            if not email or email in seen:
+                continue
+            seen.add(email)
+            contacts.append({
+                'name': _client_name(client=client),
+                'email': email,
+                'role': role,
+            })
+
+        lead = leads.get(job.get('lead_id')) or {}
+        lead_email = _norm_email(lead.get('email'))
+        if lead_email and lead_email not in seen:
+            seen.add(lead_email)
+            contacts.append({
+                'name': _client_name(lead=lead),
+                'email': lead_email,
+                'role': 'Contacto del lead',
+            })
+
+        searchable = ' '.join([
+            str(job.get('nombre') or ''),
+            str(job.get('boda_date') or ''),
+            str(job.get('id') or ''),
+            ' '.join(c['name'] for c in contacts),
+            ' '.join(c['email'] for c in contacts),
+        ]).lower()
+        if query not in searchable:
+            continue
+        results.append({
+            'id': job.get('id'),
+            'name': job.get('nombre') or 'Boda sin nombre',
+            'eventDate': job.get('boda_date') or '',
+            'status': job.get('status') or '',
+            'contacts': contacts,
+        })
+
+    results.sort(key=lambda item: (item.get('eventDate') or '', item.get('name') or ''), reverse=True)
+    return jsonify({'ok': True, 'source': 'Astral Weddings', 'jobs': results[:20]})
+
+
+# ============================================================
 # LOGIN CON GOOGLE (portada) -- protege todo el CRM salvo las paginas
 # publicas que los CLIENTES necesitan sin iniciar sesion (portal, ver/firmar
 # cotizacion y contrato, cuestionario, descargar PDFs, formularios de
@@ -1633,6 +1716,7 @@ import re as _re_auth
 
 PUBLIC_EXACT_PATHS = {
     '/login', '/logout', '/contacto', '/api/leads/nuevo', '/captacion', '/api/captacion',
+    '/api/integrations/gallery/jobs',
     '/manifest.webmanifest', '/service-worker.js', '/offline.html',
 }
 PUBLIC_PREFIXES = ('/portal/', '/static/', '/auth/google/login/')
