@@ -5512,18 +5512,44 @@ def api_fix_secondary_clients():
         # secundario (secondary_client_id), default 'secondary' para no
         # romper llamadas anteriores que no mandaban role.
         role = item.get('role', 'secondary')
-        field = 'client_id' if role == 'primary' else 'secondary_client_id'
-        if not job.get(field):
-            continue
-        c = get_client(job[field])
-        if not c:
-            continue
+        field = {'primary': 'client_id', 'planner': 'planner_client_id'}.get(
+            role, 'secondary_client_id')
+        c = get_client(job[field]) if job.get(field) else None
+        if c is None:
+            # Todavia no existe ese rol en el job: se crea. Solo llega aca con
+            # contactos verificados por email contra el export de Studio Ninja.
+            if role == 'primary':
+                continue  # el principal siempre existe; crearlo seria un bug
+            suffix = '-2' if role == 'secondary' else '-planner'
+            c = {
+                'id': f"client-sn-{item['slug']}{suffix}",
+                'address': job.get('location') or '',
+                'estado': 'Activo',
+                'tenant_id': job.get('tenant_id'),
+                'created': job.get('created') or date.today().isoformat(),
+            }
+            job[field] = c['id']
+            store.upsert('jobs', job)
         c['first_name'] = item['first_name']
         c['last_name'] = item['last_name']
         c['email'] = item.get('email') or ''
         c['phone'] = item.get('phone') or ''
         store.upsert('clients', c)
-        confirmed.append({'job_id': job['id'], 'role': role})
+        confirmed.append({'job_id': job['id'], 'role': role, 'client_id': c['id']})
+
+    # Kevin: "arregla los nombres del evento porque estan incompletos o raros".
+    # El zip de Studio Ninja corrompio los acentos del titulo ('Jos_' por
+    # 'Jose'), y muchos titulos arrastran ruido del formulario web.
+    renamed = []
+    for item in data.get('job_names') or []:
+        job = get_job(f"boda-sn-{item['slug']}")
+        if not job or not item.get('nombre'):
+            continue
+        if job.get('nombre') == item['nombre']:
+            continue
+        renamed.append({'job_id': job['id'], 'antes': job.get('nombre'), 'despues': item['nombre']})
+        job['nombre'] = item['nombre']
+        store.upsert('jobs', job)
 
     removed = []
     for slug in data.get('remove_slugs') or []:
@@ -5541,8 +5567,9 @@ def api_fix_secondary_clients():
         store.delete('clients', cid)
         removed.append(job['id'])
 
-    logger.info(f"Segundo cliente: {len(confirmed)} confirmados con datos reales, {len(removed)} quitados por no poder confirmarse")
-    return jsonify({'ok': True, 'confirmados': confirmed, 'quitados': removed})
+    logger.info(f"Clientes: {len(confirmed)} corregidos con datos reales, {len(removed)} quitados por no poder confirmarse, {len(renamed)} eventos renombrados")
+    return jsonify({'ok': True, 'confirmados': confirmed, 'quitados': removed,
+                    'renombrados': renamed})
 
 
 @app.route('/questionnaires/<questionnaire_id>')
