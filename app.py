@@ -1791,6 +1791,7 @@ def _require_login():
         '/api/admin/cleanup-duplicate-questionnaires',
         '/api/admin/reconcile-studio-ninja-jobs',
         '/api/admin/fix-secondary-clients',
+        '/api/admin/list-studio-ninja-clients',
     ) and request.args.get('token') == _ADMIN_ONE_TIME_TOKEN:
         return None
     if session.get('logged_in'):
@@ -5453,6 +5454,36 @@ def api_reconcile_studio_ninja_jobs():
     })
 
 
+@app.route('/api/admin/list-studio-ninja-clients')
+def api_list_studio_ninja_clients():
+    """Solo lectura -- Kevin: 'arregla todos los clientes, no solo los de
+    segundo cliente, revisa todos'. Para auditar los 131 jobs importados
+    contra el export real de Contactos de Studio Ninja hace falta ver que
+    quedo guardado de verdad en cada uno (cliente principal + secundario
+    si tiene), no solo confiar en lo que el import creyo que leyo."""
+    jobs = [j for j in store.list('jobs') if str(j.get('id', '')).startswith('boda-sn-')]
+    out = []
+    for job in jobs:
+        primary = get_client(job.get('client_id')) if job.get('client_id') else None
+        secondary = get_client(job.get('secondary_client_id')) if job.get('secondary_client_id') else None
+        out.append({
+            'job_id': job['id'],
+            'job_name': job.get('nombre'),
+            'boda_date': job.get('boda_date'),
+            'primary': ({
+                'id': primary.get('id'), 'first_name': primary.get('first_name'),
+                'last_name': primary.get('last_name'), 'email': primary.get('email'),
+                'phone': primary.get('phone'),
+            } if primary else None),
+            'secondary': ({
+                'id': secondary.get('id'), 'first_name': secondary.get('first_name'),
+                'last_name': secondary.get('last_name'), 'email': secondary.get('email'),
+                'phone': secondary.get('phone'),
+            } if secondary else None),
+        })
+    return jsonify({'ok': True, 'total': len(out), 'jobs': out})
+
+
 @app.route('/api/admin/fix-secondary-clients', methods=['POST'])
 def api_fix_secondary_clients():
     """Kevin: el segundo cliente de una boda se adivinaba del titulo del
@@ -5474,9 +5505,17 @@ def api_fix_secondary_clients():
     confirmed = []
     for item in data.get('confirm_clients') or []:
         job = get_job(f"boda-sn-{item['slug']}")
-        if not job or not job.get('secondary_client_id'):
+        if not job:
             continue
-        c = get_client(job['secondary_client_id'])
+        # Kevin: "arregla todos los clientes, no solo los de segundo
+        # cliente" -- role deja apuntar al principal (client_id) o al
+        # secundario (secondary_client_id), default 'secondary' para no
+        # romper llamadas anteriores que no mandaban role.
+        role = item.get('role', 'secondary')
+        field = 'client_id' if role == 'primary' else 'secondary_client_id'
+        if not job.get(field):
+            continue
+        c = get_client(job[field])
         if not c:
             continue
         c['first_name'] = item['first_name']
@@ -5484,7 +5523,7 @@ def api_fix_secondary_clients():
         c['email'] = item.get('email') or ''
         c['phone'] = item.get('phone') or ''
         store.upsert('clients', c)
-        confirmed.append(job['id'])
+        confirmed.append({'job_id': job['id'], 'role': role})
 
     removed = []
     for slug in data.get('remove_slugs') or []:
