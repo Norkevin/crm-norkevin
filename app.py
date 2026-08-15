@@ -3810,7 +3810,18 @@ def api_admin_import_studio_ninja():
     dispara el workflow engine, asi que no se mandan correos automaticos a
     estos clientes reales por datos historicos.
     Idempotente: cada job usa un id deterministico (boda-sn-<slug>), asi que
-    correrlo de nuevo saltea los jobs que ya existen en vez de duplicarlos."""
+    correrlo de nuevo saltea los jobs que ya existen en vez de duplicarlos.
+
+    Cada entry['workflow_status'] (opcional) es como Kevin le dice al CRM
+    en que momento del workflow esta esa boda de verdad, para que el
+    historial se vea correcto en vez de todo marcado igual:
+      {'questionnaire_completed': true/false,
+       'gallery_delivered': true/false,
+       'review_left': true/false}
+    entry['contract']['signed'] ya cubre el paso de firma de contrato.
+    Lo que no se marca como completado queda SKIPPED (nunca 'pending'),
+    asi que nada de esto puede disparar un correo automatico -- la
+    diferencia entre DONE/SKIPPED es solo que se vea bien en el job."""
     data = request.get_json(silent=True) or {}
     if data.get('confirm') != 'IMPORTAR':
         return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
@@ -3876,6 +3887,18 @@ def api_admin_import_studio_ninja():
             'tenant_id': tenant_id,
             'created': entry['created'],
         })
+
+        # Salvaguarda: se marca SKIPPED (nunca 'pending') apenas se crea el
+        # job, ANTES de procesar cotizaciones/pagos/contrato -- eso puede
+        # reventar con datos mal formados del ZIP (Kevin: "ten mucho
+        # cuidado en no enviar correos donde no haya que enviarlos"). Si
+        # algo falla a mitad de este job, ya queda protegido en vez de
+        # quedar a medio marcar y vulnerable a _auto_fire_due_job_steps().
+        # Mas abajo se recalcula a DONE lo que de verdad paso.
+        _safety_instance = _get_or_create_job_workflow_instance(get_job(job_id))
+        for _safety_step in PRODUCTION_WORKFLOW().steps:
+            _safety_instance.step_states[_safety_step.id] = StepStatus.SKIPPED
+        workflow_engine._save_to_storage()
 
         accepted_quote_id = None
         for qi, q in enumerate(entry['quotes']):
@@ -3944,15 +3967,35 @@ def api_admin_import_studio_ninja():
             })
 
         # Estos son jobs HISTORICOS (bodas ya realizadas/canceladas de Studio
-        # Ninja). Sin esto, _auto_fire_due_job_steps() (corre cada 6h en
-        # produccion) ve sus steps de contrato/cuestionario como "pendientes
-        # y vencidos hace meses" y les manda correos reales a clientes reales
-        # apenas arranca -- exactamente lo que la docstring de este endpoint
-        # decia que no iba a pasar. Marcar todo SKIPPED (mismo mecanismo del
-        # boton de 3 puntos del workflow) los deja fuera de get_due_steps().
+        # Ninja). Sin marcarlos de alguna forma que no sea 'pending',
+        # _auto_fire_due_job_steps() (corre cada 6h en produccion) ve sus
+        # steps de contrato/cuestionario como "vencidos hace meses" y les
+        # manda correos reales a clientes reales apenas arranca.
+        #
+        # Kevin: "como hago para que sepas en que momento del workflow
+        # estan las bodas" -- antes esto marcaba TODO como SKIPPED sin
+        # importar que paso de verdad, asi que aunque el cliente ya hubiera
+        # respondido el cuestionario o recibido su galeria, el job se veia
+        # como si nada de eso hubiera pasado. Ahora entry['workflow_status']
+        # (opcional) deja decir que paso realmente, y cada paso se marca
+        # DONE (si de verdad se hizo) o SKIPPED (si no) -- las dos dejan el
+        # step fuera de get_due_steps() por igual, la diferencia es solo que
+        # el historial se ve correcto en vez de todo gris.
+        ws = entry.get('workflow_status') or {}
+        step_done = {
+            'job_accepted': True,
+            'reserva_confirmada': True,
+            'firma_contrato': bool(contract and contract.get('signed')),
+            'cuestionario_cliente': bool(ws.get('questionnaire_completed')),
+            'envio_galeria': bool(ws.get('gallery_delivered')),
+            'pedir_review': bool(ws.get('review_left')),
+            'job_complete': bool(ws.get('job_complete', True)),
+        }
         instance = _get_or_create_job_workflow_instance(job)
         for step in PRODUCTION_WORKFLOW().steps:
-            instance.step_states[step.id] = StepStatus.SKIPPED
+            instance.step_states[step.id] = (
+                StepStatus.DONE if step_done.get(step.id) else StepStatus.SKIPPED
+            )
         workflow_engine._save_to_storage()
 
         created.append(entry['job_name'])

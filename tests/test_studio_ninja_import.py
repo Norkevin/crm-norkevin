@@ -158,9 +158,10 @@ def test_import_does_not_trigger_workflow_engine_or_send_mail(auth_client):
     estado implicito 'pending', y _auto_fire_due_job_steps() (corre cada 6h
     en produccion) los creaba solo al vuelo y los disparaba de una por estar
     'vencidos hace meses', mandando correos reales a clientes reales. Ahora
-    SI se crea la instancia a proposito, pero con todos los steps SKIPPED, y
-    eso es lo que realmente importa: que get_due_steps() no vea nada
-    pendiente para estos jobs historicos."""
+    SI se crea la instancia a proposito, con cada step en DONE (si de verdad
+    paso, segun entry['workflow_status']) o SKIPPED (si no) -- nunca
+    'pending' -- y eso es lo que realmente importa: que get_due_steps() no
+    vea nada pendiente para estos jobs historicos."""
     import app as app_module
     from src.workflow.models import StepStatus
 
@@ -190,8 +191,8 @@ def test_import_does_not_trigger_workflow_engine_or_send_mail(auth_client):
     ]
     assert len(instances) == len(imported_job_ids), 'cada job importado debe tener su instancia ya blindada'
     for instance in instances:
-        assert all(state == StepStatus.SKIPPED for state in instance.step_states.values()), (
-            'todos los steps de un job historico deben quedar SKIPPED, nunca pending'
+        assert all(state != StepStatus.PENDING for state in instance.step_states.values()), (
+            'ningun step de un job historico debe quedar pending (asi sea DONE o SKIPPED)'
         )
 
     due = app_module.workflow_engine.get_due_steps()
