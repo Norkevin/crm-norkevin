@@ -21,6 +21,70 @@
     overflow: hidden;
     box-shadow: 0 1px 2px rgba(28,20,64,.04), 0 32px 64px -28px rgba(28,20,64,.28);
   }
+  /* Shell de 2 columnas para documentos de cara al cliente (cotizacion,
+     contrato, cuestionario) -- Kevin: "quiero algo diferente, no solo
+     cambiar cosas pequenas". En vez de una tarjeta apilada con un banner
+     arriba, la info del documento (marca, tipo, total, estado, acciones)
+     vive en un riel fijo a la izquierda con degradado oscuro, y el
+     contenido (partes, items, terminos, formulario) en un panel blanco a
+     la derecha -- mismo patron que usan las herramientas de contratos/
+     propuestas modernas en vez del formato "PDF que se ve en pantalla". */
+  .doc-shell {
+    max-width: 920px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(260px, 300px) 1fr;
+    background: #fff;
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(28,20,64,.04), 0 40px 90px -34px rgba(28,20,64,.32);
+  }
+  @media (max-width: 760px) {
+    .doc-shell { grid-template-columns: 1fr; border-radius: 22px; }
+  }
+  .doc-side {
+    position: relative;
+    background: radial-gradient(140% 160% at 15% 0%, #382A7A 0%, var(--doc-brand) 50%, #100B2A 100%);
+    color: #fff;
+    padding: 40px 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    overflow: hidden;
+  }
+  .doc-side::before {
+    content: '';
+    position: absolute;
+    right: -80px; top: -100px;
+    width: 260px; height: 260px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(115,87,246,.5) 0%, rgba(115,87,246,0) 70%);
+  }
+  .doc-side::after {
+    content: '';
+    position: absolute;
+    left: -50px; bottom: -20px;
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,.05) 0%, rgba(255,255,255,0) 70%);
+  }
+  .doc-side > * { position: relative; }
+  .doc-side-brand { display: flex; align-items: center; gap: 12px; }
+  .doc-side-meta { padding-top: 20px; border-top: 1px solid rgba(255,255,255,.14); }
+  .doc-side-meta .type { font-size: 10px; text-transform: uppercase; letter-spacing: .14em; opacity: .75; }
+  .doc-side-meta .id { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 13px; opacity: .92; margin-top: 5px; }
+  .doc-side-meta .date { font-size: 11px; opacity: .65; margin-top: 3px; }
+  .doc-side-total .label { font-size: 10px; text-transform: uppercase; letter-spacing: .14em; opacity: .75; }
+  .doc-side-total .amount { font-size: 34px; font-weight: 300; letter-spacing: -.01em; margin-top: 4px; line-height: 1.05; background: linear-gradient(90deg, #fff, #E4DDFF); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .doc-side-status { margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.14); }
+  .doc-side-footer { font-size: 11px; opacity: .55; line-height: 1.6; }
+  @media (max-width: 760px) {
+    .doc-side { padding: 32px 24px; }
+    .doc-side-status { margin-top: 0; }
+  }
+  .doc-main { padding: 40px 40px 36px; }
+  @media (max-width: 560px) { .doc-main, .doc-side { padding-left: 22px; padding-right: 22px; } }
+
   .doc-hero {
     position: relative;
     padding: 44px 40px 34px;

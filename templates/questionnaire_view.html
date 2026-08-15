@@ -33,32 +33,38 @@
 <body>
 
 <div class="doc-wrap">
-  <div class="doc-card">
+  <div class="doc-shell">
 
-    <div class="doc-hero">
-      <div class="doc-hero-row">
-        <div class="doc-brand-mark">
-          <div class="glyph">A</div>
-          <div>
-            <div class="name">ASTRAL WEDDINGS</div>
-            <div class="tag">PHOTOGRAPHY &amp; FILMS</div>
-          </div>
-        </div>
-        <div class="doc-meta">
-          <div class="type">Cuestionario</div>
-          <div class="id">{{ questionnaire.id }}</div>
-          <div class="date">{{ questionnaire.created }}</div>
+    <div class="doc-side">
+      <div class="doc-side-brand">
+        <div class="glyph">A</div>
+        <div>
+          <div class="name">ASTRAL WEDDINGS</div>
+          <div class="tag">PHOTOGRAPHY &amp; FILMS</div>
         </div>
       </div>
-      <div class="doc-hero-total">
+      <div class="doc-side-meta">
+        <div class="type">Cuestionario</div>
+        <div class="id">{{ questionnaire.id }}</div>
+        <div class="date">{{ questionnaire.created }}</div>
+      </div>
+      <div class="doc-side-total">
         <div class="label">{{ questionnaire.name or 'Cuestionario de boda' }}</div>
-        <div class="amount" style="font-size:20px;font-weight:500;">
+        <div class="amount" style="font-size:22px;font-weight:500;">
           {% if client %}{{ client.first_name }} {{ client.last_name }}{% endif %}
         </div>
       </div>
+      <div class="doc-side-status">
+        {% if questionnaire.status == 'Respondido' %}
+        <span class="doc-pill green"><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>Respondido</span>
+        {% else %}
+        <span class="doc-pill amber">Pendiente</span>
+        {% endif %}
+      </div>
+      <div class="doc-side-footer">info@astralweddings.com<br>+502 2222 3333</div>
     </div>
 
-    <div class="doc-body">
+    <div class="doc-main">
 
       {% if questionnaire.status == 'Respondido' %}
       <div class="doc-section" style="text-align:center;">
@@ -109,9 +115,9 @@
         {% endif %}
       </form>
 
-    </div>
+      <div class="doc-footer">ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333</div>
 
-    <div class="doc-footer">ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333</div>
+    </div>
 
   </div>
 </div>
