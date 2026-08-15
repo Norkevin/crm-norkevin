@@ -61,3 +61,18 @@ def test_gallery_job_search_rejects_short_query(client, monkeypatch):
         headers={'Authorization': 'Bearer test-gallery-token'},
     )
     assert response.status_code == 400
+
+
+def test_gallery_job_browse_returns_dated_jobs_without_query(client, monkeypatch):
+    monkeypatch.setenv('GALLERY_INTEGRATION_TOKEN', 'test-gallery-token')
+    monkeypatch.setattr(app_module.store, 'list', _records)
+    response = client.get(
+        '/api/integrations/gallery/jobs?all=1&limit=50',
+        headers={'Authorization': 'Bearer test-gallery-token'},
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert [job['id'] for job in payload['jobs']] == ['job-astral-1']
+    assert payload['jobs'][0]['eventDate'] == '2026-09-12'
+    assert payload['total'] == 1
+    assert payload['hasMore'] is False

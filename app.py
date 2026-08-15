@@ -1665,8 +1665,14 @@ def api_gallery_job_search():
         return jsonify({'ok': False, 'error': 'Unauthorized'}), 401
 
     query = (request.args.get('q') or '').strip().lower()
-    if len(query) < 2:
+    browse_all = request.args.get('all') == '1'
+    if not browse_all and len(query) < 2:
         return jsonify({'ok': False, 'error': 'Escribe al menos 2 caracteres'}), 400
+    try:
+        offset = max(0, int(request.args.get('offset') or 0))
+        limit = max(1, min(100, int(request.args.get('limit') or 50)))
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'Paginación inválida'}), 400
 
     astral_tenant_id = 'tenant-norkevin'
     jobs = [j for j in store.list('jobs') if j.get('tenant_id') == astral_tenant_id]
@@ -1716,7 +1722,7 @@ def api_gallery_job_search():
             ' '.join(c['name'] for c in contacts),
             ' '.join(c['email'] for c in contacts),
         ]).lower()
-        if query not in searchable:
+        if not browse_all and query not in searchable:
             continue
         results.append({
             'id': job.get('id'),
@@ -1727,7 +1733,16 @@ def api_gallery_job_search():
         })
 
     results.sort(key=lambda item: (item.get('eventDate') or '', item.get('name') or ''), reverse=True)
-    return jsonify({'ok': True, 'source': 'Astral Weddings', 'jobs': results[:20]})
+    total = len(results)
+    page = results[offset:offset + limit]
+    return jsonify({
+        'ok': True,
+        'source': 'Astral Weddings',
+        'jobs': page,
+        'total': total,
+        'offset': offset,
+        'hasMore': offset + len(page) < total,
+    })
 
 
 # ============================================================
