@@ -3961,37 +3961,6 @@ def api_admin_import_studio_ninja():
     return jsonify({'ok': True, 'created': created, 'skipped': skipped})
 
 
-@app.route('/api/admin/stop-historical-job-emails', methods=['POST'])
-def api_admin_stop_historical_job_emails():
-    """Kevin: 'porque se puso a enviar correos?' -- el import de Studio Ninja
-    (arriba) no creaba instancia de workflow, asi que _auto_fire_due_job_steps
-    (corre cada 6h) la creaba sola al vuelo con todos los steps de
-    contrato/cuestionario 'vencidos hace meses' y los disparaba de una,
-    mandando correos reales a clientes reales por bodas ya viejas. Remediacion
-    de una sola vez: salta todos los steps de workflow de los jobs ya
-    importados (id 'boda-sn-*') para que dejen de dispararse. La correccion
-    de fondo (que el import ya deje todo SKIPPED desde el momento en que se
-    crea el job) ya esta arriba, esto es solo para los que ya se crearon
-    antes de ese fix."""
-    data = request.get_json(silent=True) or {}
-    if data.get('confirm') != 'PARAR':
-        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
-
-    fixed = []
-    for job in store.list('jobs'):
-        if not str(job.get('id', '')).startswith('boda-sn-'):
-            continue
-        instance = _get_or_create_job_workflow_instance(job)
-        for step in PRODUCTION_WORKFLOW().steps:
-            if instance.step_states.get(step.id) != StepStatus.DONE:
-                instance.step_states[step.id] = StepStatus.SKIPPED
-        fixed.append(job.get('id'))
-    workflow_engine._save_to_storage()
-
-    logger.info(f"Steps de workflow frenados para {len(fixed)} jobs historicos por {session.get('user_email')}: {fixed}")
-    return jsonify({'ok': True, 'fixed': fixed})
-
-
 # Los 3 tenants reales -- Astral Weddings reutiliza el id 'tenant-norkevin'
 # a proposito (es el que YA tienen todos los registros existentes, asi la
 # migracion no tiene que reasignar nada de esa cuenta, solo rellenar lo que
@@ -4144,77 +4113,6 @@ def api_admin_migrate_to_multi_tenant():
         'tenants': [t['id'] for t in _MULTI_TENANT_REAL_TENANTS],
         'migrated': migrated, 'cloned': cloned,
     })
-
-
-@app.route('/api/admin/historical-job-mail-log')
-def api_admin_historical_job_mail_log():
-    """Kevin: 'hay que mandar una disculpa a los correos que mando'. Antes de
-    mandar nada hace falta saber a quien le llego de verdad -- esto lista,
-    de solo lectura, cada correo del mail_log ligado a un job importado de
-    Studio Ninja ('boda-sn-*'), agrupado por destinatario. delivered=false
-    marca los que solo cayeron en el outbox local (Gmail desconectado) y por
-    lo tanto NUNCA llegaron de verdad a nadie -- esos no necesitan disculpa."""
-    from src.mail_tracker import get_tracker
-
-    tracker = get_tracker()
-    by_recipient = {}
-    for entry in tracker.log:
-        job_id = entry.get('job_id') or ''
-        if not job_id.startswith('boda-sn-'):
-            continue
-        job = get_job(job_id)
-        delivered = entry.get('delivery_provider') != 'local_outbox' and entry.get('status') != 'failed'
-        for to_email in [e.strip() for e in (entry.get('to') or '').split(',') if e.strip()]:
-            row = by_recipient.setdefault(to_email, {
-                'to': to_email, 'jobs': set(), 'emails': [], 'delivered': False,
-            })
-            row['jobs'].add((job or {}).get('nombre') or job_id)
-            row['emails'].append({'subject': entry.get('subject'), 'sent_at': entry.get('sent_at'), 'delivered': delivered})
-            row['delivered'] = row['delivered'] or delivered
-
-    recipients = [
-        {'to': r['to'], 'jobs': sorted(r['jobs']), 'email_count': len(r['emails']), 'delivered': r['delivered']}
-        for r in by_recipient.values()
-    ]
-    recipients.sort(key=lambda r: r['to'])
-    return jsonify({'ok': True, 'recipients': recipients})
-
-
-@app.route('/api/admin/send-apology-historical-jobs', methods=['POST'])
-def api_admin_send_apology_historical_jobs():
-    """Manda la disculpa que pidio Kevin solo a los destinatarios reales que
-    de verdad recibieron un correo automatico indebido por un job importado
-    de Studio Ninja (delivery_provider != local_outbox). Requiere que Kevin
-    escriba el asunto/cuerpo el mismo -- este endpoint no inventa el texto,
-    solo lo manda a la lista correcta."""
-    from src.mail_tracker import get_tracker
-
-    data = request.get_json(silent=True) or {}
-    if data.get('confirm') != 'DISCULPA':
-        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
-    subject = (data.get('subject') or '').strip()
-    body = (data.get('body') or '').strip()
-    if not subject or not body:
-        return jsonify({'ok': False, 'error': 'Asunto y cuerpo requeridos'}), 400
-
-    tracker = get_tracker()
-    recipients = set()
-    for entry in tracker.log:
-        job_id = entry.get('job_id') or ''
-        if not job_id.startswith('boda-sn-'):
-            continue
-        if entry.get('delivery_provider') == 'local_outbox' or entry.get('status') == 'failed':
-            continue
-        for to_email in [e.strip() for e in (entry.get('to') or '').split(',') if e.strip()]:
-            recipients.add(to_email)
-
-    sent = []
-    for to_email in sorted(recipients):
-        entry = tracker.log_email(to_email=to_email, subject=subject, body=body)
-        sent.append({'to': to_email, 'mail_id': entry['id'], 'delivered': entry.get('delivery_provider') != 'local_outbox'})
-
-    logger.info(f"Disculpa por correos historicos enviada por {session.get('user_email')} a {len(sent)} destinatarios")
-    return jsonify({'ok': True, 'sent': sent})
 
 
 @app.route('/settings/email-templates')
