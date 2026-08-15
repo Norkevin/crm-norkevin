@@ -8,26 +8,40 @@
 {% include "_tailwind_config.html" %}
 <style>
   :root {
-    --pc-blue: #6D5AE6;
-    --pc-blue-dark: #5849BE;
+    --pc-blue: #7357F6;
+    --pc-blue-dark: #6447EE;
     --pc-ink: #0B1220;
-    --pc-line: #E4E7EC;
+    --pc-line: #E7EAF0;
     --pc-muted: #6B7280;
-    --pc-hero-bg: #241B4D;
-    --pc-gold: #6D5AE6;
+    --pc-hero-bg: #1C1440;
+    --pc-gold: #7357F6;
   }
-  body { background: #F6F7F9; color: var(--pc-ink); font-family: 'Inter', sans-serif; }
+  body { background: #F7F8FC; color: var(--pc-ink); font-family: 'Inter', sans-serif; }
   .brand { color: var(--pc-blue); }
 
-  /* Hero: plano y sobrio (sin degradado ni resplandor) */
+  /* Hero: degradado sutil + resplandores, mismo lenguaje que las
+     cotizaciones/contratos publicos (_document_style.html) para que el
+     portal se sienta parte del mismo sistema, no una pagina aparte. */
   .portal-hero {
-    background: var(--pc-hero-bg);
+    background: radial-gradient(120% 160% at 0% 0%, #382A7A 0%, var(--pc-hero-bg) 46%, #100B2A 100%);
     color: #fff;
-    border-radius: 22px;
+    border-radius: 24px;
     padding: 32px 28px;
     position: relative;
     overflow: hidden;
-    border-bottom: 3px solid var(--pc-gold);
+  }
+  .portal-hero::before {
+    content: '';
+    position: absolute;
+    right: -60px; top: -80px;
+    width: 220px; height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(115,87,246,.5) 0%, rgba(115,87,246,0) 70%);
+  }
+  .portal-hero::after {
+    content: '';
+    position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+    background: linear-gradient(90deg, var(--pc-blue), #A594FF 55%, transparent);
   }
   .portal-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; position: relative; z-index: 1; }
   .portal-hero-greeting { font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
@@ -155,7 +169,7 @@
   <!-- Header -->
   <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-lg brand font-semibold flex items-center justify-center" style="background:#E0F2FE;">
+      <div class="w-10 h-10 rounded-lg brand font-semibold flex items-center justify-center" style="background:#F0EDFF;">
         A
       </div>
       <div>
@@ -265,7 +279,7 @@
     <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
 
       <a href="#quotes" class="portal-nav-tile">
-        <div class="portal-nav-icon" style="background:#6D5AE6;">
+        <div class="portal-nav-icon" style="background:#7357F6;">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
         </div>
         <div>
@@ -536,7 +550,7 @@
       <button onclick="clearSignature()" class="text-sm px-3 py-2 border border-gray-200 rounded-lg">Limpiar</button>
       <div class="flex-1"></div>
       <button onclick="closeSignature()" class="text-sm px-3 py-2 border border-gray-200 rounded-lg">Cancelar</button>
-      <button onclick="saveSignature()" class="text-sm px-3 py-2 text-white rounded-lg font-medium" style="background: #6D5AE6;">Guardar firma</button>
+      <button onclick="saveSignature()" class="text-sm px-3 py-2 text-white rounded-lg font-medium" style="background: #7357F6;">Guardar firma</button>
     </div>
   </div>
 </div>
