@@ -702,7 +702,7 @@ def _find_job_for_lead(lead):
     ]
     if not jobs:
         return None
-    jobs.sort(key=lambda j: (j.get('created', ''), j.get('id', '')))
+    jobs.sort(key=lambda j: (j.get('created') or '', j.get('id') or ''))
     return jobs[-1]
 
 
@@ -733,7 +733,7 @@ def _converted_job_for_lead(lead):
     ]
     if not accepted_jobs:
         return None
-    accepted_jobs.sort(key=lambda j: (j.get('created', ''), j.get('id', '')))
+    accepted_jobs.sort(key=lambda j: (j.get('created') or '', j.get('id') or ''))
     return accepted_jobs[-1]
 
 
@@ -2518,7 +2518,7 @@ def leads_list():
             else:
                 lead['last_mail_chip'] = ('gray', (last.get('status') or 'NO EMAIL').upper())
 
-    leads.sort(key=lambda l: l.get('created', ''), reverse=True)
+    leads.sort(key=lambda l: l.get('created') or '', reverse=True)
     email_templates = [tpl for tpl in store.list('email_templates') if tpl.get('activo', True)]
     return render_template('leads.html', leads=leads, email_templates=email_templates,
                           lead_sources=_configured_lead_sources())
@@ -2775,7 +2775,13 @@ def clients_list():
             client['created_display'] = datetime.strptime(str(client.get('created'))[:10], '%Y-%m-%d').strftime('%d %b %Y')
         except Exception:
             client['created_display'] = client.get('created')
-    clients.sort(key=lambda c: c.get('created', ''), reverse=True)
+    # c.get('created', '') solo usa el default si la KEY no existe -- un
+    # cliente con 'created': None explicito (bodas sin fecha del import de
+    # Studio Ninja) hace que sort() intente comparar str con None y tumbe
+    # toda la pagina (confirmado en produccion: TypeError '<' not
+    # supported between instances of 'str' and 'NoneType'). 'or ''' cubre
+    # los dos casos: key ausente Y key presente pero None/vacia.
+    clients.sort(key=lambda c: c.get('created') or '', reverse=True)
     return render_template('clients.html', clients=clients)
 
 
@@ -2811,7 +2817,7 @@ def api_clients_export_csv():
 def equipo_list():
     """Equipo - miembros del staff."""
     team = store.list('team')
-    team.sort(key=lambda m: m.get('created', ''), reverse=True)
+    team.sort(key=lambda m: m.get('created') or '', reverse=True)
     return render_template('equipo.html', team=team)
 
 
@@ -3866,6 +3872,15 @@ def api_admin_import_studio_ninja():
         if get_job(job_id):
             skipped.append(entry['job_name'])
             continue
+
+        # Un job sin fecha detectada en el nombre de la carpeta ("[no
+        # date] - ...") llega con entry['created'] = None -- guardar eso
+        # tal cual en clients/leads/jobs/quotes hace que cualquier
+        # .sort(key=lambda x: x.get('created')) reviente comparando str
+        # con None (confirmado en produccion, tumbo /clients). Se
+        # normaliza ACA, una sola vez, en vez de en cada upsert.
+        if not entry.get('created'):
+            entry['created'] = date.today().isoformat()
 
         lead_id = f'lead-sn-{slug}'
         # Kevin: "hay muchos Jobs de Studio Ninja que tienen 2 o mas
@@ -5413,7 +5428,11 @@ def api_reconcile_studio_ninja_jobs():
                 'address': new_location or job.get('location') or '',
                 'estado': 'Activo',
                 'tenant_id': tenant_id,
-                'created': job.get('created') or entry.get('created'),
+                # Nunca None: un job sin fecha detectada (folder "[no date]")
+                # deja entry['created'] en None, y un cliente con
+                # 'created': None tumba clients.html al ordenar (confirmado
+                # en produccion). date.today() como ultimo recurso.
+                'created': job.get('created') or entry.get('created') or date.today().isoformat(),
             })
             job['secondary_client_id'] = cid2
             changes['secondary_client_id'] = {'antes': None, 'despues': cid2}
@@ -8373,7 +8392,7 @@ def client_portal(client_id):
         if linked:
             quotes.append(q)
             seen_quotes.add(q.get('id'))
-    quotes.sort(key=lambda q: q.get('created', ''), reverse=True)
+    quotes.sort(key=lambda q: q.get('created') or '', reverse=True)
     for q in quotes:
         q['paquete_nombre'], q['incluye'] = _resolve_quote_package(q)
         if not q.get('precio_total'):
@@ -8385,7 +8404,7 @@ def client_portal(client_id):
     # vea UNA sola factura por job, con el desglose de cuotas internamente
     # en vez de una factura separada por cada pago.
     payments = [p for p in list_payments() if p.get('client_id') == client_id]
-    payments.sort(key=lambda p: p.get('due_date', ''))
+    payments.sort(key=lambda p: p.get('due_date') or '')
 
     # El boton "Pagar ahora" solo aparece si el pago ya tiene un
     # payment_link_url -- pero las cuotas recien generadas por la
