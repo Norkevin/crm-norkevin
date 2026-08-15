@@ -133,6 +133,13 @@
         <option value="archived">Archived Jobs</option>
         <option value="all">All Jobs</option>
       </select>
+      <select id="job-sort" class="sn-select" onchange="filterJobs()">
+        <option value="upcoming_first">Proximos eventos primero</option>
+        <option value="created_desc">Mas recientes primero</option>
+        <option value="created_asc">Mas antiguos primero</option>
+        <option value="date_asc">Fecha del evento (ascendente)</option>
+        <option value="date_desc">Fecha del evento (descendente)</option>
+      </select>
     </div>
     <div class="sn-toolbar-right">
       <input id="job-search" class="sn-search" type="search" placeholder="Search Job Name" oninput="filterJobs()">
@@ -162,6 +169,7 @@
         <tr class="sn-table-row"
             data-status="{{ job.status or '' }}"
             data-date="{{ job.boda_date or '' }}"
+            data-created="{{ job.created or '' }}"
             data-name="{{ (job.nombre or '')|lower }}"
             onclick="goJob(event, '{{ job.id }}')">
           <td class="sn-ellipsis" data-label="Date">
@@ -285,6 +293,7 @@ function filterJobs() {
 function renderJobsRows() {
   var q = (document.getElementById('job-search').value || '').trim().toLowerCase();
   var status = document.getElementById('job-status-filter').value;
+  var sortBy = document.getElementById('job-sort').value;
   var today = new Date().toISOString().slice(0, 10);
   var rows = Array.prototype.slice.call(document.querySelectorAll('#jobs-table tbody tr[data-name]'));
   var matched = rows.filter(function(row) {
@@ -303,10 +312,30 @@ function renderJobsRows() {
     var searchOk = !q || name.indexOf(q) !== -1;
     return statusOk && searchOk;
   });
+
+  // Kevin: "actualmente los Jobs aparecen ordenados del mas antiguo al mas
+  // nuevo, y no existe ninguna opcion para cambiar ese orden". El orden que
+  // manda el servidor (jobs_list(), mas cercano primero por dias_restantes)
+  // sigue siendo el default visual ("Proximos eventos primero"), pero ahora
+  // se puede reordenar sin recargar la pagina.
+  var dateCmp = function(a, b) { return (a.getAttribute('data-date') || '').localeCompare(b.getAttribute('data-date') || ''); };
+  var createdCmp = function(a, b) { return (a.getAttribute('data-created') || '').localeCompare(b.getAttribute('data-created') || ''); };
+  if (sortBy === 'created_desc') matched.sort(function(a, b) { return createdCmp(b, a); });
+  else if (sortBy === 'created_asc') matched.sort(createdCmp);
+  else if (sortBy === 'date_asc') matched.sort(dateCmp);
+  else if (sortBy === 'date_desc') matched.sort(function(a, b) { return dateCmp(b, a); });
+  // 'upcoming_first' deja el orden que ya trae el servidor (dias_restantes
+  // ascendente), no hace falta reordenar en JS.
+
   var totalPages = Math.max(1, Math.ceil(matched.length / JOBS_PAGE_SIZE));
   if (jobsPage > totalPages) jobsPage = totalPages;
   var start = (jobsPage - 1) * JOBS_PAGE_SIZE;
   var pageRows = matched.slice(start, start + JOBS_PAGE_SIZE);
+  var tbody = document.querySelector('#jobs-table tbody');
+  // Reordena de verdad los <tr> en el DOM (no solo el array) -- si no,
+  // display:none/'' solo cambia visibilidad y el orden visual siempre
+  // queda igual al que ya trajo el servidor, sin importar el sort elegido.
+  matched.forEach(function(row) { tbody.appendChild(row); });
   rows.forEach(function(row) { row.style.display = 'none'; });
   pageRows.forEach(function(row) { row.style.display = ''; });
   renderJobsPagination(totalPages, matched.length);

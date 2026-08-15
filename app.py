@@ -335,6 +335,28 @@ def get_client(client_id):
 def get_job(job_id):
     return store.get('jobs', job_id)
 
+
+def get_job_client_ids(job):
+    """Kevin: 'un Job puede tener uno, dos o mas clientes relacionados'.
+    El modelo YA tenia soporte para esto -- client_id (principal) +
+    secondary_client_id + planner_client_id -- solo que el import de
+    Studio Ninja nunca lo usaba (siempre dejaba secondary/planner vacios).
+    Esta funcion es la unica fuente de verdad para "todos los clientes de
+    este job" reutilizando esos 3 campos reales en vez de inventar una
+    estructura paralela."""
+    ids = []
+    for key in ('client_id', 'secondary_client_id', 'planner_client_id'):
+        cid = job.get(key)
+        if cid and cid not in ids:
+            ids.append(cid)
+    return ids
+
+
+def get_job_clients(job):
+    """Los registros de Client completos (no solo ids) para este job,
+    principal primero. Filtra los que ya no existen en vez de reventar."""
+    return [c for c in (get_client(cid) for cid in get_job_client_ids(job)) if c]
+
 def upsert_lead(lead):
     return store.upsert('leads', lead)
 
@@ -1764,8 +1786,11 @@ _ADMIN_ONE_TIME_TOKEN = 'ZT4lh-lMvQm7yiF1vuLIvY1oJHV2te-g'
 def _require_login():
     if _is_public_path(request.path):
         return None
-    if request.path in ('/api/admin/debug-production-workflow', '/api/admin/cleanup-duplicate-questionnaires') \
-            and request.args.get('token') == _ADMIN_ONE_TIME_TOKEN:
+    if request.path in (
+        '/api/admin/debug-production-workflow',
+        '/api/admin/cleanup-duplicate-questionnaires',
+        '/api/admin/reconcile-studio-ninja-jobs',
+    ) and request.args.get('token') == _ADMIN_ONE_TIME_TOKEN:
         return None
     if session.get('logged_in'):
         tenant_id = (session.get('tenant_id') or '').strip()
@@ -3841,28 +3866,37 @@ def api_admin_import_studio_ninja():
             skipped.append(entry['job_name'])
             continue
 
-        client_id = f'client-sn-{slug}'
         lead_id = f'lead-sn-{slug}'
-        c = entry['client']
-        full_name = f"{c['first_name']} {c.get('last_name') or ''}".strip()
-
-        store.upsert('clients', {
-            'id': client_id,
-            'first_name': c['first_name'],
-            'last_name': c.get('last_name') or '',
-            'email': c.get('email') or '',
-            'phone': c.get('phone') or '',
-            'address': entry.get('location') or '',
-            'estado': 'Activo',
-            'tenant_id': tenant_id,
-            'created': entry['created'],
-        })
+        # Kevin: "hay muchos Jobs de Studio Ninja que tienen 2 o mas
+        # clientes asociados... no reemplaces un cliente por otro ni
+        # dupliques Jobs". entry['clients'] (lista) es el formato nuevo;
+        # entry['client'] (uno solo) se sigue aceptando para no romper
+        # payloads viejos -- se normaliza a lista aca mismo.
+        clients_in = entry.get('clients') or ([entry['client']] if entry.get('client') else [])
+        client_ids = []
+        for idx, c in enumerate(clients_in):
+            cid = f'client-sn-{slug}' if idx == 0 else f'client-sn-{slug}-{idx + 1}'
+            store.upsert('clients', {
+                'id': cid,
+                'first_name': c.get('first_name') or '',
+                'last_name': c.get('last_name') or '',
+                'email': c.get('email') or '',
+                'phone': c.get('phone') or '',
+                'address': entry.get('location') or '',
+                'estado': 'Activo',
+                'tenant_id': tenant_id,
+                'created': entry['created'],
+            })
+            client_ids.append(cid)
+        client_id = client_ids[0] if client_ids else None
+        primary_client = clients_in[0] if clients_in else {}
+        full_name = f"{primary_client.get('first_name') or ''} {primary_client.get('last_name') or ''}".strip()
 
         store.upsert('leads', {
             'id': lead_id,
             'nombre': full_name,
-            'email': c.get('email') or '',
-            'telefono': c.get('phone') or '',
+            'email': primary_client.get('email') or '',
+            'telefono': primary_client.get('phone') or '',
             'status': 'Convertido',
             'fuente': entry.get('lead_source') or '',
             'tipo_evento': 'Boda',
@@ -3874,19 +3908,53 @@ def api_admin_import_studio_ninja():
         })
 
         price_total = round(sum(q['total'] for q in entry['quotes']), 2)
-        store.upsert('jobs', {
+        # Kevin: "practicamente todos los Jobs aparecen como Completos y al
+        # mismo tiempo como Activos, lo cual no tiene sentido" -- la causa
+        # real era que ESTE endpoint escribia siempre 'Confirmado' sin
+        # importar si la boda ya paso hace anos, asi que el filtro de
+        # Jobs (que trata todo lo que no sea 'Listo'/'Archivado' como
+        # Activo) los mostraba activos para siempre. No es solo la fecha:
+        # si el workflow_status del payload dice explicitamente que el job
+        # NO esta completo (job_complete=False), eso manda aunque la fecha
+        # ya haya pasado (ej. boda cancelada/en disputa que Kevin marco).
+        ws_for_status = entry.get('workflow_status') or {}
+        job_complete_flag = ws_for_status.get('job_complete')
+        boda_date_str = entry.get('boda_date')
+        is_past_event = False
+        if boda_date_str:
+            try:
+                is_past_event = date.fromisoformat(boda_date_str) < date.today()
+            except ValueError:
+                is_past_event = False
+        if job_complete_flag is False:
+            computed_status = 'Confirmado'
+        elif job_complete_flag is True or is_past_event:
+            computed_status = 'Listo'
+        else:
+            computed_status = 'Confirmado'
+
+        job_dict = {
             'id': job_id,
             'nombre': entry['job_name'],
             'boda_date': entry['boda_date'],
             'location': entry.get('location') or '',
             'client_id': client_id,
             'lead_id': lead_id,
-            'status': 'Confirmado',
+            'status': computed_status,
             'empresa': 'ASTRAL WEDDINGS',
             'price_total': price_total,
             'tenant_id': tenant_id,
             'created': entry['created'],
-        })
+        }
+        # El 2do (y 3er) cliente del job usan los campos que job_detail.html
+        # YA sabe mostrar (avatar, editar, quitar) -- 'secondary_client_id'
+        # para la otra mitad de la pareja, 'planner_client_id' si hubiera
+        # un tercero (wedding planner). No se inventa una relacion nueva.
+        if len(client_ids) > 1:
+            job_dict['secondary_client_id'] = client_ids[1]
+        if len(client_ids) > 2:
+            job_dict['planner_client_id'] = client_ids[2]
+        store.upsert('jobs', job_dict)
 
         # Salvaguarda: se marca SKIPPED (nunca 'pending') apenas se crea el
         # job, ANTES de procesar cotizaciones/pagos/contrato -- eso puede
@@ -5259,6 +5327,109 @@ def api_cleanup_duplicate_questionnaires():
         'cuestionarios_eliminados': len(removed),
         'cuestionarios_conservados': len(kept),
         'eliminados_ids': [q['id'] for q in removed],
+    })
+
+
+@app.route('/api/admin/reconcile-studio-ninja-jobs', methods=['POST'])
+def api_reconcile_studio_ninja_jobs():
+    """Kevin: rediseno del import de Studio Ninja (multi-cliente, status
+    real, location sin datos ajenos) despues de que 131 bodas de Norkevin
+    Photography ya se habian importado con esos 3 bugs. api_admin_import_
+    studio_ninja ya esta arreglado para las importaciones FUTURAS, pero
+    salta los jobs que ya existen (es idempotente a proposito) -- asi que
+    no corrige lo que ya esta mal en produccion. Este endpoint es esa
+    correccion de una sola vez: recibe el MISMO payload {"jobs": [...]}
+    corregido y, SOLO para jobs boda-sn-* que YA existen, actualiza
+    location/status/segundo-cliente -- nunca crea un job nuevo (eso lo
+    sigue haciendo el import normal), nunca toca quotes/payments/contracts
+    (Kevin no reporto esos como incorrectos, y podria haber pagos
+    registrados a mano desde el import que no hay que perder).
+
+    Salvaguardas para no perder trabajo manual de Kevin desde el import:
+    - status: solo se recalcula si el status actual sigue siendo el
+      'Confirmado' hardcodeado del bug viejo. Si Kevin ya lo cambio a mano
+      (Archivado, o Confirmado a proposito), no se toca.
+    - location: se sobreescribe siempre con la version corregida (el bug
+      reportado es justamente que el dato viejo esta mal armado, no que
+      falte revisarlo caso por caso).
+    - segundo cliente: solo se agrega si el job TODAVIA no tiene
+      secondary_client_id (no pisa una relacion que Kevin ya haya
+      ajustado a mano en el job)."""
+    data = request.get_json(silent=True) or {}
+    if data.get('confirm') != 'RECONCILIAR':
+        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
+    payload = data.get('payload')
+    if not isinstance(payload, dict) or not isinstance(payload.get('jobs'), list):
+        return jsonify({'ok': False, 'error': 'Payload invalido: se espera {"jobs": [...]}'}), 400
+
+    updated = []
+    skipped_not_found = []
+    unchanged = []
+
+    for entry in payload.get('jobs', []):
+        slug = entry.get('slug')
+        if not slug:
+            continue
+        job_id = f'boda-sn-{slug}'
+        job = get_job(job_id)
+        if not job:
+            skipped_not_found.append(job_id)
+            continue
+
+        tenant_id = job.get('tenant_id')
+        changes = {}
+
+        new_location = entry.get('location') or ''
+        if new_location and job.get('location') != new_location:
+            changes['location'] = {'antes': job.get('location'), 'despues': new_location}
+            job['location'] = new_location
+
+        if job.get('status') == 'Confirmado':
+            ws = entry.get('workflow_status') or {}
+            job_complete_flag = ws.get('job_complete')
+            is_past_event = False
+            boda_date_str = entry.get('boda_date') or job.get('boda_date')
+            if boda_date_str:
+                try:
+                    is_past_event = date.fromisoformat(boda_date_str) < date.today()
+                except ValueError:
+                    is_past_event = False
+            new_status = 'Listo' if (job_complete_flag is True or (job_complete_flag is not False and is_past_event)) else 'Confirmado'
+            if new_status != job['status']:
+                changes['status'] = {'antes': job['status'], 'despues': new_status}
+                job['status'] = new_status
+
+        clients_in = entry.get('clients') or ([entry['client']] if entry.get('client') else [])
+        if len(clients_in) > 1 and not job.get('secondary_client_id'):
+            c2 = clients_in[1]
+            cid2 = f'client-sn-{slug}-2'
+            store.upsert('clients', {
+                'id': cid2,
+                'first_name': c2.get('first_name') or '',
+                'last_name': c2.get('last_name') or '',
+                'email': c2.get('email') or '',
+                'phone': c2.get('phone') or '',
+                'address': new_location or job.get('location') or '',
+                'estado': 'Activo',
+                'tenant_id': tenant_id,
+                'created': job.get('created') or entry.get('created'),
+            })
+            job['secondary_client_id'] = cid2
+            changes['secondary_client_id'] = {'antes': None, 'despues': cid2}
+
+        if changes:
+            store.upsert('jobs', job)
+            updated.append({'job_id': job_id, 'changes': changes})
+        else:
+            unchanged.append(job_id)
+
+    logger.info(f"Reconciliacion de jobs Studio Ninja: {len(updated)} actualizados, {len(unchanged)} sin cambios, {len(skipped_not_found)} no encontrados")
+    return jsonify({
+        'ok': True,
+        'actualizados': len(updated),
+        'sin_cambios': len(unchanged),
+        'no_encontrados': len(skipped_not_found),
+        'detalle': updated,
     })
 
 
