@@ -1790,6 +1790,7 @@ def _require_login():
         '/api/admin/debug-production-workflow',
         '/api/admin/cleanup-duplicate-questionnaires',
         '/api/admin/reconcile-studio-ninja-jobs',
+        '/api/admin/fix-secondary-clients',
     ) and request.args.get('token') == _ADMIN_ONE_TIME_TOKEN:
         return None
     if session.get('logged_in'):
@@ -5431,6 +5432,59 @@ def api_reconcile_studio_ninja_jobs():
         'no_encontrados': len(skipped_not_found),
         'detalle': updated,
     })
+
+
+@app.route('/api/admin/fix-secondary-clients', methods=['POST'])
+def api_fix_secondary_clients():
+    """Kevin: el segundo cliente de una boda se adivinaba del titulo del
+    job (ej. 'Boda X y Y'), pero cruzarlo contra el export real de
+    Contactos de Studio Ninja mostro que la mayoria de esos "matches" por
+    nombre eran ambiguos entre 1240 contactos (mismo nombre, apellido
+    distinto) -- Kevin: "quitalos por ahora" en vez de dejar un contacto
+    incorrecto. Este endpoint hace las 2 cosas de una sola vez:
+      - 'confirm': el nombre SI se pudo verificar 1 a 1 contra Studio
+        Ninja (nombre y apellido coinciden) -- se corrige el registro de
+        cliente con el email/telefono real.
+      - 'remove': el nombre no se pudo confirmar con certeza -- se quita
+        el vinculo de segundo cliente del job y se borra el registro de
+        cliente placeholder (mejor sin el dato que con uno equivocado)."""
+    data = request.get_json(silent=True) or {}
+    if data.get('confirm') != 'CONFIRMAR':
+        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
+
+    confirmed = []
+    for item in data.get('confirm_clients') or []:
+        job = get_job(f"boda-sn-{item['slug']}")
+        if not job or not job.get('secondary_client_id'):
+            continue
+        c = get_client(job['secondary_client_id'])
+        if not c:
+            continue
+        c['first_name'] = item['first_name']
+        c['last_name'] = item['last_name']
+        c['email'] = item.get('email') or ''
+        c['phone'] = item.get('phone') or ''
+        store.upsert('clients', c)
+        confirmed.append(job['id'])
+
+    removed = []
+    for slug in data.get('remove_slugs') or []:
+        job = get_job(f"boda-sn-{slug}")
+        if not job or not job.get('secondary_client_id'):
+            continue
+        cid = job['secondary_client_id']
+        # store.upsert hace un MERGE superficial (dict.update), no un
+        # reemplazo completo -- job.pop() + upsert no borra el campo en el
+        # storage porque la key simplemente no aparece en el dict que se
+        # manda, y .update() nunca toca keys ausentes. Hay que poner el
+        # valor en None explicitamente para que de verdad se desvincule.
+        job['secondary_client_id'] = None
+        store.upsert('jobs', job)
+        store.delete('clients', cid)
+        removed.append(job['id'])
+
+    logger.info(f"Segundo cliente: {len(confirmed)} confirmados con datos reales, {len(removed)} quitados por no poder confirmarse")
+    return jsonify({'ok': True, 'confirmados': confirmed, 'quitados': removed})
 
 
 @app.route('/questionnaires/<questionnaire_id>')
