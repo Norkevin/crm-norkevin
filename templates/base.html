@@ -1056,6 +1056,11 @@ a.sn-notification-item:hover {
 }
 @media (min-width: 761px) {
   .main-content { margin-left: var(--sn-sidebar-width); width: calc(100% - var(--sn-sidebar-width)); }
+  /* El banner de "Gmail no conectado" es hermano de .main-content, no hijo
+     -- sin este margen queda debajo de la sidebar fija (z-index mas alto)
+     y el icono + "Gmail" se ven tapados, mostrando el texto cortado a
+     mitad de frase ("no conectado..." en vez de "Gmail no conectado..."). */
+  .gmail-warning-banner { margin-left: var(--sn-sidebar-width); }
 }
 
 /* v2: ancho maximo de contenido -- Kevin: 'en un monitor de 27" todo se
