@@ -586,14 +586,18 @@
     min-height: 86px;
     padding: 12px;
   }
+  /* Antes el SVG se forzaba a 560px dentro de un marco de ~400 y el marco
+     hacia scroll lateral: la grafica salia cortada y con la tipografia
+     estirada. Ahora ocupa el ancho real y se dibuja 1:1. */
   .chart-frame {
-    min-height: 300px;
-    padding: 16px 10px 12px;
-    overflow-x: auto;
+    min-height: 260px;
+    padding: 14px 6px 10px;
+    overflow: visible;
   }
   .chart-frame svg {
-    min-width: 560px;
-    height: 260px;
+    min-width: 0;
+    width: 100%;
+    height: 240px;
   }
   .chart-legend {
     justify-content: flex-start;
@@ -1061,6 +1065,30 @@ function smoothPath(points) {
 
 var METRIC_COLORS = { leads: '#0D9488', sessions: '#2563EB', payments: '#D97706', revenue: '#0F766E' };
 
+function niceCeil(value) {
+  // El tope del eje salia del maximo crudo (Q10,743), asi que las 5 marcas
+  // quedaban en numeros ilegibles tipo Q8,057 / Q5,371. Se redondea hacia
+  // arriba a 1/2/2.5/5 x 10^n para que las marcas caigan en numeros limpios.
+  if (!(value > 0)) { return 1; }
+  var exp = Math.pow(10, Math.floor(Math.log(value) / Math.LN10));
+  var frac = value / exp;
+  var step = frac <= 1 ? 1 : frac <= 2 ? 2 : frac <= 2.5 ? 2.5 : frac <= 5 ? 5 : 10;
+  return step * exp;
+}
+
+function compactAxis(format) {
+  // En el telefono "Q10,743" no cabe en el margen del eje y se cortaba el
+  // primer digito. Se abrevia a Q11K solo cuando el ancho aprieta.
+  return function(value) {
+    var n = Number(value) || 0;
+    if (Math.abs(n) >= 1000) {
+      var k = n / 1000;
+      return 'Q' + (k >= 10 ? Math.round(k) : k.toFixed(1).replace(/\.0$/, '')) + 'K';
+    }
+    return format(n);
+  };
+}
+
 function drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usableW, usableH, max, formatAxis) {
   // Kevin: 'las lineas blancas en la grafica no me gustan, quitalas' --
   // solo se dibuja la linea base solida del eje (i===4), el resto de las
@@ -1089,8 +1117,9 @@ function wireChartTooltips(svg, formatFn) {
     var svgRect = svg.getBoundingClientRect();
     var frameRect = frame.getBoundingClientRect();
     var viewBoxWidth = svg.viewBox.baseVal.width || 900;
+    var viewBoxHeight = svg.viewBox.baseVal.height || 380;
     var scaleX = svgRect.width / viewBoxWidth;
-    var scaleY = svgRect.height / 380;
+    var scaleY = svgRect.height / viewBoxHeight;
     var cx = parseFloat(circle.getAttribute('cx')) * scaleX + (svgRect.left - frameRect.left);
     var cy = parseFloat(circle.getAttribute('cy')) * scaleY + (svgRect.top - frameRect.top);
     tooltip.style.left = cx + 'px';
@@ -1119,19 +1148,31 @@ function chartPixelWidth(svg) {
   // tarjeta, deformando las letras. Midiendo el ancho real del contenedor
   // y usandolo como viewBox, el SVG ya no necesita estirarse -- se dibuja
   // 1:1 en su tamano real y el texto no se deforma.
-  var rect = svg.parentElement.getBoundingClientRect();
-  return Math.max(320, Math.round(rect.width));
+  var rect = svg.getBoundingClientRect();
+  if (!rect.width) { rect = svg.parentElement.getBoundingClientRect(); }
+  return Math.max(280, Math.round(rect.width));
+}
+
+function chartPixelHeight(svg) {
+  // Mismo problema que el ancho, pero en vertical: el alto del viewBox
+  // estaba clavado en 380 mientras el CSS le daba 260px en el telefono, asi
+  // que preserveAspectRatio="none" aplastaba la grafica y las letras a un
+  // 68%. Se mide el alto real para dibujar 1:1 tambien a lo alto.
+  var rect = svg.getBoundingClientRect();
+  return Math.max(200, Math.round(rect.height) || 380);
 }
 
 function drawDashboardChart(labels, values, metric) {
   var svg = document.getElementById('dashboard-chart');
   var width = chartPixelWidth(svg);
-  var height = 380;
+  var height = chartPixelHeight(svg);
   svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
-  var paddingX = 58;
-  var paddingTop = 24;
-  var paddingBottom = 42;
-  var max = Math.max(1, Math.max.apply(null, values.concat([0])));
+  // En pantalla angosta el eje Y se comia 58px de los ~400 disponibles.
+  var narrow = width < 520;
+  var paddingX = narrow ? 40 : 58;
+  var paddingTop = narrow ? 16 : 24;
+  var paddingBottom = narrow ? 28 : 42;
+  var max = niceCeil(Math.max(1, Math.max.apply(null, values.concat([0]))));
   var usableW = width - paddingX * 2;
   var usableH = height - paddingTop - paddingBottom;
   var accent = METRIC_COLORS[metric] || '#0D9488';
@@ -1146,15 +1187,17 @@ function drawDashboardChart(labels, values, metric) {
   var areaPath = linePath
     ? 'M ' + first.x.toFixed(1) + ',' + (height - paddingBottom) + ' L ' + linePath.slice(2) + ' L ' + last.x.toFixed(1) + ',' + (height - paddingBottom) + ' Z'
     : '';
-  var formatAxis = metric === 'leads' || metric === 'sessions'
+  var isCount = metric === 'leads' || metric === 'sessions';
+  var formatAxis = isCount
     ? function(v) { return Math.round(v); }
     : function(v) { return money(v); };
+  var axisFormat = (narrow && !isCount) ? compactAxis(formatAxis) : formatAxis;
 
   var html = ''
     + '<defs>'
     + '<linearGradient id="dashFade" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="' + accent + '" stop-opacity="0.20"/><stop offset="100%" stop-color="' + accent + '" stop-opacity="0"/></linearGradient>'
     + '</defs>';
-  html += drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usableW, usableH, max, formatAxis);
+  html += drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usableW, usableH, max, axisFormat);
   html += '<path d="' + areaPath + '" fill="url(#dashFade)"/>';
   html += '<path d="' + linePath + '" fill="none" stroke="' + accent + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
   points.forEach(function(p, index) {
@@ -1197,7 +1240,9 @@ function toggleRevenueYear(year) {
 
 function drawRevenueComparisonChart() {
   var svg = document.getElementById('dashboard-chart');
-  var width = chartPixelWidth(svg), height = 380, paddingX = 58, paddingTop = 24, paddingBottom = 42;
+  var width = chartPixelWidth(svg), height = chartPixelHeight(svg);
+  var narrow = width < 520;
+  var paddingX = narrow ? 40 : 58, paddingTop = narrow ? 16 : 24, paddingBottom = narrow ? 28 : 42;
   svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
   var usableW = width - paddingX * 2;
   var usableH = height - paddingTop - paddingBottom;
@@ -1211,10 +1256,11 @@ function drawRevenueComparisonChart() {
   var visibleSeries = REVENUE_SERIES.filter(function(s) { return !hiddenRevenueYears.has(String(s.year)); });
   var allValues = [];
   visibleSeries.forEach(function(s) { allValues = allValues.concat(s.values); });
-  var max = Math.max(1, Math.max.apply(null, allValues.concat([0])));
+  var max = niceCeil(Math.max(1, Math.max.apply(null, allValues.concat([0]))));
 
   var html = '<defs></defs>';
-  html += drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usableW, usableH, max, money);
+  html += drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usableW, usableH, max,
+    narrow ? compactAxis(money) : money);
 
   // Kevin: los puntos de la grafica deben quedar bien alineados con cada
   // mes -- se agrega una guia vertical tenue debajo de cada punto, en la
