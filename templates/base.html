@@ -2199,9 +2199,349 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   .bottom-nav-item svg { width: 19px; height: 19px; }
 }
 
+/* ============================================================
+   APP MOVIL (<= 760px)
+   Kevin mando un mockup de iPhone 14 Pro Max: barra inferior de 5 tabs,
+   titulo grande con un boton "+" redondo, y las listas como tarjetas en vez
+   de una tabla con scroll horizontal. Este bloque va al final del <style>
+   a proposito: tiene que ganarle a las reglas de arriba (sobre todo al
+   .stack-mobile generico, que dibujaba cada celda como etiqueta/valor).
+   ============================================================ */
+@media (max-width: 760px) {
+  /* --- Barra superior: sin logo ni topnav, solo lo accionable --- */
+  .app-header {
+    min-height: 52px;
+    padding: calc(6px + env(safe-area-inset-top)) 14px 6px;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    border-bottom: none;
+  }
+  .brand-link,
+  .header-search-wrap { display: none; }
+  /* El "+" de la barra superior duplicaba al circulo violeta del titulo.
+     Se deja solo el de la pagina, como en el mockup. */
+  .header-right .header-popover-wrap:first-child { display: none; }
+  /* En Inicio si se muestra el buscador global arriba, como en el mockup.
+     En las listas estorbaria: cada una ya trae su propio buscador. */
+  body[data-page="/dashboard"] .header-search-wrap {
+    display: block;
+    grid-column: 1;
+    min-width: 0;
+  }
+  body[data-page="/dashboard"] .header-search input {
+    height: 40px;
+    font-size: 15px;
+  }
+  .header-right { grid-column: 2; gap: 8px; }
+
+  /* --- Cabecera de pagina tipo app --- */
+  /* Arriba hay una regla que apila el head en columna; aca se vuelve a fila
+     para que el titulo y el boton "+" queden en el mismo renglon. */
+  .sn-page-head {
+    flex-direction: row !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .sn-page-head > div:first-child { min-width: 0; }
+  .sn-page-title {
+    font-size: 27px;
+    letter-spacing: -.02em;
+    line-height: 1.15;
+  }
+  /* La bajada explicativa se come media pantalla en el telefono. */
+  .sn-page-head .sn-breadcrumbs,
+  .sn-page-desc,
+  .sn-page-subtitle { display: none; }
+
+  /* La accion principal se vuelve el circulo violeta del mockup; las
+     secundarias (Importar/Exportar) pasan al menu de tres puntos en
+     escritorio -- en el telefono estorban mas de lo que sirven. */
+  .sn-page-head .sn-actions {
+    display: flex;
+    width: auto;
+    gap: 8px;
+  }
+  .sn-page-head .sn-actions .sn-btn:not(.sn-btn-primary) { display: none; }
+  .sn-page-head .sn-actions .sn-btn-primary {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 999px;
+    font-size: 0;
+    box-shadow: 0 6px 16px rgba(115, 87, 246, .34);
+  }
+  .sn-page-head .sn-actions .sn-btn-primary svg {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+  }
+
+  /* --- Listas como tarjetas --- */
+  .stack-mobile .sn-table tr {
+    display: grid;
+    align-items: center;
+    gap: 2px 10px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    margin-bottom: 10px;
+    background: var(--sn-white);
+    border: 1px solid var(--sn-line);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  }
+  .stack-mobile .sn-table td {
+    display: block;
+    padding: 0;
+    border: none;
+    text-align: left;
+    min-width: 0;
+    font-size: 13px;
+  }
+  /* Solo el padding se repite con los #id: varias paginas lo fijan con una
+     regla por id que le gana a una de clases. Ojo: aca NO puede ir
+     `display`, porque un id le ganaria tambien a los `display:none` de mas
+     abajo y volverian a aparecer las columnas que queremos ocultar. */
+  #clients-table td,
+  #leads-table td,
+  #jobs-table td,
+  #payments-table td { padding: 0; }
+  /* La etiqueta de cada celda sobra: la tarjeta ya se lee sola. */
+  .stack-mobile .sn-table td[data-label]::before { display: none; }
+  .stack-mobile .sn-table td.stack-actions {
+    justify-self: end;
+    align-self: start;
+    text-align: right;
+  }
+  .stack-mobile .sn-table td:empty { display: none; }
+
+  /* Clientes: avatar + nombre + correo, telefono debajo, menu a la derecha */
+  body[data-page="/clients"] .stack-mobile .sn-table tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "main menu"
+      "tel  menu";
+  }
+  body[data-page="/clients"] .stack-mobile td[data-label="Client"] { grid-area: main; }
+  body[data-page="/clients"] .stack-mobile td[data-label="Phone"] {
+    grid-area: tel;
+    padding-left: 48px;
+    color: var(--sn-muted);
+    font-size: 12.5px;
+  }
+  body[data-page="/clients"] .stack-mobile td[data-label="Company"],
+  body[data-page="/clients"] .stack-mobile td[data-label="Created"] { display: none; }
+  body[data-page="/clients"] .stack-mobile td.stack-actions { grid-area: menu; }
+
+  /* Leads: nombre + tipo + fecha, con el estado como pastilla a la derecha */
+  body[data-page="/leads"] .stack-mobile .sn-table tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name  badge"
+      "type  badge"
+      "date  date"
+      "next  next";
+  }
+  body[data-page="/leads"] .stack-mobile td[data-label="Lead Name"] { grid-area: name; }
+  body[data-page="/leads"] .stack-mobile td[data-label="Type"] {
+    grid-area: type;
+    padding-left: 44px;
+    color: var(--sn-muted);
+  }
+  body[data-page="/leads"] .stack-mobile td[data-label="Boda Date"] {
+    grid-area: date;
+    padding-left: 44px;
+    margin-top: 2px;
+    color: var(--sn-ink);
+    font-weight: 600;
+  }
+  body[data-page="/leads"] .stack-mobile td[data-label="Next Task"] {
+    grid-area: next;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--sn-line);
+    color: var(--sn-muted);
+    font-size: 12.5px;
+  }
+  body[data-page="/leads"] .stack-mobile td[data-label="Next Task"]::before {
+    content: 'Siguiente: ';
+    display: inline !important;
+    color: var(--sn-muted);
+  }
+  body[data-page="/leads"] .stack-mobile td[data-label="Created"],
+  body[data-page="/leads"] .stack-mobile td[data-label="Mail Status"] { display: none; }
+  body[data-page="/leads"] .stack-mobile td.stack-actions { grid-area: badge; }
+  /* El estado vive en el <tr data-status>, no en una celda: se pinta como
+     pastilla arriba del menu sin tocar la plantilla. */
+  body[data-page="/leads"] .stack-mobile .sn-table tr::before {
+    content: attr(data-status);
+    grid-area: badge;
+    justify-self: end;
+    align-self: start;
+    margin-right: 34px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--sn-green-soft, #EFEAFE);
+    color: var(--sn-green-dark);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .01em;
+    white-space: nowrap;
+  }
+
+  /* Trabajos: nombre + fecha + barra de progreso */
+  body[data-page="/jobs"] .stack-mobile .sn-table tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "job   menu"
+      "date  menu"
+      "prog  prog"
+      "next  next";
+  }
+  body[data-page="/jobs"] .stack-mobile td[data-label="Job"] { grid-area: job; }
+  body[data-page="/jobs"] .stack-mobile td[data-label="Date"] {
+    grid-area: date;
+    color: var(--sn-muted);
+    font-size: 12.5px;
+  }
+  body[data-page="/jobs"] .stack-mobile td[data-label="Progress"] {
+    grid-area: prog;
+    margin-top: 8px;
+  }
+  body[data-page="/jobs"] .stack-mobile td[data-label="Next task"] {
+    grid-area: next;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--sn-line);
+    color: var(--sn-muted);
+    font-size: 12.5px;
+  }
+  body[data-page="/jobs"] .stack-mobile td.stack-actions { grid-area: menu; }
+
+  /* Pagos: monto grande a la derecha, estado y vencimiento a la izquierda */
+  body[data-page="/payments"] .stack-mobile .sn-table tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "who    amount"
+      "status amount"
+      "due    amount";
+  }
+  body[data-page="/payments"] .stack-mobile td[data-label="Client & Job"] { grid-area: who; }
+  body[data-page="/payments"] .stack-mobile td[data-label="Status"] { grid-area: status; margin-top: 4px; }
+  body[data-page="/payments"] .stack-mobile td[data-label="Due"] {
+    grid-area: due;
+    color: var(--sn-muted);
+    font-size: 12.5px;
+  }
+  body[data-page="/payments"] .stack-mobile td[data-label="Amount"] {
+    grid-area: amount;
+    align-self: center;
+    text-align: right;
+    font-size: 17px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  body[data-page="/payments"] .stack-mobile td.stack-actions { display: none; }
+
+  /* Los 3 totales de Pagos van en fila, como pastillas -- apilados se comian
+     media pantalla antes de llegar a la lista. */
+  .payment-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .payment-stat-card { padding: 10px 10px 12px; }
+  .payment-stat-label {
+    font-size: 10.5px;
+    line-height: 1.25;
+  }
+  .payment-stat-value {
+    font-size: 15px;
+    letter-spacing: -.02em;
+  }
+
+  /* --- Inicio: se desbordaba a lo ancho --- */
+  /* Un hijo de flex/grid trae min-width:auto de fabrica, o sea "no me
+     encojas por debajo de mi contenido". Varios contenedores del dashboard
+     lo tenian y empujaban la pagina a 604px en una pantalla de 430. */
+  /* La raiz del problema: .dashboard-grid declara una columna que se mide
+     por su contenido (594px) dentro de un contenedor de 410. minmax(0,1fr)
+     le da permiso de encogerse; sin el 0, el minimo implicito es min-content
+     y la columna nunca baja. */
+  body[data-page="/dashboard"] .dashboard-grid,
+  body[data-page="/dashboard"] .dashboard-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  body[data-page="/dashboard"] .dashboard-main,
+  body[data-page="/dashboard"] .dashboard-panel,
+  body[data-page="/dashboard"] .dashboard-analytics,
+  body[data-page="/dashboard"] .dashboard-controls,
+  body[data-page="/dashboard"] .dashboard-control-right,
+  body[data-page="/dashboard"] .revenue-card,
+  body[data-page="/dashboard"] .segmented,
+  body[data-page="/dashboard"] .metric-tabs {
+    min-width: 0;
+    max-width: 100%;
+  }
+  body[data-page="/dashboard"] .dashboard-main,
+  body[data-page="/dashboard"] .dashboard-analytics,
+  body[data-page="/dashboard"] .dashboard-controls,
+  body[data-page="/dashboard"] .dashboard-control-right { flex-wrap: wrap; }
+  /* Son 4 rangos (7 dias / 30 dias / Mes / Ano): cabe la fila completa. */
+  body[data-page="/dashboard"] .segmented { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  body[data-page="/dashboard"] .segmented > * { font-size: 12px; padding-left: 4px; padding-right: 4px; }
+  body[data-page="/dashboard"] .metric-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* --- Inicio: resumen en 2x2 y grafica mas baja --- */
+  body[data-page="/dashboard"] .stat-grid,
+  body[data-page="/dashboard"] .dashboard-stats,
+  body[data-page="/dashboard"] .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  body[data-page="/dashboard"] .dashboard-rail { margin-top: 0; }
+  body[data-page="/dashboard"] canvas { max-height: 190px; }
+
+  /* --- Calendario: que la cuadricula del mes quepa sin scroll lateral --- */
+  body[data-page="/calendar"] .calendar-grid { font-size: 12px; }
+  body[data-page="/calendar"] .calendar-cell { min-height: 40px; padding: 2px; }
+}
+
+/* ============================================================
+   LAPTOP DE 13" (MacBook Air) -- Kevin trabaja en un monitor de 27" y el
+   layout habia quedado afinado para ese ancho. Entre 992 y 1400 se aprieta
+   la densidad para que quepa todo sin scroll horizontal.
+   ============================================================ */
+@media (min-width: 992px) and (max-width: 1400px) {
+  .main-content {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .sn-page-title { font-size: 24px; }
+  .sn-table th,
+  .sn-table td {
+    padding-top: 9px;
+    padding-bottom: 9px;
+    font-size: 13px;
+  }
+  .sn-card { padding: 16px; }
+  /* Las tablas anchas (Leads tiene 7 columnas) dejan de forzar scroll: se
+     permite que las celdas se corten con elipsis en vez de empujar. */
+  .sn-table { table-layout: fixed; }
+  .sn-table th,
+  .sn-table td { overflow: hidden; text-overflow: ellipsis; }
+  /* Columnas prescindibles en pantalla chica de laptop. */
+  #leads-table th:nth-child(1),
+  #leads-table td:nth-child(1) { display: none; }
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 </style>
 </head>
-<body>
+<body data-page="{{ request.path }}">
 <script>
 (function() {
   try {
@@ -2240,14 +2580,10 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 2v4M8 2v4M3 10h18"/></svg>
       <span>Calendar</span>
     </a>
-    <a href="/quotes" class="sidebar-item" data-nav="/quotes">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M14 2v6h6M9 13h6M9 17h6"/></svg>
-      <span>Quotes</span>
-    </a>
-    <a href="/invoices" class="sidebar-item" data-nav="/invoices">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 13h6M9 17h4"/></svg>
-      <span>Invoices</span>
-    </a>
+    {# Kevin: "hay que quitar la pestaña de quotes e invoices porque al final
+       salen dentro de los jobs". Las rutas /quotes y /invoices siguen vivas
+       (los enlaces publicos que ya se mandaron a clientes tienen que seguir
+       abriendo), solo se quitan del menu. #}
     <a href="/payments" class="sidebar-item" data-nav="/payments">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M1 10h22"/></svg>
       <span>Payments</span>
@@ -2300,14 +2636,6 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     <a href="/calendar" class="topnav-item" data-nav="/calendar">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 2v4M8 2v4M3 10h18"/></svg>
       <span class="topnav-label">Calendar</span>
-    </a>
-    <a href="/quotes" class="topnav-item" data-nav="/quotes">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M14 2v6h6M9 13h6M9 17h6"/></svg>
-      <span class="topnav-label">Quotes</span>
-    </a>
-    <a href="/invoices" class="topnav-item" data-nav="/invoices">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 13h6M9 17h4"/></svg>
-      <span class="topnav-label">Invoices</span>
     </a>
     <a href="/payments" class="topnav-item" data-nav="/payments">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M1 10h22"/></svg>
@@ -2428,7 +2756,11 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 <nav class="bottom-nav" aria-label="Principal (mobile)">
   <a href="/dashboard" class="bottom-nav-item" data-nav="/dashboard">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 22V12h6v10"/></svg>
-    Dashboard
+    Inicio
+  </a>
+  <a href="/clients" class="bottom-nav-item" data-nav="/clients">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+    Clientes
   </a>
   <a href="/leads" class="bottom-nav-item" data-nav="/leads">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 6v6l4 2"/></svg>
@@ -2436,19 +2768,11 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   </a>
   <a href="/jobs" class="bottom-nav-item" data-nav="/jobs">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-    Jobs
-  </a>
-  <a href="/payments" class="bottom-nav-item" data-nav="/payments">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M1 10h22"/></svg>
-    Payments
-  </a>
-  <a href="/calendar" class="bottom-nav-item" data-nav="/calendar">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 2v4M8 2v4M3 10h18"/></svg>
-    Calendar
+    Trabajos
   </a>
   <button type="button" class="bottom-nav-item" onclick="openMoreSheet()">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
-    Mas
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+    Más
   </button>
 </nav>
 
@@ -2475,17 +2799,20 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       <span>Configuración</span>
     </a>
-    <a class="more-sheet-item" href="/clients">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span>Clients</span>
+    {# Calendario y Pagos salen de la barra inferior (que quedo en 5 tabs) y
+       viven aca. Cotizaciones y Facturas se quitaron por completo: se ven
+       dentro de cada Job. #}
+    <a class="more-sheet-item" href="/calendar" data-nav="/calendar">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 2v4M8 2v4M3 10h18"/></svg>
+      <span>Calendario</span>
     </a>
-    <a class="more-sheet-item" href="/quotes">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M14 2v6h6M9 13h6M9 17h6"/></svg>
-      <span>Cotizaciones</span>
+    <a class="more-sheet-item" href="/payments" data-nav="/payments">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M1 10h22"/></svg>
+      <span>Pagos</span>
     </a>
-    <a class="more-sheet-item" href="/invoices">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 13h6M9 17h4"/></svg>
-      <span>Facturas</span>
+    <a class="more-sheet-item" href="/equipo" data-nav="/equipo">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Equipo</span>
     </a>
   </div>
   <div class="more-sheet-list">

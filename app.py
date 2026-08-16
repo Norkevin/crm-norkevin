@@ -1757,7 +1757,7 @@ def api_gallery_job_search():
 import re as _re_auth
 
 PUBLIC_EXACT_PATHS = {
-    '/login', '/logout', '/contacto', '/api/leads/nuevo', '/captacion', '/api/captacion',
+    '/login', '/logout', '/dev/login', '/contacto', '/api/leads/nuevo', '/captacion', '/api/captacion',
     '/api/integrations/gallery/jobs',
     '/manifest.webmanifest', '/service-worker.js', '/offline.html',
 }
@@ -1795,6 +1795,36 @@ def _is_public_path(path):
 # (solo cuentan/reordenan cuestionarios), pero igual conviene rotarlo o
 # borrar las rutas una vez resuelto esto.
 _ADMIN_ONE_TIME_TOKEN = 'ZT4lh-lMvQm7yiF1vuLIvY1oJHV2te-g'
+
+
+def _dev_login_enabled():
+    """Login de desarrollo para poder abrir la app en el navegador local sin
+    pasar por Google OAuth (necesario para revisar el responsive).
+
+    Apagado salvo que se pidan LAS DOS cosas a la vez: la variable
+    DEV_LOGIN=1 y que la peticion venga de la propia maquina. En Render no
+    existe esa variable, asi que alla la ruta responde 404 siempre.
+    """
+    if os.environ.get('DEV_LOGIN') != '1':
+        return False
+    return request.remote_addr in ('127.0.0.1', '::1', 'localhost')
+
+
+@app.route('/dev/login')
+def dev_login():
+    if not _dev_login_enabled():
+        abort(404)
+    tenant_id = request.args.get('tenant') or 'tenant-norkevin'
+    tenant = next((t for t in store.list('tenants') if t.get('id') == tenant_id), None)
+    if not tenant:
+        abort(404)
+    session['logged_in'] = True
+    session['user_email'] = tenant.get('login_email') or 'dev@localhost'
+    session['user_name'] = 'Dev Local'
+    session['tenant_id'] = tenant['id']
+    session.permanent = True
+    logger.warning(f'DEV LOGIN local usado para {tenant["id"]} -- solo desarrollo')
+    return redirect(request.args.get('next') or '/dashboard')
 
 
 @app.before_request
