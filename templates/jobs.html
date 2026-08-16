@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Trabajos · ASTRAL WEDDINGS CRM{% endblock %}
 {% block header %}Trabajos{% endblock %}
-{% block subtitle %}{{ jobs|length }} jobs{% endblock %}
+{% block subtitle %}{{ jobs|length }} trabajos{% endblock %}
 
 {% block content %}
 <style>
@@ -115,11 +115,11 @@
     <div class="sn-actions">
       <a class="sn-btn" href="/api/jobs/export.csv">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
-        Export Jobs
+        Exportar
       </a>
       <button class="sn-btn sn-btn-primary" type="button" onclick="openJobModal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-        Add New Job
+        Nuevo trabajo
       </button>
     </div>
   </div>
@@ -128,9 +128,9 @@
     <div class="sn-toolbar-left">
       <select id="job-status-filter" class="sn-select" onchange="filterJobs()">
         <option value="active">Trabajos activos</option>
-        <option value="upcoming">Active Jobs with Upcoming Shoot</option>
-        <option value="completed">Completed Jobs</option>
-        <option value="archived">Archived Jobs</option>
+        <option value="upcoming">Activos con evento proximo</option>
+        <option value="completed">Completados</option>
+        <option value="archived">Archivados</option>
         <option value="all">Todos los trabajos</option>
       </select>
       <select id="job-sort" class="sn-select" onchange="filterJobs()">
@@ -150,10 +150,10 @@
     <table class="sn-table" id="jobs-table">
       <thead>
         <tr>
-          <th style="width: 140px;">Date</th>
-          <th>Job</th>
-          <th style="width: 280px;">Progress</th>
-          <th style="width: 160px;">Next task</th>
+          <th style="width: 140px;">Fecha</th>
+          <th>Trabajo</th>
+          <th style="width: 280px;">Estado</th>
+          <th style="width: 160px;">Siguiente tarea</th>
           <th style="width: 56px;"></th>
         </tr>
       </thead>
@@ -194,7 +194,7 @@
                 </span>
               {% endif %}
             {% else %}
-              <span class="sn-muted">No date</span>
+              <span class="sn-muted">Sin fecha</span>
             {% endif %}
           </td>
           <td class="sn-ellipsis stack-full" data-label="Job">
@@ -227,7 +227,7 @@
               <span class="sn-progress-pct">{{ job.workflow_progress or 0 }}%</span>
             </div>
           </td>
-          <td class="sn-ellipsis job-next-task" data-label="Next task">{{ job.next_task or 'Job complete' }}</td>
+          <td class="sn-ellipsis job-next-task" data-label="Next task">{{ job.next_task or 'Trabajo completado' }}</td>
           <td class="stack-actions" style="text-align:right;">
             <button class="sn-menu-dots" type="button" title="Actions" onclick="openRowMenu(event, '{{ job.id }}')">
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
@@ -382,7 +382,7 @@ function openRowMenu(event, jobId) {
     { label: 'Edit', href: '/jobs/' + jobId + '?edit=1' },
     { label: 'Mark Complete', confirm: 'Marcar este job como complete?', action: function() {
       apiPost('/api/jobs/' + jobId + '/status', { status: 'Listo' })
-        .then(function() { flashToast('Job complete', 'success'); setTimeout(function() { location.reload(); }, 450); })
+        .then(function() { flashToast('Trabajo completado', 'success'); setTimeout(function() { location.reload(); }, 450); })
         .catch(function(err) { flashToast(err.message, 'error'); });
     }},
     { divider: true },

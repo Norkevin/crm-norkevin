@@ -48,7 +48,7 @@
                 {% if step.scheduled %}<span class="sn-chip pink">{{ step.scheduled[:10] }}</span>{% endif %}
               </div>
             </div>
-            <button class="sn-menu-dots" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="{% if step.locked %}Complete Job accepted first{% else %}Run now{% endif %}">
+            <button class="sn-menu-dots" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="{% if step.locked %}Primero completa Trabajo aceptado{% else %}Run now{% endif %}">
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
             </button>
           </div>
@@ -711,7 +711,7 @@ function triggerStep(stepId, stepName) {
 
   if (!LEAD_WORKFLOW_STEP_IDS.has(stepId)) {
     if (!JOB_LINKED_ID) {
-      flashToast('Primero completa Job accepted para crear el job', 'error');
+      flashToast('Primero completa Trabajo aceptado para crear el job', 'error');
       return;
     }
     flashToast('Ejecutando "' + stepName + '"...', 'success');

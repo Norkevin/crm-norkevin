@@ -1039,7 +1039,7 @@ def _activate_job_workflow_start(job):
         None,
     )
     instance.current_step_id = next_step.id if next_step else None
-    workflow_engine._log(instance, 'step.done', 'Job accepted: Lead converted into job')
+    workflow_engine._log(instance, 'step.done', 'Trabajo aceptado: lead convertido en job')
     workflow_engine._save_to_storage()
 
 
@@ -2534,7 +2534,7 @@ def leads_list():
                 steps, progress, _ = compute_workflow_steps_for_lead(lead)
                 pending = next((s for s in steps if s.get('status') != 'done'), None)
                 lead['workflow_progress'] = progress
-                lead['next_task'] = pending.get('name') if pending else (lead.get('next_task') or 'Job accepted')
+                lead['next_task'] = pending.get('name') if pending else (lead.get('next_task') or 'Trabajo aceptado')
             except Exception:
                 lead['workflow_progress'] = lead.get('workflow_progress') or 0
 
