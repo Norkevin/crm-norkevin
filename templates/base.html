@@ -2663,6 +2663,50 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   body[data-page="/dashboard"] .segmented > * { font-size: 12px; padding-left: 4px; padding-right: 4px; }
   body[data-page="/dashboard"] .metric-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
+  /* --- Inicio: orden propio de mobile ---
+     Kevin (prioridad en el telefono): dinero, proximos jobs, tareas, leads
+     nuevos y la grafica AL FINAL. En escritorio el orden lo da el HTML
+     (columna principal + rail), y ahi la grafica va primero.
+
+     display:contents en .dashboard-main/.dashboard-rail disuelve esos dos
+     contenedores solo en mobile: sus hijos pasan a ser items directos del
+     grid, y recien ahi `order` puede intercalar secciones que en el HTML
+     viven en columnas distintas. Sin esto solo se podrian reordenar bloques
+     dentro de la misma columna. */
+  body[data-page="/dashboard"] .dashboard-grid {
+    display: flex;
+    flex-direction: column;
+    /* El grid de escritorio trae align-items:start, que en columna deja
+       cada tarjeta del ancho de su contenido (238px en vez de 398). */
+    align-items: stretch;
+    gap: var(--m-gap);
+  }
+  body[data-page="/dashboard"] .dashboard-main,
+  body[data-page="/dashboard"] .dashboard-rail { display: contents; }
+
+  body[data-page="/dashboard"] .dashboard-rail > :nth-child(1) { order: 1; }  /* saludo */
+  body[data-page="/dashboard"] .dashboard-main > :nth-child(3) { order: 2; }  /* total cobrado */
+  body[data-page="/dashboard"] .dashboard-rail > :nth-child(3) { order: 3; }  /* estado de pagos */
+  body[data-page="/dashboard"] .dashboard-rail > :nth-child(2) { order: 4; }  /* proximas sesiones */
+  body[data-page="/dashboard"] .dashboard-main > :nth-child(6) { order: 5; }  /* leads recientes */
+  body[data-page="/dashboard"] .dashboard-main > :nth-child(4) { order: 6; }  /* label trabajos */
+  body[data-page="/dashboard"] .dashboard-main > :nth-child(5) { order: 7; }  /* trabajos recientes */
+  body[data-page="/dashboard"] .dashboard-rail > :nth-child(4) { order: 8; }
+  body[data-page="/dashboard"] .dashboard-rail > :nth-child(5) { order: 9; }
+  body[data-page="/dashboard"] .dashboard-main > :nth-child(1) { order: 10; } /* label ventas */
+  body[data-page="/dashboard"] .dashboard-main > :nth-child(2) { order: 11; } /* grafica */
+
+  /* Cobrado y Pendiente lado a lado: apilados eran 2 tarjetas de 119px
+     cada una solo para mostrar dos numeros. */
+  body[data-page="/dashboard"] .dashboard-panel-intro {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--m-gap-xs);
+  }
+  body[data-page="/dashboard"] .dashboard-intro-stat { padding: 12px; }
+  body[data-page="/dashboard"] .dashboard-intro-stat > :last-child { display: none; }
+  body[data-page="/dashboard"] .dashboard-intro-stat .dashboard-intro-value,
+  body[data-page="/dashboard"] .dashboard-intro-stat strong { font-size: 22px; }
+
   /* --- Inicio: resumen en 2x2 y grafica mas baja --- */
   body[data-page="/dashboard"] .stat-grid,
   body[data-page="/dashboard"] .dashboard-stats,
@@ -2733,13 +2777,13 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 22V12h6v10"/></svg>
       <span>Dashboard</span>
     </a>
-    <a href="/clients" class="sidebar-item" data-nav="/clients">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span>Clients</span>
-    </a>
     <a href="/leads" class="sidebar-item" data-nav="/leads">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 6v6l4 2"/></svg>
       <span>Leads</span>
+    </a>
+    <a href="/clients" class="sidebar-item" data-nav="/clients">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Clients</span>
     </a>
     <a href="/jobs" class="sidebar-item" data-nav="/jobs">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -2790,13 +2834,13 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 22V12h6v10"/></svg>
       <span class="topnav-label">Dashboard</span>
     </a>
-    <a href="/clients" class="topnav-item" data-nav="/clients">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span class="topnav-label">Clients</span>
-    </a>
     <a href="/leads" class="topnav-item" data-nav="/leads">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 6v6l4 2"/></svg>
       <span class="topnav-label">Leads</span>
+    </a>
+    <a href="/clients" class="topnav-item" data-nav="/clients">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span class="topnav-label">Clients</span>
     </a>
     <a href="/jobs" class="topnav-item" data-nav="/jobs">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -2927,13 +2971,13 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 22V12h6v10"/></svg>
     Inicio
   </a>
-  <a href="/clients" class="bottom-nav-item" data-nav="/clients">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
-    Clientes
-  </a>
   <a href="/leads" class="bottom-nav-item" data-nav="/leads">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 6v6l4 2"/></svg>
     Leads
+  </a>
+  <a href="/clients" class="bottom-nav-item" data-nav="/clients">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+    Clientes
   </a>
   <a href="/jobs" class="bottom-nav-item" data-nav="/jobs">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>

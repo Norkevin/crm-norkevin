@@ -960,7 +960,8 @@
 <script>
 var DASHBOARD_DATA = {{ dashboard_data|tojson }};
 var REVENUE_SERIES = {{ revenue_comparison_series|tojson }};
-var MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// Kevin pidio consistencia de idioma: la UI esta en español.
+var MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 var dashboardRange = 'ytd';
 var dashboardMetric = 'revenue';
 
@@ -1089,6 +1090,44 @@ function compactAxis(format) {
   };
 }
 
+function drawBars(points, height, paddingBottom, usableW, count, accent) {
+  // Ancho de barra a partir del paso entre puntos, dejando ~30% de aire.
+  var baseY = height - paddingBottom;
+  var step = count > 1 ? usableW / (count - 1) : usableW;
+  var bw = Math.max(6, Math.min(30, step * 0.62));
+  var html = '';
+  points.forEach(function(p) {
+    var h = Math.max(0, baseY - p.y);
+    var x = p.x - bw / 2;
+    // Una barra de 0 no se dibuja: un sliver de 1px se lee como si hubiera
+    // habido algo de ingreso ese mes.
+    if (h > 0.5) {
+      html += '<rect x="' + x.toFixed(1) + '" y="' + p.y.toFixed(1) + '" width="' + bw.toFixed(1)
+        + '" height="' + h.toFixed(1) + '" rx="' + Math.min(4, bw / 3).toFixed(1)
+        + '" fill="' + accent + '" fill-opacity="0.9"/>';
+    }
+    // El area sensible cubre toda la columna, tambien en meses en cero, para
+    // poder tocarlos y ver "Q0" en vez de que no respondan.
+    html += '<rect x="' + x.toFixed(1) + '" y="0" width="' + bw.toFixed(1) + '" height="' + baseY.toFixed(1)
+      + '" fill="transparent" class="chart-hit" data-label="' + p.label + '" data-value="' + p.value + '"/>';
+  });
+  return html;
+}
+
+function drawMonthLabels(points, height, count) {
+  // Kevin: "las etiquetas pueden simplificarse: Ene Mar May Jul Sep Nov".
+  // Con 12 meses en 430px las etiquetas se tocan, asi que se muestra una si
+  // y una no cuando son mas de 8.
+  var stepLabel = count > 8 ? 2 : 1;
+  var html = '';
+  points.forEach(function(p, i) {
+    if (i % stepLabel !== 0) { return; }
+    html += '<text x="' + p.x.toFixed(1) + '" y="' + (height - 8) + '" text-anchor="middle" font-size="10.5"'
+      + ' fill="var(--sn-muted)" font-weight="500">' + p.label + '</text>';
+  });
+  return html;
+}
+
 function drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usableW, usableH, max, formatAxis) {
   // Kevin: 'las lineas blancas en la grafica no me gustan, quitalas' --
   // solo se dibuja la linea base solida del eje (i===4), el resto de las
@@ -1169,7 +1208,7 @@ function drawDashboardChart(labels, values, metric) {
   svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
   // En pantalla angosta el eje Y se comia 58px de los ~400 disponibles.
   var narrow = width < 520;
-  var paddingX = narrow ? 40 : 58;
+  var paddingX = narrow ? 46 : 58;
   var paddingTop = narrow ? 16 : 24;
   var paddingBottom = narrow ? 28 : 42;
   var max = niceCeil(Math.max(1, Math.max.apply(null, values.concat([0]))));
@@ -1198,17 +1237,28 @@ function drawDashboardChart(labels, values, metric) {
     + '<linearGradient id="dashFade" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="' + accent + '" stop-opacity="0.20"/><stop offset="100%" stop-color="' + accent + '" stop-opacity="0"/></linearGradient>'
     + '</defs>';
   html += drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usableW, usableH, max, axisFormat);
-  html += '<path d="' + areaPath + '" fill="url(#dashFade)"/>';
-  html += '<path d="' + linePath + '" fill="none" stroke="' + accent + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
-  points.forEach(function(p, index) {
-    var showLabel = labels.length <= 14 || index % Math.ceil(labels.length / 12) === 0 || index === labels.length - 1;
-    html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3" fill="var(--sn-white)" stroke="' + accent + '" stroke-width="2"/>';
-    html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="14" fill="transparent" stroke="none"'
-      + ' class="chart-hit" data-label="' + p.label + '" data-value="' + p.value + '"/>';
-    if (showLabel) {
-      html += '<text x="' + p.x + '" y="' + (height - 12) + '" text-anchor="middle" font-size="11" fill="var(--sn-muted)" font-weight="500">' + p.label + '</text>';
-    }
-  });
+
+  if (narrow) {
+    // Kevin: "por el espacio no se logra apreciar todo, talvez de barras".
+    // En 430px la curva suavizada engana: entre dos meses en cero dibuja una
+    // panza que sugiere ingresos que no existieron, y los puntos quedan
+    // pegados. Una barra por mes se lee de un vistazo y un mes sin ingresos
+    // se ve como lo que es: vacio.
+    html += drawBars(points, height, paddingBottom, usableW, values.length, accent);
+    html += drawMonthLabels(points, height, values.length);
+  } else {
+    html += '<path d="' + areaPath + '" fill="url(#dashFade)"/>';
+    html += '<path d="' + linePath + '" fill="none" stroke="' + accent + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
+    points.forEach(function(p, index) {
+      var showLabel = labels.length <= 14 || index % Math.ceil(labels.length / 12) === 0 || index === labels.length - 1;
+      html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3" fill="var(--sn-white)" stroke="' + accent + '" stroke-width="2"/>';
+      html += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="14" fill="transparent" stroke="none"'
+        + ' class="chart-hit" data-label="' + p.label + '" data-value="' + p.value + '"/>';
+      if (showLabel) {
+        html += '<text x="' + p.x + '" y="' + (height - 12) + '" text-anchor="middle" font-size="11" fill="var(--sn-muted)" font-weight="500">' + p.label + '</text>';
+      }
+    });
+  }
   svg.innerHTML = html;
   document.getElementById('dashboard-chart-legend').innerHTML =
     '<span><i class="legend-dot" style="background:' + accent + ';"></i>' + metricLabel(metric) + '</span>';
@@ -1242,7 +1292,7 @@ function drawRevenueComparisonChart() {
   var svg = document.getElementById('dashboard-chart');
   var width = chartPixelWidth(svg), height = chartPixelHeight(svg);
   var narrow = width < 520;
-  var paddingX = narrow ? 40 : 58, paddingTop = narrow ? 16 : 24, paddingBottom = narrow ? 28 : 42;
+  var paddingX = narrow ? 46 : 58, paddingTop = narrow ? 16 : 24, paddingBottom = narrow ? 28 : 42;
   svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
   var usableW = width - paddingX * 2;
   var usableH = height - paddingTop - paddingBottom;
@@ -1266,11 +1316,49 @@ function drawRevenueComparisonChart() {
   // mes -- se agrega una guia vertical tenue debajo de cada punto, en la
   // misma coordenada x que las etiquetas de mes, para que el ojo conecte
   // el punto exacto con su mes sin ambiguedad.
-  MONTH_LABELS.forEach(function(m, i) {
-    var x = paddingX + usableW * i / 11;
-    html += '<line x1="' + x.toFixed(1) + '" y1="' + paddingTop + '" x2="' + x.toFixed(1) + '" y2="' + (height - paddingBottom)
-      + '" stroke="var(--sn-line)" stroke-width="1" stroke-dasharray="2,3"/>';
-  });
+  // Las guias punteadas por mes solo ayudan cuando hay una curva que seguir;
+  // con barras son ruido, la barra ya marca su propio mes.
+  if (!narrow) {
+    MONTH_LABELS.forEach(function(m, i) {
+      var x = paddingX + usableW * i / 11;
+      html += '<line x1="' + x.toFixed(1) + '" y1="' + paddingTop + '" x2="' + x.toFixed(1) + '" y2="' + (height - paddingBottom)
+        + '" stroke="var(--sn-line)" stroke-width="1" stroke-dasharray="2,3"/>';
+    });
+  }
+
+  if (narrow) {
+    // Barras agrupadas por mes: con 1 año visible (el caso normal) queda una
+    // barra por mes; si Kevin prende un año para comparar, se reparten el
+    // ancho del mes en vez de encimarse.
+    var baseY = height - paddingBottom;
+    var slot = usableW / 11;
+    var groupW = Math.min(26, slot * 0.66);
+    var bw = Math.max(4, groupW / Math.max(1, visibleSeries.length));
+    visibleSeries.forEach(function(series, sIdx) {
+      series.values.forEach(function(v, i) {
+        var cx = paddingX + slot * i;
+        var y = baseY - usableH * Number(v || 0) / max;
+        var x = cx - groupW / 2 + bw * sIdx;
+        var h = Math.max(0, baseY - y);
+        if (h > 0.5) {
+          html += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1)
+            + '" height="' + h.toFixed(1) + '" rx="' + Math.min(3, bw / 3).toFixed(1)
+            + '" fill="' + series.color + '" fill-opacity="0.9"/>';
+        }
+        html += '<rect x="' + x.toFixed(1) + '" y="0" width="' + bw.toFixed(1) + '" height="' + baseY.toFixed(1)
+          + '" fill="transparent" class="chart-hit" data-label="' + series.year + ' - ' + MONTH_LABELS[i] + '" data-value="' + Number(v || 0) + '"/>';
+      });
+    });
+    MONTH_LABELS.forEach(function(m, i) {
+      if (i % 2 !== 0) { return; }
+      var x = paddingX + slot * i;
+      html += '<text x="' + x.toFixed(1) + '" y="' + (height - 8) + '" text-anchor="middle" font-size="10.5" fill="var(--sn-muted)" font-weight="500">' + m + '</text>';
+    });
+    svg.innerHTML = html;
+    document.getElementById('dashboard-chart-legend').innerHTML = revenueLegendHtml();
+    wireChartTooltips(svg, money);
+    return;
+  }
 
   visibleSeries.forEach(function(series, sIdx) {
     var pts = series.values.map(function(v, i) {
@@ -1303,16 +1391,21 @@ function drawRevenueComparisonChart() {
 
   svg.innerHTML = html;
 
-  var legendHtml = REVENUE_SERIES.map(function(s) {
+  document.getElementById('dashboard-chart-legend').innerHTML = revenueLegendHtml();
+
+  wireChartTooltips(svg, money);
+}
+
+function revenueLegendHtml() {
+  // Extraido para que la rama de barras de mobile use exactamente la misma
+  // leyenda que la de lineas, en vez de duplicarla.
+  return REVENUE_SERIES.map(function(s) {
     var isHidden = hiddenRevenueYears.has(String(s.year));
     return '<button type="button" class="chart-legend-toggle" style="opacity:' + (isHidden ? '.4' : '1') + ';" onclick="toggleRevenueYear(\'' + s.year + '\')">'
       + '<i class="legend-dot" style="background:' + s.color + ';"></i>' + s.year
       + '<span class="chart-legend-toggle-total">' + money(s.total) + '</span>'
       + '<span class="chart-legend-toggle-hint">' + (isHidden ? 'Mostrar' : 'Ocultar') + '</span></button>';
   }).join('');
-  document.getElementById('dashboard-chart-legend').innerHTML = legendHtml;
-
-  wireChartTooltips(svg, money);
 }
 
 function updateDashboard() {
