@@ -1686,5 +1686,106 @@ function openMailDetails(button) {
   document.getElementById('mail-detail-body').textContent = body || 'No message body saved for this older email.';
   openModal('mail-detail-modal');
 }
+
+// ============================================================
+// Tabs de nivel superior en mobile: Resumen / Workflow / Pagos / Archivos
+//
+// Kevin: "no intentes simplemente apilar todas esas cajas verticalmente,
+// quiero tabs". Apiladas, esta pagina mide ~2980px en el telefono.
+//
+// No se mueve nada del DOM a proposito: los handlers de workflow, subida de
+// archivos y cuestionarios ya estan enganchados a estos nodos, y moverlos
+// para agruparlos es la forma facil de romperlos sin darse cuenta. Solo se
+// alterna la visibilidad de bloques que ya existen.
+//
+// "Pagos" y "Archivos" reusan el bloque de sub-tabs que la pagina ya tiene
+// (Facturas/Cotizaciones/Contratos/Cuestionarios/Files/Notas): la tab de
+// mobile lo muestra y activa la sub-tab que corresponde, en vez de duplicar
+// esa maquinaria.
+// ============================================================
+(function setupJobMobileTabs() {
+  var TABS = [
+    { id: 'resumen', label: 'Resumen' },
+    { id: 'workflow', label: 'Workflow' },
+    { id: 'pagos', label: 'Pagos', sub: 'Facturas' },
+    { id: 'archivos', label: 'Archivos', sub: 'Archivos' }
+  ];
+  var built = false;
+  var parts = null;
+
+  function collect() {
+    var shell = document.querySelector('.workflow-shell');
+    var aside = document.querySelector('.detail-grid-right');
+    if (!shell || !aside) { return null; }
+    var left = shell.querySelector(':scope > div');
+    var entity = [].slice.call(aside.querySelectorAll(':scope > .entity-card'));
+    var subTabs = aside.querySelector(':scope > .sn-tabs');
+    var panels = [].slice.call(aside.querySelectorAll(':scope > .sn-tab-panel'));
+    if (!left || !subTabs) { return null; }
+    return { left: left, entity: entity, subTabs: subTabs, panels: panels };
+  }
+
+  function show(id) {
+    if (!parts) { return; }
+    var tab = TABS.filter(function(t) { return t.id === id; })[0] || TABS[0];
+    parts.left.style.display = (id === 'workflow') ? '' : 'none';
+    parts.entity.forEach(function(el) { el.style.display = (id === 'resumen') ? '' : 'none'; });
+    var docs = (id === 'pagos' || id === 'archivos');
+    parts.subTabs.style.display = docs ? '' : 'none';
+    parts.panels.forEach(function(p) { p.style.display = docs ? '' : 'none'; });
+
+    if (docs && tab.sub) {
+      // Se dispara el click de la sub-tab real para que su propio JS haga el
+      // cambio; replicarlo a mano se desincronizaria si esa logica cambia.
+      var btn = [].slice.call(parts.subTabs.querySelectorAll('button, a')).filter(function(b) {
+        return (b.textContent || '').trim().toLowerCase().indexOf(tab.sub.toLowerCase()) === 0;
+      })[0];
+      if (btn) { btn.click(); }
+    }
+
+    document.querySelectorAll('.m-jobtab').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.tab === id);
+    });
+  }
+
+  function build() {
+    if (built) { return; }
+    parts = collect();
+    if (!parts) { return; }
+    var bar = document.createElement('div');
+    bar.className = 'm-jobtabs';
+    TABS.forEach(function(t, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'm-jobtab' + (i === 0 ? ' active' : '');
+      b.dataset.tab = t.id;
+      b.textContent = t.label;
+      b.addEventListener('click', function() { show(t.id); });
+      bar.appendChild(b);
+    });
+    var shell = document.querySelector('.workflow-shell');
+    shell.parentNode.insertBefore(bar, shell);
+    built = true;
+    show('resumen');
+  }
+
+  function teardown() {
+    if (!built || !parts) { return; }
+    var bar = document.querySelector('.m-jobtabs');
+    if (bar) { bar.remove(); }
+    parts.left.style.display = '';
+    parts.entity.forEach(function(el) { el.style.display = ''; });
+    parts.subTabs.style.display = '';
+    parts.panels.forEach(function(p) { p.style.display = ''; });
+    built = false;
+  }
+
+  function sync() {
+    if (window.matchMedia('(max-width: 760px)').matches) { build(); } else { teardown(); }
+  }
+
+  document.addEventListener('DOMContentLoaded', sync);
+  window.addEventListener('resize', sync);
+})();
 </script>
 {% endblock %}

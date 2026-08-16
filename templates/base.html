@@ -2663,6 +2663,38 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   body[data-page="/dashboard"] .segmented > * { font-size: 12px; padding-left: 4px; padding-right: 4px; }
   body[data-page="/dashboard"] .metric-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
+  /* --- Job Detail: tabs de nivel superior --- */
+  .m-jobtabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
+    padding: 3px;
+    margin-bottom: var(--m-gap);
+    background: var(--sn-bg);
+    border: 1px solid var(--sn-line);
+    border-radius: 11px;
+    position: sticky;
+    top: 0;
+    z-index: 6;
+  }
+  .m-jobtab {
+    min-height: 34px;
+    padding: 0 4px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--sn-muted);
+    font-size: var(--m-meta);
+    font-weight: 600;
+  }
+  .m-jobtab.active {
+    background: var(--sn-white);
+    color: var(--sn-green-dark);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .08);
+  }
+  /* El workflow deja de ser 2 columnas: en el telefono la lista va a lo ancho. */
+  .m-jobtabs ~ .workflow-shell { display: block; }
+
   /* --- Inicio: orden propio de mobile ---
      Kevin (prioridad en el telefono): dinero, proximos jobs, tareas, leads
      nuevos y la grafica AL FINAL. En escritorio el orden lo da el HTML
