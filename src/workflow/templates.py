@@ -33,7 +33,7 @@ def LEAD_WORKFLOW() -> Workflow:
         return override
     return Workflow(
         id='lead_workflow_v1',
-        name='Lead Follow-up',
+        name='Seguimiento de lead',
         description='Secuencia automatica de emails de seguimiento',
         trigger=TriggerType.LEAD_CREATED,
         is_template=True,
@@ -81,14 +81,14 @@ def PRODUCTION_WORKFLOW() -> Workflow:
         return override
     return Workflow(
         id='production_workflow_v1',
-        name='Production',
+        name='Produccion',
         description='Workflow completo desde aceptar el quote hasta despues de la boda',
         trigger=TriggerType.QUOTE_ACCEPTED,
         is_template=True,
         steps=[
             Step(
                 id='job_accepted',
-                name='Job accepted',
+                name='Trabajo aceptado',
                 description='Crea el job desde el lead',
                 action_type=ActionType.LINK_JOB,
                 email_template_id=None,
@@ -136,7 +136,7 @@ def PRODUCTION_WORKFLOW() -> Workflow:
             ),
             Step(
                 id='job_complete',
-                name='Job complete',
+                name='Trabajo completado',
                 description='Cambia el status del job a Listo',
                 action_type=ActionType.CHANGE_STATUS,
                 email_template_id=None,

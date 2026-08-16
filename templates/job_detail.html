@@ -288,7 +288,7 @@
         <div class="sn-card-head">
           <div class="sn-card-title">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20c0-2.2-2.7-4-6-4s-6 1.8-6 4M11 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8"/></svg>
-            Client
+            {% if secondary_client or planner_client %}Clientes{% else %}Cliente{% endif %}
           </div>
         </div>
         {% if client %}
@@ -296,7 +296,7 @@
           <div class="entity-primary">
             <div>
               <div class="sn-list-title">{{ client.first_name }} {{ client.last_name }}</div>
-              <div class="sn-list-meta">(Primary)</div>
+              <div class="sn-list-meta">(Principal)</div>
               <div class="sn-list-meta" style="margin-top:12px;">{{ client.phone or '-' }}</div>
               <div class="sn-list-meta">{{ client.email or '-' }}</div>
             </div>
@@ -304,11 +304,11 @@
           </div>
           <div class="sn-list-meta">{{ client.address or 'GT' }}</div>
           <div class="sn-list-actions">
-            <a class="sn-btn sn-btn-sm" href="/clients/{{ client.id }}">Edit Client</a>
-            <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Send Email</button>
+            <a class="sn-btn sn-btn-sm" href="/clients/{{ client.id }}">Editar cliente</a>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Enviar correo</button>
           </div>
 
-          {% for role, person, label in [('secondary', secondary_client, 'Secondary'), ('planner', planner_client, 'Wedding Planner')] %}
+          {% for role, person, label in [('secondary', secondary_client, 'Segundo cliente'), ('planner', planner_client, 'Wedding planner')] %}
           <hr style="margin:14px 0;border:none;border-top:1px solid var(--sn-line);">
           {% if person %}
           <div class="entity-primary">
@@ -325,7 +325,7 @@
             <button class="sn-btn sn-btn-sm" type="button" onclick="unlinkJobClient('{{ role }}')">Remove</button>
           </div>
           {% else %}
-          <button class="sn-btn sn-btn-sm" type="button" onclick='openLinkClientModal({{ role|tojson }}, {{ label|tojson }})'>+ Add {{ label }}</button>
+          <button class="sn-btn sn-btn-sm" type="button" onclick='openLinkClientModal({{ role|tojson }}, {{ label|tojson }})'>+ Agregar {{ label|lower }}</button>
           {% endif %}
           {% endfor %}
         </div>
@@ -787,7 +787,7 @@
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
         <button class="sn-btn" type="button" onclick="closeModal('email-modal')">Back</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Send Email</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Enviar correo</button>
       </div>
     </form>
   </div>

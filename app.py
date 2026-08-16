@@ -520,7 +520,7 @@ def _complete_job_workflow_step(job, step_id, result_message=None):
         instance.status = WorkflowStatus.COMPLETED
 
     job['workflow_progress'] = round(done_steps * 100 / total_steps) if total_steps else 0
-    job['next_task'] = next_step.name if next_step else 'Job complete'
+    job['next_task'] = next_step.name if next_step else 'Trabajo completado'
     job['updated_at'] = datetime.now().isoformat()
     upsert_job(job)
 
@@ -545,7 +545,7 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
         result = _convert_lead_to_job(lead, quote=None, status='Confirmado', create_payments=False)
         return {
             'completed': True,
-            'step': 'Job accepted',
+            'step': 'Trabajo aceptado',
             'converted': True,
             'job_id': result['job']['id'],
             'client_id': result['client']['id'],
@@ -593,7 +593,7 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
 
     steps, _, _ = compute_workflow_steps_for_lead(lead)
     next_pending = next((s for s in steps if s.get('id') != step_id and s.get('status') != 'done'), None)
-    lead['next_task'] = next_pending.get('name') if next_pending else 'Job accepted'
+    lead['next_task'] = next_pending.get('name') if next_pending else 'Trabajo aceptado'
     upsert_lead(lead)
 
     action_label = 'enviado manualmente' if send_email else 'completado manualmente'
@@ -3240,6 +3240,52 @@ def api_lead_accept_quote(lead_id):
     })
 
 
+def _job_estado_label(job):
+    """Estado real del Job, separado del avance del workflow.
+
+    Kevin: "no quiero que todos los Jobs aparezcan 100% Completado
+    simplemente porque el workflow este tecnicamente marcado asi... un
+    evento futuro no deberia verse como completado si todavia no ocurrio".
+
+    El % del workflow mide cuantos pasos administrativos estan hechos (y en
+    los jobs importados de Studio Ninja se marcaron como saltados de golpe,
+    justamente para no re-enviar correos). Eso no dice nada sobre si la boda
+    ya paso. Aca manda la fecha del evento; el workflow solo desempata
+    despues de que ocurrio.
+    """
+    estado = (job.get('status') or '').strip()
+    if estado == 'Archivado':
+        return 'Archivado', 'muted'
+    if estado == 'Cancelado':
+        return 'Cancelado', 'red'
+
+    dias = job.get('dias_restantes')
+    if dias is None:
+        return 'Sin fecha', 'muted'
+    if dias > 0:
+        return 'Proxima', 'violet'
+    if dias == 0:
+        return 'Hoy', 'orange'
+    # Ya paso: recien aca tiene sentido hablar de completado.
+    if (job.get('workflow_progress') or 0) >= 100 or estado == 'Listo':
+        return 'Completada', 'green'
+    return 'Por cerrar', 'orange'
+
+
+def _job_pago_label(job, job_payments):
+    """Estado financiero, separado del estado del Job (Kevin lo pidio
+    explicitamente: "mantener el estado financiero separado")."""
+    if not job_payments:
+        return '', ''
+    saldo = sum(float(p.get('amount') or 0) for p in job_payments if p.get('status') != 'Pagado')
+    vencidos = [p for p in job_payments if p.get('status') == 'Late']
+    if vencidos:
+        return 'Pago atrasado', 'red'
+    if saldo <= 0:
+        return 'Pagado', 'green'
+    return f'Saldo Q{saldo:,.0f}', 'muted'
+
+
 @app.route('/jobs')
 def jobs_list():
     """Jobs Overview con barra de progreso workflow (estilo Studio Ninja)."""
@@ -3291,6 +3337,8 @@ def jobs_list():
         job_payments = payments_by_job.get(j.get('id'), [])
         j['payments_count'] = len(job_payments)
         j['balance_due'] = sum(float(p.get('amount') or 0) for p in job_payments if p.get('status') != 'Pagado')
+        j['estado_label'], j['estado_tone'] = _job_estado_label(j)
+        j['pago_label'], j['pago_tone'] = _job_pago_label(j, job_payments)
     jobs.sort(key=lambda j: (j.get('dias_restantes') or 999))
     all_clients = sorted(clients.values(), key=lambda c: (c.get('first_name') or '').lower())
     return render_template('jobs.html', jobs=jobs, all_clients=all_clients)
@@ -5719,6 +5767,23 @@ def api_fix_secondary_clients():
         job['nombre'] = item['nombre']
         store.upsert('jobs', job)
 
+    # Kevin: "Location debe contener unicamente informacion de ubicacion...
+    # debe revisarse la fuente de datos, no simplemente esconder esa
+    # informacion en mobile". El parser pegaba columnas vecinas del PDF, asi
+    # que a 10 jobs se les colo el horario, la fecha y hasta el telefono y
+    # correo del propio estudio.
+    ubicaciones = []
+    for item in data.get('job_locations') or []:
+        job = get_job(f"boda-sn-{item['slug']}")
+        if not job:
+            continue
+        nueva = (item.get('location') or '').strip()
+        if (job.get('location') or '') == nueva:
+            continue
+        ubicaciones.append({'job_id': job['id'], 'antes': job.get('location'), 'despues': nueva})
+        job['location'] = nueva
+        store.upsert('jobs', job)
+
     removed = []
     for slug in data.get('remove_slugs') or []:
         job = get_job(f"boda-sn-{slug}")
@@ -5737,7 +5802,7 @@ def api_fix_secondary_clients():
 
     logger.info(f"Clientes: {len(confirmed)} corregidos con datos reales, {len(removed)} quitados por no poder confirmarse, {len(renamed)} eventos renombrados")
     return jsonify({'ok': True, 'confirmados': confirmed, 'quitados': removed,
-                    'renombrados': renamed})
+                    'renombrados': renamed, 'ubicaciones': ubicaciones})
 
 
 @app.route('/questionnaires/<questionnaire_id>')

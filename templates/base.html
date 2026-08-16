@@ -2199,6 +2199,10 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   .bottom-nav-item svg { width: 19px; height: 19px; }
 }
 
+/* El date badge es exclusivo de mobile; en escritorio hay ancho de sobra
+   para la fecha completa, que se lee mejor. */
+.date-badge { display: none; }
+
 /* ============================================================
    APP MOVIL (<= 760px)
    Kevin mando un mockup de iPhone 14 Pro Max: barra inferior de 5 tabs,
@@ -2527,21 +2531,33 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     white-space: nowrap;
   }
 
-  /* Trabajos: nombre + fecha + barra de progreso */
+  /* Trabajos: date badge a la izquierda como ancla visual (Kevin:
+     "15 AGO  Boda Daniel Dubuc"), nombre + tipo, y debajo estado y avance. */
   body[data-page="/jobs"] .stack-mobile .sn-table tr {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
     grid-template-areas:
-      "job   menu"
-      "date  menu"
-      "prog  prog"
-      "next  next";
+      "date job   menu"
+      "date state state"
+      "date prog  prog"
+      "next next  next";
+    align-items: start;
+    column-gap: 10px;
   }
   body[data-page="/jobs"] .stack-mobile td[data-label="Job"] { grid-area: job; }
-  body[data-page="/jobs"] .stack-mobile td[data-label="Date"] {
+  body[data-page="/jobs"] #jobs-table td[data-label="Date"] {
     grid-area: date;
+    align-self: start;
     color: var(--sn-muted);
-    font-size: 12.5px;
+    font-size: var(--m-meta);
+    /* El chip de dias restantes y los avisos de conflicto no caben en 38px;
+       el numero de dias ya se deduce de la fecha. */
+    white-space: normal;
   }
+  body[data-page="/jobs"] #jobs-table td[data-label="Date"] .sn-chip,
+  body[data-page="/jobs"] #jobs-table td[data-label="Date"] .date-status-badge { display: none; }
+  /* El avatar sale sobrando: el date badge ya es el ancla de la fila. */
+  body[data-page="/jobs"] #jobs-table td[data-label="Job"] .sn-row-avatar-lg { display: none; }
+  body[data-page="/jobs"] #jobs-table .job-state-row { grid-area: state; }
   body[data-page="/jobs"] #jobs-table td[data-label="Progress"] {
     grid-area: prog;
     padding-left: 42px;
@@ -2662,6 +2678,48 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   body[data-page="/dashboard"] .segmented { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   body[data-page="/dashboard"] .segmented > * { font-size: 12px; padding-left: 4px; padding-right: 4px; }
   body[data-page="/dashboard"] .metric-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* --- Date badge (dia sobre mes) ---
+     Kevin: "me gustaria utilizarlo en Jobs, Leads, Proximos eventos y
+     Calendario, nos da consistencia". En escritorio manda la fecha larga. */
+  .date-long { display: none; }
+  .date-badge {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    min-width: 38px;
+    padding: 3px 0 4px;
+    border-radius: 9px;
+    background: var(--sn-bg);
+    line-height: 1;
+    text-align: center;
+  }
+  .date-badge strong {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--sn-ink);
+  }
+  .date-badge em {
+    margin-top: 1px;
+    font-style: normal;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--sn-muted);
+  }
+
+  /* Estado del job y estado de pago, uno al lado del otro */
+  .job-state-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 5px;
+  }
+  body[data-page="/jobs"] #jobs-table .sn-progress { height: 6px; }
+  body[data-page="/jobs"] #jobs-table .sn-progress-pct { font-size: var(--m-meta); }
 
   /* --- Configuracion: filas tipo iOS, no una tarjeta por ajuste ---
      Kevin: "no necesitamos convertir cada setting en una tarjeta enorme".

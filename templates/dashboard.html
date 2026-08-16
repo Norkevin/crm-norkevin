@@ -1148,21 +1148,35 @@ function drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usa
 function wireChartTooltips(svg, formatFn) {
   var tooltip = document.getElementById('dashboard-chart-tooltip');
   var frame = svg.closest('.chart-frame');
-  function show(circle) {
-    var label = circle.getAttribute('data-label');
-    var value = circle.getAttribute('data-value');
+  function show(hit) {
+    var label = hit.getAttribute('data-label');
+    var value = hit.getAttribute('data-value');
     tooltip.textContent = label + ': ' + formatFn(value);
     tooltip.style.display = 'block';
-    var svgRect = svg.getBoundingClientRect();
+
     var frameRect = frame.getBoundingClientRect();
-    var viewBoxWidth = svg.viewBox.baseVal.width || 900;
-    var viewBoxHeight = svg.viewBox.baseVal.height || 380;
-    var scaleX = svgRect.width / viewBoxWidth;
-    var scaleY = svgRect.height / viewBoxHeight;
-    var cx = parseFloat(circle.getAttribute('cx')) * scaleX + (svgRect.left - frameRect.left);
-    var cy = parseFloat(circle.getAttribute('cy')) * scaleY + (svgRect.top - frameRect.top);
-    tooltip.style.left = cx + 'px';
+    // Se mide la caja real del elemento en vez de leer cx/cy: las zonas
+    // sensibles de la grafica de barras son <rect> y no tienen esos
+    // atributos, asi que el calculo daba NaN y el tooltip terminaba pegado
+    // en la esquina, cortado contra el borde izquierdo.
+    var hitRect = hit.getBoundingClientRect();
+    var cx = hitRect.left + hitRect.width / 2 - frameRect.left;
+    var cy = hitRect.top - frameRect.top;
+    // En barras el rect sensible cubre toda la columna hasta arriba; el
+    // tooltip debe salir sobre la punta de la barra, no sobre el techo.
+    var bar = hit.previousElementSibling;
+    if (hit.tagName === 'rect' && bar && bar.tagName === 'rect' && bar.getAttribute('fill-opacity')) {
+      cy = bar.getBoundingClientRect().top - frameRect.top;
+    }
+
+    tooltip.style.left = '0px';
     tooltip.style.top = (cy - 10) + 'px';
+    // El tooltip esta centrado con translate(-50%): cerca de los bordes se
+    // salia del marco. Se limita a que quepa siempre dentro.
+    var half = tooltip.offsetWidth / 2;
+    var min = half + 4;
+    var max = frameRect.width - half - 4;
+    tooltip.style.left = Math.max(min, Math.min(max, cx)) + 'px';
   }
   svg.querySelectorAll('.chart-hit').forEach(function(circle) {
     circle.addEventListener('mouseenter', function() { show(circle); });

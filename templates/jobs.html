@@ -174,7 +174,13 @@
             onclick="goJob(event, '{{ job.id }}')">
           <td class="sn-ellipsis" data-label="Date">
             {% if job.boda_date %}
-              {{ job.boda_date_display or job.boda_date }}
+              {# Date badge (dia / mes) para poder escanear la lista de un
+                 vistazo; en escritorio se oculta y manda la fecha larga. #}
+              <span class="date-badge" aria-hidden="true">
+                <strong>{{ job.boda_date[8:10] }}</strong>
+                <em>{{ job.boda_date_display.split(' ')[2] if job.boda_date_display else '' }}</em>
+              </span>
+              <span class="date-long">{{ job.boda_date_display or job.boda_date }}</span>
               {% if job.dias_restantes is not none and job.dias_restantes >= 0 %}
                 <span class="sn-chip yellow" title="Dias restantes">{{ job.dias_restantes }}d</span>
               {% endif %}
@@ -203,8 +209,19 @@
             </div>
           </td>
           <td data-label="Progress">
+            {# Kevin: separar estado del Job / progreso del workflow / estado
+               de pago. La barra sigue siendo el avance administrativo; el
+               chip de la izquierda es el estado real segun la fecha. #}
+            <div class="job-state-row">
+              {% if job.estado_label %}
+              <span class="sn-chip {{ job.estado_tone }}">{{ job.estado_label }}</span>
+              {% endif %}
+              {% if job.pago_label %}
+              <span class="sn-chip {{ job.pago_tone }} job-pay-chip">{{ job.pago_label }}</span>
+              {% endif %}
+            </div>
             <div class="sn-progress-wrap">
-              <div class="sn-progress" title="{{ job.workflow_progress }}%">
+              <div class="sn-progress" title="Avance del workflow: {{ job.workflow_progress }}%">
                 <div class="sn-progress-fill {% if job.type and job.type != 'Boda' %}cyan{% endif %}" style="width: {{ job.workflow_progress or 0 }}%;"></div>
               </div>
               <span class="sn-progress-pct">{{ job.workflow_progress or 0 }}%</span>

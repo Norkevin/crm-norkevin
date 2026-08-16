@@ -122,8 +122,8 @@ def test_job_page_shows_add_buttons_for_empty_secondary_and_planner_slots(auth_c
 
     resp = auth_client.get(f'/jobs/{job_id}')
     html = resp.get_data(as_text=True)
-    assert '+ Add Secondary' in html
-    assert '+ Add Wedding Planner' in html
+    assert '+ Agregar segundo cliente' in html
+    assert '+ Agregar wedding planner' in html
 
 
 def test_job_page_shows_linked_secondary_and_planner_with_their_info(auth_client):
@@ -142,4 +142,4 @@ def test_job_page_shows_linked_secondary_and_planner_with_their_info(auth_client
     html = resp.get_data(as_text=True)
     assert 'Wendy Morales' in html
     assert 'wendy@example.com' in html
-    assert '(Secondary)' in html
+    assert '(Segundo cliente)' in html
