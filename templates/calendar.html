@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Calendar · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Calendario · ASTRAL WEDDINGS CRM{% endblock %}
 {% block header %}Calendario{% endblock %}
 {% block subtitle %}Vista mensual de bodas, eventos y leads agendados.{% endblock %}
-{% block topbar_title %}Calendar{% endblock %}
+{% block topbar_title %}Calendario{% endblock %}
 
 {% block content %}
 <section class="sn-page-wide">
@@ -14,11 +14,11 @@
     <div class="sn-actions">
       <a class="sn-btn" href="/api/calendar/export.ics">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
-        Export iCal
+        Exportar iCal
       </a>
       <button class="sn-btn sn-btn-primary" type="button" onclick="openEventModal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-        Add New
+        Nuevo
       </button>
     </div>
   </div>
@@ -31,20 +31,20 @@
       <a class="sn-btn sn-btn-sm" href="/calendar?year={{ prev_year }}&month={{ prev_month }}">‹</a>
       <span class="sn-btn sn-btn-sm" style="background:var(--sn-white);">{{ month_name }} {{ year }}</span>
       <a class="sn-btn sn-btn-sm" href="/calendar?year={{ next_year }}&month={{ next_month }}">›</a>
-      <a class="sn-btn sn-btn-sm" href="/calendar">Today</a>
+      <a class="sn-btn sn-btn-sm" href="/calendar">Hoy</a>
       <select id="calendar-view" class="sn-select" onchange="changeCalendarView()">
-        <option value="month">Month</option>
-        <option value="week">Week</option>
-        <option value="day">Day</option>
+        <option value="month">Mes</option>
+        <option value="week">Semana</option>
+        <option value="day">Día</option>
       </select>
     </div>
     <div class="sn-toolbar-right">
-      <span class="sn-muted">Filter by:</span>
+      <span class="sn-muted">Filtrar:</span>
       <select id="calendar-filter" class="sn-select" onchange="filterCalendar()">
-        <option value="all">All</option>
+        <option value="all">Todo</option>
         <option value="lead">Leads</option>
-        <option value="job">Jobs</option>
-        <option value="event">Events</option>
+        <option value="job">Trabajos</option>
+        <option value="event">Eventos</option>
       </select>
     </div>
   </div>
@@ -68,7 +68,7 @@
             </button>
             {% endfor %}
             {% if cell.events|length > 3 %}
-            <button class="calendar-event-more" type="button" onclick="toggleMoreEvents(this)">+{{ cell.events|length - 3 }} more events</button>
+            <button class="calendar-event-more" type="button" onclick="toggleMoreEvents(this)">+{{ cell.events|length - 3 }} eventos más</button>
             <div class="calendar-events-hidden" style="display:none;">
               {% for evt in cell.events[3:] %}
               <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" onclick="openCalendarEvent('{{ evt.url or '' }}')">
@@ -96,7 +96,9 @@
           <div class="agenda-day {{ 'today' if cell.today else '' }}">
             <div class="agenda-day-head">
               <span class="agenda-day-num">{{ cell.day }}</span>
-              <span class="agenda-day-label">{{ month_name }} {{ cell.day }}{{ ', Hoy' if cell.today else '' }}</span>
+              {# El numero del dia ya se ve grande al lado; repetirlo aca
+                 daba encabezados tipo "15 Agosto 15". #}
+              <span class="agenda-day-label">{{ month_name }}{{ ' · Hoy' if cell.today else '' }}</span>
             </div>
             <div class="agenda-events">
               {% for evt in cell.events %}

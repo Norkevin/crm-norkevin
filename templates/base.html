@@ -2750,7 +2750,39 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   body[data-page="/dashboard"] .dashboard-rail { margin-top: 0; }
   body[data-page="/dashboard"] canvas { max-height: 190px; }
 
-  /* --- Calendario: que la cuadricula del mes quepa sin scroll lateral --- */
+  /* --- Calendario: agenda compacta --- */
+  /* La vista de mobile ya es agenda (no cuadricula), pero cada evento
+     ocupaba ~77px porque la pastilla de tipo iba en su propio renglon
+     arriba del nombre. En linea baja a ~44px y entran el doble de dias. */
+  body[data-page="/calendar"] .calendar-event {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--m-gap-xs);
+    padding: 9px 10px;
+    min-height: 0;
+    text-align: left;
+  }
+  body[data-page="/calendar"] .calendar-event-badge {
+    flex: 0 0 auto;
+    margin: 0;
+    font-size: 10px;
+    padding: 2px 7px;
+  }
+  body[data-page="/calendar"] .calendar-event-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--m-body);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* "Proximos eventos" repetia lo mismo que la agenda de abajo y la
+     empujaba ~250px. En el telefono esa tarjeta ya vive en Inicio, que es
+     donde Kevin la pidio; aca manda la agenda. */
+  body[data-page="/calendar"] .calendar-sidebar { display: none; }
+  body[data-page="/calendar"] .agenda-day { margin-bottom: var(--m-gap); }
+  body[data-page="/calendar"] .agenda-events { gap: 6px; }
   body[data-page="/calendar"] .calendar-grid { font-size: 12px; }
   body[data-page="/calendar"] .calendar-cell { min-height: 40px; padding: 2px; }
 }
