@@ -1807,6 +1807,7 @@ def _require_login():
         '/api/admin/reconcile-studio-ninja-jobs',
         '/api/admin/fix-secondary-clients',
         '/api/admin/list-studio-ninja-clients',
+        '/api/admin/tenant-inventory',
     ) and request.args.get('token') == _ADMIN_ONE_TIME_TOKEN:
         return None
     if session.get('logged_in'):
@@ -5466,6 +5467,63 @@ def api_reconcile_studio_ninja_jobs():
         'sin_cambios': len(unchanged),
         'no_encontrados': len(skipped_not_found),
         'detalle': updated,
+    })
+
+
+@app.route('/api/admin/tenant-inventory')
+def api_admin_tenant_inventory():
+    """Solo lectura. Kevin trajo el export de la cuenta de ASTRAL (no la de
+    Norkevin) y pidio 'llenar todo'. Antes de importar hay que saber que hay
+    ya en cada tenant: importar encima de lo que ya existe duplicaria bodas
+    reales, y meterlo en el tenant equivocado mezclaria dos negocios."""
+    tenants = store.list('tenants')
+    jobs = store.list('jobs')
+    clients = store.list('clients')
+    leads = store.list('leads')
+    quotes = store.list('quotes')
+    payments = store.list('payments')
+    contracts = store.list('contracts')
+
+    def by_tenant(records):
+        out = {}
+        for r in records:
+            out[r.get('tenant_id')] = out.get(r.get('tenant_id'), 0) + 1
+        return out
+
+    # Detalle de los jobs pedidos: sirve para saber si ya traen cotizacion,
+    # pagos y contrato, o si solo existe el cabezal del job.
+    wanted = set(request.args.get('job_ids', '').split(',')) - {''}
+    detalle = []
+    for job in jobs:
+        if wanted and job.get('id') not in wanted:
+            continue
+        if not wanted and not str(job.get('id', '')).startswith('boda-sn-'):
+            continue
+        jid = job.get('id')
+        detalle.append({
+            'id': jid,
+            'nombre': job.get('nombre'),
+            'boda_date': job.get('boda_date'),
+            'tenant_id': job.get('tenant_id'),
+            'status': job.get('status'),
+            'location': job.get('location'),
+            'lead_id': job.get('lead_id'),
+            'quotes': sum(1 for q in quotes if q.get('job_id') == jid),
+            'payments': sum(1 for p in payments if p.get('job_id') == jid),
+            'contracts': sum(1 for c in contracts if c.get('job_id') == jid),
+        })
+
+    return jsonify({
+        'ok': True,
+        'tenants': [{'id': t.get('id'), 'name': t.get('name'),
+                     'login_email': t.get('login_email'), 'active': t.get('active')}
+                    for t in tenants],
+        'totales': {
+            'jobs': by_tenant(jobs), 'clients': by_tenant(clients),
+            'leads': by_tenant(leads), 'quotes': by_tenant(quotes),
+            'payments': by_tenant(payments), 'contracts': by_tenant(contracts),
+        },
+        'jobs': detalle,
     })
 
 
