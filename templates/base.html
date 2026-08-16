@@ -2208,6 +2208,29 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
    .stack-mobile generico, que dibujaba cada celda como etiqueta/valor).
    ============================================================ */
 @media (max-width: 760px) {
+  /* Escala unica para toda la app movil. Antes cada pantalla inventaba sus
+     tamanos y por eso "todo se veia demasiado grande": titulos de 40px,
+     tarjetas de 250px de alto y 30-50px de aire entre bloques. */
+  :root {
+    --m-pad: 14px;      /* padding interno de fila/tarjeta */
+    --m-edge: 16px;     /* margen lateral de la pantalla */
+    --m-gap-xs: 8px;
+    --m-gap: 12px;
+    --m-gap-lg: 20px;   /* separacion entre secciones */
+    --m-radius: 14px;
+    --m-title: 28px;    /* titulo de pantalla */
+    --m-h2: 18px;       /* titulo de seccion */
+    --m-row: 15px;      /* nombre de fila */
+    --m-body: 13.5px;
+    --m-meta: 12px;
+  }
+  .main-content {
+    padding-left: var(--m-edge);
+    padding-right: var(--m-edge);
+    padding-top: 14px;
+  }
+  .sn-card { border-radius: var(--m-radius); }
+
   /* --- Barra superior: sin logo ni topnav, solo lo accionable --- */
   .app-header {
     min-height: 52px;
@@ -2246,10 +2269,13 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   }
   .sn-page-head > div:first-child { min-width: 0; }
   .sn-page-title {
-    font-size: 27px;
+    font-size: var(--m-title);
     letter-spacing: -.02em;
     line-height: 1.15;
   }
+  .sn-section-title,
+  .dashboard-section-label,
+  h2 { font-size: var(--m-h2); }
   /* La bajada explicativa se come media pantalla en el telefono. */
   .sn-page-head .sn-breadcrumbs,
   .sn-page-desc,
@@ -2279,34 +2305,116 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     margin: 0;
   }
 
-  /* --- Listas como tarjetas --- */
+  /* --- Buscador colapsable ---
+     Kevin: "gastar 160px en filtros antes de mostrar siquiera un lead".
+     El input arranca cerrado y se abre con la lupa (ver toggleMobileSearch
+     mas abajo); asi el primer registro sube casi 60px. */
+  .sn-toolbar { gap: var(--m-gap-xs); margin-bottom: var(--m-gap); }
+  .m-search-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid var(--sn-line);
+    background: var(--sn-white);
+    color: var(--sn-muted);
+  }
+  .m-search-toggle svg { width: 17px; height: 17px; }
+  .sn-toolbar .sn-search { height: 38px; font-size: 15px; }
+  body:not(.m-search-open) .sn-toolbar .sn-search { display: none; }
+  /* La fila de filtros va en linea: "Activos ▼   Fecha ▼   (lupa)".
+     Los filtros y la lupa viven en dos contenedores hermanos
+     (.sn-toolbar-left / -right); con flex:1 y width:auto dejan de ocupar
+     una fila cada uno y se acomodan en el mismo renglon. */
+  .sn-toolbar,
+  .sn-toolbar-left,
+  .sn-toolbar-right {
+    display: flex;
+    flex-direction: row !important;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: var(--m-gap-xs);
+    min-width: 0;
+  }
+  .sn-toolbar-left { flex: 1 1 auto; width: auto; min-width: 0; }
+  /* flex:0 0 auto lo dejaba crecer a 499px en Pagos (tiene varios botones)
+     y sacaba la pagina del viewport. Con 0 1 auto + min-width:0 puede
+     encogerse, y sus hijos envuelven en vez de empujar. */
+  .sn-toolbar-right {
+    flex: 0 1 auto;
+    width: auto;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  body.m-search-open .sn-toolbar { flex-wrap: wrap; }
+  body.m-search-open .sn-toolbar .sn-search { flex: 1 1 100%; order: 3; }
+  .sn-toolbar .sn-select {
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 38px;
+    font-size: var(--m-body);
+    padding: 0 26px 0 10px;
+  }
+
+  /* --- Listas: UN contenedor blanco con filas separadas --- */
+  /* Kevin: "no quiero simplemente tarjetas para todo... eso hace que todo
+     sea muy grande". Una tarjeta con sombra por cada cliente pesaba mucho y
+     dejaba ver 3 por pantalla. Ahora la lista entera es una sola superficie
+     y las filas se separan con una linea: mas liviano y entran 6-7. */
+  .sn-table-shell.stack-mobile,
+  .stack-mobile {
+    background: var(--sn-white);
+    border: 1px solid var(--sn-line);
+    border-radius: var(--m-radius);
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  }
   .stack-mobile .sn-table tr {
     display: grid;
     align-items: center;
-    gap: 2px 10px;
-    padding: 12px 14px;
-    border-radius: 16px;
-    margin-bottom: 10px;
-    background: var(--sn-white);
-    border: 1px solid var(--sn-line);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+    gap: 1px var(--m-gap);
+    padding: 10px var(--m-pad);
+    margin: 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--sn-line);
+    border-radius: 0;
+    box-shadow: none;
   }
+  .stack-mobile .sn-table tr:last-child { border-bottom: none; }
+  .stack-mobile .sn-table tr:active { background: var(--sn-bg); transform: none; }
   .stack-mobile .sn-table td {
     display: block;
     padding: 0;
     border: none;
     text-align: left;
     min-width: 0;
-    font-size: 13px;
+    /* Habia un min-height:30px heredado del modo etiqueta/valor: con 4
+       lineas de 15px eso solo agregaba ~58px muertos por fila. */
+    min-height: 0;
+    font-size: var(--m-body);
+    /* Kevin: "Boda By Experience Atitlan ELISA Y JUAN LUIS no debe romper
+       el diseño". Una celda de grid no se encoge sola: sin min-width:0 el
+       texto largo empuja la columna y saca la fila del viewport. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  /* Solo el padding se repite con los #id: varias paginas lo fijan con una
-     regla por id que le gana a una de clases. Ojo: aca NO puede ir
-     `display`, porque un id le ganaria tambien a los `display:none` de mas
-     abajo y volverian a aparecer las columnas que queremos ocultar. */
-  #clients-table td,
-  #leads-table td,
-  #jobs-table td,
-  #payments-table td { padding: 0; }
+  /* Solo el padding se repite con los #id: cada pagina lo fija con una regla
+     tipo `.clients-page #clients-table td { padding: 13px 18px }`, que es
+     (1 id, 1 clase, 1 tipo) y le gana a una de solo clases. Se antepone
+     body[data-page] para sumar un atributo y quedar por encima.
+     Ojo: aca NO puede ir `display`, porque el id le ganaria tambien a los
+     `display:none` de mas abajo y reaparecerian las columnas ocultas. */
+  body[data-page] #clients-table td,
+  body[data-page] #leads-table td,
+  body[data-page] #jobs-table td,
+  body[data-page] #payments-table td { padding: 0; }
   /* La etiqueta de cada celda sobra: la tarjeta ya se lee sola. */
   .stack-mobile .sn-table td[data-label]::before { display: none; }
   .stack-mobile .sn-table td.stack-actions {
@@ -2316,6 +2424,23 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   }
   .stack-mobile .sn-table td:empty { display: none; }
 
+  /* Avatares mas chicos: a 40px marcaban el alto minimo de cada fila. */
+  .stack-mobile .sn-row-avatar-lg,
+  .stack-mobile .sn-row-avatar {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    font-size: 12px;
+  }
+  .stack-mobile .client-full-name,
+  .stack-mobile .sn-row-name {
+    font-size: var(--m-row);
+    line-height: 1.25;
+  }
+  .stack-mobile .client-primary { gap: 1px; }
+  .stack-mobile .client-email-text { font-size: var(--m-meta); line-height: 1.3; }
+  .stack-mobile .sn-menu-dots { width: 32px; height: 32px; margin: 0; }
+
   /* Clientes: avatar + nombre + correo, telefono debajo, menu a la derecha */
   body[data-page="/clients"] .stack-mobile .sn-table tr {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -2324,11 +2449,14 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       "tel  menu";
   }
   body[data-page="/clients"] .stack-mobile td[data-label="Client"] { grid-area: main; }
-  body[data-page="/clients"] .stack-mobile td[data-label="Phone"] {
+  /* Lleva el #id a proposito: el reset de padding de arriba tambien usa id
+     y si no, gana el y el telefono pierde la sangria bajo el nombre. */
+  body[data-page="/clients"] #clients-table td[data-label="Phone"] {
     grid-area: tel;
-    padding-left: 48px;
+    padding-left: 44px;
     color: var(--sn-muted);
-    font-size: 12.5px;
+    font-size: var(--m-meta);
+    line-height: 1.3;
   }
   body[data-page="/clients"] .stack-mobile td[data-label="Company"],
   body[data-page="/clients"] .stack-mobile td[data-label="Created"] { display: none; }
@@ -2339,31 +2467,40 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "name  badge"
+      "date  badge"
       "type  badge"
-      "date  date"
       "next  next";
   }
   body[data-page="/leads"] .stack-mobile td[data-label="Lead Name"] { grid-area: name; }
-  body[data-page="/leads"] .stack-mobile td[data-label="Type"] {
+  body[data-page="/leads"] #leads-table td[data-label="Type"] {
     grid-area: type;
-    padding-left: 44px;
+    padding-left: 42px;
     color: var(--sn-muted);
+    font-size: var(--m-meta);
   }
-  body[data-page="/leads"] .stack-mobile td[data-label="Boda Date"] {
+  body[data-page="/leads"] #leads-table td[data-label="Boda Date"] {
     grid-area: date;
-    padding-left: 44px;
-    margin-top: 2px;
+    padding-left: 42px;
     color: var(--sn-ink);
     font-weight: 600;
+    font-size: var(--m-meta);
   }
-  body[data-page="/leads"] .stack-mobile td[data-label="Next Task"] {
+  body[data-page="/leads"] #leads-table td[data-label="Next Task"] {
     grid-area: next;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid var(--sn-line);
+    padding-left: 42px;
     color: var(--sn-muted);
-    font-size: 12.5px;
+    font-size: var(--m-meta);
   }
+  /* El punto de color y el badge de conflicto de fecha suman alto sin
+     aportar en un listado; el detalle del lead los sigue mostrando. */
+  body[data-page="/leads"] #leads-table .sn-dot,
+  body[data-page="/leads"] #leads-table .date-status-badge { display: none; }
+  body[data-page="/leads"] #leads-table td[data-label="Lead Name"] .sn-row-name { gap: 8px; }
+  /* Cuatro lineas a line-height por defecto daban 145px por lead. Con 1.25
+     y sin gap entre filas del grid queda en ~95px y entran 5-6. */
+  body[data-page="/leads"] .stack-mobile .sn-table tr { gap: 0 var(--m-gap); padding: 9px var(--m-pad); }
+  body[data-page="/leads"] #leads-table td { line-height: 1.3; }
+  body[data-page="/leads"] #leads-table td[data-label="Lead Name"] { line-height: 1.2; }
   body[data-page="/leads"] .stack-mobile td[data-label="Next Task"]::before {
     content: 'Siguiente: ';
     display: inline !important;
@@ -2405,18 +2542,22 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     color: var(--sn-muted);
     font-size: 12.5px;
   }
-  body[data-page="/jobs"] .stack-mobile td[data-label="Progress"] {
+  body[data-page="/jobs"] #jobs-table td[data-label="Progress"] {
     grid-area: prog;
-    margin-top: 8px;
+    padding-left: 42px;
   }
-  body[data-page="/jobs"] .stack-mobile td[data-label="Next task"] {
+  body[data-page="/jobs"] #jobs-table td[data-label="Next task"] {
     grid-area: next;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid var(--sn-line);
+    padding-left: 42px;
     color: var(--sn-muted);
-    font-size: 12.5px;
+    font-size: var(--m-meta);
   }
+  body[data-page="/jobs"] .stack-mobile .sn-table tr { gap: 0 var(--m-gap); padding: 9px var(--m-pad); }
+  body[data-page="/jobs"] #jobs-table td { line-height: 1.3; }
+  /* La barra de progreso traia alto de escritorio; a 6px sigue leyendose. */
+  body[data-page="/jobs"] #jobs-table .sn-progress,
+  body[data-page="/jobs"] #jobs-table .progress-track,
+  body[data-page="/jobs"] #jobs-table .progress-bar { height: 6px; }
   body[data-page="/jobs"] .stack-mobile td.stack-actions { grid-area: menu; }
 
   /* Pagos: monto grande a la derecha, estado y vencimiento a la izquierda */
@@ -2446,19 +2587,47 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 
   /* Los 3 totales de Pagos van en fila, como pastillas -- apilados se comian
      media pantalla antes de llegar a la lista. */
-  .payment-stats {
+  /* Kevin: "un solo contenedor con tres columnas". Antes eran 3 tarjetas
+     apiladas que empujaban el primer pago a y=488; y al ponerlas en fila se
+     desbordaban a 573px porque cada tarjeta se media por su texto. El
+     minmax(0,...) + min-width:0 es lo que las deja encogerse de verdad. */
+  /* body[data-page] antepuesto: payments.html define .payment-stats en su
+     propio <style>, que va despues de este y ganaria por orden. */
+  body[data-page="/payments"] .payment-stats {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    gap: 0;
+    background: var(--sn-white);
+    border: 1px solid var(--sn-line);
+    border-radius: var(--m-radius);
+    overflow: hidden;
+    margin-bottom: var(--m-gap);
   }
-  .payment-stat-card { padding: 10px 10px 12px; }
-  .payment-stat-label {
+  body[data-page="/payments"] .payment-stat-card {
+    min-width: 0;
+    padding: 9px 8px 10px;
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--sn-line);
+    border-radius: 0;
+    box-shadow: none;
+    text-align: center;
+  }
+  body[data-page="/payments"] .payment-stat-card:last-child { border-right: none; }
+  body[data-page="/payments"] .payment-stat-label {
     font-size: 10.5px;
-    line-height: 1.25;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .payment-stat-value {
+  body[data-page="/payments"] .payment-stat-value {
     font-size: 15px;
+    line-height: 1.25;
     letter-spacing: -.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* --- Inicio: se desbordaba a lo ancho --- */
@@ -3418,6 +3587,54 @@ document.addEventListener('keydown', function(e) {
     closeMoreSheet();
   }
 });
+
+// ============================================================
+// Buscador colapsable en mobile
+// Kevin: en Clientes/Leads/Trabajos el buscador siempre abierto empujaba el
+// primer registro ~60px hacia abajo. Se inyecta una lupa al lado de los
+// filtros y el input solo aparece al tocarla. El boton se agrega por JS a
+// proposito para no repetir el mismo markup en las 4 plantillas de listado.
+// ============================================================
+(function setupMobileSearch() {
+  function isMobile() { return window.matchMedia('(max-width: 760px)').matches; }
+
+  function build() {
+    var input = document.querySelector('.sn-toolbar .sn-search');
+    if (!input || document.querySelector('.m-search-toggle')) { return; }
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'm-search-toggle';
+    btn.setAttribute('aria-label', 'Buscar');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+      + '<circle cx="11" cy="11" r="7" stroke-width="1.9"/>'
+      + '<path stroke-linecap="round" stroke-width="1.9" d="M21 21l-4.3-4.3"/></svg>';
+    btn.addEventListener('click', function() {
+      var open = document.body.classList.toggle('m-search-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) {
+        input.focus();
+      } else if (input.value) {
+        // Al cerrar se limpia el filtro: dejarlo activo pero invisible
+        // haria que la lista se viera "vacia" sin explicacion.
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    input.parentNode.insertBefore(btn, input);
+  }
+
+  function sync() {
+    if (isMobile()) {
+      build();
+    } else {
+      document.body.classList.remove('m-search-open');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', sync);
+  window.addEventListener('resize', sync);
+})();
 </script>
 
 </body>
