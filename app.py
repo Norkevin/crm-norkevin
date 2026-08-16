@@ -1808,6 +1808,7 @@ def _require_login():
         '/api/admin/fix-secondary-clients',
         '/api/admin/list-studio-ninja-clients',
         '/api/admin/tenant-inventory',
+        '/api/admin/import-astral-leads',
     ) and request.args.get('token') == _ADMIN_ONE_TIME_TOKEN:
         return None
     if session.get('logged_in'):
@@ -5468,6 +5469,70 @@ def api_reconcile_studio_ninja_jobs():
         'no_encontrados': len(skipped_not_found),
         'detalle': updated,
     })
+
+
+@app.route('/api/admin/import-astral-leads', methods=['POST'])
+def api_admin_import_astral_leads():
+    """Carga los contactos del formulario de ASTRAL como Leads.
+
+    Kevin: 'no quiero enviar correos de cosas que ya se enviaron antes en
+    Studio Ninja'. Esto es seguro por construccion: escribe registros de lead
+    directo al storage y nada mas. Un lead sin job no tiene pagos ni steps de
+    workflow, que son las DOS unicas cosas que el hilo de recordatorios en
+    segundo plano revisa para mandar correo (check_and_send_payment_reminders
+    recorre 'payments' y _auto_fire_due_job_steps recorre 'jobs'). Ningun
+    correo sale de aca.
+
+    Idempotente: el id se deriva del email, y un lead que ya existe NO se
+    sobreescribe -- asi se puede reintentar un lote sin duplicar ni pisar
+    ediciones que Kevin haya hecho a mano."""
+    data = request.get_json(silent=True) or {}
+    if data.get('confirm') != 'IMPORTAR':
+        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
+
+    tenant_id = data.get('tenant_id')
+    if not tenant_id:
+        return jsonify({'ok': False, 'error': 'tenant_id requerido'}), 400
+
+    existing = {l.get('id') for l in store.list('leads')}
+    existing_emails = {
+        (l.get('email') or '').strip().lower()
+        for l in store.list('leads')
+        if l.get('tenant_id') == tenant_id and l.get('email')
+    }
+
+    creados, omitidos = [], []
+    for item in data.get('leads') or []:
+        lead_id = item.get('id')
+        email = (item.get('email') or '').strip().lower()
+        if not lead_id or not email:
+            omitidos.append({'id': lead_id, 'motivo': 'sin id o sin email'})
+            continue
+        if lead_id in existing or email in existing_emails:
+            omitidos.append({'id': lead_id, 'motivo': 'ya existe'})
+            continue
+        store.upsert('leads', {
+            'id': lead_id,
+            'nombre': item.get('nombre') or '',
+            'email': item.get('email') or '',
+            'telefono': item.get('telefono') or '',
+            'status': item.get('status') or 'Nuevo',
+            'fuente': item.get('fuente') or '',
+            'tipo_evento': item.get('tipo_evento') or '',
+            'fecha_tentativa': item.get('fecha_tentativa') or '',
+            'locacion': item.get('locacion') or '',
+            'notas': item.get('notas') or '',
+            # Nunca None: un lead con 'created': None tumba el sort de
+            # /leads igual que paso con /clients.
+            'created': item.get('created') or date.today().isoformat(),
+            'tenant_id': tenant_id,
+        })
+        existing.add(lead_id)
+        existing_emails.add(email)
+        creados.append(lead_id)
+
+    logger.info(f"Leads de Astral: {len(creados)} creados, {len(omitidos)} omitidos (sin enviar ningun correo)")
+    return jsonify({'ok': True, 'creados': creados, 'omitidos': omitidos})
 
 
 @app.route('/api/admin/tenant-inventory')
