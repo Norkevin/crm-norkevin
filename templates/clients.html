@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Clients Overview · {{ current_tenant.name }}{% endblock %}
+{% block title %}Clientes · {{ current_tenant.name }}{% endblock %}
 {% block header %}Clientes{% endblock %}
 {% block subtitle %}{{ clients|length }} clients{% endblock %}
 {% block topbar_title %}Clients{% endblock %}
@@ -90,7 +90,7 @@
       </a>
       <button class="sn-btn sn-btn-primary" type="button" onclick="openClientModal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-        Add New Client
+        Nuevo cliente
       </button>
     </div>
   </div>

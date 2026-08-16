@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Settings · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Configuracion · ASTRAL WEDDINGS CRM{% endblock %}
 {% block header %}Configuracion{% endblock %}
 {% block subtitle %}Empresa, sistema, captacion y templates.{% endblock %}
 
@@ -60,7 +60,7 @@
     </div>
     <button class="sn-btn sn-btn-primary" type="button" onclick="openEditCompanyModal()">
       <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
-      Edit Company
+      Editar empresa
     </button>
   </div>
 </div>
@@ -70,7 +70,7 @@
      ============================================================ -->
 <div class="mb-8">
   <h3 class="settings-section-title">Apariencia</h3>
-  <div class="sn-card white" style="padding:18px;">
+  <div class="sn-card white settings-appearance" style="padding:18px;">
     <p class="sn-muted text-sm mb-4">
       Modo oscuro para cuando trabajas de noche y no queres que la pantalla
       te moleste la vista. Se guarda en este navegador.
@@ -92,22 +92,22 @@
      FUNDAMENTALS
      ============================================================ -->
 <div class="mb-8">
-  <h3 class="settings-section-title">Fundamentals</h3>
+  <h3 class="settings-section-title">Esenciales</h3>
   <div class="settings-grid">
     <button type="button" class="settings-tile clickable" style="text-align:left;" onclick="openEditCompanyModal()">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4a1 1 0 011-1h2a1 1 0 011 1v4h12v-4a1 1 0 011-1h2a1 1 0 011 1v4M5 3h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
-      <h4>Company Details</h4>
-      <p>Edit company name, email, phone and currency.</p>
+      <h4>Datos de la empresa</h4>
+      <p>Nombre, correo, telefono y moneda.</p>
     </button>
     <div class="settings-tile clickable" style="cursor:default;">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-      <h4>Email Settings</h4>
+      <h4>Configuracion de correo</h4>
       {% if gmail_connected %}
         <p style="color:var(--sn-green);font-weight:600;">Gmail conectado: {{ gmail_email }}</p>
-        <button class="sn-btn sn-btn-sm mt-2" type="button" onclick="disconnectGmail()">Disconnect</button>
+        <button class="sn-btn sn-btn-sm mt-2" type="button" onclick="disconnectGmail()">Desconectar</button>
       {% elif gmail_configured %}
         <p>No conectado. Usando modo prueba (local outbox).</p>
-        <a class="sn-btn sn-btn-primary sn-btn-sm mt-2" href="/auth/google/start">Connect Gmail</a>
+        <a class="sn-btn sn-btn-primary sn-btn-sm mt-2" href="/auth/google/start">Conectar Gmail</a>
       {% else %}
         <p>Falta configurar <code>GOOGLE_CLIENT_ID</code> / <code>GOOGLE_CLIENT_SECRET</code> en el <code>.env</code>.</p>
         <p class="sn-muted" style="margin-top:6px;font-size:10px;">Redirect URI a autorizar en Google Cloud Console:<br><code>{{ gmail_redirect_uri }}</code></p>
@@ -175,7 +175,7 @@
      CLIENT EXPERIENCE
      ============================================================ -->
 <div class="mb-8">
-  <h3 class="settings-section-title">Client Experience</h3>
+  <h3 class="settings-section-title">Experiencia del cliente</h3>
   <div class="settings-grid">
     <a href="{{ captacion_url }}" target="_blank" rel="noopener" class="settings-tile clickable">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -194,7 +194,7 @@
      TEMPLATES
      ============================================================ -->
 <div class="mb-8">
-  <h3 class="settings-section-title">Templates</h3>
+  <h3 class="settings-section-title">Plantillas</h3>
   <div class="settings-grid">
     <a href="/settings/email-templates" class="settings-tile clickable">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
