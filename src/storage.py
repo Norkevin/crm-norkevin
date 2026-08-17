@@ -157,6 +157,12 @@ class JsonStore:
                 records = [r for r in records if r.get('tenant_id') == tenant_id]
         return records
 
+    def current_tenant_id(self):
+        """Cuenta activa, o None fuera de una peticion. Publico porque otros
+        modulos (mail_tracker) necesitan saber desde que cuenta se esta
+        actuando para validar que todo lo del correo sea de esa misma."""
+        return self._current_tenant_id()
+
     def owner_tenant_of(self, table, value, field='id'):
         """Cuenta duena de un registro, saltando el filtro por cuenta.
 

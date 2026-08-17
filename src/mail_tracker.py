@@ -23,6 +23,36 @@ class MailStatus(Enum):
     CLICKED = 'clicked'              # cliente hizo click en link
     BOUNCED = 'bounced'              # reboto
     FAILED = 'failed'                # fallo
+    BLOCKED = 'blocked'              # rechazado por no cuadrar de cuenta
+
+
+def check_same_tenant(tenant_id, *, lead_id=None, job_id=None, template_id=None):
+    """Verifica que todo lo que interviene en un correo sea de la MISMA cuenta.
+
+    Nace del incidente en que el CRM mando correos firmados como Astral a
+    clientes de Norkevin. La comprobacion vive aca, en el servidor y en el
+    punto por el que pasa todo correo, justamente para que siga protegiendo
+    aunque en el futuro un bug del frontend arme mal la peticion.
+
+    Devuelve None si todo cuadra, o el motivo del bloqueo.
+    """
+    if not tenant_id:
+        return 'sin cuenta identificada'
+
+    for etiqueta, tabla, valor in (
+        ('lead', 'leads', lead_id),
+        ('job', 'jobs', job_id),
+        ('plantilla', 'email_templates', template_id),
+    ):
+        if not valor:
+            continue
+        dueno = store.owner_tenant_of(tabla, valor)
+        # dueno None = registro inexistente o sin cuenta: no se bloquea por
+        # eso (lo reporta el inventario de huerfanos), pero si pertenece a
+        # OTRA cuenta se corta.
+        if dueno and dueno != tenant_id:
+            return f'{etiqueta} {valor} pertenece a {dueno}, no a {tenant_id}'
+    return None
 
 
 class MailTracker:
@@ -46,6 +76,49 @@ class MailTracker:
         a la vez. Sin pasar el tenant_id del job/payment que esta procesando
         en ese momento, el correo quedaria en mail_log sin cuenta asignada
         (invisible para todos)."""
+        # Ultima verificacion antes de que salga cualquier cosa: que la
+        # cuenta que envia sea la misma del lead/job/plantilla. Va aca porque
+        # TODO correo de la app pasa por este metodo -- ponerlo en cada punto
+        # de llamada seria olvidarse de uno tarde o temprano.
+        # La mayoria de los envios normales no pasan tenant_id (lo daba solo
+        # el hilo de fondo); en esos casos la cuenta es la de la sesion
+        # activa. Sin este fallback la validacion cortaria TODO envio
+        # legitimo, no solo los cruzados.
+        tenant_id = tenant_id or store.current_tenant_id()
+        motivo = check_same_tenant(tenant_id, lead_id=lead_id, job_id=job_id,
+                                   template_id=template_id)
+        if motivo:
+            entry = {
+                'id': 'mail-' + uuid.uuid4().hex[:8],
+                'to': to_email,
+                'subject': subject,
+                'body': body or '',
+                'body_preview': body[:200] if body else '',
+                'template_id': template_id,
+                'lead_id': lead_id,
+                'job_id': job_id,
+                'attachments': attachments or [],
+                'status': MailStatus.BLOCKED.value,
+                'blocked_reason': motivo,
+                'sent_at': datetime.now().isoformat(),
+                'opened_at': None,
+                'clicked_at': None,
+                'bounced_at': None,
+                'delivery_provider': 'blocked',
+                'delivery_mode': None,
+                'delivery_message_id': None,
+                'delivery_error': f'EMAIL BLOCKED: cross-company data mismatch ({motivo})',
+            }
+            if tenant_id:
+                entry['tenant_id'] = tenant_id
+            # Queda registrado aunque no se envie: sin rastro de los intentos
+            # bloqueados no hay forma de investigar despues.
+            try:
+                store.upsert('mail_log', entry)
+            except Exception:
+                pass
+            return entry
+
         delivery = send_email(
             to_email,
             subject,
