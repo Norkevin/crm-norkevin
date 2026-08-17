@@ -54,8 +54,24 @@ def _project_root() -> Path:
 
 
 def _token_path(tenant_id=None) -> Path:
+    """Archivo de token de la cuenta indicada.
+
+    Si no se puede resolver un tenant devuelve None: SIN cuenta no hay envio.
+
+    Antes caia a un 'google_token.json' global -- un token viejo de antes del
+    multi-cuenta. El hilo de recordatorios corre fuera de cualquier request,
+    asi que resolvia None y terminaba mandando por esa conexion global, que
+    no aparece en ninguna pantalla. Resultado real: la banda decia "Gmail no
+    conectado" (verdad para la cuenta que se estaba viendo) mientras esa
+    conexion invisible mandaba correos de un negocio a los clientes del otro.
+
+    Mandar desde una cuenta arbitraria nunca es lo correcto en un sistema de
+    varias cuentas: es preferible no enviar.
+    """
     resolved = tenant_id or _current_tenant_id()
-    filename = f'google_token_{resolved}.json' if resolved else 'google_token.json'
+    if not resolved:
+        return None
+    filename = f'google_token_{resolved}.json'
     data_dir = os.environ.get('CRM_DATA_DIR')
     if data_dir:
         return Path(data_dir) / filename
@@ -71,7 +87,9 @@ def is_configured():
 
 def load_token(tenant_id=None):
     path = _token_path(tenant_id=tenant_id)
-    if not path.exists():
+    # Sin cuenta resuelta no hay token: is_connected() dara False y el envio
+    # por Gmail no ocurre, en vez de tomar una cuenta cualquiera.
+    if path is None or not path.exists():
         return None
     try:
         return json.loads(path.read_text(encoding='utf-8'))
@@ -81,13 +99,15 @@ def load_token(tenant_id=None):
 
 def save_token(data, tenant_id=None):
     path = _token_path(tenant_id=tenant_id)
+    if path is None:
+        raise RuntimeError('No hay cuenta activa: no se puede guardar el token de Gmail')
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding='utf-8')
 
 
 def disconnect(tenant_id=None):
     path = _token_path(tenant_id=tenant_id)
-    if path.exists():
+    if path is not None and path.exists():
         path.unlink()
 
 
