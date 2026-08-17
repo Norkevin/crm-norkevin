@@ -20,6 +20,7 @@ el propio registro (asi los procesos en segundo plano que ya tienen el
 job/lead/payment en mano pueden pasar el tenant_id correcto a mano)."""
 import copy
 import json
+import logging
 import os
 import shutil
 from datetime import datetime
@@ -51,10 +52,34 @@ TENANT_SCOPED_TABLES = {
 }
 
 
+logger = logging.getLogger(__name__)
+
+
 class TenantMismatchError(Exception):
     """Se intento leer/escribir un registro de una cuenta distinta a la
     activa -- nunca deberia pasar salvo un bug o un intento de acceso
     cruzado entre cuentas."""
+
+
+class MissingTenantContextError(Exception):
+    """Se pidieron datos sin saber de que empresa.
+
+    Kevin: "no quiero que dentro de seis meses tengamos una automatizacion
+    que no hace nada porque perdio el contexto de tenant y nadie se da
+    cuenta". Devolver [] es seguro pero se confunde con "no hay registros";
+    esta excepcion existe para que las operaciones sensibles fallen fuerte
+    en vez de fallar en silencio (ver list_strict)."""
+
+
+def log_security_event(evento, **datos):
+    """Log uniforme de lo que se bloquea, para poder rastrear despues.
+
+    A proposito NO se registra el contenido de los correos ni datos
+    personales: solo ids, tablas y cuentas, que es lo que hace falta para
+    investigar.
+    """
+    detalle = ' '.join(f'{k}={v}' for k, v in datos.items() if v is not None)
+    logger.warning('SECURITY: %s %s', evento, detalle)
 
 
 class JsonStore:
@@ -156,10 +181,35 @@ class JsonStore:
             aislar, tenant_id = self._tenant_scope()
             if aislar and not tenant_id:
                 # Dentro de la app pero sin cuenta activa: no se ve nada.
+                log_security_event('SIN_CONTEXTO_DE_EMPRESA', tabla=table, operacion='list')
                 return []
             if tenant_id:
                 records = [r for r in records if r.get('tenant_id') == tenant_id]
         return records
+
+    def list_strict(self, table):
+        """Como list(), pero revienta si falta el contexto de empresa.
+
+        Kevin: "prefiero un error explicito y registrado antes que un fallo
+        silencioso... no quiero que dentro de seis meses tengamos una
+        automatizacion que no hace nada porque perdio el contexto".
+
+        list() devuelve [] sin cuenta, que es seguro pero indistinguible de
+        "esta tabla esta vacia". Para rutinas, workers y cualquier operacion
+        que actue sobre lo que lee, usar esta: una lista vacia va a
+        significar de verdad que no hay registros.
+        """
+        if table in TENANT_SCOPED_TABLES:
+            aislar, tenant_id = self._tenant_scope()
+            if aislar and not tenant_id:
+                log_security_event('SIN_CONTEXTO_DE_EMPRESA', tabla=table,
+                                   operacion='list_strict')
+                raise MissingTenantContextError(
+                    f"Se pidio '{table}' sin cuenta activa. Una rutina que "
+                    'perdio el contexto de empresa no debe verse como una '
+                    'tabla vacia.'
+                )
+        return self.list(table)
 
     def current_tenant_id(self):
         """Cuenta activa, o None fuera de una peticion. Publico porque otros
@@ -225,6 +275,11 @@ class JsonStore:
             if scoped and tenant_id:
                 current_owner = records[existing_idx].get('tenant_id')
                 if current_owner and current_owner != tenant_id:
+                    log_security_event(
+                        'CROSS_TENANT_ACCESS_BLOCKED', operacion='upsert', tabla=table,
+                        registro=record.get('id'), cuenta_activa=tenant_id,
+                        cuenta_del_registro=current_owner,
+                    )
                     raise TenantMismatchError(
                         f"El registro '{record.get('id')}' en '{table}' pertenece a la "
                         f"cuenta '{current_owner}', no a la cuenta activa '{tenant_id}'."
@@ -248,6 +303,11 @@ class JsonStore:
                 if target and target.get('tenant_id') and target.get('tenant_id') != tenant_id:
                     # No pertenece a esta cuenta -- se comporta como si no
                     # existiera, no se borra nada.
+                    log_security_event(
+                        'CROSS_TENANT_ACCESS_BLOCKED', operacion='delete', tabla=table,
+                        registro=record_id, cuenta_activa=tenant_id,
+                        cuenta_del_registro=target.get('tenant_id'),
+                    )
                     return False
         records = [r for r in records if r.get('id') != record_id]
         self._save(table, records)
@@ -338,15 +398,28 @@ class JsonStore:
         `tenant_id` explicito (para el hilo de recordatorios, que ya sabe
         de que cuenta es el job/payment que esta procesando y no puede
         depender del resolver de sesion) tiene prioridad sobre el resolver
-        ambiente. Sin ninguno de los dos, cae al archivo compartido de
-        siempre -- mismo comportamiento que antes de multi-tenant."""
+        ambiente. Sin ninguno de los dos cae al archivo compartido, y ese
+        fallback es EXACTAMENTE el que creo el google_token.json global que
+        se uso durante el incidente. Se deja solo para lectura (config vieja
+        que todavia puede existir en disco) y queda registrado; escribir sin
+        cuenta esta prohibido, ver save_tenant_dict."""
         resolved = tenant_id or self._current_tenant_id()
+        if not resolved:
+            log_security_event('FALLBACK_A_CONFIG_GLOBAL', archivo=name, operacion='lectura')
         return f'{name}_{resolved}' if resolved else name
 
     def get_tenant_dict(self, name: str, tenant_id: str = None) -> Dict[str, Any]:
         return self.get_dict(self._tenant_dict_key(name, tenant_id))
 
     def save_tenant_dict(self, name: str, data: Dict[str, Any], tenant_id: str = None):
+        """Guardar sin cuenta creaba archivos de configuracion/credenciales
+        globales, sin dueno y compartidos entre negocios. Prohibido."""
+        if not (tenant_id or self._current_tenant_id()):
+            log_security_event('ESCRITURA_GLOBAL_BLOQUEADA', archivo=name)
+            raise MissingTenantContextError(
+                f"No se puede guardar '{name}' sin cuenta activa: crearia un "
+                'archivo global compartido entre negocios.'
+            )
         self.save_dict(self._tenant_dict_key(name, tenant_id), data)
 
 

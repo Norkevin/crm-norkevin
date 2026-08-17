@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from .email_delivery import send_email
-from .storage import store
+from .storage import store, log_security_event
 
 
 class MailStatus(Enum):
@@ -51,6 +51,10 @@ def check_same_tenant(tenant_id, *, lead_id=None, job_id=None, template_id=None)
         # eso (lo reporta el inventario de huerfanos), pero si pertenece a
         # OTRA cuenta se corta.
         if dueno and dueno != tenant_id:
+            log_security_event(
+                'CROSS_TENANT_EMAIL_BLOCKED', operacion='send_email', tabla=tabla,
+                registro=valor, cuenta_activa=tenant_id, cuenta_del_registro=dueno,
+            )
             return f'{etiqueta} {valor} pertenece a {dueno}, no a {tenant_id}'
     return None
 
