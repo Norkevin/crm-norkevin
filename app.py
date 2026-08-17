@@ -1923,6 +1923,7 @@ def _require_login():
         '/api/admin/fix-secondary-clients',
         '/api/admin/list-studio-ninja-clients',
         '/api/admin/tenant-inventory',
+        '/api/admin/workflow-cleanup',
         '/api/admin/import-astral-leads',
     ) and request.args.get('token') == _ADMIN_ONE_TIME_TOKEN:
         return None
@@ -5706,6 +5707,115 @@ def api_admin_import_astral_leads():
 
     logger.info(f"Leads de Astral: {len(creados)} creados, {len(omitidos)} omitidos (sin enviar ningun correo)")
     return jsonify({'ok': True, 'creados': creados, 'omitidos': omitidos})
+
+
+@app.route('/api/admin/workflow-cleanup', methods=['POST'])
+def api_admin_workflow_cleanup():
+    """Marca como completadas las tareas de workflow de los jobs activos,
+    dejando 'Trabajo completado' PENDIENTE.
+
+    Kevin: "quiero ser yo quien marque manualmente Job Complete cuando
+    considere que realmente terminamos esa boda".
+
+    Dos cosas que NO hace, a proposito:
+
+    - No ejecuta la accion del paso. Marcar un 'Auto send email' como
+      completado es un cambio de ESTADO, no una reproduccion del workflow:
+      no genera ni manda ningun correo. Esto importa mucho despues del
+      incidente.
+    - No toca nada financiero. Pagos, facturas, cuotas, montos, saldos y
+      fechas quedan exactamente igual.
+
+    Arranca en dry_run: sin 'confirm' solo informa que pasaria.
+    """
+    data = request.get_json(silent=True) or {}
+    ejecutar = data.get('confirm') == 'LIMPIAR_WORKFLOWS'
+
+    # Huella financiera ANTES, para poder demostrar que no se movio nada.
+    def _huella_financiera():
+        huella = {}
+        for p in store._read_raw('payments'):
+            huella[p.get('id')] = (p.get('amount'), p.get('status'),
+                                   p.get('due_date'), p.get('paid_date'))
+        return huella
+
+    antes = _huella_financiera()
+
+    resumen = {}
+    cambios = []
+    for tenant in store.list('tenants'):
+        tid = tenant.get('id')
+        jobs = [j for j in store._read_raw('jobs') if j.get('tenant_id') == tid]
+        activos = [j for j in jobs if j.get('status') not in ('Archivado', 'Cancelado')]
+        por_cambiar = 0
+        tareas = 0
+        job_complete_pendientes = 0
+
+        for job in activos:
+            try:
+                steps, _, _ = compute_workflow_steps_for_job(job)
+            except Exception:
+                continue
+            pendientes = [s for s in steps if s['status'] == 'pending']
+            # 'Trabajo completado' es el unico que NO se toca.
+            a_marcar = [s for s in pendientes if 'completado' not in (s['name'] or '').lower()]
+            queda = [s for s in pendientes if 'completado' in (s['name'] or '').lower()]
+            if queda:
+                job_complete_pendientes += 1
+            if a_marcar:
+                por_cambiar += 1
+                tareas += len(a_marcar)
+                cambios.append({'tenant_id': tid, 'job_id': job.get('id'),
+                                'job': job.get('nombre'),
+                                'tareas': [s['name'] for s in a_marcar]})
+
+        resumen[tenant.get('name') or tid] = {
+            'jobs_encontrados': len(jobs),
+            'jobs_activos': len(activos),
+            'jobs_que_cambiarian': por_cambiar,
+            'tareas_a_marcar_completadas': tareas,
+            'job_complete_que_siguen_pendientes': job_complete_pendientes,
+            'pagos_afectados': 0,
+            'facturas_afectadas': 0,
+            'emails_generados': 0,
+            'emails_enviados': 0,
+        }
+
+    aplicados = []
+    if ejecutar:
+        for cambio in cambios:
+            job = next((j for j in store._read_raw('jobs')
+                        if j.get('id') == cambio['job_id']), None)
+            if not job:
+                continue
+            instancia = _workflow_instance_for('job', job['id'])
+            if not instancia:
+                continue
+            tmpl = PRODUCTION_WORKFLOW()
+            for step in tmpl.steps:
+                if 'completado' in (step.name or '').lower():
+                    continue
+                if instancia.step_states.get(step.id) != StepStatus.DONE:
+                    # SKIPPED, no DONE: deja claro en el historial que se
+                    # cerro por esta limpieza y no porque se ejecutara.
+                    instancia.step_states[step.id] = StepStatus.SKIPPED
+            workflow_engine._save_to_storage()
+            aplicados.append(job['id'])
+
+    despues = _huella_financiera()
+    finanzas_intactas = antes == despues
+
+    return jsonify({
+        'ok': True,
+        'modo': 'ejecutado' if ejecutar else 'dry_run',
+        'resumen': resumen,
+        'detalle': cambios[:50],
+        'total_cambios': len(cambios),
+        'jobs_modificados': aplicados,
+        'finanzas_intactas': finanzas_intactas,
+        'nota': ('Marcar tareas NO ejecuta su accion: no se genero ni envio '
+                 'ningun correo. "Trabajo completado" queda pendiente.'),
+    })
 
 
 @app.route('/api/admin/tenant-inventory')
