@@ -1924,6 +1924,7 @@ def _require_login():
         '/api/admin/list-studio-ninja-clients',
         '/api/admin/tenant-inventory',
         '/api/admin/workflow-cleanup',
+        '/api/admin/orphan-audit',
         '/api/admin/import-astral-leads',
     ) and request.args.get('token') == _ADMIN_ONE_TIME_TOKEN:
         return None
@@ -5707,6 +5708,104 @@ def api_admin_import_astral_leads():
 
     logger.info(f"Leads de Astral: {len(creados)} creados, {len(omitidos)} omitidos (sin enviar ningun correo)")
     return jsonify({'ok': True, 'creados': creados, 'omitidos': omitidos})
+
+
+@app.route('/api/admin/orphan-audit')
+def api_admin_orphan_audit():
+    """Inventario de registros sin empresa asignada. SOLO LECTURA.
+
+    Con el aislamiento cerrado un registro sin tenant_id queda invisible y
+    su enlace publico responde 404, asi que hay que verlos antes de
+    desplegar.
+
+    Para cada huerfano se intenta deducir la empresa siguiendo relaciones
+    reales (el job del pago, el cliente del job...). Kevin fue explicito:
+    nada se asigna solo. Cada caso sale clasificado y el ambiguo queda para
+    que lo decida el.
+    """
+    # De que registro cuelga cada tabla para poder deducir su empresa.
+    RELACIONES = {
+        'payments': [('job_id', 'jobs'), ('client_id', 'clients')],
+        'quotes': [('job_id', 'jobs'), ('lead_id', 'leads'), ('client_id', 'clients')],
+        'contracts': [('job_id', 'jobs'), ('client_id', 'clients')],
+        'questionnaires': [('job_id', 'jobs'), ('lead_id', 'leads')],
+        'jobs': [('client_id', 'clients'), ('lead_id', 'leads')],
+        'clients': [('lead_id', 'leads')],
+        'calendar': [('job_id', 'jobs')],
+        'files': [('job_id', 'jobs'), ('client_id', 'clients')],
+        'mail_log': [('job_id', 'jobs'), ('lead_id', 'leads')],
+    }
+
+    from src.storage import TENANT_SCOPED_TABLES
+    tenants = [t.get('id') for t in store.list('tenants')]
+
+    tabla_resumen = []
+    huerfanos = []
+    for tabla in sorted(TENANT_SCOPED_TABLES):
+        registros = store._read_raw(tabla)
+        por_cuenta = {tid: 0 for tid in tenants}
+        sin_cuenta = 0
+        desconocidas = 0
+        for r in registros:
+            tid = r.get('tenant_id')
+            if not tid:
+                sin_cuenta += 1
+            elif tid in por_cuenta:
+                por_cuenta[tid] += 1
+            else:
+                desconocidas += 1
+
+        fila = {'tabla': tabla, 'total': len(registros),
+                'sin_tenant': sin_cuenta, 'tenant_desconocido': desconocidas}
+        fila.update({tid: por_cuenta[tid] for tid in tenants})
+        tabla_resumen.append(fila)
+
+        for r in registros:
+            if r.get('tenant_id'):
+                continue
+            pistas = []
+            candidatos = set()
+            for campo, tabla_rel in RELACIONES.get(tabla, []):
+                valor = r.get(campo)
+                if not valor:
+                    continue
+                dueno = store.owner_tenant_of(tabla_rel, valor)
+                if dueno:
+                    candidatos.add(dueno)
+                    pistas.append(f'{campo}={valor} -> {tabla_rel} de {dueno}')
+
+            if len(candidatos) == 1:
+                confianza = 'HIGH_CONFIDENCE'
+            elif len(candidatos) > 1:
+                # Relaciones que apuntan a empresas distintas: justo el tipo
+                # de caso que no se puede resolver adivinando.
+                confianza = 'REVIEW_REQUIRED'
+            else:
+                confianza = 'UNRESOLVED'
+
+            huerfanos.append({
+                'tabla': tabla,
+                'id': r.get('id'),
+                'posible_tenant': list(candidatos)[0] if len(candidatos) == 1 else None,
+                'candidatos': sorted(candidatos),
+                'confianza': confianza,
+                'pistas': pistas or ['sin relaciones que permitan deducirla'],
+            })
+
+    return jsonify({
+        'ok': True,
+        'resumen_por_tabla': tabla_resumen,
+        'huerfanos': huerfanos,
+        'totales': {
+            'huerfanos': len(huerfanos),
+            'HIGH_CONFIDENCE': sum(1 for h in huerfanos if h['confianza'] == 'HIGH_CONFIDENCE'),
+            'REVIEW_REQUIRED': sum(1 for h in huerfanos if h['confianza'] == 'REVIEW_REQUIRED'),
+            'UNRESOLVED': sum(1 for h in huerfanos if h['confianza'] == 'UNRESOLVED'),
+        },
+        'nota': ('Solo lectura: no se asigno ninguna empresa. Los '
+                 'HIGH_CONFIDENCE se pueden proponer para asignacion; los '
+                 'demas los tiene que decidir Kevin.'),
+    })
 
 
 @app.route('/api/admin/workflow-cleanup', methods=['POST'])
