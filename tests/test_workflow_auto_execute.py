@@ -36,6 +36,10 @@ def _make_quote(app_module, lead_id, **overrides):
         'incluye': ['Cobertura 10h'],
         'status': 'Enviada',
         'plan_pago': 1,
+        # Sin tenant_id el enlace publico de la cotizacion no puede resolver
+        # a que cuenta pertenece y responde 404: es lo mismo que le pasaria a
+        # una cotizacion real huerfana.
+        'tenant_id': 'tenant-norkevin',
     }
     quote.update(overrides)
     app_module.store.upsert('quotes', quote)

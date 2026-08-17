@@ -67,9 +67,13 @@ class JsonStore:
         # datos obsoletos.
         self._cache = {}
         # Callable() -> tenant_id | None. Configurado por app.py al arrancar.
-        # None (default) = sin aislamiento, se comporta como antes (usado
-        # tambien por scripts/tests que no pasan por una sesion de Flask).
+        # None (default) = sin aislamiento (scripts/tests fuera de la app).
         self.tenant_resolver = None
+        # Callable() -> bool: "estoy dentro de una peticion web?". app.py le
+        # pasa flask.has_request_context. Sirve para exigir cuenta activa
+        # solo donde hay un usuario/enlace real detras, y no romper los
+        # scripts de migracion ni la siembra de datos de los tests.
+        self.request_context_probe = None
 
     def _path(self, table):
         return os.path.join(self.data_dir, f'{table}.json')
@@ -81,6 +85,37 @@ class JsonStore:
             return self.tenant_resolver()
         except Exception:
             return None
+
+    def _tenant_scope(self):
+        """(aislar, tenant_id) para la operacion en curso.
+
+        Regla: **dentro de una peticion web el aislamiento es obligatorio.**
+        Si no hay cuenta activa la operacion se deniega, en vez de caer a
+        "todas las cuentas" como antes.
+
+        Ese fallback permisivo es la causa raiz de un incidente real: una
+        rutina sin cuenta activa recorrio las bodas de los dos negocios
+        juntos y termino mandando correos de una empresa a los clientes de la
+        otra. Sin cuenta identificada la respuesta correcta es "nada", no
+        "todo".
+
+        Fuera de una peticion (scripts de migracion, tests que siembran
+        datos) se mantiene el comportamiento sin aislamiento: ese codigo no
+        es alcanzable desde la web y necesita ver el archivo completo. El
+        riesgo de fondo -- rutinas automaticas sin cuenta -- se ataca en su
+        origen: el scheduler esta apagado y Gmail no envia sin cuenta
+        resuelta.
+        """
+        if self.tenant_resolver is None:
+            return False, None
+        if self.request_context_probe is not None:
+            try:
+                in_request = bool(self.request_context_probe())
+            except Exception:
+                in_request = False
+            if not in_request:
+                return False, None
+        return True, self._current_tenant_id()
 
     def status(self) -> Dict[str, Any]:
         """Devuelve un resumen seguro del almacenamiento activo."""
@@ -114,10 +149,32 @@ class JsonStore:
     def list(self, table):
         records = self._read_raw(table)
         if table in TENANT_SCOPED_TABLES:
-            tenant_id = self._current_tenant_id()
+            aislar, tenant_id = self._tenant_scope()
+            if aislar and not tenant_id:
+                # Dentro de la app pero sin cuenta activa: no se ve nada.
+                return []
             if tenant_id:
                 records = [r for r in records if r.get('tenant_id') == tenant_id]
         return records
+
+    def owner_tenant_of(self, table, value, field='id'):
+        """Cuenta duena de un registro, saltando el filtro por cuenta.
+
+        UNICO lugar autorizado para mirar entre cuentas, y existe por un
+        motivo concreto: las rutas publicas (portal del cliente, aceptar una
+        cotizacion, firmar un contrato) llegan sin sesion y necesitan saber a
+        que cuenta pertenece el enlace ANTES de poder aislarse a ella.
+
+        `field` permite buscar por otra clave: el PDF publico de una factura
+        se pide por invoice_id, no por el id del registro de pago.
+
+        Devuelve solo el tenant_id, nunca el registro: no sirve para leer
+        datos de otra cuenta.
+        """
+        for record in self._read_raw(table):
+            if record.get(field) == value:
+                return record.get('tenant_id')
+        return None
 
     def get(self, table, record_id):
         # Ya filtrado por list() -- pedir el id de otra cuenta devuelve
@@ -129,7 +186,13 @@ class JsonStore:
 
     def upsert(self, table, record):
         scoped = table in TENANT_SCOPED_TABLES
-        tenant_id = self._current_tenant_id() if scoped else None
+        aislar, tenant_id = self._tenant_scope() if scoped else (False, None)
+        if scoped and aislar and not tenant_id:
+            raise TenantMismatchError(
+                f"No se puede escribir en '{table}' sin una cuenta activa. "
+                'Escribir sin cuenta dejaba registros sin dueno, visibles '
+                'desde cualquier negocio.'
+            )
         if scoped and tenant_id:
             record_tenant = record.get('tenant_id')
             if record_tenant and record_tenant != tenant_id:
@@ -166,7 +229,10 @@ class JsonStore:
     def delete(self, table, record_id):
         records = self._read_raw(table)
         if table in TENANT_SCOPED_TABLES:
-            tenant_id = self._current_tenant_id()
+            aislar, tenant_id = self._tenant_scope()
+            if aislar and not tenant_id:
+                # Sin cuenta activa no se borra nada de ninguna cuenta.
+                return False
             if tenant_id:
                 target = next((r for r in records if r.get('id') == record_id), None)
                 if target and target.get('tenant_id') and target.get('tenant_id') != tenant_id:
@@ -184,7 +250,13 @@ class JsonStore:
         prueba' de una cuenta no debe tocar las otras). El registro anterior
         queda respaldado automaticamente por _save/_backup_existing_file."""
         if table in TENANT_SCOPED_TABLES:
-            tenant_id = self._current_tenant_id()
+            aislar, tenant_id = self._tenant_scope()
+            if aislar and not tenant_id:
+                # Sin cuenta activa, vaciar habria borrado la tabla completa
+                # de TODOS los negocios.
+                raise TenantMismatchError(
+                    f"No se puede vaciar '{table}' sin una cuenta activa."
+                )
             if tenant_id:
                 records = self._read_raw(table)
                 remaining = [r for r in records if r.get('tenant_id') != tenant_id]

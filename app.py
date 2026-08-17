@@ -9,7 +9,8 @@ import time
 import threading
 import logging
 from datetime import datetime, date, timedelta
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort, session, make_response
+from flask import (Flask, render_template, request, redirect, url_for, jsonify, flash, abort,
+                   session, make_response, g, has_request_context)
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -110,14 +111,31 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.jinja_env.auto_reload = True
 
 # Aislamiento multi-tenant: JsonStore filtra automaticamente por
-# session['tenant_id'] en cuanto hay una sesion de Flask activa. Fuera de
-# un request (el hilo de recordatorios en segundo plano, scripts) el
-# resolver lanza RuntimeError y storage.py lo atrapa devolviendo None,
-# que a proposito significa "todas las cuentas" en ese contexto.
-store.tenant_resolver = lambda: session.get('tenant_id')
+# Cuenta activa de la peticion en curso. Dos fuentes, en este orden:
+#
+#   1. session['tenant_id'] -- alguien logueado en el CRM.
+#   2. g.public_tenant_id  -- una ruta publica (portal del cliente, aceptar
+#      cotizacion, firmar contrato) que llega SIN sesion. La cuenta se deduce
+#      del propio registro del enlace en _resolve_public_tenant(), antes de
+#      tocar ningun dato.
+#
+# Fuera de un request (hilos de fondo, scripts) esto lanza RuntimeError y
+# storage.py lo atrapa devolviendo None. Antes None significaba "todas las
+# cuentas"; ahora significa "ninguna" y la operacion se deniega. Ese cambio
+# es la correccion del incidente en que un hilo sin sesion recorrio las
+# bodas de los dos negocios juntos.
+def _active_tenant_id():
+    tid = session.get('tenant_id')
+    if tid:
+        return tid
+    return getattr(g, 'public_tenant_id', None)
+
+
+store.tenant_resolver = _active_tenant_id
+store.request_context_probe = has_request_context
 
 from src import gmail_delivery as _gmail_delivery_module
-_gmail_delivery_module.tenant_resolver = lambda: session.get('tenant_id')
+_gmail_delivery_module.tenant_resolver = _active_tenant_id
 
 
 @app.after_request
@@ -1787,6 +1805,54 @@ def _is_public_path(path):
     return any(p.match(path) for p in PUBLIC_PATTERNS)
 
 
+# Que tabla identifica la cuenta en cada tipo de enlace publico. El id va
+# siempre en el mismo lugar de la ruta: /portal/<client_id>, /quotes/<id>...
+_PUBLIC_TENANT_LOOKUP = (
+    ('/portal/', 'clients', 'id'),
+    ('/quotes/', 'quotes', 'id'),
+    ('/contracts/', 'contracts', 'id'),
+    ('/api/contracts/', 'contracts', 'id'),
+    ('/questionnaires/', 'questionnaires', 'id'),
+    ('/api/questionnaires/', 'questionnaires', 'id'),
+    # El PDF publico de una factura se pide por invoice_id, no por el id del
+    # registro de pago.
+    ('/invoices/', 'payments', 'invoice_id'),
+    ('/files/', 'files', 'id'),
+)
+
+
+def _resolve_public_tenant(path):
+    """Deduce a que cuenta pertenece un enlace publico.
+
+    Las rutas publicas (portal del cliente, aceptar cotizacion, firmar
+    contrato) llegan sin sesion. Con el aislamiento cerrado, sin cuenta
+    activa no verian nada, asi que hay que fijar la cuenta ANTES de leer
+    datos -- y sacarla del propio registro del enlace, no de un parametro
+    que el visitante pueda cambiar.
+
+    Se resuelve una sola vez por peticion en @app.before_request en vez de
+    ruta por ruta: una sola puerta es mucho mas facil de auditar que veinte.
+    """
+    # Los formularios publicos no llevan id de registro: identifican la
+    # cuenta con su slug (/contacto/norkevin-photography). Sin slug caen en
+    # Astral Weddings, que es el enlace ya embebido en su sitio.
+    for prefix in ('/contacto', '/captacion'):
+        if path == prefix or path.startswith(prefix + '/'):
+            slug = path[len(prefix):].strip('/').split('/', 1)[0]
+            tenant = _tenant_by_slug(slug) if slug else _tenant_by_slug('astral-weddings')
+            return (tenant or {}).get('id')
+
+    for prefix, table, field in _PUBLIC_TENANT_LOOKUP:
+        if not path.startswith(prefix):
+            continue
+        rest = path[len(prefix):]
+        record_id = rest.split('/', 1)[0]
+        if not record_id:
+            return None
+        return store.owner_tenant_of(table, record_id, field=field)
+    return None
+
+
 # Kevin no tiene forma de "prestarme" su sesion de Google para que yo
 # corra herramientas de mantenimiento de un solo uso (ni deberia -- pedirle
 # la contraseña esta prohibido). Estas 2 rutas de /api/admin aceptan este
@@ -1825,6 +1891,25 @@ def dev_login():
     session.permanent = True
     logger.warning(f'DEV LOGIN local usado para {tenant["id"]} -- solo desarrollo')
     return redirect(request.args.get('next') or '/dashboard')
+
+
+@app.before_request
+def _set_public_tenant():
+    """Fija la cuenta de la peticion cuando viene de un enlace publico.
+
+    Corre ANTES de _require_login (orden de registro) para que la ruta ya
+    tenga cuenta cuando empiece a leer datos.
+    """
+    g.public_tenant_id = None
+    if session.get('tenant_id'):
+        return None
+    if not _is_public_path(request.path):
+        return None
+    try:
+        g.public_tenant_id = _resolve_public_tenant(request.path)
+    except Exception as e:
+        logger.error(f'No se pudo resolver la cuenta de {request.path}: {e}')
+    return None
 
 
 @app.before_request
@@ -4484,6 +4569,9 @@ def api_captacion_submit():
     tenant = _tenant_by_slug(data.get('tenant_slug')) or _tenant_by_slug('astral-weddings')
     if not tenant:
         return jsonify({'ok': False, 'error': 'Cuenta no reconocida'}), 400
+    # El slug ya quedo validado contra tenants.json: recien ahora se fija la
+    # cuenta de la peticion, para que el store deje escribir el lead.
+    g.public_tenant_id = tenant['id']
 
     lead_id = 'lead-' + uuid.uuid4().hex[:8]
     lead = {
@@ -5656,8 +5744,20 @@ def api_admin_tenant_inventory():
             'contracts': sum(1 for c in contracts if c.get('job_id') == jid),
         })
 
+    # Registros sin cuenta. Con el aislamiento cerrado quedan invisibles
+    # (antes se veian desde cualquier negocio, que es justo el problema), asi
+    # que hay que saber si existen ANTES de desplegar: un enlace publico a
+    # una cotizacion huerfana responderia 404.
+    from src.storage import TENANT_SCOPED_TABLES
+    huerfanos = {}
+    for tabla in sorted(TENANT_SCOPED_TABLES):
+        sin_cuenta = [r.get('id') for r in store._read_raw(tabla) if not r.get('tenant_id')]
+        if sin_cuenta:
+            huerfanos[tabla] = {'total': len(sin_cuenta), 'ejemplos': sin_cuenta[:10]}
+
     return jsonify({
         'ok': True,
+        'huerfanos_sin_tenant': huerfanos,
         'tenants': [{'id': t.get('id'), 'name': t.get('name'),
                      'login_email': t.get('login_email'), 'active': t.get('active')}
                     for t in tenants],
@@ -7421,6 +7521,9 @@ def crear_lead_publico():
     tenant = _tenant_by_slug(data.get('tenant_slug')) or _tenant_by_slug('astral-weddings')
     if not tenant:
         return jsonify({'ok': False, 'error': 'Cuenta no reconocida'}), 400
+    # El slug ya quedo validado contra tenants.json: recien ahora se fija la
+    # cuenta de la peticion, para que el store deje escribir el lead.
+    g.public_tenant_id = tenant['id']
 
     # Validación mínima
     nombre = (data.get('nombre') or '').strip()

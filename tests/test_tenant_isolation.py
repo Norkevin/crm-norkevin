@@ -403,11 +403,13 @@ def test_migration_aborts_on_unrecognized_tenant_id(client):
     import app as app_module
     login_as_tenant(client, 'tenant-norkevin')
 
+    # Se siembra FUERA de una peticion a proposito. Dentro de una peticion el
+    # store ahora exige cuenta activa (correccion del incidente de envio
+    # cruzado), asi que escribir sin sesion se rechaza. La intencion del test
+    # es la misma: dejar un registro con un tenant_id que no corresponde a
+    # ninguna cuenta y comprobar que la migracion lo detecta.
     weird_id = 'client-weird-' + uuid.uuid4().hex[:6]
-    with app_module.app.test_request_context():
-        from flask import session as _sess
-        _sess['tenant_id'] = None
-        app_module.store.upsert('clients', {'id': weird_id, 'first_name': 'Weird', 'tenant_id': 'tenant-completamente-desconocido'})
+    app_module.store.upsert('clients', {'id': weird_id, 'first_name': 'Weird', 'tenant_id': 'tenant-completamente-desconocido'})
 
     resp = client.post('/api/admin/migrate-to-multi-tenant', json={'confirm': 'MIGRAR', 'dry_run': True})
     assert resp.status_code == 400
