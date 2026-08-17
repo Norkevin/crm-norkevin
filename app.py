@@ -4398,6 +4398,13 @@ def api_admin_migrate_to_multi_tenant():
         new_path = os.path.join(store.data_dir, f'{name}_tenant-norkevin.json')
         if os.path.exists(old_path) and not os.path.exists(new_path):
             shutil.copy2(old_path, new_path)
+        # El archivo global de credenciales se RETIRA despues de copiarlo.
+        # Antes solo se copiaba, y ese google_token.json quedaba vivo: fue
+        # exactamente la credencial que uso el hilo sin cuenta para mandar
+        # correos de Astral a clientes de Norkevin. Se renombra en vez de
+        # borrarse para no destruir nada de forma irreversible.
+        if name == 'google_token' and os.path.exists(old_path):
+            os.replace(old_path, old_path + '.retirado')
 
     # 6. Si Recurrente estaba configurado a la vieja usanza (una sola llave
     #    global por variable de entorno), se migra a las credenciales
@@ -5755,8 +5762,40 @@ def api_admin_tenant_inventory():
         if sin_cuenta:
             huerfanos[tabla] = {'total': len(sin_cuenta), 'ejemplos': sin_cuenta[:10]}
 
+    # Credenciales de Gmail en disco. Kevin: "quiero terminar esta correccion
+    # sin ningun credential fallback historico escondido". Se listan TODAS
+    # las que existen, incluida la global vieja, para poder verla y decidir.
+    credenciales = []
+    try:
+        for archivo in sorted(os.listdir(store.data_dir)):
+            if not archivo.startswith('google_token'):
+                continue
+            ruta = os.path.join(store.data_dir, archivo)
+            info = {'archivo': archivo, 'de_cuenta': None, 'email': None,
+                    'tiene_refresh_token': False, 'modificado': None,
+                    'retirado': archivo.endswith('.retirado')}
+            if archivo.startswith('google_token_'):
+                info['de_cuenta'] = archivo[len('google_token_'):].replace('.json', '')
+            else:
+                # Sin sufijo de cuenta = la global vieja, la que uso el hilo
+                # sin sesion durante el incidente.
+                info['de_cuenta'] = 'GLOBAL (sin cuenta)'
+            try:
+                info['modificado'] = datetime.fromtimestamp(os.path.getmtime(ruta)).isoformat()
+                import json as _json_cred
+                with open(ruta, encoding='utf-8') as fh:
+                    tok = _json_cred.load(fh)
+                info['email'] = tok.get('email')
+                info['tiene_refresh_token'] = bool(tok.get('refresh_token'))
+            except Exception as e:
+                info['error'] = str(e)
+            credenciales.append(info)
+    except Exception as e:
+        credenciales.append({'error': str(e)})
+
     return jsonify({
         'ok': True,
+        'credenciales_gmail': credenciales,
         'huerfanos_sin_tenant': huerfanos,
         'tenants': [{'id': t.get('id'), 'name': t.get('name'),
                      'login_email': t.get('login_email'), 'active': t.get('active')}

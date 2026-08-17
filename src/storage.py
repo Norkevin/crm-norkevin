@@ -44,6 +44,10 @@ TENANT_SCOPED_TABLES = {
     'leads', 'clients', 'jobs', 'quotes', 'payments', 'contracts',
     'questionnaires', 'email_templates', 'packages', 'calendar',
     'files', 'mail_log',
+    # Correos generados que esperan aprobacion manual. Van scoped como todo
+    # lo demas: un pendiente de Astral no debe verse ni aprobarse desde
+    # Norkevin.
+    'pending_emails',
 }
 
 

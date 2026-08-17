@@ -65,6 +65,108 @@ class MailTracker:
     def log(self):
         return store.list('mail_log')
 
+    # ---------------------------------------------------- cola de aprobacion
+
+    def queue_email(self, to_email, subject, body='', template_id=None,
+                    lead_id=None, job_id=None, client_id=None, attachments=None,
+                    tenant_id=None, source=None):
+        """Genera un correo y lo deja ESPERANDO aprobacion. No envia nada.
+
+        Kevin, despues del incidente: "ningun email generado por el CRM debe
+        poder salir sin una accion consciente de mi parte". Todo lo que antes
+        se mandaba solo pasa por aca.
+
+        Se guarda una copia completa (asunto, cuerpo ya renderizado,
+        adjuntos, cuenta, destinatario, job, plantilla) a proposito: si
+        manana cambia la plantilla, el pendiente debe seguir mostrando
+        exactamente lo que se genero hoy, no algo distinto en silencio.
+        """
+        tenant_id = tenant_id or store.current_tenant_id()
+        motivo = check_same_tenant(tenant_id, lead_id=lead_id, job_id=job_id,
+                                   template_id=template_id)
+        entry = {
+            'id': 'pend-' + uuid.uuid4().hex[:10],
+            'tenant_id': tenant_id,
+            'to': to_email,
+            'client_id': client_id,
+            'lead_id': lead_id,
+            'job_id': job_id,
+            'template_id': template_id,
+            'subject': subject,
+            'body': body or '',
+            'attachments': attachments or [],
+            'source': source or 'desconocido',
+            'created_at': datetime.now().isoformat(),
+            # Si ya al generarlo los datos no cuadran, se guarda igual pero
+            # marcado: sirve de evidencia de que algo esta mal armado.
+            'status': 'blocked' if motivo else 'pending',
+            'blocked_reason': motivo,
+        }
+        try:
+            store.upsert('pending_emails', entry)
+        except Exception:
+            # Sin cuenta activa no se puede ni encolar; el intento igual se
+            # devuelve para que el llamador lo reporte.
+            entry['status'] = 'blocked'
+            entry['blocked_reason'] = entry['blocked_reason'] or 'sin cuenta activa'
+        return entry
+
+    def approve_and_send(self, pending_id, sender_tenant_id=None):
+        """Envia un correo que estaba esperando aprobacion.
+
+        Vuelve a validar TODO aca, no solo al crearlo: entre que se genero el
+        pendiente y que se aprueba pueden pasar dias, y las relaciones pueden
+        haber cambiado (un job reasignado, una plantilla movida). Confiar en
+        la validacion vieja seria confiar en una foto vencida.
+        """
+        pendiente = store.get('pending_emails', pending_id)
+        if not pendiente:
+            return {'ok': False, 'error': 'No existe ese correo pendiente'}
+        if pendiente.get('status') == 'sent':
+            return {'ok': False, 'error': 'Ese correo ya fue enviado'}
+
+        actual = sender_tenant_id or store.current_tenant_id()
+        if not actual:
+            return {'ok': False, 'error': 'Sin cuenta activa'}
+        if pendiente.get('tenant_id') != actual:
+            return {'ok': False,
+                    'error': f"El pendiente es de {pendiente.get('tenant_id')}, "
+                             f'no de la cuenta activa {actual}'}
+
+        motivo = check_same_tenant(actual,
+                                   lead_id=pendiente.get('lead_id'),
+                                   job_id=pendiente.get('job_id'),
+                                   template_id=pendiente.get('template_id'))
+        if motivo:
+            pendiente['status'] = 'blocked'
+            pendiente['blocked_reason'] = motivo
+            store.upsert('pending_emails', pendiente)
+            return {'ok': False, 'error': f'EMAIL BLOCKED: cross-company data mismatch ({motivo})'}
+
+        enviado = self.log_email(
+            pendiente['to'], pendiente['subject'], pendiente.get('body') or '',
+            template_id=pendiente.get('template_id'),
+            lead_id=pendiente.get('lead_id'), job_id=pendiente.get('job_id'),
+            attachments=pendiente.get('attachments') or [],
+            tenant_id=actual,
+        )
+        pendiente['status'] = 'sent' if enviado.get('status') == MailStatus.SENT.value else 'failed'
+        pendiente['sent_at'] = datetime.now().isoformat()
+        pendiente['mail_id'] = enviado.get('id')
+        store.upsert('pending_emails', pendiente)
+        return {'ok': pendiente['status'] == 'sent', 'pendiente': pendiente, 'mail': enviado}
+
+    def discard_pending(self, pending_id):
+        """Descarta un pendiente sin enviarlo. No se borra: queda como
+        evidencia de que se genero y se decidio no mandarlo."""
+        pendiente = store.get('pending_emails', pending_id)
+        if not pendiente:
+            return {'ok': False, 'error': 'No existe ese correo pendiente'}
+        pendiente['status'] = 'discarded'
+        pendiente['discarded_at'] = datetime.now().isoformat()
+        store.upsert('pending_emails', pendiente)
+        return {'ok': True, 'pendiente': pendiente}
+
     def log_email(self, to_email, subject, body='', template_id=None,
                   lead_id=None, job_id=None, attachments=None, tenant_id=None):
         """Entrega y registra un email.

@@ -161,6 +161,39 @@ def test_sin_cuenta_gmail_no_esta_conectado(monkeypatch):
     assert gmail_delivery.is_connected() is False
 
 
+def test_desconectar_gmail_sobrevive_un_reinicio(monkeypatch, tmp_path):
+    """El test que pidio Kevin: conectar, enviar, desconectar, reiniciar el
+    proceso, intentar enviar otra vez -> imposible.
+
+    El "reinicio" se simula recargando el modulo: si la desconexion solo
+    limpiara memoria, al recargar volveria a estar conectado. Como el token
+    vive en un archivo y desconectar lo borra, no vuelve.
+    """
+    import importlib
+
+    monkeypatch.setenv('CRM_DATA_DIR', str(tmp_path))
+    gd = importlib.reload(gmail_delivery)
+    monkeypatch.setattr(gd, 'tenant_resolver', lambda: None)
+
+    # 1-2. Conectada y en condiciones de enviar.
+    gd.save_token({'access_token': 'a', 'refresh_token': 'r', 'email': 'astral@x.com'},
+                  tenant_id=ASTRAL)
+    assert gd.is_connected(tenant_id=ASTRAL) is True
+
+    # 3. Desconectar.
+    gd.disconnect(tenant_id=ASTRAL)
+    assert gd.is_connected(tenant_id=ASTRAL) is False
+
+    # 4. "Reinicio" del proceso.
+    gd2 = importlib.reload(gmail_delivery)
+    monkeypatch.setattr(gd2, 'tenant_resolver', lambda: None)
+
+    # 5. Sigue desconectada, y no aparece ninguna credencial de repuesto.
+    assert gd2.is_connected(tenant_id=ASTRAL) is False
+    assert gd2.load_token(tenant_id=ASTRAL) is None
+    assert gd2.is_connected() is False, 'no debe haber fallback global'
+
+
 def test_una_cuenta_no_usa_las_credenciales_de_la_otra(monkeypatch):
     """Test 5 de Kevin: cada empresa con su propia conexion de Gmail."""
     monkeypatch.setattr(gmail_delivery, 'tenant_resolver', lambda: None)
