@@ -6,6 +6,7 @@ Para envio real, configurar EMAIL_DELIVERY_MODE=real y EMAIL_PROVIDER=smtp
 o EMAIL_PROVIDER=resend con sus credenciales.
 """
 import json
+import logging
 import os
 import smtplib
 import ssl
@@ -16,6 +17,8 @@ from email.message import EmailMessage
 from pathlib import Path
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -182,6 +185,22 @@ def _send_gmail(to_email, subject, body, *, attachments=None, metadata=None):
 def send_email(to_email, subject, body='', *, attachments=None, metadata=None):
     if not to_email:
         return DeliveryResult(ok=False, provider='none', status='failed', error='Destinatario vacio')
+
+    # Freno de emergencia global. Nace de un incidente real: un hilo en
+    # segundo plano mando cientos de correos a clientes reales, firmados con
+    # la cuenta de un negocio y dirigidos a los clientes del otro.
+    #
+    # Es a proposito el ULTIMO punto por el que pasa todo correo, sin importar
+    # quien lo pida (scheduler, boton manual, cuestionario, recordatorio): con
+    # DISABLE_OUTBOUND_EMAIL=1 no sale nada de aca. Apagar solo el scheduler
+    # no alcanzaba porque cualquier otro camino podia seguir enviando.
+    if os.environ.get('DISABLE_OUTBOUND_EMAIL') == '1':
+        logger.warning(
+            'ENVIO BLOQUEADO por DISABLE_OUTBOUND_EMAIL=1 -> "%s" a %s',
+            subject, to_email,
+        )
+        return DeliveryResult(ok=False, provider='blocked', status='blocked',
+                              error='Envio de correo deshabilitado (DISABLE_OUTBOUND_EMAIL=1)')
 
     # Si la cuenta activa conecto su Gmail, se usa automaticamente sin
     # necesidad de tocar EMAIL_DELIVERY_MODE/EMAIL_PROVIDER. tenant_id
