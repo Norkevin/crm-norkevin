@@ -9382,7 +9382,27 @@ def _reminder_scheduler_loop():
 
 
 def start_reminder_scheduler():
+    """APAGADO POR DEFECTO tras un incidente real de envio masivo.
+
+    Este hilo mandaba correos DE VERDAD sin que nadie los pidiera, y con los
+    133 jobs importados de Studio Ninja (todos con fechas pasadas) eso se
+    convirtio en cientos de correos a clientes reales. Peor: corre fuera de
+    cualquier request, asi que store.list('jobs') NO filtra por tenant --
+    mezclaba los clientes de Norkevin con la firma de Astral.
+
+    Para volver a encenderlo hay que arreglar antes las dos cosas:
+      1. que respete el tenant de cada job;
+      2. que NUNCA dispare steps con fecha anterior al arranque (un job
+         importado con fecha vieja no es un correo pendiente de enviar).
+    Y aun asi deberia arrancar en modo simulacion primero.
+    """
     global _reminder_thread_started
+    if os.environ.get('ENABLE_REMINDER_SCHEDULER') != '1':
+        logger.warning(
+            'Scheduler de recordatorios APAGADO (ENABLE_REMINDER_SCHEDULER != 1). '
+            'No se enviara ningun correo automatico.'
+        )
+        return
     if _reminder_thread_started:
         return
     _reminder_thread_started = True
