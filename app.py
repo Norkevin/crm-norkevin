@@ -1933,6 +1933,7 @@ def _require_login():
         '/api/admin/tenant-inventory',
         '/api/admin/workflow-cleanup',
         '/api/admin/orphan-audit',
+        '/api/admin/public-links-audit',
         '/api/admin/incident-report',
         '/api/admin/import-astral-leads',
     ) and request.args.get('token') == _ADMIN_ONE_TIME_TOKEN:
@@ -4335,7 +4336,8 @@ def api_admin_migrate_to_multi_tenant():
     unexpected = {}
     for table in sorted(TENANT_SCOPED_TABLES):
         counts = {}
-        for r in store.list_privileged(table, reason='migracion a multi-cuenta (admin)'):
+        for r in store.list_privileged(table, scope='all_tenants',
+                                          reason='migracion a multi-cuenta (admin)'):
             tid = r.get('tenant_id') or '(sin tenant_id)'
             counts[tid] = counts.get(tid, 0) + 1
         report[table] = counts
@@ -4373,7 +4375,8 @@ def api_admin_migrate_to_multi_tenant():
     # 3. Backfill: sin tenant_id o con el stub viejo -> Astral Weddings.
     migrated = {}
     for table in sorted(TENANT_SCOPED_TABLES):
-        records = store.list_privileged(table, reason='migracion a multi-cuenta (admin)')
+        records = store.list_privileged(table, scope='all_tenants',
+                                          reason='migracion a multi-cuenta (admin)')
         changed = 0
         for r in records:
             if not r.get('tenant_id') or r.get('tenant_id') == 'tenant-astral':
@@ -5856,7 +5859,8 @@ def api_admin_incident_report():
     # pertenecia realmente quien lo recibio (independiente de quien envio).
     dueno_por_email = {}
     for tabla in ('clients', 'leads'):
-        for r in store.list_privileged(tabla, reason='reporte del incidente (admin)'):
+        for r in store.list_privileged(tabla, scope='all_tenants',
+                                            reason='reporte del incidente (admin)'):
             correo = (r.get('email') or '').strip().lower()
             if correo and r.get('tenant_id'):
                 dueno_por_email.setdefault(correo, r['tenant_id'])
@@ -5864,7 +5868,8 @@ def api_admin_incident_report():
     nombres = {t.get('id'): t.get('name') for t in store.list('tenants')}
 
     entradas = []
-    for m in store.list_privileged('mail_log', reason='reporte del incidente (admin)'):
+    for m in store.list_privileged('mail_log', scope='all_tenants',
+                                    reason='reporte del incidente (admin)'):
         cuando = m.get('sent_at') or ''
         if desde and cuando[:10] < desde:
             continue
@@ -5923,6 +5928,80 @@ def api_admin_incident_report():
     })
 
 
+@app.route('/api/admin/public-links-audit')
+def api_admin_public_links_audit():
+    """Clasifica los enlaces publicos existentes. SOLO LECTURA, no rota nada.
+
+    Los enlaces /quotes /contracts /questionnaires /portal son bearer: el
+    cliente los abre sin sesion, el enlace ES la credencial. Por eso su
+    seguridad depende de que el id no se pueda adivinar, y los importados de
+    Studio Ninja se construyeron con el nombre de la boda
+    (contract-sn-boda-rebeca-y-jos), o sea reconstruibles por cualquiera que
+    sepa como se llamaba la boda.
+
+    Este endpoint solo cuenta y clasifica para poder decidir. La rotacion es
+    una decision de Kevin y NO se ejecuta desde aca.
+    """
+    import re as _re_links
+
+    # uuid4 recortado a 8 hex: lo que genera la app hoy.
+    ALEATORIO = _re_links.compile(r'^[a-z]+-[0-9a-f]{8}$')
+    LEGACY_SN = _re_links.compile(r'^[a-z]+-sn-')
+
+    def clasificar(record):
+        rid = str(record.get('id') or '')
+        if record.get('public_token'):
+            return 'ALREADY_MIGRATED'
+        if not rid:
+            return 'INVALID'
+        if LEGACY_SN.match(rid):
+            # Derivado del nombre de la boda: adivinable.
+            return 'PREDICTABLE_LEGACY'
+        if ALEATORIO.match(rid):
+            return 'SECURE_UUID'
+        return 'MISSING_TOKEN'
+
+    TABLAS = (('quotes', 'quote'), ('contracts', 'contract'),
+              ('questionnaires', 'questionnaire'), ('clients', 'portal'))
+
+    resumen = {}
+    ejemplos = []
+    for tabla, tipo in TABLAS:
+        registros = store.list_privileged(
+            tabla, scope='all_tenants', reason='auditoria de enlaces publicos (admin)')
+        conteo = {}
+        for r in registros:
+            clase = clasificar(r)
+            conteo[clase] = conteo.get(clase, 0) + 1
+            if clase == 'PREDICTABLE_LEGACY' and len(ejemplos) < 25:
+                ejemplos.append({
+                    'tipo': tipo,
+                    'id': r.get('id'),
+                    'tenant_id': r.get('tenant_id'),
+                    # Nunca el token completo (aca todavia no hay, pero la
+                    # forma queda fijada para cuando exista).
+                    'token_nuevo': 'GENERATE_ON_COMMIT',
+                    'alias_legacy': 'conservar',
+                })
+        resumen[tipo] = conteo
+
+    return jsonify({
+        'ok': True,
+        'clasificacion': resumen,
+        'ejemplos_predecibles': ejemplos,
+        'leyenda': {
+            'SECURE_UUID': 'id aleatorio (uuid4), no se puede adivinar',
+            'PREDICTABLE_LEGACY': 'derivado del nombre de la boda: reconstruible',
+            'MISSING_TOKEN': 'no sigue ningun formato conocido, revisar a mano',
+            'ALREADY_MIGRATED': 'ya tiene public_token separado del id',
+            'INVALID': 'sin id',
+        },
+        'nota': ('Solo lectura. No se genero ni roto ningun token: en dry-run '
+                 'se muestra GENERATE_ON_COMMIT para que la vista previa no '
+                 'difiera de la ejecucion real.'),
+    })
+
+
 @app.route('/api/admin/orphan-audit')
 def api_admin_orphan_audit():
     """Inventario de registros sin empresa asignada. SOLO LECTURA.
@@ -5955,7 +6034,8 @@ def api_admin_orphan_audit():
     tabla_resumen = []
     huerfanos = []
     for tabla in sorted(TENANT_SCOPED_TABLES):
-        registros = store.list_privileged(tabla, reason='auditoria de huerfanos (admin)')
+        registros = store.list_privileged(tabla, scope='all_tenants',
+                                        reason='auditoria de huerfanos (admin)')
         por_cuenta = {tid: 0 for tid in tenants}
         sin_cuenta = 0
         desconocidas = 0
@@ -6046,7 +6126,8 @@ def api_admin_workflow_cleanup():
     # Huella financiera ANTES, para poder demostrar que no se movio nada.
     def _huella_financiera():
         huella = {}
-        for p in store.list_privileged('payments', reason='huella financiera antes/despues (admin)'):
+        for p in store.list_privileged('payments', scope='all_tenants',
+                                            reason='huella financiera antes/despues (admin)'):
             huella[p.get('id')] = (p.get('amount'), p.get('status'),
                                    p.get('due_date'), p.get('paid_date'))
         return huella
@@ -6184,7 +6265,7 @@ def api_admin_tenant_inventory():
     huerfanos = {}
     for tabla in sorted(TENANT_SCOPED_TABLES):
         sin_cuenta = [r.get('id') for r in store.list_privileged(
-            tabla, reason='inventario por empresa (admin)') if not r.get('tenant_id')]
+            tabla, scope='all_tenants', reason='inventario por empresa (admin)') if not r.get('tenant_id')]
         if sin_cuenta:
             huerfanos[tabla] = {'total': len(sin_cuenta), 'ejemplos': sin_cuenta[:10]}
 

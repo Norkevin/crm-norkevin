@@ -44,6 +44,63 @@ def requires_job_relation(subject='', template_id=None, source=''):
     return any(p in texto for p in TIPOS_QUE_EXIGEN_JOB)
 
 
+# Estados de un correo en la cola. La distincion clave que pidio Kevin:
+#
+#   BLOQUEADO = una regla de seguridad decidio que NO debia enviarse
+#               (cruce de empresas, Gmail desconectado, adjunto ajeno).
+#   FALLO     = estaba autorizado, pero el proveedor fallo (error de Gmail,
+#               timeout, red).
+#
+# Mezclarlos haria que un problema de infraestructura se viera como un
+# problema de seguridad, y al reves -- que es peor.
+PENDIENTE = 'pending'
+ENVIANDO = 'sending'
+ENVIADO = 'sent'
+BLOQUEADO = 'blocked'
+FALLO = 'failed'
+CANCELADO = 'discarded'
+
+
+def check_attachments_same_tenant(tenant_id, attachments):
+    """Ningun adjunto puede venir de otra empresa.
+
+    Aunque el destinatario fuera el correcto, mandarle la factura o el
+    contrato de otra empresa seria igual de grave que el incidente original.
+
+    Los adjuntos pueden venir como dict con referencias ({'invoice_id':...},
+    {'contract_id':...}, {'file_id':...}) o como texto suelto; solo se
+    validan los que apuntan a un registro real.
+    """
+    for adj in attachments or []:
+        if not isinstance(adj, dict):
+            continue
+        for campo, tabla, etiqueta in (
+            ('invoice_id', 'payments', 'factura'),
+            ('payment_id', 'payments', 'factura'),
+            ('contract_id', 'contracts', 'contrato'),
+            ('quote_id', 'quotes', 'cotizacion'),
+            ('file_id', 'files', 'archivo'),
+            ('questionnaire_id', 'questionnaires', 'cuestionario'),
+        ):
+            valor = adj.get(campo)
+            if not valor:
+                continue
+            campo_busqueda = 'invoice_id' if campo == 'invoice_id' else 'id'
+            dueno = store.owner_tenant_of(tabla, valor, field=campo_busqueda)
+            if dueno is None:
+                # Adjunto que no corresponde a ningun registro: no se puede
+                # verificar de quien es, asi que no sale.
+                log_security_event('ADJUNTO_SIN_DUENO', tabla=tabla,
+                                   registro=valor, cuenta_activa=tenant_id)
+                return f'el {etiqueta} adjunto no se pudo verificar'
+            if dueno != tenant_id:
+                log_security_event('CROSS_TENANT_ATTACHMENT_BLOCKED', tabla=tabla,
+                                   registro=valor, cuenta_activa=tenant_id,
+                                   cuenta_del_registro=dueno)
+                return f'el {etiqueta} adjunto no pertenece a esta empresa'
+    return None
+
+
 def check_same_tenant(tenant_id, *, lead_id=None, job_id=None, template_id=None):
     """Verifica que todo lo que interviene en un correo sea de la MISMA cuenta.
 
@@ -77,6 +134,27 @@ def check_same_tenant(tenant_id, *, lead_id=None, job_id=None, template_id=None)
             )
             return f'el {etiqueta} no pertenece a esta empresa'
     return None
+
+
+def _anotar(pendiente, nuevo_estado, *, actor=None, motivo=None):
+    """Cambia el estado dejando rastro, sin sobrescribir lo anterior.
+
+    Kevin: "no quiero sobreescribir el historial... quiero poder reconstruir
+    toda la secuencia". Cada paso se agrega a una lista, asi
+    Pendiente -> Enviando -> Fallo queda entero y no solo el ultimo estado.
+    """
+    anterior = pendiente.get('status')
+    pendiente['status'] = nuevo_estado
+    if motivo:
+        pendiente['blocked_reason' if nuevo_estado == BLOQUEADO else 'error'] = motivo
+    pendiente.setdefault('historial', []).append({
+        'de': anterior,
+        'a': nuevo_estado,
+        'cuando': datetime.now().isoformat(),
+        'actor': actor or 'sistema',
+        'motivo': motivo,
+    })
+    return pendiente
 
 
 class MailTracker:
@@ -141,7 +219,7 @@ class MailTracker:
             entry['blocked_reason'] = entry['blocked_reason'] or 'sin cuenta activa'
         return entry
 
-    def approve_and_send(self, pending_id, sender_tenant_id=None):
+    def approve_and_send(self, pending_id, sender_tenant_id=None, actor=None):
         """Envia un correo que estaba esperando aprobacion.
 
         Vuelve a validar TODO aca, no solo al crearlo: entre que se genero el
@@ -169,11 +247,22 @@ class MailTracker:
                                    lead_id=pendiente.get('lead_id'),
                                    job_id=pendiente.get('job_id'),
                                    template_id=pendiente.get('template_id'))
+        # Los adjuntos se validan aparte y AL ENVIAR: un job pudo cambiar de
+        # empresa despues de generarse el pendiente.
+        if not motivo:
+            motivo = check_attachments_same_tenant(actual, pendiente.get('attachments'))
         if motivo:
-            pendiente['status'] = 'blocked'
-            pendiente['blocked_reason'] = motivo
+            _anotar(pendiente, BLOQUEADO, actor=actor, motivo=motivo)
             store.upsert('pending_emails', pendiente)
-            return {'ok': False, 'error': f'EMAIL BLOCKED: cross-company data mismatch ({motivo})'}
+            # Se devuelve tambien el pendiente para que la pantalla pueda
+            # mostrar el estado nuevo y su motivo sin volver a consultarlo.
+            return {'ok': False, 'error': f'EMAIL BLOCKED: {motivo}',
+                    'pendiente': pendiente}
+
+        # Se marca ENVIANDO antes de intentar, para que la secuencia quede
+        # completa en el historial aunque el envio se caiga a la mitad.
+        _anotar(pendiente, ENVIANDO, actor=actor)
+        store.upsert('pending_emails', pendiente)
 
         enviado = self.log_email(
             pendiente['to'], pendiente['subject'], pendiente.get('body') or '',
@@ -182,11 +271,44 @@ class MailTracker:
             attachments=pendiente.get('attachments') or [],
             tenant_id=actual,
         )
-        pendiente['status'] = 'sent' if enviado.get('status') == MailStatus.SENT.value else 'failed'
+        ok = enviado.get('status') == MailStatus.SENT.value
+        # Si el correo no salio, distinguir POR QUE: si mail_tracker lo
+        # bloqueo es seguridad; si el proveedor fallo es infraestructura.
+        if ok:
+            estado_final = ENVIADO
+        elif enviado.get('status') == MailStatus.BLOCKED.value:
+            estado_final = BLOQUEADO
+        else:
+            estado_final = FALLO
+        _anotar(pendiente, estado_final, actor=actor,
+                motivo=enviado.get('blocked_reason') or enviado.get('delivery_error'))
         pendiente['sent_at'] = datetime.now().isoformat()
         pendiente['mail_id'] = enviado.get('id')
         store.upsert('pending_emails', pendiente)
-        return {'ok': pendiente['status'] == 'sent', 'pendiente': pendiente, 'mail': enviado}
+        return {'ok': ok, 'pendiente': pendiente, 'mail': enviado}
+
+    def retry_failed(self, pending_id, actor=None):
+        """Reintenta un correo que fallo. MANUAL a proposito.
+
+        Kevin: "nada de fallo -> enviar automaticamente otra vez". Un
+        reintento automatico despues de un fallo es como se multiplican los
+        envios cuando algo va mal.
+
+        Solo aplica a FALLO (problema de infraestructura). Un BLOQUEADO no se
+        reintenta: la razon por la que se bloqueo sigue ahi, y forzarlo seria
+        saltarse la validacion.
+        """
+        pendiente = store.get('pending_emails', pending_id)
+        if not pendiente:
+            return {'ok': False, 'error': 'No encontrado'}
+        if pendiente.get('status') != FALLO:
+            return {'ok': False,
+                    'error': 'Solo se puede reintentar un correo que fallo por '
+                             'un problema tecnico'}
+        # Vuelve a pendiente y pasa otra vez por TODAS las validaciones.
+        _anotar(pendiente, PENDIENTE, actor=actor, motivo='reintento manual')
+        store.upsert('pending_emails', pendiente)
+        return self.approve_and_send(pending_id, actor=actor)
 
     def discard_pending(self, pending_id):
         """Descarta un pendiente sin enviarlo. No se borra: queda como

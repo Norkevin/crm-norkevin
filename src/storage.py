@@ -217,7 +217,7 @@ class JsonStore:
         actuando para validar que todo lo del correo sea de esa misma."""
         return self._current_tenant_id()
 
-    def list_privileged(self, table, *, tenant_id=None, reason):
+    def list_privileged(self, table, *, tenant_id=None, scope=None, reason):
         """Lectura que se SALTA el aislamiento normal. Es una excepcion.
 
         Existe para tres casos legitimos, todos fuera del flujo de un usuario
@@ -237,6 +237,15 @@ class JsonStore:
         Kevin: "no quiero que _read_raw se convierta en la nueva forma facil
         de saltarse el sistema".
         """
+        # Kevin: "no quiero que omitir tenant signifique automaticamente
+        # acceso total". Ver todas las empresas hay que pedirlo por su
+        # nombre, no conseguirlo por descuido.
+        if tenant_id is None and scope != 'all_tenants':
+            raise ValueError(
+                f"list_privileged('{table}') sin tenant_id necesita "
+                "scope='all_tenants' explicito. Omitir la empresa no da "
+                'acceso a todas.'
+            )
         log_security_event('LECTURA_PRIVILEGIADA', tabla=table,
                            cuenta=tenant_id or 'TODAS', motivo=reason)
         records = self._read_raw(table)

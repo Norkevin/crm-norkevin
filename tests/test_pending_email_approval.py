@@ -156,7 +156,9 @@ def test_revalida_al_enviar_no_solo_al_crear(client, monkeypatch):
         ctx.pop()
 
     assert resultado['ok'] is False
-    assert 'cross-company' in resultado['error']
+    assert 'EMAIL BLOCKED' in resultado['error']
+    # Sin decir de que empresa es ahora: eso revelaria su existencia.
+    assert NORKEVIN not in resultado['error']
 
 
 def test_descartar_no_envia_y_deja_rastro(client, monkeypatch):
