@@ -1906,24 +1906,69 @@ def dev_login():
     return redirect(request.args.get('next') or '/dashboard')
 
 
-# Rutas administrativas: cruzan las dos empresas, asi que van detras del
-# token de un solo uso y nunca detras de "estar logueado".
-_ADMIN_PATHS = (
-    '/api/admin/debug-production-workflow',
-    '/api/admin/cleanup-duplicate-questionnaires',
-    '/api/admin/reconcile-studio-ninja-jobs',
-    '/api/admin/fix-secondary-clients',
-    '/api/admin/list-studio-ninja-clients',
-    '/api/admin/tenant-inventory',
-    '/api/admin/workflow-cleanup',
-    '/api/admin/orphan-audit',
-    '/api/admin/public-links-audit',
-    '/api/admin/incident-report',
-    '/api/admin/import-astral-leads',
-    # Reescribe tenant_id en las dos empresas: menos aun puede estar
-    # detras de una sesion normal.
-    '/api/admin/migrate-to-multi-tenant',
-)
+# ---------------------------------------------------------------------------
+# Capacidades administrativas
+# ---------------------------------------------------------------------------
+#
+# Kevin (punto 9): "evita que todo dependa solamente de que una URL comience
+# con /api/admin/".
+#
+# Cada ruta administrativa declara DOS cosas: que hace, y a que nivel opera.
+# El nivel es la distincion del punto 8, que es la que no puede volver a
+# mezclarse:
+#
+#   NIVEL_GLOBAL  -- cruza las dos empresas. Token de admin, nunca sesion.
+#                    Sin token responde 404, aunque haya sesion valida.
+#   NIVEL_EMPRESA -- opera SOLO sobre la empresa de la sesion, como cualquier
+#                    otra pantalla. Se llama desde Settings y no ve nada de la
+#                    otra empresa. Es "administrativa" en el sentido de poco
+#                    frecuente y peligrosa, no de cruzar negocios.
+#
+# Deliberadamente NO es un sistema de permisos: no hay roles, ni herencia, ni
+# base de datos. Es una lista con un test que la mantiene honesta:
+#
+#   1. una ruta /api/admin/ nueva que nadie declaro hace fallar un test, asi
+#      que no puede quedar desprotegida por olvido;
+#   2. una ruta declarada NIVEL_EMPRESA que use scope='all_tenants' tambien
+#      hace fallar un test -- la etiqueta no puede mentir;
+#   3. el log dice que capacidad se uso, no solo que URL se llamo.
+
+NIVEL_GLOBAL = 'global'
+NIVEL_EMPRESA = 'empresa'
+
+CAP_TENANT_AUDIT = 'tenant_audit'          # leer/contar entre empresas, sin escribir
+CAP_INCIDENT_REPORT = 'incident_report'    # reconstruir el incidente desde mail_log
+CAP_WORKFLOW_CLEANUP = 'workflow_cleanup'  # tocar workflows (con dry-run)
+CAP_MIGRATION = 'migration'                # reescribir datos: lo mas peligroso
+CAP_DATA_IMPORT = 'data_import'            # crear registros desde un export
+CAP_DATA_RESET = 'data_reset'              # vaciar los datos de UNA empresa
+
+_ADMIN_CAPABILITIES = {
+    # --- cruzan las dos empresas: solo con token
+    '/api/admin/tenant-inventory': (CAP_TENANT_AUDIT, NIVEL_GLOBAL),
+    '/api/admin/orphan-audit': (CAP_TENANT_AUDIT, NIVEL_GLOBAL),
+    '/api/admin/public-links-audit': (CAP_TENANT_AUDIT, NIVEL_GLOBAL),
+    '/api/admin/list-studio-ninja-clients': (CAP_TENANT_AUDIT, NIVEL_GLOBAL),
+    '/api/admin/debug-production-workflow': (CAP_TENANT_AUDIT, NIVEL_GLOBAL),
+    '/api/admin/incident-report': (CAP_INCIDENT_REPORT, NIVEL_GLOBAL),
+    '/api/admin/workflow-cleanup': (CAP_WORKFLOW_CLEANUP, NIVEL_GLOBAL),
+    '/api/admin/cleanup-duplicate-questionnaires': (CAP_WORKFLOW_CLEANUP, NIVEL_GLOBAL),
+    '/api/admin/migrate-to-multi-tenant': (CAP_MIGRATION, NIVEL_GLOBAL),
+    '/api/admin/reconcile-studio-ninja-jobs': (CAP_MIGRATION, NIVEL_GLOBAL),
+    '/api/admin/fix-secondary-clients': (CAP_MIGRATION, NIVEL_GLOBAL),
+    '/api/admin/import-astral-leads': (CAP_DATA_IMPORT, NIVEL_GLOBAL),
+
+    # --- solo la empresa de la sesion. Se llaman desde Settings, y el
+    # aislamiento del store ya las limita a esa empresa: subirlas a token
+    # romperia una pantalla que Kevin usa, sin ganar aislamiento.
+    '/api/admin/reset-test-data': (CAP_DATA_RESET, NIVEL_EMPRESA),
+    '/api/admin/import-studio-ninja': (CAP_DATA_IMPORT, NIVEL_EMPRESA),
+}
+
+# Solo las globales van detras del token. Se derivan del mapa para que no
+# puedan desincronizarse.
+_ADMIN_PATHS = tuple(sorted(ruta for ruta, (_, nivel) in _ADMIN_CAPABILITIES.items()
+                            if nivel == NIVEL_GLOBAL))
 
 
 @app.before_request
@@ -1954,10 +1999,14 @@ def _require_login():
             # Estar logueado NO alcanza: estas rutas cruzan las dos empresas,
             # asi que sin el token no existen. 404 y no 403 a proposito, para
             # no confirmarle a nadie que la ruta esta ahi.
-            log_security_event('RUTA_ADMIN_SIN_TOKEN', ruta=request.path)
+            log_security_event('RUTA_ADMIN_SIN_TOKEN', ruta=request.path,
+                               capacidad=_ADMIN_CAPABILITIES[request.path][0])
             return jsonify({'ok': False, 'error': 'Not found'}), 404
         # Recien aca la peticion queda autorizada a mirar todas las empresas.
         g.is_admin_request = True
+        g.admin_capability = _ADMIN_CAPABILITIES[request.path][0]
+        log_security_event('CAPACIDAD_ADMIN_USADA', ruta=request.path,
+                           capacidad=g.admin_capability)
         return None
     if session.get('logged_in'):
         tenant_id = (session.get('tenant_id') or '').strip()

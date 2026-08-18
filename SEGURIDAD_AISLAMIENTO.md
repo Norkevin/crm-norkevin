@@ -26,7 +26,28 @@ Por eso `google_token_tenant-norkevin.json` contiene
 nombre asumiendo lo contrario va a mover la credencial de Astral a la
 empresa equivocada y a reproducir el incidente.
 
-Esta fijado en `tests/test_credential_isolation.py`.
+### Regla, sin excepciones
+
+**Ningun desarrollador debe deducir de que empresa es algo leyendo el string
+del id.**
+
+```python
+if 'norkevin' in tenant_id:      # NO
+if tenant_id.startswith('...'):  # NO
+if nombre == 'Astral':           # NO
+```
+
+La empresa se resuelve por el registro en `tenants`, nunca por como se
+escribe el id. Los ids son opacos a proposito: hoy uno miente, y manana
+cualquier otro puede empezar a mentir sin que nadie lo note.
+
+Los ids **no se renombran** por ahora -- estan en tokens de Gmail en disco,
+en `tenant_id` de miles de registros, y en enlaces publicos ya enviados.
+Renombrarlos es una migracion, no un rename.
+
+Esta fijado en `tests/test_credential_isolation.py`, y la advertencia esta
+repetida arriba de `src/storage.py`, que es donde un desarrollador la va a
+ver antes de escribir la linea equivocada.
 
 ---
 
@@ -318,6 +339,55 @@ si no traia token. Ahora, sin el token esas rutas responden **404** (no 403:
 no confirmamos que existan) y queda `RUTA_ADMIN_SIN_TOKEN` en el log.
 `/api/admin/migrate-to-multi-tenant` -- que reescribe `tenant_id` en las dos
 empresas -- entro a esa lista.
+
+La propiedad que hay que mantener:
+
+> `usuario autenticado` **no es** `operacion administrativa global autorizada`
+
+Son dos niveles distintos. Ser duenio de un negocio y estar logueado en el
+no da acceso a operaciones que tocan los dos.
+
+### 12.1 Mapa de capacidades administrativas
+
+Que una ruta este protegida no puede depender de que su URL empiece con
+`/api/admin/`. Cada una declara en `_ADMIN_CAPABILITIES` **que hace** y **a
+que nivel opera**:
+
+| Capacidad | Nivel | Rutas |
+|---|---|---|
+| `tenant_audit` | global | inventario, huerfanos, enlaces publicos, clientes SN, debug de workflow |
+| `incident_report` | global | reporte del incidente |
+| `workflow_cleanup` | global | limpieza de workflows, cuestionarios duplicados |
+| `migration` | global | migracion multi-cuenta, reconciliacion SN, clientes secundarios |
+| `data_import` | global / empresa | import de leads de Astral / import de Studio Ninja |
+| `data_reset` | empresa | vaciar datos de prueba |
+
+- **Nivel global** = cruza las dos empresas. Token de admin, nunca sesion.
+- **Nivel empresa** = opera solo sobre la empresa de la sesion, igual que
+  cualquier otra pantalla. Se llaman desde Settings; el aislamiento del store
+  ya las limita. Subirlas a token romperia una pantalla que Kevin usa sin
+  ganar nada de aislamiento.
+
+`_ADMIN_PATHS` (lo que exige token) se **deriva** del mapa, asi que no se
+pueden desincronizar. Tres tests lo sostienen:
+
+1. toda ruta `/api/admin/` que exista en el `url_map` tiene que estar
+   declarada -- una ruta nueva que nadie declaro hace fallar el test en vez
+   de quedar desprotegida en silencio;
+2. no hay entradas que apunten a rutas que ya no existen (dan la falsa
+   impresion de proteger algo);
+3. una ruta declarada de nivel empresa **no puede usar `scope='all_tenants'`**
+   -- se verifica leyendo el arbol de sintaxis, no el comentario. La etiqueta
+   no puede mentir.
+
+Esto **no** es un sistema de permisos: no hay roles, ni herencia, ni base de
+datos. Es una lista con tests. Cuando haga falta mas de un nivel de acceso,
+el mapa de que exige que ya esta escrito.
+
+Escribiendo estos tests aparecieron dos rutas que nadie habia clasificado:
+`/api/admin/reset-test-data` (vacia leads, clientes, jobs, pagos, contratos)
+e `/api/admin/import-studio-ninja`. Las dos operan solo sobre la empresa de
+la sesion, y quedaron declaradas como tales.
 
 ### Efecto secundario que hubo que arreglar
 

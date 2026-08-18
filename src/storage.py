@@ -1,23 +1,61 @@
 """
 storage.py - Capa de persistencia local basada en archivos JSON.
 
-Aislamiento multi-tenant (3 cuentas independientes: Astral Weddings,
-Norkevin Photography, Ramiro Cruz Photo): en vez de que cada una de las
-~250 rutas de app.py se acuerde de filtrar por tenant_id, el filtrado vive
-aca, en el unico choke point por el que pasan todas las lecturas/escrituras.
-`app.py` configura `store.tenant_resolver` una sola vez al arrancar
-(`store.tenant_resolver = lambda: session.get('tenant_id')`) -- este modulo
-NO importa Flask directamente para poder seguir siendo testeable/usable
-fuera de un request (scripts de migracion, el hilo de recordatorios en
-segundo plano).
+===========================================================================
+ANTES DE TOCAR NADA: los ids de empresa NO dicen de quien son
+===========================================================================
 
-Cuando el resolver devuelve None (sin sesion activa -- el hilo en segundo
-plano que revisa recordatorios de pago de TODAS las cuentas, o un script),
-list()/get() devuelven todo sin filtrar a proposito: esa es la unica
-situacion legitima donde "sin tenant" significa "todas las cuentas", no un
-bug. upsert() en cambio nunca escribe sin tenant_id si hay uno explicito en
-el propio registro (asi los procesos en segundo plano que ya tienen el
-job/lead/payment en mano pueden pasar el tenant_id correcto a mano)."""
+    tenant-norkevin              =  ASTRAL WEDDINGS
+    tenant-norkevin-photography  =  Norkevin Photography
+    tenant-ramiro-cruz           =  Ramiro Cruz Photo
+
+Si, `tenant-norkevin` es la cuenta de ASTRAL. Es un id heredado de cuando el
+proyecto era solo de Norkevin y Astral fue la primera cuenta creada. Por eso
+`google_token_tenant-norkevin.json` contiene astralweddingsgt@gmail.com y
+ESO ES CORRECTO.
+
+Regla, sin excepciones: **nunca deducir de que empresa es algo leyendo el
+string del id.** Nada de `if 'norkevin' in tenant_id`, ni startswith, ni
+comparar nombres. La empresa se resuelve por el registro en `tenants`.
+
+Quien "arregle" ese nombre asumiendo lo contrario va a mover la credencial
+de Astral a la empresa equivocada y a reproducir el incidente del 16 de
+agosto de 2026 -- correos firmados como Astral a clientes de Norkevin,
+recordatorios de cobro incluidos.
+
+Fijado en tests/test_credential_isolation.py.
+
+===========================================================================
+Aislamiento
+===========================================================================
+
+En vez de que cada una de las ~250 rutas de app.py se acuerde de filtrar por
+tenant_id, el filtrado vive aca, en el unico choke point por el que pasan
+todas las lecturas y escrituras. `app.py` configura los tres ganchos una
+sola vez al arrancar:
+
+    store.tenant_resolver        -> de que empresa es esta peticion
+    store.request_context_probe  -> estamos dentro de una peticion web?
+    store.admin_context_probe    -> es una ruta administrativa autorizada?
+
+Este modulo NO importa Flask, para poder seguir siendo usable fuera de un
+request (scripts de migracion, tests, el hilo de recordatorios).
+
+La regla es distinta segun donde se este, y esa distincion es el arreglo del
+incidente:
+
+  DENTRO de una peticion web y sin empresa activa -> NO SE VE NADA.
+      list() devuelve [] y lo registra, list_strict() levanta, upsert()
+      levanta. Antes devolvia todo, y por ahi salieron los correos.
+
+  FUERA de una peticion (script, test, hilo de fondo) -> sin filtro.
+      Ahi no hay usuario a quien aislar; el hilo de recordatorios trabaja
+      con las tres cuentas y lleva el tenant_id del registro en la mano.
+
+Cruzar empresas a proposito se hace SOLO con list_privileged(), que exige un
+motivo escrito, lo deja en el log, y para `scope='all_tenants'` ademas exige
+estar fuera de una peticion o dentro de una ruta administrativa autorizada.
+"""
 import copy
 import json
 import logging
