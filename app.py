@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from src.workflow import WorkflowEngine, LEAD_WORKFLOW, PRODUCTION_WORKFLOW
 from src.workflow.models import StepStatus, WorkflowStatus, TriggerType
 from src.storage import store, log_security_event
+from src import public_links, public_tokens
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1834,6 +1835,33 @@ _PUBLIC_TENANT_LOOKUP = (
 )
 
 
+# Ids que NO son tokens seguros: se construyeron a partir del nombre de la
+# boda al importar de Studio Ninja (contract-sn-boda-rebeca-y-jos), o sea que
+# alguien que sepa como se llamaba la boda puede reconstruir el enlace.
+_ID_LEGACY = re.compile(r'^[a-z]+-sn-')
+
+
+def _registrar_uso_legacy(tipo, record_id, tenant_id):
+    """Etapa 2 de la migracion de enlaces: dejar constancia de que alguien
+    entro por un enlace VIEJO.
+
+    Sin este dato la etapa 3 seria adivinar: no hay forma de saber que
+    enlaces antiguos siguen circulando de verdad (en correos ya enviados, en
+    WhatsApp, guardados por el cliente) y cuales murieron solos.
+
+    Del enlace se guarda una HUELLA, nunca el id completo: Kevin fue
+    explicito en que un enlace publico es una credencial, y una credencial
+    completa en un log es una credencial filtrada.
+    """
+    log_security_event(
+        'LEGACY_PUBLIC_LINK_USED',
+        tipo=tipo,
+        recurso=public_tokens.huella(record_id),
+        cuenta=tenant_id or 'desconocida',
+        cuando=datetime.now().isoformat(),
+    )
+
+
 def _resolve_public_tenant(path):
     """Deduce a que cuenta pertenece un enlace publico.
 
@@ -1862,7 +1890,13 @@ def _resolve_public_tenant(path):
         record_id = rest.split('/', 1)[0]
         if not record_id:
             return None
-        return store.owner_tenant_of(table, record_id, field=field)
+        tenant_id = store.owner_tenant_of(table, record_id, field=field)
+        # Se registra DESPUES de resolver la empresa, para poder decir de
+        # quien era el enlace. Solo registra, no cambia nada: los enlaces
+        # viejos siguen funcionando exactamente igual.
+        if tenant_id and _ID_LEGACY.match(str(record_id)):
+            _registrar_uso_legacy(table, record_id, tenant_id)
+        return tenant_id
     return None
 
 
@@ -6092,76 +6126,174 @@ def api_admin_incident_report():
 
 @app.route('/api/admin/public-links-audit')
 def api_admin_public_links_audit():
-    """Clasifica los enlaces publicos existentes. SOLO LECTURA, no rota nada.
+    """Clasifica los enlaces publicos existentes. SOLO LECTURA. DRY-RUN.
+
+    No genera, no rota, no desactiva y no toca ningun enlace. Kevin: "por
+    ahora esto debe servir unicamente para clasificacion y dry-run".
 
     Los enlaces /quotes /contracts /questionnaires /portal son bearer: el
-    cliente los abre sin sesion, el enlace ES la credencial. Por eso su
-    seguridad depende de que el id no se pueda adivinar, y los importados de
-    Studio Ninja se construyeron con el nombre de la boda
+    cliente los abre sin sesion, el enlace ES la credencial. Su seguridad
+    depende enteramente de que el id no se pueda adivinar -- y los importados
+    de Studio Ninja se construyeron con el nombre de la boda
     (contract-sn-boda-rebeca-y-jos), o sea reconstruibles por cualquiera que
-    sepa como se llamaba la boda.
+    supiera como se llamaba la boda.
 
-    Este endpoint solo cuenta y clasifica para poder decidir. La rotacion es
-    una decision de Kevin y NO se ejecuta desde aca.
+    Se cruzan DOS ejes, porque responden preguntas distintas:
+
+      forma del id  -> que tan adivinable es      (el riesgo)
+      actividad     -> si rotarlo romperia algo   (el costo)
+
+    Lo que hay que atender primero es la interseccion: predecible Y activo.
+
+    Parametro opcional: ?tenant_id=... para mirar una sola empresa.
     """
-    import re as _re_links
+    solo_tenant = (request.args.get('tenant_id') or '').strip() or None
 
     # uuid4 recortado a 8 hex: lo que genera la app hoy.
-    ALEATORIO = _re_links.compile(r'^[a-z]+-[0-9a-f]{8}$')
-    LEGACY_SN = _re_links.compile(r'^[a-z]+-sn-')
+    ALEATORIO = re.compile(r'^[a-z]+-[0-9a-f]{8}$')
 
-    def clasificar(record):
+    def forma_del_id(record):
         rid = str(record.get('id') or '')
-        if record.get('public_token'):
+        if record.get('public_token_hash'):
             return 'ALREADY_MIGRATED'
         if not rid:
             return 'INVALID'
-        if LEGACY_SN.match(rid):
-            # Derivado del nombre de la boda: adivinable.
+        if _ID_LEGACY.match(rid):
             return 'PREDICTABLE_LEGACY'
         if ALEATORIO.match(rid):
             return 'SECURE_UUID'
         return 'MISSING_TOKEN'
 
+    def _todos(tabla):
+        registros = store.list_privileged(
+            tabla, scope='all_tenants',
+            reason='auditoria de enlaces publicos (admin)')
+        if solo_tenant:
+            registros = [r for r in registros if r.get('tenant_id') == solo_tenant]
+        return registros
+
+    # Se leen una vez y se indexan: clasificar necesita mirar el job y los
+    # pagos de cada recurso, y recorrer las tablas por recurso seria
+    # cuadratico sobre miles de registros.
+    jobs = {j['id']: j for j in _todos('jobs') if j.get('id')}
+    pagos_por_job, pagos_por_cliente = {}, {}
+    for pago in _todos('payments'):
+        pagos_por_job.setdefault(pago.get('job_id'), []).append(pago)
+        pagos_por_cliente.setdefault(pago.get('client_id'), []).append(pago)
+
+    def contexto_de(record, es_portal=False):
+        if es_portal:
+            # El portal no cuelga de un job sino de una persona, y da acceso
+            # a todo lo suyo: basta con que UNO de sus jobs siga vivo.
+            suyos = [j for j in jobs.values()
+                     if j.get('client_id') == record.get('id')]
+            job = next((j for j in suyos if j.get('job_complete') is not True),
+                       suyos[0] if suyos else None)
+            return public_links.Contexto(
+                job=job,
+                pagos=pagos_por_cliente.get(record.get('id'), []),
+                tareas_pendientes=_tareas_pendientes(job),
+                cliente=record)
+        job_id = record.get('job_id')
+        job = jobs.get(job_id) if job_id else None
+        return public_links.Contexto(
+            job=job,
+            pagos=pagos_por_job.get(job_id, []) if job_id else [],
+            tareas_pendientes=_tareas_pendientes(job))
+
     TABLAS = (('quotes', 'quote'), ('contracts', 'contract'),
               ('questionnaires', 'questionnaire'), ('clients', 'portal'))
 
-    resumen = {}
-    ejemplos = []
+    por_forma, por_actividad, cruce = {}, {}, {}
+    atender = []   # predecible Y activo: lo que de verdad importa
+    revisar = []   # no se pudo determinar
     for tabla, tipo in TABLAS:
-        registros = store.list_privileged(
-            tabla, scope='all_tenants', reason='auditoria de enlaces publicos (admin)')
-        conteo = {}
-        for r in registros:
-            clase = clasificar(r)
-            conteo[clase] = conteo.get(clase, 0) + 1
-            if clase == 'PREDICTABLE_LEGACY' and len(ejemplos) < 25:
-                ejemplos.append({
+        forma_conteo, actividad_conteo = {}, {}
+        for r in _todos(tabla):
+            forma = forma_del_id(r)
+            veredicto = public_links.clasificar(
+                tipo, r, contexto_de(r, tipo == 'portal'))
+            estado = veredicto['estado']
+
+            forma_conteo[forma] = forma_conteo.get(forma, 0) + 1
+            actividad_conteo[estado] = actividad_conteo.get(estado, 0) + 1
+            clave = forma + '/' + estado
+            cruce[clave] = cruce.get(clave, 0) + 1
+
+            if forma != 'PREDICTABLE_LEGACY':
+                continue
+            if estado == public_links.ACTIVO and len(atender) < 50:
+                atender.append({
                     'tipo': tipo,
-                    'id': r.get('id'),
+                    # Huella, nunca el id completo: es una credencial.
+                    'recurso': public_tokens.huella(r.get('id')),
                     'tenant_id': r.get('tenant_id'),
-                    # Nunca el token completo (aca todavia no hay, pero la
-                    # forma queda fijada para cuando exista).
-                    'token_nuevo': 'GENERATE_ON_COMMIT',
-                    'alias_legacy': 'conservar',
+                    'por_que_sigue_activo': veredicto['razones'],
+                    'accion_propuesta': 'ETAPA_1: emitir token nuevo, mantener alias',
                 })
-        resumen[tipo] = conteo
+            elif estado == public_links.REVISAR and len(revisar) < 50:
+                revisar.append({
+                    'tipo': tipo,
+                    'recurso': public_tokens.huella(r.get('id')),
+                    'tenant_id': r.get('tenant_id'),
+                    'que_falta_saber': veredicto['dudas'],
+                })
+        por_forma[tipo] = forma_conteo
+        por_actividad[tipo] = actividad_conteo
 
     return jsonify({
         'ok': True,
-        'clasificacion': resumen,
-        'ejemplos_predecibles': ejemplos,
-        'leyenda': {
+        'dry_run': True,
+        'empresa': solo_tenant,
+        'por_forma_del_id': por_forma,
+        'por_actividad': por_actividad,
+        'cruce_forma_actividad': cruce,
+        'atender_primero': atender,
+        'requieren_revision': revisar,
+        'configuracion': {
+            'dias_actividad_reciente': public_links.DIAS_ACTIVIDAD_RECIENTE,
+            'dias_alias_legacy': public_links.DIAS_ALIAS_LEGACY,
+            'nota': ('dias_alias_legacy=0 significa SIN LIMITE: ningun enlace '
+                     'viejo se desactiva por el paso del tiempo mientras no se '
+                     'fije el periodo. Se cambia con LEGACY_LINK_ALIAS_DAYS.'),
+        },
+        'leyenda_forma': {
             'SECURE_UUID': 'id aleatorio (uuid4), no se puede adivinar',
             'PREDICTABLE_LEGACY': 'derivado del nombre de la boda: reconstruible',
             'MISSING_TOKEN': 'no sigue ningun formato conocido, revisar a mano',
-            'ALREADY_MIGRATED': 'ya tiene public_token separado del id',
+            'ALREADY_MIGRATED': 'ya tiene public_token_hash separado del id',
             'INVALID': 'sin id',
         },
-        'nota': ('Solo lectura. No se genero ni roto ningun token: en dry-run '
-                 'se muestra GENERATE_ON_COMMIT para que la vista previa no '
-                 'difiera de la ejecucion real.'),
+        'leyenda_actividad': {
+            'ACTIVO': 'cumple al menos una condicion de uso: rotarlo romperia algo',
+            'INACTIVO': 'se pudo evaluar todo lo que aplica y nada indica uso',
+            'REVIEW_REQUIRED': 'NO se pudo determinar con seguridad',
+        },
+        'nota': ('SOLO LECTURA y DRY-RUN. No se genero, roto ni desactivo '
+                 'ningun enlace. "atender_primero" es la interseccion que '
+                 'importa: id adivinable Y todavia en uso. Los ids salen como '
+                 'huella (ab12****89) y nunca completos, porque un enlace '
+                 'publico es una credencial.'),
     })
+
+
+def _tareas_pendientes(job):
+    """Cuantos pasos del workflow del job siguen sin cerrarse.
+
+    Devuelve None si no se pudo saber -- que NO es lo mismo que 0, y esa
+    diferencia es justo la que decide entre INACTIVO y REVIEW_REQUIRED.
+    """
+    if not job:
+        return None
+    try:
+        instancia = store.get_tenant_dict('workflow_instances').get(job.get('id'))
+    except Exception:
+        return None
+    pasos = (instancia or {}).get('steps') or []
+    if not pasos:
+        return None
+    return sum(1 for p in pasos
+               if str(p.get('status') or '').lower() in ('pending', 'in_progress', ''))
 
 
 @app.route('/api/admin/orphan-audit')

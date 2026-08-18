@@ -81,13 +81,19 @@ def huella(token_o_hash):
     Kevin: "no quiero que aparezcan completos en logs, auditorias,
     excepciones ni screenshots". Un token completo en un log es una
     credencial en un log.
+
+    Se usa `*` y no un caracter bonito a proposito: esta huella termina en
+    logs, y un handler que escriba en una consola cp1252 (Windows) se cae con
+    un UnicodeEncodeError al intentar escribir un caracter que no puede
+    representar. Un log de seguridad que revienta al registrar un evento de
+    seguridad es peor que uno feo.
     """
     if not token_o_hash:
         return ''
     s = str(token_o_hash)
     if len(s) <= 8:
-        return '•' * len(s)
-    return f'{s[:4]}{"•" * 6}{s[-2:]}'
+        return '*' * len(s)
+    return f'{s[:4]}{"*" * 6}{s[-2:]}'
 
 
 def emitir_para(record):

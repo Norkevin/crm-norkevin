@@ -130,7 +130,7 @@ def test_la_huella_nunca_muestra_el_token_completo():
 
     assert token not in h
     assert len(h) < len(token)
-    assert '•' in h
+    assert '*' in h
     # Deja ver lo justo para identificarlo sin poder reutilizarlo.
     assert h.startswith(token[:4])
 

@@ -302,9 +302,56 @@ Cubierto por tests: que el token viejo deje de funcionar al rotar, que el
 claro nunca quede persistido, que un registro sin `public_token_hash` no
 resuelva con nada, y que la huella nunca contenga el token.
 
-**Lo que falta para activarlo es una decision de Kevin, no codigo:** que
-enlaces se consideran "aun activos" y que pasa con los viejos (mantener como
-alias, expirar, redirigir o desactivar).
+### Que cuenta como enlace "activo" (decidido)
+
+No se define por la fecha de la boda. Un recurso esta **ACTIVO** si cumple
+**cualquiera** de estas nueve condiciones:
+
+1. el job todavia no tiene `Job Complete` marcado a mano;
+2. hay saldo pendiente;
+3. hay una factura pendiente o parcialmente pagada;
+4. el contrato sigue siendo relevante para consulta;
+5. el cuestionario sigue pendiente;
+6. la cotizacion no esta expirada ni rechazada definitivamente;
+7. el portal del cliente sigue habilitado;
+8. el enlace tuvo actividad reciente (si tenemos ese dato);
+9. el job todavia tiene tareas pendientes.
+
+Implementado en `src/public_links.py`, con tres respuestas posibles:
+
+| Respuesta | Significa |
+|---|---|
+| `ACTIVO` | se cumple al menos una condicion; rotar romperia algo en uso |
+| `INACTIVO` | se pudo evaluar **todo** lo que aplica y nada indica uso |
+| `REVIEW_REQUIRED` | **no se pudo determinar con seguridad** |
+
+`REVIEW_REQUIRED` no es un empate ni un "probablemente no": es la respuesta
+correcta cuando falta informacion. Meterlo en `INACTIVO` convertiria "no se"
+en permiso para desactivar el enlace de alguien.
+
+Dos decisiones que caen de ahi y conviene ver escritas:
+
+- **`Job Complete` sin marcar en ningun sentido** va a `REVIEW_REQUIRED`, no a
+  inactivo. Deducirlo de la fecha es exactamente lo que se pidio no hacer.
+- **`tareas_pendientes = 0` no es lo mismo que `tareas_pendientes = None`.**
+  Cero es informacion; None es su ausencia. Esa distincion es la que separa
+  `INACTIVO` de `REVIEW_REQUIRED` en casi todos los casos.
+- Un **contrato firmado con todo lo demas cerrado** tambien va a revision: es
+  el documento al que el cliente vuelve si hay un reclamo, y darlo por muerto
+  es una decision legal, no tecnica.
+
+El cruce se consulta en `GET /api/admin/public-links-audit` (dry-run, solo
+lectura). Cruza dos ejes porque responden preguntas distintas:
+
+```
+forma del id  ->  que tan adivinable es      (el riesgo)
+actividad     ->  si rotarlo romperia algo   (el costo)
+```
+
+Lo que hay que atender primero es la interseccion: `PREDICTABLE_LEGACY` +
+`ACTIVO`, que sale en `atender_primero` con el motivo por el que sigue vivo.
+
+---
 
 ## 12. Lecturas privilegiadas
 
@@ -411,3 +458,92 @@ Usos actuales, todos fuera del flujo de un usuario con sesion:
 | Inventario | todas | cuenta por empresa |
 | Limpieza de workflows | explicita por empresa | itera empresa por empresa |
 | Migracion a multi-cuenta | todas | necesita el archivo completo |
+
+---
+
+## 13. Migracion de enlaces publicos, por etapas
+
+Estrategia elegida: **alias temporal, no para siempre.**
+
+### Etapa 1 - emitir el token nuevo (NO EJECUTADA)
+
+Para cada recurso seleccionado se genera un `public_token` seguro. El enlace
+nuevo pasa a ser el principal; el viejo sigue funcionando como alias.
+
+Desde ese momento, **cualquier enlace que genere el CRM usa exclusivamente el
+token seguro**: copiar enlace, enviar contrato, enviar cuestionario, mostrar
+portal, y cualquier correo nuevo. El legacy queda solo por compatibilidad con
+lo que ya se mando; no puede volver a ser la URL que el sistema entrega.
+
+### Etapa 2 - registrar el uso del legacy (ACTIVA)
+
+Cuando alguien entra por un enlace viejo queda `LEGACY_PUBLIC_LINK_USED` con
+tipo de recurso, huella del enlace, empresa y fecha. Sin este dato la etapa 3
+seria adivinar: no hay forma de saber cuales siguen circulando -- en correos
+ya enviados, en WhatsApp, guardados por el cliente -- y cuales murieron solos.
+
+Esto **ya esta activo** y es lo unico de las tres etapas que corre hoy.
+Registrar no es romper: el enlace viejo resuelve exactamente igual que antes,
+y hay un test que lo fija.
+
+Del enlace se guarda `cont******va`, nunca el id completo. Un enlace publico
+es una credencial, y una credencial completa en un log es una credencial
+filtrada. La huella usa `*` y no un caracter decorativo a proposito: un
+handler de logs escribiendo a una consola cp1252 se cae con
+`UnicodeEncodeError`, y un log de seguridad que revienta al registrar un
+evento de seguridad es peor que uno feo.
+
+### Etapa 3 - desactivar (SIN FECHA)
+
+El periodo es configurable con `LEGACY_LINK_ALIAS_DAYS`. **Por defecto vale
+0, que significa sin limite:** ningun enlace viejo se desactiva por el mero
+paso del tiempo mientras no se fije el periodo a proposito. Un default que
+expirara solo seria tomar por omision la decision que se pidio no tomar.
+
+### Como se resuelve un alias: **sin redirect** (recomendacion)
+
+Cuando llegue un enlace viejo, la opcion obvia seria:
+
+```
+GET /contracts/contract-sn-boda-rebeca-y-jos
+    -> 302 /contracts/<token-nuevo>
+```
+
+**No conviene, y la recomendacion es no hacerlo.** Ese 302 pone el token
+nuevo -- que es la credencial -- en:
+
+- el **historial** del navegador del cliente, y en su sincronizacion de
+  cuentas si tiene el navegador con sesion iniciada;
+- los **logs del proxy** y de cualquier CDN o balanceador en el camino;
+- **analytics**, si alguna vez se agrega;
+- el **`Referer`** que el navegador manda a cualquier recurso externo que
+  cargue la pagina;
+- lo que el cliente **copia y pega** cuando comparte "el link que me
+  mandaste".
+
+El resultado seria absurdo: la migracion existe para que la credencial deje
+de ser adivinable, y el redirect la publicaria en cinco lugares nuevos.
+
+**Propuesta: resolver el alias del lado del servidor y servir el recurso en
+la misma URL vieja.** El visitante nunca ve el token nuevo; internamente se
+busca el recurso, se registra `LEGACY_PUBLIC_LINK_USED` y se responde 200 con
+el mismo contenido. La URL en la barra sigue siendo la vieja, que ya estaba
+comprometida de todos modos -- no se gana nada exponiendola de nuevo, y no se
+pierde nada dejandola.
+
+Efecto colateral util: como el enlace viejo nunca "asciende" al nuevo, el
+registro de uso sigue siendo fiel indefinidamente. Con redirect, el cliente
+guardaria la URL nueva despues de la primera visita y el legacy dejaria de
+aparecer en el log aunque siguiera siendo el que le mandaron -- justo el dato
+que la etapa 3 necesita.
+
+Lo unico que se pierde es que el cliente no "actualiza" su enlace guardado.
+Eso es aceptable: el objetivo no es que el cliente tenga el enlace bonito,
+sino que **los enlaces que el CRM genera de ahora en adelante** sean seguros.
+
+### Estado real
+
+Nada de la etapa 1 ni de la etapa 3 esta ejecutado. `src/public_tokens.py`
+tiene la arquitectura (token de 256 bits, guardado como hash, comparado en
+tiempo constante) y `src/public_links.py` la clasificacion, las dos cubiertas
+con tests. **Ningun enlace fue generado, rotado ni desactivado.**
