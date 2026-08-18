@@ -101,6 +101,59 @@ def check_attachments_same_tenant(tenant_id, attachments):
     return None
 
 
+def check_recipient_identity(tenant_id, to_email, client_id):
+    """Quien recibe un correo es un CLIENTE de una empresa, no una direccion.
+
+    Kevin, despues del incidente: "no confies en el email del destinatario".
+    La misma direccion puede existir como cliente en Astral y en Norkevin y
+    son dos personas distintas; la direccion no identifica a nadie.
+
+    Devuelve (motivo_de_bloqueo, aviso). El bloqueo es duro; el aviso es
+    informacion para la pantalla de revision, no corta el envio.
+    """
+    if not client_id:
+        # Un correo sin cliente asociado no se puede verificar por identidad.
+        # No se bloquea aca (el resto de reglas ya exige job para los tipos
+        # sensibles), pero queda dicho que no hubo verificacion.
+        return None, 'sin cliente asociado: no se pudo verificar la identidad'
+
+    dueno = store.owner_tenant_of('clients', client_id)
+    if dueno is None:
+        log_security_event('CLIENTE_SIN_DUENO', registro=client_id,
+                           cuenta_activa=tenant_id)
+        return 'el cliente del correo no se pudo verificar', None
+    if dueno != tenant_id:
+        # ESTE es el caso del incidente: destinatario que pertenece al otro
+        # negocio. El detalle de que empresa es va solo al log.
+        log_security_event('CROSS_TENANT_RECIPIENT_BLOCKED', registro=client_id,
+                           cuenta_activa=tenant_id, cuenta_del_registro=dueno)
+        return 'el cliente del correo no pertenece a esta empresa', None
+
+    # El cliente es de esta empresa. Falta ver si la direccion a la que se va
+    # a escribir es de verdad la suya.
+    cliente = store.get('clients', client_id) or {}
+    suyas = {(cliente.get(c) or '').strip().lower()
+             for c in ('email', 'secondary_email')} - {''}
+    destino = (to_email or '').strip().lower()
+    if destino and suyas and destino not in suyas:
+        # No se bloquea: un cliente puede pedir que le escriban a otra
+        # direccion, y cortar eso seria over-blocking. Pero queda registrado
+        # y visible en la pantalla de revision.
+        log_security_event('DESTINATARIO_DISTINTO_AL_DEL_CLIENTE',
+                           registro=client_id, cuenta_activa=tenant_id)
+        return None, 'la direccion no es la que tiene registrada el cliente'
+
+    if destino and store.tenants_owning('clients', destino, field='email') - {tenant_id}:
+        # La direccion tambien existe en la otra empresa. El envio es
+        # correcto (manda el client_id, no el correo), pero es exactamente el
+        # tipo de caso que hay que mirar dos veces antes de aprobar.
+        log_security_event('DESTINATARIO_AMBIGUO', registro=client_id,
+                           cuenta_activa=tenant_id)
+        return None, ('esta direccion tambien existe como cliente en la otra '
+                      'empresa: verifica que sea la persona correcta')
+    return None, None
+
+
 def check_same_tenant(tenant_id, *, lead_id=None, job_id=None, template_id=None):
     """Verifica que todo lo que interviene en un correo sea de la MISMA cuenta.
 
@@ -186,6 +239,9 @@ class MailTracker:
         tenant_id = tenant_id or store.current_tenant_id()
         motivo = check_same_tenant(tenant_id, lead_id=lead_id, job_id=job_id,
                                    template_id=template_id)
+        aviso = None
+        if not motivo:
+            motivo, aviso = check_recipient_identity(tenant_id, to_email, client_id)
         if not motivo and requires_job_relation(subject, template_id)                 and not job_id and not lead_id:
             motivo = 'un correo de este tipo debe estar ligado a una boda'
         # Un cobro o un contrato sin boda asociada no se puede verificar
@@ -209,6 +265,8 @@ class MailTracker:
             # marcado: sirve de evidencia de que algo esta mal armado.
             'status': 'blocked' if motivo else 'pending',
             'blocked_reason': motivo,
+            # Lo que no bloquea pero hay que mirar antes de aprobar.
+            'aviso_identidad': aviso,
         }
         try:
             store.upsert('pending_emails', entry)
@@ -247,6 +305,13 @@ class MailTracker:
                                    lead_id=pendiente.get('lead_id'),
                                    job_id=pendiente.get('job_id'),
                                    template_id=pendiente.get('template_id'))
+        # Identidad del destinatario, tambien AL ENVIAR: entre que se genero
+        # el pendiente y que se aprueba, el cliente pudo reasignarse a la
+        # otra empresa sin que cambiara ni una letra de la direccion.
+        if not motivo:
+            motivo, aviso = check_recipient_identity(
+                actual, pendiente.get('to'), pendiente.get('client_id'))
+            pendiente['aviso_identidad'] = aviso
         # Los adjuntos se validan aparte y AL ENVIAR: un job pudo cambiar de
         # empresa despues de generarse el pendiente.
         if not motivo:
@@ -302,7 +367,7 @@ class MailTracker:
         if not pendiente:
             return {'ok': False, 'error': 'No encontrado'}
         if pendiente.get('status') != FALLO:
-            return {'ok': False,
+            return {'ok': False, 'pendiente': pendiente,
                     'error': 'Solo se puede reintentar un correo que fallo por '
                              'un problema tecnico'}
         # Vuelve a pendiente y pasa otra vez por TODAS las validaciones.
@@ -310,13 +375,14 @@ class MailTracker:
         store.upsert('pending_emails', pendiente)
         return self.approve_and_send(pending_id, actor=actor)
 
-    def discard_pending(self, pending_id):
+    def discard_pending(self, pending_id, actor=None):
         """Descarta un pendiente sin enviarlo. No se borra: queda como
-        evidencia de que se genero y se decidio no mandarlo."""
+        evidencia de que se genero y se decidio no mandarlo, y con quien lo
+        decidio."""
         pendiente = store.get('pending_emails', pending_id)
         if not pendiente:
             return {'ok': False, 'error': 'No existe ese correo pendiente'}
-        pendiente['status'] = 'discarded'
+        _anotar(pendiente, CANCELADO, actor=actor, motivo='descartado a mano')
         pendiente['discarded_at'] = datetime.now().isoformat()
         store.upsert('pending_emails', pendiente)
         return {'ok': True, 'pendiente': pendiente}

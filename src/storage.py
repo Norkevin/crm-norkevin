@@ -302,6 +302,20 @@ class JsonStore:
                 return record.get('tenant_id')
         return None
 
+    def tenants_owning(self, table, value, field='id'):
+        """Todas las cuentas que tienen un registro con ese valor.
+
+        Hermana de owner_tenant_of, para cuando el valor NO es unico entre
+        empresas: la misma direccion de correo puede existir como cliente en
+        Astral y en Norkevin, y son dos personas distintas. Saber que esta en
+        las dos es justo lo que permite marcar un destinatario como ambiguo.
+
+        Devuelve un set de tenant_id, nunca registros -- misma regla que
+        owner_tenant_of: no sirve para leer datos de otra cuenta.
+        """
+        return {r.get('tenant_id') for r in self._read_raw(table)
+                if r.get(field) == value and r.get('tenant_id')}
+
     def get(self, table, record_id):
         # Ya filtrado por list() -- pedir el id de otra cuenta devuelve
         # None, como si el registro no existiera.

@@ -5775,8 +5775,20 @@ def _pending_email_view(p):
         'creado': p.get('created_at'),
         'estado': p.get('status'),
         'motivo_bloqueo': p.get('blocked_reason'),
+        # No bloquea, pero hay que verlo antes de aprobar (direccion que no
+        # es la del cliente, o que existe tambien en la otra empresa).
+        'aviso_identidad': p.get('aviso_identidad'),
         'adjuntos': len(p.get('attachments') or []),
+        # Secuencia completa de estados, no solo el ultimo.
+        'historial': p.get('historial') or [],
+        'reintentable': p.get('status') == 'failed',
     }
+
+
+def _actor_actual():
+    """Quien esta aprobando. Va al historial del pendiente: despues del
+    incidente, 'lo mando el sistema' no es una respuesta aceptable."""
+    return (session.get('user_email') or '').strip() or 'sesion sin correo'
 
 
 @app.route('/emails')
@@ -5790,8 +5802,12 @@ def pending_emails_page():
         emails=vistas,
         conteos={
             'pendiente': sum(1 for v in vistas if v['estado'] == 'pending'),
+            'enviando': sum(1 for v in vistas if v['estado'] == 'sending'),
             'enviado': sum(1 for v in vistas if v['estado'] == 'sent'),
+            # Bloqueado (seguridad) y Fallo (tecnico) van separados: mezclarlos
+            # haria ver un timeout de Gmail como un intento de cruce.
             'bloqueado': sum(1 for v in vistas if v['estado'] == 'blocked'),
+            'fallido': sum(1 for v in vistas if v['estado'] == 'failed'),
             'cancelado': sum(1 for v in vistas if v['estado'] == 'discarded'),
         },
     )
@@ -5807,7 +5823,7 @@ def api_pending_email_detail(pending_id):
     autorizar.
     """
     from src import gmail_delivery
-    from src.mail_tracker import check_same_tenant
+    from src.mail_tracker import check_recipient_identity, check_same_tenant
 
     p = store.get('pending_emails', pending_id)
     if not p:
@@ -5819,6 +5835,9 @@ def api_pending_email_detail(pending_id):
     job = get_job(p.get('job_id')) if p.get('job_id') else None
     motivo = check_same_tenant(actual, lead_id=p.get('lead_id'),
                                job_id=p.get('job_id'), template_id=p.get('template_id'))
+    aviso = None
+    if not motivo:
+        motivo, aviso = check_recipient_identity(actual, p.get('to'), p.get('client_id'))
     gmail_ok = gmail_delivery.is_connected(tenant_id=actual)
 
     return jsonify({
@@ -5830,12 +5849,17 @@ def api_pending_email_detail(pending_id):
         'cliente_email': (cliente or {}).get('email'),
         'validaciones': {
             'empresa': bool(actual) and p.get('tenant_id') == actual,
+            # "cliente" ya no es solo que exista: tiene que ser un cliente de
+            # ESTA empresa. La direccion no identifica a nadie.
             'cliente': cliente is not None or not p.get('client_id'),
             'job': job is not None or not p.get('job_id'),
             'gmail': gmail_ok,
             'sin_cruce': motivo is None,
         },
         'motivo': motivo,
+        # No bloquea, pero es justo lo que hay que mirar dos veces: direccion
+        # que no es la del cliente, o que existe tambien en la otra empresa.
+        'aviso_identidad': aviso,
         'enviable': (p.get('status') == 'pending' and motivo is None and gmail_ok
                      and p.get('tenant_id') == actual),
     })
@@ -5846,9 +5870,36 @@ def api_pending_email_send(pending_id):
     """Aprueba y envia. Revalida TODO del lado del servidor."""
     from src.mail_tracker import MailTracker
 
-    resultado = MailTracker().approve_and_send(pending_id)
+    resultado = MailTracker().approve_and_send(pending_id, actor=_actor_actual())
     if not resultado.get('ok'):
-        return jsonify({'ok': False, 'error': resultado.get('error')}), 400
+        # Se devuelve tambien el pendiente (si lo hay) para que la pantalla
+        # muestre el estado nuevo -- bloqueado o fallido -- sin recargar.
+        respuesta = {'ok': False, 'error': resultado.get('error')}
+        if resultado.get('pendiente'):
+            respuesta['email'] = _pending_email_view(resultado['pendiente'])
+        return jsonify(respuesta), 400
+    return jsonify({'ok': True, 'email': _pending_email_view(resultado['pendiente'])})
+
+
+@app.route('/api/pending-emails/<pending_id>/retry', methods=['POST'])
+def api_pending_email_retry(pending_id):
+    """Reintenta un correo que fallo. MANUAL, nunca automatico.
+
+    Kevin: "nada de fallo -> enviar automaticamente otra vez". Un reintento
+    automatico es como un fallo de red se convierte en tres copias del mismo
+    correo -- que es literalmente lo que paso en el incidente.
+
+    Solo aplica a FALLO (problema tecnico). Un BLOQUEADO no se reintenta: la
+    razon del bloqueo sigue ahi y forzarlo seria saltarse la validacion.
+    """
+    from src.mail_tracker import MailTracker
+
+    resultado = MailTracker().retry_failed(pending_id, actor=_actor_actual())
+    if not resultado.get('ok'):
+        respuesta = {'ok': False, 'error': resultado.get('error')}
+        if resultado.get('pendiente'):
+            respuesta['email'] = _pending_email_view(resultado['pendiente'])
+        return jsonify(respuesta), 400
     return jsonify({'ok': True, 'email': _pending_email_view(resultado['pendiente'])})
 
 
@@ -5856,7 +5907,7 @@ def api_pending_email_send(pending_id):
 def api_pending_email_discard(pending_id):
     from src.mail_tracker import MailTracker
 
-    resultado = MailTracker().discard_pending(pending_id)
+    resultado = MailTracker().discard_pending(pending_id, actor=_actor_actual())
     if not resultado.get('ok'):
         return jsonify({'ok': False, 'error': resultado.get('error')}), 404
     return jsonify({'ok': True, 'email': _pending_email_view(resultado['pendiente'])})
@@ -5882,13 +5933,39 @@ def api_admin_incident_report():
 
     # Duenos reales de cada correo destino, para saber a que empresa
     # pertenecia realmente quien lo recibio (independiente de quien envio).
-    dueno_por_email = {}
+    #
+    # Se guarda un CONJUNTO de empresas por direccion, no la primera que
+    # aparece: la misma direccion puede existir como cliente en las dos
+    # empresas y son dos personas distintas. Quedarse con la primera
+    # convertiria una ambiguedad real en una certeza inventada -- y este
+    # reporte es evidencia del incidente, no puede adivinar.
+    duenos_por_email = {}
     for tabla in ('clients', 'leads'):
         for r in store.list_privileged(tabla, scope='all_tenants',
                                             reason='reporte del incidente (admin)'):
             correo = (r.get('email') or '').strip().lower()
             if correo and r.get('tenant_id'):
-                dueno_por_email.setdefault(correo, r['tenant_id'])
+                duenos_por_email.setdefault(correo, set()).add(r['tenant_id'])
+
+    def _identidad(destino, remitente):
+        """A quien pertenecia de verdad quien recibio el correo.
+
+        Devuelve (empresa_o_None, marca). La marca es la conclusion honesta:
+        no todo caso se puede resolver.
+        """
+        duenos = duenos_por_email.get(destino) or set()
+        if not duenos:
+            # No esta como cliente ni lead de nadie: no se puede saber.
+            return None, 'AMBIGUOUS_RECIPIENT_IDENTITY'
+        if len(duenos) > 1:
+            # Existe en las dos empresas. mail_log guarda la direccion, no el
+            # client_id, asi que desde aca es imposible saber a cual de las
+            # dos personas se le escribio. REQUIERE REVISION manual.
+            return None, 'AMBIGUOUS_RECIPIENT_IDENTITY'
+        unico = next(iter(duenos))
+        if remitente and unico != remitente:
+            return unico, 'CROSS_TENANT'
+        return unico, 'OK'
 
     nombres = {t.get('id'): t.get('name') for t in store.list('tenants')}
 
@@ -5902,6 +5979,7 @@ def api_admin_incident_report():
             continue
         destino = (m.get('to') or '').strip().lower()
         asunto = m.get('subject') or ''
+        pertenece_a, marca = _identidad(destino, m.get('tenant_id'))
         entradas.append({
             'fecha': cuando,
             'para': m.get('to'),
@@ -5912,16 +5990,19 @@ def api_admin_incident_report():
             'lead_id': m.get('lead_id'),
             'template_id': m.get('template_id'),
             'enviado_por_empresa': m.get('tenant_id'),
-            'destinatario_pertenece_a': dueno_por_email.get(destino),
+            'destinatario_pertenece_a': pertenece_a,
+            'identidad': marca,
+            'empresas_con_ese_correo': sorted(duenos_por_email.get(destino) or []),
             'es_cobro': any(p in asunto.lower() for p in COBRO),
             'proveedor': m.get('delivery_provider'),
         })
 
     enviados = [e for e in entradas if e['estado'] == 'sent']
-    cruzados = [e for e in enviados
-                if e['destinatario_pertenece_a']
-                and e['enviado_por_empresa']
-                and e['destinatario_pertenece_a'] != e['enviado_por_empresa']]
+    cruzados = [e for e in enviados if e['identidad'] == 'CROSS_TENANT']
+    # Los que NO se pueden clasificar con certeza van aparte, nunca mezclados
+    # con los confirmados: un cruce dudoso contado como cruce confirmado
+    # infla el incidente, y contado como correcto lo esconde.
+    ambiguos = [e for e in enviados if e['identidad'] == 'AMBIGUOUS_RECIPIENT_IDENTITY']
 
     def _por_empresa(lista, campo):
         salida = {}
@@ -5942,14 +6023,21 @@ def api_admin_incident_report():
             'destinatarios_unicos': len({e['para'] for e in enviados if e['para']}),
             'cobros_enviados': sum(1 for e in enviados if e['es_cobro']),
             'enviados_a_otra_empresa': len(cruzados),
+            'destinatario_ambiguo': len(ambiguos),
         },
         'enviados_por_empresa_remitente': _por_empresa(enviados, 'enviado_por_empresa'),
         'destinatarios_por_empresa_real': _por_empresa(enviados, 'destinatario_pertenece_a'),
         'cruzados': cruzados,
+        'ambiguos': ambiguos,
         'detalle': sorted(entradas, key=lambda e: e['fecha'] or '', reverse=True),
         'nota': ('Solo lectura. "cruzados" son los correos que salieron desde '
                  'una empresa hacia un destinatario que pertenece a otra: '
-                 'exactamente lo que hay que revisar del incidente.'),
+                 'exactamente lo que hay que revisar del incidente. '
+                 '"ambiguos" (AMBIGUOUS_RECIPIENT_IDENTITY) son los que NO se '
+                 'pueden clasificar: la direccion existe en las dos empresas, '
+                 'o en ninguna. mail_log guarda la direccion y no el '
+                 'client_id, asi que esos REQUIEREN REVISION manual y no se '
+                 'cuentan como cruzados ni como correctos.'),
     })
 
 
