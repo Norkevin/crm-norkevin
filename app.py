@@ -1692,14 +1692,19 @@ def api_gallery_job_search():
     except (TypeError, ValueError):
         return jsonify({'ok': False, 'error': 'Paginación inválida'}), 400
 
-    astral_tenant_id = 'tenant-norkevin'
-    jobs = [j for j in store.list('jobs') if j.get('tenant_id') == astral_tenant_id]
+    # La galeria es de ASTRAL WEDDINGS. El id se ve raro porque es heredado:
+    # 'tenant-norkevin' ES la cuenta de Astral (ver SEGURIDAD_AISLAMIENTO.md).
+    # Se toma de una variable de entorno para poder apuntarla sin editar
+    # codigo, con el valor actual como default para no cambiar el contrato de
+    # la integracion existente.
+    astral_tenant_id = os.environ.get('GALLERY_TENANT_ID', 'tenant-norkevin')
+    jobs = [j for j in store._read_raw('jobs') if j.get('tenant_id') == astral_tenant_id]
     clients = {
-        c.get('id'): c for c in store.list('clients')
+        c.get('id'): c for c in store._read_raw('clients')
         if c.get('tenant_id') == astral_tenant_id
     }
     leads = {
-        lead.get('id'): lead for lead in store.list('leads')
+        lead.get('id'): lead for lead in store._read_raw('leads')
         if lead.get('tenant_id') == astral_tenant_id
     }
 
@@ -1925,6 +1930,7 @@ def _require_login():
         '/api/admin/tenant-inventory',
         '/api/admin/workflow-cleanup',
         '/api/admin/orphan-audit',
+        '/api/admin/incident-report',
         '/api/admin/import-astral-leads',
     ) and request.args.get('token') == _ADMIN_ONE_TIME_TOKEN:
         return None
@@ -5708,6 +5714,208 @@ def api_admin_import_astral_leads():
 
     logger.info(f"Leads de Astral: {len(creados)} creados, {len(omitidos)} omitidos (sin enviar ningun correo)")
     return jsonify({'ok': True, 'creados': creados, 'omitidos': omitidos})
+
+
+# ============================================================
+# EMAILS PENDIENTES DE APROBACION
+# Despues del incidente ningun correo sale solo. Estas rutas son la unica
+# forma de que un correo generado por el CRM llegue a alguien.
+# ============================================================
+
+def _pending_email_view(p):
+    """Vista compacta de un pendiente, resolviendo nombres para la lista."""
+    cliente = get_client(p.get('client_id')) if p.get('client_id') else None
+    job = get_job(p.get('job_id')) if p.get('job_id') else None
+    tenant = next((t for t in store.list('tenants')
+                   if t.get('id') == p.get('tenant_id')), None) or {}
+    return {
+        'id': p.get('id'),
+        'empresa': tenant.get('name') or p.get('tenant_id'),
+        'tenant_id': p.get('tenant_id'),
+        'para': p.get('to'),
+        'cliente': (f"{cliente.get('first_name','')} {cliente.get('last_name','')}".strip()
+                    if cliente else None),
+        'job': job.get('nombre') if job else None,
+        'job_id': p.get('job_id'),
+        'asunto': p.get('subject'),
+        'origen': p.get('source') or 'desconocido',
+        'creado': p.get('created_at'),
+        'estado': p.get('status'),
+        'motivo_bloqueo': p.get('blocked_reason'),
+        'adjuntos': len(p.get('attachments') or []),
+    }
+
+
+@app.route('/emails')
+def pending_emails_page():
+    """Bandeja de correos por aprobar, enviados y bloqueados."""
+    pendientes = sorted(store.list('pending_emails'),
+                        key=lambda p: p.get('created_at') or '', reverse=True)
+    vistas = [_pending_email_view(p) for p in pendientes]
+    return render_template(
+        'pending_emails.html',
+        emails=vistas,
+        conteos={
+            'pendiente': sum(1 for v in vistas if v['estado'] == 'pending'),
+            'enviado': sum(1 for v in vistas if v['estado'] == 'sent'),
+            'bloqueado': sum(1 for v in vistas if v['estado'] == 'blocked'),
+            'cancelado': sum(1 for v in vistas if v['estado'] == 'discarded'),
+        },
+    )
+
+
+@app.route('/api/pending-emails/<pending_id>')
+def api_pending_email_detail(pending_id):
+    """Detalle para la pantalla de revision, con el resultado de validar
+    empresa, cliente, job y cuenta de Gmail.
+
+    Estas validaciones son SOLO informativas: al presionar Enviar el backend
+    las vuelve a correr. Mostrarlas aca sirve para revisar antes, no para
+    autorizar.
+    """
+    from src import gmail_delivery
+    from src.mail_tracker import check_same_tenant
+
+    p = store.get('pending_emails', pending_id)
+    if not p:
+        abort(404)
+
+    actual = get_current_tenant_id()
+    tenant = next((t for t in store.list('tenants') if t.get('id') == actual), None) or {}
+    cliente = get_client(p.get('client_id')) if p.get('client_id') else None
+    job = get_job(p.get('job_id')) if p.get('job_id') else None
+    motivo = check_same_tenant(actual, lead_id=p.get('lead_id'),
+                               job_id=p.get('job_id'), template_id=p.get('template_id'))
+    gmail_ok = gmail_delivery.is_connected(tenant_id=actual)
+
+    return jsonify({
+        'ok': True,
+        'email': _pending_email_view(p),
+        'cuerpo': p.get('body') or '',
+        'desde': gmail_delivery.connected_email(tenant_id=actual) or None,
+        'empresa': tenant.get('name') or actual,
+        'cliente_email': (cliente or {}).get('email'),
+        'validaciones': {
+            'empresa': bool(actual) and p.get('tenant_id') == actual,
+            'cliente': cliente is not None or not p.get('client_id'),
+            'job': job is not None or not p.get('job_id'),
+            'gmail': gmail_ok,
+            'sin_cruce': motivo is None,
+        },
+        'motivo': motivo,
+        'enviable': (p.get('status') == 'pending' and motivo is None and gmail_ok
+                     and p.get('tenant_id') == actual),
+    })
+
+
+@app.route('/api/pending-emails/<pending_id>/send', methods=['POST'])
+def api_pending_email_send(pending_id):
+    """Aprueba y envia. Revalida TODO del lado del servidor."""
+    from src.mail_tracker import MailTracker
+
+    resultado = MailTracker().approve_and_send(pending_id)
+    if not resultado.get('ok'):
+        return jsonify({'ok': False, 'error': resultado.get('error')}), 400
+    return jsonify({'ok': True, 'email': _pending_email_view(resultado['pendiente'])})
+
+
+@app.route('/api/pending-emails/<pending_id>/discard', methods=['POST'])
+def api_pending_email_discard(pending_id):
+    from src.mail_tracker import MailTracker
+
+    resultado = MailTracker().discard_pending(pending_id)
+    if not resultado.get('ok'):
+        return jsonify({'ok': False, 'error': resultado.get('error')}), 404
+    return jsonify({'ok': True, 'email': _pending_email_view(resultado['pendiente'])})
+
+
+@app.route('/api/admin/incident-report')
+def api_admin_incident_report():
+    """Reconstruye el alcance del incidente desde mail_log. SOLO LECTURA.
+
+    Kevin: "no quiero tener que reconstruir esto manualmente desde logs
+    crudos". Con una sola llamada queda claro cuantos correos salieron, a
+    quien, de que empresa era cada destinatario y cuales eran cobros.
+
+    No modifica ni borra nada del log: esos datos son la evidencia.
+
+    Parametros opcionales: ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+    """
+    desde = (request.args.get('desde') or '').strip()
+    hasta = (request.args.get('hasta') or '').strip()
+
+    # Palabras que delatan un correo de dinero, que son los mas delicados.
+    COBRO = ('pago', 'cobro', 'factura', 'recordatorio', 'saldo', 'invoice')
+
+    # Duenos reales de cada correo destino, para saber a que empresa
+    # pertenecia realmente quien lo recibio (independiente de quien envio).
+    dueno_por_email = {}
+    for tabla in ('clients', 'leads'):
+        for r in store._read_raw(tabla):
+            correo = (r.get('email') or '').strip().lower()
+            if correo and r.get('tenant_id'):
+                dueno_por_email.setdefault(correo, r['tenant_id'])
+
+    nombres = {t.get('id'): t.get('name') for t in store.list('tenants')}
+
+    entradas = []
+    for m in store._read_raw('mail_log'):
+        cuando = m.get('sent_at') or ''
+        if desde and cuando[:10] < desde:
+            continue
+        if hasta and cuando[:10] > hasta:
+            continue
+        destino = (m.get('to') or '').strip().lower()
+        asunto = m.get('subject') or ''
+        entradas.append({
+            'fecha': cuando,
+            'para': m.get('to'),
+            'asunto': asunto,
+            'estado': m.get('status'),
+            'motivo_bloqueo': m.get('blocked_reason'),
+            'job_id': m.get('job_id'),
+            'lead_id': m.get('lead_id'),
+            'template_id': m.get('template_id'),
+            'enviado_por_empresa': m.get('tenant_id'),
+            'destinatario_pertenece_a': dueno_por_email.get(destino),
+            'es_cobro': any(p in asunto.lower() for p in COBRO),
+            'proveedor': m.get('delivery_provider'),
+        })
+
+    enviados = [e for e in entradas if e['estado'] == 'sent']
+    cruzados = [e for e in enviados
+                if e['destinatario_pertenece_a']
+                and e['enviado_por_empresa']
+                and e['destinatario_pertenece_a'] != e['enviado_por_empresa']]
+
+    def _por_empresa(lista, campo):
+        salida = {}
+        for e in lista:
+            k = e.get(campo)
+            salida[nombres.get(k, k or '(sin empresa)')] = salida.get(
+                nombres.get(k, k or '(sin empresa)'), 0) + 1
+        return salida
+
+    return jsonify({
+        'ok': True,
+        'rango': {'desde': desde or None, 'hasta': hasta or None},
+        'totales': {
+            'intentos': len(entradas),
+            'enviados': len(enviados),
+            'bloqueados': sum(1 for e in entradas if e['estado'] == 'blocked'),
+            'fallidos': sum(1 for e in entradas if e['estado'] == 'failed'),
+            'destinatarios_unicos': len({e['para'] for e in enviados if e['para']}),
+            'cobros_enviados': sum(1 for e in enviados if e['es_cobro']),
+            'enviados_a_otra_empresa': len(cruzados),
+        },
+        'enviados_por_empresa_remitente': _por_empresa(enviados, 'enviado_por_empresa'),
+        'destinatarios_por_empresa_real': _por_empresa(enviados, 'destinatario_pertenece_a'),
+        'cruzados': cruzados,
+        'detalle': sorted(entradas, key=lambda e: e['fecha'] or '', reverse=True),
+        'nota': ('Solo lectura. "cruzados" son los correos que salieron desde '
+                 'una empresa hacia un destinatario que pertenece a otra: '
+                 'exactamente lo que hay que revisar del incidente.'),
+    })
 
 
 @app.route('/api/admin/orphan-audit')

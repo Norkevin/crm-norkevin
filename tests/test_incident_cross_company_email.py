@@ -112,7 +112,10 @@ def test_envio_cruzado_entre_cuentas_queda_bloqueado():
 
     motivo = check_same_tenant(ASTRAL, job_id=job_norkevin['id'])
     assert motivo, 'un job de otra cuenta debe bloquear el envio'
-    assert NORKEVIN in motivo and ASTRAL in motivo
+    # El motivo que se devuelve NO debe revelar de que empresa es el recurso:
+    # eso confirmaria su existencia. El detalle va solo al log de seguridad.
+    assert NORKEVIN not in motivo
+    assert job_norkevin['id'] not in motivo
 
 
 def test_envio_dentro_de_la_misma_cuenta_pasa():

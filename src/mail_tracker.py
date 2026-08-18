@@ -26,6 +26,24 @@ class MailStatus(Enum):
     BLOCKED = 'blocked'              # rechazado por no cuadrar de cuenta
 
 
+# Tipos de correo que SIEMPRE deben colgar de una boda concreta. Kevin: "no
+# quiero que un template financiero pueda enviarse simplemente con un email
+# escrito manualmente sin relacion con el cliente correcto".
+TIPOS_QUE_EXIGEN_JOB = ('pago', 'factura', 'cobro', 'contrato', 'cuestionario',
+                        'recordatorio')
+
+
+def requires_job_relation(subject='', template_id=None, source=''):
+    """True si este correo no deberia poder mandarse suelto.
+
+    Se mira el asunto, la plantilla y el origen: un recordatorio de pago
+    generado por un workflow tiene que apuntar a un job real, si no no hay
+    forma de saber a que boda pertenece el cobro.
+    """
+    texto = ' '.join(str(x or '') for x in (subject, template_id, source)).lower()
+    return any(p in texto for p in TIPOS_QUE_EXIGEN_JOB)
+
+
 def check_same_tenant(tenant_id, *, lead_id=None, job_id=None, template_id=None):
     """Verifica que todo lo que interviene en un correo sea de la MISMA cuenta.
 
@@ -51,11 +69,13 @@ def check_same_tenant(tenant_id, *, lead_id=None, job_id=None, template_id=None)
         # eso (lo reporta el inventario de huerfanos), pero si pertenece a
         # OTRA cuenta se corta.
         if dueno and dueno != tenant_id:
+            # El detalle (que empresa es duena) va SOLO al log. Devolverlo al
+            # usuario revelaria la existencia de recursos de la otra empresa.
             log_security_event(
                 'CROSS_TENANT_EMAIL_BLOCKED', operacion='send_email', tabla=tabla,
                 registro=valor, cuenta_activa=tenant_id, cuenta_del_registro=dueno,
             )
-            return f'{etiqueta} {valor} pertenece a {dueno}, no a {tenant_id}'
+            return f'el {etiqueta} no pertenece a esta empresa'
     return None
 
 
@@ -88,6 +108,12 @@ class MailTracker:
         tenant_id = tenant_id or store.current_tenant_id()
         motivo = check_same_tenant(tenant_id, lead_id=lead_id, job_id=job_id,
                                    template_id=template_id)
+        if not motivo and requires_job_relation(subject, template_id)                 and not job_id and not lead_id:
+            motivo = 'un correo de este tipo debe estar ligado a una boda'
+        # Un cobro o un contrato sin boda asociada no se puede verificar
+        # contra nada: se bloquea antes de encolarlo.
+        if not motivo and requires_job_relation(subject, template_id, source)                 and not job_id and not lead_id:
+            motivo = 'un correo de este tipo debe estar ligado a una boda'
         entry = {
             'id': 'pend-' + uuid.uuid4().hex[:10],
             'tenant_id': tenant_id,
@@ -133,9 +159,11 @@ class MailTracker:
         if not actual:
             return {'ok': False, 'error': 'Sin cuenta activa'}
         if pendiente.get('tenant_id') != actual:
-            return {'ok': False,
-                    'error': f"El pendiente es de {pendiente.get('tenant_id')}, "
-                             f'no de la cuenta activa {actual}'}
+            # Sin decir de que empresa es: eso revelaria su existencia.
+            log_security_event('CROSS_TENANT_APPROVE_BLOCKED',
+                               registro=pending_id, cuenta_activa=actual,
+                               cuenta_del_registro=pendiente.get('tenant_id'))
+            return {'ok': False, 'error': 'No encontrado'}
 
         motivo = check_same_tenant(actual,
                                    lead_id=pendiente.get('lead_id'),

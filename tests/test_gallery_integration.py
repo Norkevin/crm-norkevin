@@ -38,7 +38,12 @@ def test_gallery_job_search_requires_service_token(client, monkeypatch):
 
 def test_gallery_job_search_returns_only_astral_contacts(client, monkeypatch):
     monkeypatch.setenv('GALLERY_INTEGRATION_TOKEN', 'test-gallery-token')
+    # El endpoint lee con _read_raw y filtra por empresa el mismo: no tiene
+    # sesion (es servidor-a-servidor con token), y con el aislamiento
+    # cerrado store.list() le devolveria vacio. Lo que se sigue probando
+    # es lo importante: que solo salgan los datos de Astral.
     monkeypatch.setattr(app_module.store, 'list', _records)
+    monkeypatch.setattr(app_module.store, '_read_raw', _records)
     response = client.get(
         '/api/integrations/gallery/jobs?q=ana',
         headers={'Authorization': 'Bearer test-gallery-token'},
@@ -65,7 +70,12 @@ def test_gallery_job_search_rejects_short_query(client, monkeypatch):
 
 def test_gallery_job_browse_returns_dated_jobs_without_query(client, monkeypatch):
     monkeypatch.setenv('GALLERY_INTEGRATION_TOKEN', 'test-gallery-token')
+    # El endpoint lee con _read_raw y filtra por empresa el mismo: no tiene
+    # sesion (es servidor-a-servidor con token), y con el aislamiento
+    # cerrado store.list() le devolveria vacio. Lo que se sigue probando
+    # es lo importante: que solo salgan los datos de Astral.
     monkeypatch.setattr(app_module.store, 'list', _records)
+    monkeypatch.setattr(app_module.store, '_read_raw', _records)
     response = client.get(
         '/api/integrations/gallery/jobs?all=1&limit=50',
         headers={'Authorization': 'Bearer test-gallery-token'},

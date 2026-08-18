@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block title %}Emails pendientes · ASTRAL WEDDINGS CRM{% endblock %}
+{% block header %}Emails{% endblock %}
+
+{% block content %}
+<style>
+.mail-tabs { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+.mail-tab {
+  min-height: 34px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--sn-line); background: var(--sn-white);
+  color: var(--sn-muted); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.mail-tab.active { background: var(--sn-green); border-color: var(--sn-green); color: #fff; }
+.mail-tab .cuenta { opacity: .75; margin-left: 5px; font-weight: 500; }
+
+.mail-row {
+  display: grid; grid-template-columns: minmax(0,1fr) auto;
+  gap: 2px 12px; padding: 12px 14px; cursor: pointer;
+  border-bottom: 1px solid var(--sn-line); background: var(--sn-white);
+}
+.mail-row:last-child { border-bottom: none; }
+.mail-row:hover { background: var(--sn-bg); }
+.mail-empresa { font-size: 11px; font-weight: 700; letter-spacing: .03em;
+  text-transform: uppercase; color: var(--sn-muted); }
+.mail-quien { font-size: 14.5px; font-weight: 600; color: var(--sn-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-asunto { font-size: 13px; color: var(--sn-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-origen { font-size: 12px; color: var(--sn-muted); }
+.mail-motivo { font-size: 12px; color: #B4232A; margin-top: 3px; }
+.mail-estado { grid-row: 1 / span 4; align-self: center; }
+
+.chip-estado { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.chip-pending   { background: #EFEAFE; color: #5638DC; }
+.chip-sent      { background: #DCFCE7; color: #166534; }
+.chip-blocked   { background: #FEE2E2; color: #B4232A; }
+.chip-discarded { background: var(--sn-row); color: var(--sn-muted); }
+
+.rev-fila { display: grid; grid-template-columns: 92px minmax(0,1fr);
+  gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--sn-line); }
+.rev-fila:last-of-type { border-bottom: none; }
+.rev-label { font-size: 12px; color: var(--sn-muted); }
+.rev-valor { font-size: 13.5px; color: var(--sn-ink); word-break: break-word; }
+.rev-cuerpo { max-height: 220px; overflow: auto; white-space: pre-wrap;
+  background: var(--sn-bg); border: 1px solid var(--sn-line);
+  border-radius: 10px; padding: 10px; font-size: 13px; line-height: 1.45; }
+.rev-checks { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.rev-check { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+.rev-ok  { background: #DCFCE7; color: #166534; }
+.rev-mal { background: #FEE2E2; color: #B4232A; }
+.rev-aviso { font-size: 11.5px; color: var(--sn-muted); margin-top: 8px; }
+</style>
+
+<section class="sn-page-wide">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Emails</h1>
+      <div class="sn-breadcrumbs">
+        Ningun correo sale sin que vos lo apruebes aca.
+      </div>
+    </div>
+  </div>
+
+  <div class="mail-tabs">
+    <button type="button" class="mail-tab active" data-filtro="pending" onclick="filtrarEmails('pending')">
+      Pendientes <span class="cuenta">{{ conteos.pendiente }}</span>
+    </button>
+    <button type="button" class="mail-tab" data-filtro="sent" onclick="filtrarEmails('sent')">
+      Enviados <span class="cuenta">{{ conteos.enviado }}</span>
+    </button>
+    <button type="button" class="mail-tab" data-filtro="blocked" onclick="filtrarEmails('blocked')">
+      Bloqueados <span class="cuenta">{{ conteos.bloqueado }}</span>
+    </button>
+    <button type="button" class="mail-tab" data-filtro="discarded" onclick="filtrarEmails('discarded')">
+      Cancelados <span class="cuenta">{{ conteos.cancelado }}</span>
+    </button>
+    <button type="button" class="mail-tab" data-filtro="all" onclick="filtrarEmails('all')">Todos</button>
+  </div>
+
+  <div class="sn-toolbar">
+    <div class="sn-toolbar-left">
+      <input id="mail-search" class="sn-search" type="search"
+             placeholder="Buscar por cliente, correo, trabajo o empresa..."
+             oninput="filtrarEmails()">
+    </div>
+  </div>
+
+  <div class="sn-table-shell" style="overflow:hidden;">
+    <div id="mail-list">
+      {% for e in emails %}
+      <div class="mail-row" data-estado="{{ e.estado }}"
+           data-text="{{ ((e.cliente or '') ~ ' ' ~ (e.para or '') ~ ' ' ~ (e.job or '') ~ ' ' ~ (e.empresa or '') ~ ' ' ~ (e.asunto or ''))|lower }}"
+           onclick="abrirRevision('{{ e.id }}')">
+        <div class="mail-empresa">{{ e.empresa }}</div>
+        <div class="mail-estado">
+          <span class="chip-estado chip-{{ e.estado }}">
+            {% if e.estado == 'pending' %}Pendiente
+            {% elif e.estado == 'sent' %}Enviado
+            {% elif e.estado == 'blocked' %}Bloqueado
+            {% else %}Cancelado{% endif %}
+          </span>
+        </div>
+        <div class="mail-quien">
+          {{ e.cliente or e.para }}{% if e.job %} · {{ e.job }}{% endif %}
+        </div>
+        <div class="mail-asunto">{{ e.asunto }}</div>
+        <div class="mail-origen">
+          Generado por {{ e.origen }}{% if e.creado %} · {{ e.creado[:16]|replace('T', ' ') }}{% endif %}
+        </div>
+        {% if e.motivo_bloqueo %}
+        <div class="mail-motivo">{{ e.motivo_bloqueo }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <p id="mail-vacio" class="sn-muted" style="text-align:center;padding:40px 16px;display:none;">
+      No hay correos en esta vista.
+    </p>
+  </div>
+</section>
+
+<div class="modal-overlay" id="revision-modal">
+  <div class="modal-content" style="max-width:560px;">
+    <h2 class="modal-title">Revisar antes de enviar</h2>
+    <div id="revision-cuerpo">
+      <p class="sn-muted">Cargando...</p>
+    </div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button type="button" class="sn-btn" onclick="cerrarRevision()">Cancelar</button>
+      <button type="button" class="sn-btn sn-btn-primary" id="btn-enviar"
+              onclick="confirmarEnvio()" disabled>Enviar email</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// openModal/closeModal se definen por pagina en este proyecto (no viven en
+// base.html), asi que esta pantalla trae los suyos.
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+var emailActual = null;
+var enviando = false;
+
+function filtrarEmails(filtro) {
+  if (filtro) {
+    document.querySelectorAll('.mail-tab').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.filtro === filtro);
+    });
+  }
+  var activo = document.querySelector('.mail-tab.active');
+  var estado = activo ? activo.dataset.filtro : 'pending';
+  var q = (document.getElementById('mail-search').value || '').toLowerCase().trim();
+
+  var visibles = 0;
+  document.querySelectorAll('.mail-row').forEach(function(row) {
+    var coincideEstado = (estado === 'all') || (row.dataset.estado === estado);
+    var coincideTexto = !q || (row.dataset.text || '').indexOf(q) !== -1;
+    var mostrar = coincideEstado && coincideTexto;
+    row.style.display = mostrar ? '' : 'none';
+    if (mostrar) { visibles += 1; }
+  });
+  document.getElementById('mail-vacio').style.display = visibles ? 'none' : '';
+}
+
+function _check(ok, texto) {
+  return '<span class="rev-check ' + (ok ? 'rev-ok' : 'rev-mal') + '">'
+       + (ok ? '✓ ' : '✕ ') + texto + '</span>';
+}
+
+function abrirRevision(id) {
+  emailActual = id;
+  enviando = false;
+  var btn = document.getElementById('btn-enviar');
+  btn.disabled = true;
+  btn.textContent = 'Enviar email';
+  document.getElementById('revision-cuerpo').innerHTML = '<p class="sn-muted">Cargando...</p>';
+  openModal('revision-modal');
+
+  fetch('/api/pending-emails/' + encodeURIComponent(id))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { throw new Error('No se pudo cargar'); }
+      var e = d.email, v = d.validaciones;
+      var html = ''
+        + fila('Empresa', d.empresa)
+        + fila('Desde', d.desde || '<span class="sn-muted">Gmail no conectado</span>')
+        + fila('Para', (e.cliente ? e.cliente + '<br>' : '') + (e.para || ''))
+        + (e.job ? fila('Trabajo', e.job) : '')
+        + fila('Asunto', e.asunto || '')
+        + fila('Origen', 'Generado por ' + e.origen)
+        + (e.adjuntos ? fila('Adjuntos', e.adjuntos + ' archivo(s)') : '')
+        + '<div style="margin-top:12px;">'
+        + '<div class="rev-label" style="margin-bottom:5px;">Mensaje</div>'
+        + '<div class="rev-cuerpo"></div></div>'
+        + '<div class="rev-checks">'
+        + _check(v.empresa, 'Empresa')
+        + _check(v.cliente, 'Cliente')
+        + _check(v.job, 'Trabajo')
+        + _check(v.gmail, 'Cuenta Gmail')
+        + _check(v.sin_cruce, 'Sin cruce de empresas')
+        + '</div>'
+        + (d.motivo ? '<p class="mail-motivo">' + escapar(d.motivo) + '</p>' : '')
+        + '<p class="rev-aviso">Estas marcas son informativas. Al enviar, el '
+        + 'servidor vuelve a validar todo.</p>';
+
+      var cont = document.getElementById('revision-cuerpo');
+      cont.innerHTML = html;
+      // textContent y no innerHTML: el cuerpo del correo es contenido, no
+      // markup, y no debe interpretarse.
+      cont.querySelector('.rev-cuerpo').textContent = d.cuerpo || '(vacio)';
+
+      document.getElementById('btn-enviar').disabled = !d.enviable;
+    })
+    .catch(function() {
+      document.getElementById('revision-cuerpo').innerHTML =
+        '<p class="mail-motivo">No se pudo cargar este correo.</p>';
+    });
+}
+
+function fila(label, valor) {
+  return '<div class="rev-fila"><div class="rev-label">' + label + '</div>'
+       + '<div class="rev-valor">' + valor + '</div></div>';
+}
+
+function escapar(s) {
+  var d = document.createElement('div');
+  d.textContent = s == null ? '' : s;
+  return d.innerHTML;
+}
+
+function confirmarEnvio() {
+  // Guarda contra doble tap: el backend tambien lo rechaza (un pendiente ya
+  // enviado no se reenvia), pero no hay que llegar a depender de eso.
+  if (enviando || !emailActual) { return; }
+  enviando = true;
+  var btn = document.getElementById('btn-enviar');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  fetch('/api/pending-emails/' + encodeURIComponent(emailActual) + '/send', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+  })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
+    .then(function(res) {
+      if (!res.ok || !res.d.ok) {
+        btn.textContent = 'Enviar email';
+        enviando = false;
+        flashToast(res.d.error || 'No se pudo enviar', 'error');
+        return;
+      }
+      btn.textContent = 'Enviado';
+      flashToast('Correo enviado', 'success');
+      setTimeout(function() { location.reload(); }, 700);
+    })
+    .catch(function() {
+      btn.textContent = 'Enviar email';
+      btn.disabled = false;
+      enviando = false;
+      flashToast('Error de red', 'error');
+    });
+}
+
+function cerrarRevision() {
+  closeModal('revision-modal');
+  emailActual = null;
+  enviando = false;
+}
+
+document.addEventListener('DOMContentLoaded', function() { filtrarEmails('pending'); });
+</script>
+{% endblock %}
