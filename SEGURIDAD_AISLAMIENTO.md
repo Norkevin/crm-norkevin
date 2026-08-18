@@ -216,3 +216,64 @@ ids, tablas y cuentas, que es lo que hace falta para investigar.
 
 Ambos requieren el token de admin. `workflow-cleanup` solo ejecuta con
 `confirm: LIMPIAR_WORKFLOWS`; sin eso informa y no toca nada.
+
+---
+
+## 11. Enlaces publicos: el enlace ES la credencial
+
+`/quotes/<id>`, `/contracts/<id>`, `/questionnaires/<id>` y `/portal/<id>`
+estan pensados para que el cliente los abra **sin sesion**. Funcionan como
+un documento compartido por link: quien tiene el enlace, entra. Si exigieran
+login no servirian para lo que existen.
+
+Consecuencia: la seguridad de esos enlaces depende **enteramente** de que el
+id no se pueda adivinar.
+
+### REQUIERE REVISION: los ids importados de Studio Ninja son predecibles
+
+Los recursos que crea la app hoy usan `uuid.uuid4().hex[:8]`, que no se
+adivina. Pero los importados de Studio Ninja se construyeron a partir del
+nombre de la boda:
+
+```
+contract-sn-boda-rebeca-y-jos
+quote-sn-<slug-de-la-boda>-1
+```
+
+Quien conozca el nombre de una boda puede reconstruir el enlace de su
+contrato o cotizacion sin haberlo recibido nunca.
+
+**No se cambiaron**, y a proposito: hay enlaces de esos ya enviados a
+clientes reales, y renombrarlos los romperia. Es una decision de negocio.
+
+Opciones para cuando se decida:
+
+1. Dejarlos como estan y aceptar el riesgo (son documentos de bodas ya
+   pasadas en su mayoria).
+2. Generar un id nuevo aleatorio para los recursos aun activos y mantener el
+   viejo como alias por un tiempo.
+3. Agregar un token corto al enlace (`?k=...`) y exigirlo solo para los
+   recursos importados.
+
+La opcion 2 es la unica que cierra el agujero sin romper enlaces vigentes,
+pero necesita decidir que se considera "aun activo".
+
+## 12. Lecturas privilegiadas
+
+`store.list_privileged(tabla, tenant_id=..., reason=...)` es la unica forma
+autorizada de saltarse el aislamiento. `reason` es obligatorio y sin default:
+obliga a justificar en el punto de uso y queda en el log de seguridad.
+
+Un test de arquitectura verifica que `_read_raw` no se use fuera de
+`storage.py`, para que no se vuelva la forma comoda de saltarse todo.
+
+Usos actuales, todos fuera del flujo de un usuario con sesion:
+
+| Donde | Empresa | Justificacion |
+|---|---|---|
+| Integracion de galeria | explicita | servidor-a-servidor con token; filtra por empresa |
+| Reporte del incidente | todas | por definicion compara entre empresas |
+| Auditoria de huerfanos | todas | busca registros sin empresa |
+| Inventario | todas | cuenta por empresa |
+| Limpieza de workflows | explicita por empresa | itera empresa por empresa |
+| Migracion a multi-cuenta | todas | necesita el archivo completo |

@@ -217,6 +217,33 @@ class JsonStore:
         actuando para validar que todo lo del correo sea de esa misma."""
         return self._current_tenant_id()
 
+    def list_privileged(self, table, *, tenant_id=None, reason):
+        """Lectura que se SALTA el aislamiento normal. Es una excepcion.
+
+        Existe para tres casos legitimos, todos fuera del flujo de un usuario
+        con sesion:
+
+          - integraciones servidor-a-servidor autenticadas por token, que
+            filtran por empresa ellas mismas;
+          - reportes de administracion que por definicion miran todas las
+            empresas (inventario, huerfanos, reporte del incidente);
+          - migraciones, que tienen que ver el archivo completo.
+
+        `reason` es obligatorio y sin default a proposito: obliga a
+        justificar el salto en el punto de uso, y queda en el log de
+        seguridad. Si se pasa `tenant_id` se filtra por esa empresa, que es
+        lo que deberia hacer cualquier integracion.
+
+        Kevin: "no quiero que _read_raw se convierta en la nueva forma facil
+        de saltarse el sistema".
+        """
+        log_security_event('LECTURA_PRIVILEGIADA', tabla=table,
+                           cuenta=tenant_id or 'TODAS', motivo=reason)
+        records = self._read_raw(table)
+        if tenant_id is not None:
+            records = [r for r in records if r.get('tenant_id') == tenant_id]
+        return records
+
     def owner_tenant_of(self, table, value, field='id'):
         """Cuenta duena de un registro, saltando el filtro por cuenta.
 

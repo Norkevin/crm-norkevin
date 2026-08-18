@@ -1698,14 +1698,17 @@ def api_gallery_job_search():
     # codigo, con el valor actual como default para no cambiar el contrato de
     # la integracion existente.
     astral_tenant_id = os.environ.get('GALLERY_TENANT_ID', 'tenant-norkevin')
-    jobs = [j for j in store._read_raw('jobs') if j.get('tenant_id') == astral_tenant_id]
+    jobs = store.list_privileged('jobs', tenant_id=astral_tenant_id,
+                                 reason='integracion de galeria (token servidor-a-servidor)')
     clients = {
-        c.get('id'): c for c in store._read_raw('clients')
-        if c.get('tenant_id') == astral_tenant_id
+        c.get('id'): c for c in store.list_privileged(
+            'clients', tenant_id=astral_tenant_id,
+            reason='integracion de galeria (token servidor-a-servidor)')
     }
     leads = {
-        lead.get('id'): lead for lead in store._read_raw('leads')
-        if lead.get('tenant_id') == astral_tenant_id
+        lead.get('id'): lead for lead in store.list_privileged(
+            'leads', tenant_id=astral_tenant_id,
+            reason='integracion de galeria (token servidor-a-servidor)')
     }
 
     results = []
@@ -4332,7 +4335,7 @@ def api_admin_migrate_to_multi_tenant():
     unexpected = {}
     for table in sorted(TENANT_SCOPED_TABLES):
         counts = {}
-        for r in store._read_raw(table):
+        for r in store.list_privileged(table, reason='migracion a multi-cuenta (admin)'):
             tid = r.get('tenant_id') or '(sin tenant_id)'
             counts[tid] = counts.get(tid, 0) + 1
         report[table] = counts
@@ -4370,7 +4373,7 @@ def api_admin_migrate_to_multi_tenant():
     # 3. Backfill: sin tenant_id o con el stub viejo -> Astral Weddings.
     migrated = {}
     for table in sorted(TENANT_SCOPED_TABLES):
-        records = store._read_raw(table)
+        records = store.list_privileged(table, reason='migracion a multi-cuenta (admin)')
         changed = 0
         for r in records:
             if not r.get('tenant_id') or r.get('tenant_id') == 'tenant-astral':
@@ -4385,7 +4388,9 @@ def api_admin_migrate_to_multi_tenant():
     #    heredar por accidente los de otra marca.
     cloned = {}
     for table in ('email_templates', 'packages'):
-        base_records = [r for r in store._read_raw(table) if r.get('tenant_id') == 'tenant-norkevin']
+        base_records = store.list_privileged(
+            table, tenant_id='tenant-norkevin',
+            reason='migracion a multi-cuenta (admin)')
         count = 0
         for new_tenant in _MULTI_TENANT_REAL_TENANTS[1:]:
             for rec in base_records:
@@ -5851,7 +5856,7 @@ def api_admin_incident_report():
     # pertenecia realmente quien lo recibio (independiente de quien envio).
     dueno_por_email = {}
     for tabla in ('clients', 'leads'):
-        for r in store._read_raw(tabla):
+        for r in store.list_privileged(tabla, reason='reporte del incidente (admin)'):
             correo = (r.get('email') or '').strip().lower()
             if correo and r.get('tenant_id'):
                 dueno_por_email.setdefault(correo, r['tenant_id'])
@@ -5859,7 +5864,7 @@ def api_admin_incident_report():
     nombres = {t.get('id'): t.get('name') for t in store.list('tenants')}
 
     entradas = []
-    for m in store._read_raw('mail_log'):
+    for m in store.list_privileged('mail_log', reason='reporte del incidente (admin)'):
         cuando = m.get('sent_at') or ''
         if desde and cuando[:10] < desde:
             continue
@@ -5950,7 +5955,7 @@ def api_admin_orphan_audit():
     tabla_resumen = []
     huerfanos = []
     for tabla in sorted(TENANT_SCOPED_TABLES):
-        registros = store._read_raw(tabla)
+        registros = store.list_privileged(tabla, reason='auditoria de huerfanos (admin)')
         por_cuenta = {tid: 0 for tid in tenants}
         sin_cuenta = 0
         desconocidas = 0
@@ -6041,7 +6046,7 @@ def api_admin_workflow_cleanup():
     # Huella financiera ANTES, para poder demostrar que no se movio nada.
     def _huella_financiera():
         huella = {}
-        for p in store._read_raw('payments'):
+        for p in store.list_privileged('payments', reason='huella financiera antes/despues (admin)'):
             huella[p.get('id')] = (p.get('amount'), p.get('status'),
                                    p.get('due_date'), p.get('paid_date'))
         return huella
@@ -6052,7 +6057,8 @@ def api_admin_workflow_cleanup():
     cambios = []
     for tenant in store.list('tenants'):
         tid = tenant.get('id')
-        jobs = [j for j in store._read_raw('jobs') if j.get('tenant_id') == tid]
+        jobs = store.list_privileged('jobs', tenant_id=tid,
+                                    reason='limpieza de workflows por empresa (admin)')
         activos = [j for j in jobs if j.get('status') not in ('Archivado', 'Cancelado')]
         por_cambiar = 0
         tareas = 0
@@ -6091,8 +6097,10 @@ def api_admin_workflow_cleanup():
     aplicados = []
     if ejecutar:
         for cambio in cambios:
-            job = next((j for j in store._read_raw('jobs')
-                        if j.get('id') == cambio['job_id']), None)
+            job = next((j for j in store.list_privileged(
+                'jobs', tenant_id=cambio['tenant_id'],
+                reason='limpieza de workflows por empresa (admin)')
+                if j.get('id') == cambio['job_id']), None)
             if not job:
                 continue
             instancia = _workflow_instance_for('job', job['id'])
@@ -6175,7 +6183,8 @@ def api_admin_tenant_inventory():
     from src.storage import TENANT_SCOPED_TABLES
     huerfanos = {}
     for tabla in sorted(TENANT_SCOPED_TABLES):
-        sin_cuenta = [r.get('id') for r in store._read_raw(tabla) if not r.get('tenant_id')]
+        sin_cuenta = [r.get('id') for r in store.list_privileged(
+            tabla, reason='inventario por empresa (admin)') if not r.get('tenant_id')]
         if sin_cuenta:
             huerfanos[tabla] = {'total': len(sin_cuenta), 'ejemplos': sin_cuenta[:10]}
 
