@@ -345,12 +345,19 @@ class MailTracker:
             estado_final = BLOQUEADO
         else:
             estado_final = FALLO
-        _anotar(pendiente, estado_final, actor=actor,
-                motivo=enviado.get('blocked_reason') or enviado.get('delivery_error'))
+        detalle = enviado.get('blocked_reason') or enviado.get('delivery_error')
+        _anotar(pendiente, estado_final, actor=actor, motivo=detalle)
         pendiente['sent_at'] = datetime.now().isoformat()
         pendiente['mail_id'] = enviado.get('id')
         store.upsert('pending_emails', pendiente)
-        return {'ok': ok, 'pendiente': pendiente, 'mail': enviado}
+        respuesta = {'ok': ok, 'pendiente': pendiente, 'mail': enviado}
+        if not ok:
+            # Sin esto la pantalla decia "no se pudo enviar" y nada mas: quien
+            # aprueba no tenia como distinguir un Gmail caido de un bloqueo.
+            respuesta['error'] = (
+                f'EMAIL BLOCKED: {detalle}' if estado_final == BLOQUEADO
+                else f'No se pudo entregar: {detalle or "error desconocido"}')
+        return respuesta
 
     def retry_failed(self, pending_id, actor=None):
         """Reintenta un correo que fallo. MANUAL a proposito.

@@ -244,3 +244,30 @@ def test_no_se_puede_reintentar_un_pendiente_de_otra_empresa(client, monkeypatch
     resp = client.post(f'/api/pending-emails/{p["id"]}/retry')
     assert resp.status_code == 400
     assert 'No encontrado' in resp.get_json()['error']
+
+
+def test_un_fallo_dice_por_que_fallo(client, monkeypatch):
+    """"No se pudo enviar" y nada mas no le sirve a quien aprueba: no puede
+    distinguir un Gmail caido de un bloqueo de seguridad."""
+    import app as app_module
+
+    monkeypatch.setattr(
+        'src.mail_tracker.send_email',
+        lambda *a, **k: DeliveryResult(ok=False, provider='gmail', mode='real',
+                                       error='timeout hablando con Gmail'))
+
+    ctx = _ctx(app_module, ASTRAL)
+    try:
+        job = _seed(app_module, 'jobs', ASTRAL, nombre='Boda con detalle')
+        tracker = MailTracker()
+        p = tracker.queue_email('cliente@ejemplo.com', 'Hola', 'Cuerpo',
+                                job_id=job['id'])
+        resultado = tracker.approve_and_send(p['id'], actor='kevin')
+    finally:
+        ctx.pop()
+
+    assert resultado['ok'] is False
+    assert 'timeout' in resultado['error']
+    assert 'No se pudo entregar' in resultado['error'], \
+        'un fallo tecnico no debe leerse como un bloqueo de seguridad'
+    assert 'BLOCKED' not in resultado['error']
