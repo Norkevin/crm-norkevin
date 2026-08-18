@@ -22,7 +22,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from src.workflow import WorkflowEngine, LEAD_WORKFLOW, PRODUCTION_WORKFLOW
 from src.workflow.models import StepStatus, WorkflowStatus, TriggerType
-from src.storage import store
+from src.storage import store, log_security_event
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -133,6 +133,11 @@ def _active_tenant_id():
 
 store.tenant_resolver = _active_tenant_id
 store.request_context_probe = has_request_context
+# Solo las rutas de /api/admin/* autenticadas marcan este flag (ver
+# _require_login). Es lo que habilita scope='all_tenants' en
+# store.list_privileged: cruzar empresas tiene que ser una excepcion
+# deliberada, no algo que cualquier ruta consiga por descuido.
+store.admin_context_probe = lambda: bool(getattr(g, 'is_admin_request', False))
 
 from src import gmail_delivery as _gmail_delivery_module
 _gmail_delivery_module.tenant_resolver = _active_tenant_id
@@ -1901,6 +1906,26 @@ def dev_login():
     return redirect(request.args.get('next') or '/dashboard')
 
 
+# Rutas administrativas: cruzan las dos empresas, asi que van detras del
+# token de un solo uso y nunca detras de "estar logueado".
+_ADMIN_PATHS = (
+    '/api/admin/debug-production-workflow',
+    '/api/admin/cleanup-duplicate-questionnaires',
+    '/api/admin/reconcile-studio-ninja-jobs',
+    '/api/admin/fix-secondary-clients',
+    '/api/admin/list-studio-ninja-clients',
+    '/api/admin/tenant-inventory',
+    '/api/admin/workflow-cleanup',
+    '/api/admin/orphan-audit',
+    '/api/admin/public-links-audit',
+    '/api/admin/incident-report',
+    '/api/admin/import-astral-leads',
+    # Reescribe tenant_id en las dos empresas: menos aun puede estar
+    # detras de una sesion normal.
+    '/api/admin/migrate-to-multi-tenant',
+)
+
+
 @app.before_request
 def _set_public_tenant():
     """Fija la cuenta de la peticion cuando viene de un enlace publico.
@@ -1924,19 +1949,15 @@ def _set_public_tenant():
 def _require_login():
     if _is_public_path(request.path):
         return None
-    if request.path in (
-        '/api/admin/debug-production-workflow',
-        '/api/admin/cleanup-duplicate-questionnaires',
-        '/api/admin/reconcile-studio-ninja-jobs',
-        '/api/admin/fix-secondary-clients',
-        '/api/admin/list-studio-ninja-clients',
-        '/api/admin/tenant-inventory',
-        '/api/admin/workflow-cleanup',
-        '/api/admin/orphan-audit',
-        '/api/admin/public-links-audit',
-        '/api/admin/incident-report',
-        '/api/admin/import-astral-leads',
-    ) and request.args.get('token') == _ADMIN_ONE_TIME_TOKEN:
+    if request.path in _ADMIN_PATHS:
+        if request.args.get('token') != _ADMIN_ONE_TIME_TOKEN:
+            # Estar logueado NO alcanza: estas rutas cruzan las dos empresas,
+            # asi que sin el token no existen. 404 y no 403 a proposito, para
+            # no confirmarle a nadie que la ruta esta ahi.
+            log_security_event('RUTA_ADMIN_SIN_TOKEN', ruta=request.path)
+            return jsonify({'ok': False, 'error': 'Not found'}), 404
+        # Recien aca la peticion queda autorizada a mirar todas las empresas.
+        g.is_admin_request = True
         return None
     if session.get('logged_in'):
         tenant_id = (session.get('tenant_id') or '').strip()
@@ -5683,10 +5704,14 @@ def api_admin_import_astral_leads():
     if not tenant_id:
         return jsonify({'ok': False, 'error': 'tenant_id requerido'}), 400
 
-    existing = {l.get('id') for l in store.list('leads')}
+    # Los ids se derivan del email, asi que un choque puede venir de
+    # CUALQUIER empresa: para no pisar un lead ajeno hay que mirar todas.
+    todos_los_leads = store.list_privileged(
+        'leads', scope='all_tenants', reason='import de leads: evitar pisar ids ajenos')
+    existing = {l.get('id') for l in todos_los_leads}
     existing_emails = {
         (l.get('email') or '').strip().lower()
-        for l in store.list('leads')
+        for l in todos_los_leads
         if l.get('tenant_id') == tenant_id and l.get('email')
     }
 
@@ -6220,18 +6245,28 @@ def api_admin_tenant_inventory():
     Norkevin) y pidio 'llenar todo'. Antes de importar hay que saber que hay
     ya en cada tenant: importar encima de lo que ya existe duplicaria bodas
     reales, y meterlo en el tenant equivocado mezclaria dos negocios."""
+    # Lectura cruzada explicita: este reporte existe justamente para comparar
+    # las dos empresas. store.list() aca devolveria [] (la peticion admin no
+    # tiene cuenta activa) y el inventario saldria vacio sin decir por que.
+    def _todas(tabla):
+        return store.list_privileged(tabla, scope='all_tenants',
+                                     reason='inventario por empresa (admin)')
+
     tenants = store.list('tenants')
-    jobs = store.list('jobs')
-    clients = store.list('clients')
-    leads = store.list('leads')
-    quotes = store.list('quotes')
-    payments = store.list('payments')
-    contracts = store.list('contracts')
+    jobs = _todas('jobs')
+    clients = _todas('clients')
+    leads = _todas('leads')
+    quotes = _todas('quotes')
+    payments = _todas('payments')
+    contracts = _todas('contracts')
 
     def by_tenant(records):
         out = {}
         for r in records:
-            out[r.get('tenant_id')] = out.get(r.get('tenant_id'), 0) + 1
+            # Los huerfanos se cuentan aparte con una etiqueta y no con None:
+            # asi se ven en el reporte en vez de desaparecer.
+            clave = r.get('tenant_id') or '(sin cuenta)'
+            out[clave] = out.get(clave, 0) + 1
         return out
 
     # Detalle de los jobs pedidos: sirve para saber si ya traen cotizacion,

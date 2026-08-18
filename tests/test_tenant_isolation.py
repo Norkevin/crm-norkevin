@@ -386,7 +386,7 @@ def test_migration_dry_run_does_not_write_anything(client):
     _purge_synthetic_tenant_ids(app_module)
     login_as_tenant(client, 'tenant-norkevin')
     before = app_module.store.list('tenants')
-    resp = client.post('/api/admin/migrate-to-multi-tenant', json={'confirm': 'MIGRAR', 'dry_run': True})
+    resp = client.post('/api/admin/migrate-to-multi-tenant?token=' + app_module._ADMIN_ONE_TIME_TOKEN, json={'confirm': 'MIGRAR', 'dry_run': True})
     assert resp.status_code == 200
     data = resp.get_json()
     assert data['dry_run'] is True
@@ -394,8 +394,9 @@ def test_migration_dry_run_does_not_write_anything(client):
 
 
 def test_migration_requires_confirm_keyword(client):
+    import app as app_module
     login_as_tenant(client, 'tenant-norkevin')
-    resp = client.post('/api/admin/migrate-to-multi-tenant', json={'dry_run': True})
+    resp = client.post('/api/admin/migrate-to-multi-tenant?token=' + app_module._ADMIN_ONE_TIME_TOKEN, json={'dry_run': True})
     assert resp.status_code == 400
 
 
@@ -411,7 +412,7 @@ def test_migration_aborts_on_unrecognized_tenant_id(client):
     weird_id = 'client-weird-' + uuid.uuid4().hex[:6]
     app_module.store.upsert('clients', {'id': weird_id, 'first_name': 'Weird', 'tenant_id': 'tenant-completamente-desconocido'})
 
-    resp = client.post('/api/admin/migrate-to-multi-tenant', json={'confirm': 'MIGRAR', 'dry_run': True})
+    resp = client.post('/api/admin/migrate-to-multi-tenant?token=' + app_module._ADMIN_ONE_TIME_TOKEN, json={'confirm': 'MIGRAR', 'dry_run': True})
     assert resp.status_code == 400
     data = resp.get_json()
     assert 'unexpected' in data

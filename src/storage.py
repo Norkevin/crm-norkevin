@@ -103,6 +103,11 @@ class JsonStore:
         # solo donde hay un usuario/enlace real detras, y no romper los
         # scripts de migracion ni la siembra de datos de los tests.
         self.request_context_probe = None
+        # Callable() -> bool: "esta peticion es de una ruta administrativa
+        # autorizada?". Solo desde ahi se puede pedir scope='all_tenants'.
+        # Kevin: "quiero que el acceso cross-tenant sea una excepcion visible
+        # y deliberada, nunca el comportamiento por defecto".
+        self.admin_context_probe = None
 
     def _path(self, table):
         return os.path.join(self.data_dir, f'{table}.json')
@@ -246,6 +251,31 @@ class JsonStore:
                 "scope='all_tenants' explicito. Omitir la empresa no da "
                 'acceso a todas.'
             )
+        if scope == 'all_tenants':
+            # Ver todas las empresas solo se permite desde una ruta
+            # administrativa autorizada. Dentro de una peticion normal
+            # (aunque el codigo lo pida) se rechaza: si no, cualquier ruta
+            # podria mirar los datos de los dos negocios.
+            en_request = False
+            if self.request_context_probe is not None:
+                try:
+                    en_request = bool(self.request_context_probe())
+                except Exception:
+                    en_request = False
+            if en_request:
+                es_admin = False
+                if self.admin_context_probe is not None:
+                    try:
+                        es_admin = bool(self.admin_context_probe())
+                    except Exception:
+                        es_admin = False
+                if not es_admin:
+                    log_security_event('ALL_TENANTS_BLOQUEADO', tabla=table,
+                                       motivo=reason)
+                    raise TenantMismatchError(
+                        f"scope='all_tenants' sobre '{table}' solo se permite "
+                        'desde una ruta administrativa autorizada.'
+                    )
         log_security_event('LECTURA_PRIVILEGIADA', tabla=table,
                            cuenta=tenant_id or 'TODAS', motivo=reason)
         records = self._read_raw(table)

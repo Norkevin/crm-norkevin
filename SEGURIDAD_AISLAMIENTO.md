@@ -258,11 +258,75 @@ Opciones para cuando se decida:
 La opcion 2 es la unica que cierra el agujero sin romper enlaces vigentes,
 pero necesita decidir que se considera "aun activo".
 
+### Arquitectura preparada (no activada): `src/public_tokens.py`
+
+Existe ya el modulo con la forma correcta de hacerlo, **sin tocar ningun
+enlace actual y sin ninguna migracion ejecutada**:
+
+- `generar_token()` -- 256 bits de `secrets.token_urlsafe`.
+- `hash_token()` -- lo que se guarda en la base es el **hash**, nunca el
+  token. Una lectura accidental de la base no entrega enlaces utilizables.
+  SHA-256 a secas y no bcrypt a proposito: no es una contrasena elegida por
+  una persona sino 256 bits aleatorios, contra los que la fuerza bruta no
+  existe, y el hash rapido permite resolver el enlace en cada visita.
+- `token_coincide()` -- compara con `hmac.compare_digest`, en tiempo
+  constante, para no filtrar cuantos caracteres se acertaron.
+- `huella()` -- `ab12••••••89` para logs y pantallas. Un token completo en un
+  log es una credencial en un log.
+- `emitir_para(record)` -- devuelve `(token_en_claro, record_con_hash)`. El
+  token en claro existe una sola vez, al generarlo; despues no se recupera.
+  Si se pierde, se emite otro.
+
+Cubierto por tests: que el token viejo deje de funcionar al rotar, que el
+claro nunca quede persistido, que un registro sin `public_token_hash` no
+resuelva con nada, y que la huella nunca contenga el token.
+
+**Lo que falta para activarlo es una decision de Kevin, no codigo:** que
+enlaces se consideran "aun activos" y que pasa con los viejos (mantener como
+alias, expirar, redirigir o desactivar).
+
 ## 12. Lecturas privilegiadas
 
 `store.list_privileged(tabla, tenant_id=..., reason=...)` es la unica forma
 autorizada de saltarse el aislamiento. `reason` es obligatorio y sin default:
 obliga a justificar en el punto de uso y queda en el log de seguridad.
+
+**Omitir la empresa NO significa "todas".** Sin `tenant_id` la llamada
+levanta `ValueError`. Para leer las dos empresas hay que pedirlo de forma
+explicita y deliberada:
+
+```python
+store.list_privileged('clients', scope='all_tenants', reason='...')
+```
+
+y ademas ese modo solo funciona:
+
+- **fuera de una peticion web** (scripts de migracion, tests), o
+- **dentro de una ruta administrativa autorizada**, es decir una de
+  `_ADMIN_PATHS` abierta con el token de admin, que es lo unico que pone
+  `g.is_admin_request`.
+
+Desde cualquier otra ruta -- aunque haya sesion valida y aunque el codigo lo
+pida -- se registra `ALL_TENANTS_BLOQUEADO` y se levanta
+`TenantMismatchError`. Hay tests que fijan las dos mitades: que una ruta
+normal no puede usarlo y que una administrativa si.
+
+### Las rutas administrativas no cuelgan de "estar logueado"
+
+Antes, `_require_login` dejaba pasar `/api/admin/*` a cualquier sesion valida
+si no traia token. Ahora, sin el token esas rutas responden **404** (no 403:
+no confirmamos que existan) y queda `RUTA_ADMIN_SIN_TOKEN` en el log.
+`/api/admin/migrate-to-multi-tenant` -- que reescribe `tenant_id` en las dos
+empresas -- entro a esa lista.
+
+### Efecto secundario que hubo que arreglar
+
+Cerrar el aislamiento dejo dos rutas admin leyendo `store.list()` sin cuenta
+activa: devolvian `[]` y el reporte salia **vacio sin avisar**. El inventario
+mostraba cero registros y el import de leads perdia su chequeo de duplicados
+(habria pisado leads existentes). Las dos pasaron a `list_privileged` con
+`scope='all_tenants'`, y hay tests de regresion para que no vuelva a pasar en
+silencio.
 
 Un test de arquitectura verifica que `_read_raw` no se use fuera de
 `storage.py`, para que no se vuelva la forma comoda de saltarse todo.
