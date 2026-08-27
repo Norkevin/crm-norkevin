@@ -172,6 +172,51 @@
 .dashboard-jobs-table td { padding: 11px 12px; border-top: 1px solid rgba(16,24,40,.06); font-size: 13px; vertical-align: middle; }
 .dashboard-jobs-table tr.dashboard-jobs-row { cursor: pointer; }
 .dashboard-jobs-table tr.dashboard-jobs-row:hover td { background: var(--sn-mint-soft); }
+
+/* El dashboard es la primera pantalla que Kevin abre, muchas veces desde
+   el telefono. Esta tabla tiene 5 columnas y el wrap solo hacia
+   overflow-x:auto -- o sea que en movil habia que arrastrar de lado para
+   ver estado y avance. Se apila como ficha etiqueta/valor. */
+@media (max-width: 760px) {
+  .dashboard-jobs-table-wrap { overflow-x: visible; }
+  .dashboard-jobs-table thead { display: none; }
+  .dashboard-jobs-table,
+  .dashboard-jobs-table tbody,
+  .dashboard-jobs-table tr,
+  .dashboard-jobs-table td { display: block; width: 100%; }
+  .dashboard-jobs-table tr {
+    border: 1px solid var(--sn-line);
+    border-radius: 14px;
+    padding: 4px 14px;
+    margin-bottom: 10px;
+  }
+  .dashboard-jobs-table tr:last-child { margin-bottom: 0; }
+  .dashboard-jobs-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: none;
+    border-bottom: 1px solid rgba(16,24,40,.06);
+    padding: 10px 0;
+    overflow-wrap: anywhere;
+  }
+  .dashboard-jobs-table td:last-child { border-bottom: none; }
+  .dashboard-jobs-table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--sn-muted);
+    font-weight: 600;
+    flex: 0 0 auto;
+  }
+  /* El nombre del job manda: ocupa la fila completa, sin etiqueta. */
+  .dashboard-jobs-table td.stack-full { display: block; }
+  .dashboard-jobs-table td.stack-full::before { display: none; }
+  .dashboard-jobs-table td[colspan] { display: block; border-bottom: none; }
+  .dashboard-jobs-table .dashboard-jobs-progress-wrap { flex: 1 1 auto; min-width: 0; }
+}
 .dashboard-jobs-job-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .dashboard-jobs-job-name { display: block; min-width: 0; font-weight: 600; color: var(--sn-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dashboard-jobs-progress-wrap { display: flex; align-items: center; gap: 8px; min-width: 90px; }
@@ -730,26 +775,26 @@
       <table class="dashboard-jobs-table">
         <thead>
           <tr>
-            <th>Job</th>
-            <th>Client</th>
+            <th>Trabajo</th>
+            <th>Cliente</th>
             <th>Date</th>
-            <th>Status</th>
-            <th>Progress</th>
+            <th>Estado</th>
+            <th>Avance</th>
           </tr>
         </thead>
         <tbody>
           {% for j in upcoming_jobs[:5] %}
           <tr class="dashboard-jobs-row" onclick="window.location.href='/jobs/{{ j.id }}'">
-            <td>
+            <td data-label="Trabajo" class="stack-full">
               <div class="dashboard-jobs-job-cell">
                 <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (j.nombre or '?')[:1]|upper }}</span>
                 <span class="dashboard-jobs-job-name">{{ j.nombre or 'Sin nombre' }}</span>
               </div>
             </td>
-            <td>{{ j.client_name or 'Sin cliente' }}</td>
-            <td>{{ j.boda_date or 'Sin fecha' }}</td>
-            <td><span class="sn-chip green">{{ j.status or 'Activo' }}</span></td>
-            <td>
+            <td data-label="Cliente">{{ j.client_name or 'Sin cliente' }}</td>
+            <td data-label="Fecha">{{ j.boda_date or 'Sin fecha' }}</td>
+            <td data-label="Estado"><span class="sn-chip green">{{ j.status or 'Activo' }}</span></td>
+            <td data-label="Avance">
               <div class="dashboard-jobs-progress-wrap">
                 <div class="sn-progress"><div class="sn-progress-fill" style="width:{{ j.workflow_progress or 0 }}%;"></div></div>
                 <span class="dashboard-jobs-progress-pct">{{ j.workflow_progress or 0 }}%</span>
@@ -933,10 +978,10 @@
     <table class="source-modal-table">
       <thead>
         <tr>
-          <th>Status</th>
+          <th>Estado</th>
           <th>Lead Source</th>
           <th>Leads</th>
-          <th>Jobs</th>
+          <th>Trabajos</th>
           <th>Total (%)</th>
           <th>Conversion</th>
         </tr>

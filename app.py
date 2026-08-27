@@ -22,8 +22,9 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from src.workflow import WorkflowEngine, LEAD_WORKFLOW, PRODUCTION_WORKFLOW
 from src.workflow.models import StepStatus, WorkflowStatus, TriggerType
-from src.storage import store, log_security_event
+from src.storage import store, log_security_event, TenantMismatchError
 from src import public_links, public_tokens
+from src.tenant_brand_map import display_name_for_tenant as _brand_display_name_for_tenant
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -368,12 +369,12 @@ def get_job_client_ids(job):
     Esta funcion es la unica fuente de verdad para "todos los clientes de
     este job" reutilizando esos 3 campos reales en vez de inventar una
     estructura paralela."""
-    ids = []
-    for key in ('client_id', 'secondary_client_id', 'planner_client_id'):
-        cid = job.get(key)
-        if cid and cid not in ids:
-            ids.append(cid)
-    return ids
+    # ACTUALIZADO (agosto 2026): esta funcion leia SOLO los 3 campos
+    # legacy, asi que seguia topada en 3 clientes aunque el job tuviera
+    # mas en job_clients. Ahora delega en la fuente canonica, que lee la
+    # relacion N y cae a los campos viejos solo si el job no tiene
+    # relaciones nuevas.
+    return [r['client_id'] for r in _job_client_relations(job)]
 
 
 def get_job_clients(job):
@@ -472,6 +473,9 @@ def _inject_link(body, url, placeholders, fallback_label):
 def _render_message_template(text, *, client=None, lead=None, job=None):
     text = text or ''
     name = _client_name(client=client, lead=lead, job=job)
+    company_name = _brand_display_name_for_tenant(
+        (job or {}).get('tenant_id') or (lead or {}).get('tenant_id') or (client or {}).get('tenant_id')
+    )
     boda_date = (
         (job or {}).get('boda_date')
         or (lead or {}).get('fecha_tentativa')
@@ -490,7 +494,7 @@ def _render_message_template(text, *, client=None, lead=None, job=None):
         '{{ locacion }}': location,
         '%client_name%': name,
         '%job_date%': boda_date,
-        '%company_name%': 'ASTRAL WEDDINGS',
+        '%company_name%': company_name,
     }
     for key, value in replacements.items():
         text = text.replace(key, str(value or ''))
@@ -683,7 +687,6 @@ def _ensure_client_for_lead(lead):
             'last_name': last_name,
             'phone': lead.get('telefono', ''),
             'email': lead.get('email', ''),
-            'address': lead.get('locacion', ''),
             'tenant_id': tenant_id,
             'estado': 'Activo',
         }.items():
@@ -701,7 +704,10 @@ def _ensure_client_for_lead(lead):
         'company': '',
         'phone': lead.get('telefono', ''),
         'email': lead.get('email', ''),
-        'address': lead.get('locacion', ''),
+        # address deliberadamente vacio: NO se hereda del venue del lead.
+        # Ver la nota en _ensure_client_for_lead sobre el bucle
+        # venue -> address -> venue que metia emails/telefonos en location.
+        'address': '',
         'source': lead.get('fuente', 'Lead'),
         'tenant_id': tenant_id,
         'created': today,
@@ -730,7 +736,7 @@ def _find_job_for_lead(lead):
     return jobs[-1]
 
 
-def _converted_job_for_lead(lead):
+def _converted_job_for_lead(lead, jobs_cache=None):
     if not lead:
         return None
 
@@ -747,8 +753,13 @@ def _converted_job_for_lead(lead):
 
     accepted_statuses = {'confirmado', 'confirmed', 'listo', 'completed', 'archivado', 'archived'}
     tenant_id = lead.get('tenant_id')
+    # jobs_cache: la lista de jobs ya leida por quien llama. Sin esto, la
+    # pantalla de leads releia la tabla ENTERA de jobs una vez por lead
+    # (leads_list -> compute_workflow_steps_for_lead -> _lead_is_converted
+    # -> aca). Con 200 leads eran 200 lecturas de disco por pagina.
+    _todos = store.list('jobs') if jobs_cache is None else jobs_cache
     jobs = [
-        j for j in store.list('jobs')
+        j for j in _todos
         if j.get('lead_id') == lead.get('id') and _same_tenant_or_legacy(j, tenant_id)
     ]
     accepted_jobs = [
@@ -761,8 +772,8 @@ def _converted_job_for_lead(lead):
     return accepted_jobs[-1]
 
 
-def _lead_is_converted(lead):
-    return bool(_converted_job_for_lead(lead))
+def _lead_is_converted(lead, jobs_cache=None):
+    return bool(_converted_job_for_lead(lead, jobs_cache))
 
 
 def _lead_is_open(lead):
@@ -817,7 +828,12 @@ def _canonical_jobs(jobs=None):
 
 def _canonical_clients(clients=None):
     clients = list(clients) if clients is not None else list_clients()
-    canonical_job_client_ids = {job.get('client_id') for job in _canonical_jobs() if job.get('client_id')}
+    # "Esta persona esta metida en una boda real" es el criterio que decide
+    # cual de dos fichas duplicadas (mismo email, del import de Studio
+    # Ninja) es la buena. Antes solo contaba el rol `principal`, asi que si
+    # la ficha real estaba enlazada como `pareja` perdia contra el duplicado
+    # huerfano y la lista mostraba la ficha equivocada.
+    canonical_job_client_ids = set(_jobs_por_cliente().keys())
     by_key = {}
     for client in clients:
         key = _norm_email(client.get('email')) or _norm_phone(client.get('phone')) or client.get('id')
@@ -878,7 +894,11 @@ def _ensure_job_for_lead(lead, client_id, quote=None, status='Confirmado'):
         'boda_date': lead.get('fecha_tentativa') or today,
         'status': status,
         'workflow_progress': 12 if status == 'Confirmado' else 0,
-        'empresa': 'ASTRAL WEDDINGS',
+        # Antes hardcodeado a 'ASTRAL WEDDINGS' sin importar el tenant real
+        # -- causaba que un job de CUALQUIER empresa quedara marcado como
+        # Astral. Ahora se resuelve por la identidad canonica del tenant_id
+        # (src/tenant_brand_map.py), nunca por un string fijo.
+        'empresa': _brand_display_name_for_tenant(tenant_id),
         'type': lead.get('tipo_evento', 'Boda'),
         'location': lead.get('locacion', ''),
         'package': (quote or {}).get('paquete_nombre', 'Basico'),
@@ -912,6 +932,19 @@ def _ensure_payments_for_quote(quote, client_id, job_id, tenant_id=None):
         return [], False
 
     tenant_id = tenant_id or get_current_tenant_id()
+
+    # Guardia 1: ya existe un CALENDARIO ACTIVO para esta identidad logica
+    # (tenant + job + cotizacion). Aceptar dos veces la misma cotizacion no
+    # puede producir dos calendarios -- es la sobrefacturacion que ya
+    # ocurrio una vez (ver quarantine Camila/Daniel).
+    schedule_activo = _active_schedule_for(tenant_id, job_id, quote.get('id'))
+    if schedule_activo:
+        cuotas_previas = [p for p in store.list('payments')
+                          if p.get('id') in (schedule_activo.get('payment_ids') or [])]
+        return [p.get('invoice_id') for p in cuotas_previas if p.get('invoice_id')], False
+
+    # Guardia 2 (defensa en profundidad): cuotas sueltas de antes de que
+    # existieran los schedules.
     existing = [
         p for p in store.list('payments')
         if p.get('job_id') == job_id
@@ -919,12 +952,24 @@ def _ensure_payments_for_quote(quote, client_id, job_id, tenant_id=None):
         and p.get('quote_id') == quote.get('id')
     ]
     if existing:
+        # Se registra el calendario legacy para que quede visible con
+        # estado explicito, sin tocar ni reasignar los pagos.
+        _crear_schedule(
+            tenant_id, job_id, quote.get('id'),
+            total_plan=sum(_row_original_amount(p) for p in existing),
+            cuotas=len(existing),
+            suma_cuotas=sum(_row_original_amount(p) for p in existing),
+            price_total=(get_job(job_id) or {}).get('price_total'),
+            payment_ids=[p.get('id') for p in existing],
+        )
         return [p.get('invoice_id') for p in existing if p.get('invoice_id')], False
 
     plan_pago = max(int(quote.get('plan_pago') or 1), 1)
     total = float(quote.get('precio_total') or 0)
     base = round(total / plan_pago, 2)
     invoice_ids = []
+    payment_ids = []
+    sum_generada = 0.0
 
     # Calendario de pagos inteligente: 1era cuota el dia de aceptacion,
     # ultima cuota 1 mes despues de la boda. Para 3 cuotas, la segunda va a
@@ -960,6 +1005,7 @@ def _ensure_payments_for_quote(quote, client_id, job_id, tenant_id=None):
     for i in range(1, plan_pago + 1):
         invoice_id = 'INV-' + uuid.uuid4().hex[:6].upper()
         amount = base if i < plan_pago else round(total - base * (plan_pago - 1), 2)
+        sum_generada += amount
         due_date = due_dates[i - 1] if due_dates else (datetime.now() + timedelta(days=30 * (i - 1))).strftime('%Y-%m-%d')
         invoice = {
             'id': 'pay-' + uuid.uuid4().hex[:8],
@@ -977,6 +1023,20 @@ def _ensure_payments_for_quote(quote, client_id, job_id, tenant_id=None):
         }
         store.upsert('payments', invoice)
         invoice_ids.append(invoice_id)
+        payment_ids.append(invoice['id'])
+
+    # Se registra el calendario con estado explicito. Para un schedule
+    # generado por el CRM a partir de una cotizacion valida, la suma DEBE
+    # cuadrar exacto -- si no cuadra queda anotado en `avisos` y en el log
+    # de seguridad, pero no se corrige solo.
+    _crear_schedule(
+        tenant_id, job_id, quote.get('id'),
+        total_plan=total,
+        cuotas=plan_pago,
+        suma_cuotas=sum_generada,
+        price_total=(job_for_dates or {}).get('price_total'),
+        payment_ids=payment_ids,
+    )
 
     return invoice_ids, True
 
@@ -1068,6 +1128,71 @@ def _activate_job_workflow_start(job):
 
 
 def _convert_lead_to_job(lead, quote=None, status='Confirmado', create_payments=True):
+    """Conversion lead -> job, EXACTAMENTE UNA VEZ por lead.
+
+    Envoltorio de exclusion mutua sobre `_convert_lead_to_job_unlocked()`.
+    La identidad de la conversion (tenant_id + lead_id) es PRIMARY KEY en
+    SQLite (ver src/conversion_registry.py), asi que de N llamadas
+    simultaneas solo una entra a crear; las demas esperan y devuelven el
+    MISMO job.
+
+    Antes de esto, el unico guardia era `_find_job_for_lead()` dentro de
+    `_ensure_job_for_lead()`: un "leer y luego decidir" que cierra el caso
+    secuencial (doble click) pero deja abierta la ventana entre la lectura
+    y la escritura. Con 5 peticiones simultaneas dos podian pasar el check
+    antes de que ninguna hubiera guardado -- que es literalmente como se
+    produjo el incidente de Camila Rios (4 jobs, 4 workflows para un mismo
+    lead).
+
+    El perdedor NO reejecuta la creacion: vuelve a entrar por el camino
+    idempotente cuando el ganador YA publico su job_id, asi que todos los
+    `_ensure_*` encuentran lo existente y no duplican ningun efecto
+    colateral (workflow, calendario de pagos, cuestionario)."""
+    from src import conversion_registry
+
+    tenant_id = lead.get('tenant_id') or get_current_tenant_id()
+    lead_id = lead.get('id')
+
+    if not lead_id:
+        # Sin lead_id no hay identidad de conversion que registrar.
+        return _convert_lead_to_job_unlocked(
+            lead, quote=quote, status=status, create_payments=create_payments)
+
+    rol, job_id_ganador = conversion_registry.claim(tenant_id, lead_id)
+
+    if rol == 'loser':
+        # El ganador ya termino y publico su job. Reentrar por el camino
+        # idempotente: todo existe, no se crea nada nuevo.
+        logger.info('Conversion concurrente para lead %s: se devuelve el job '
+                    'ganador %s sin crear uno nuevo.', lead_id, job_id_ganador)
+        return _convert_lead_to_job_unlocked(
+            lead, quote=quote, status=status, create_payments=create_payments)
+
+    if rol == 'timeout':
+        # El ganador reclamo y nunca publico (murio). Se sigue por el
+        # camino normal, que conserva su guardia de aplicacion.
+        log_security_event('CONVERSION_CLAIM_TIMEOUT', tabla='jobs',
+                           registro=lead_id, cuenta_activa=tenant_id)
+        return _convert_lead_to_job_unlocked(
+            lead, quote=quote, status=status, create_payments=create_payments)
+
+    # rol == 'winner'
+    try:
+        result = _convert_lead_to_job_unlocked(
+            lead, quote=quote, status=status, create_payments=create_payments)
+    except Exception:
+        # Sin esto, una conversion fallida dejaria la clave reclamada para
+        # siempre y ningun reintento futuro podria volver a intentarla.
+        conversion_registry.release(tenant_id, lead_id)
+        raise
+
+    conversion_registry.finalize(tenant_id, lead_id, result['job']['id'])
+    return result
+
+
+def _convert_lead_to_job_unlocked(lead, quote=None, status='Confirmado', create_payments=True):
+    """Cuerpo real de la conversion. NO llamar directo desde una ruta:
+    usar `_convert_lead_to_job()`, que agrega la exclusion mutua."""
     client, client_created = _ensure_client_for_lead(lead)
     job, job_created = _ensure_job_for_lead(lead, client['id'], quote=quote, status=status)
     if job.get('client_id') and job.get('client_id') != client['id']:
@@ -1196,7 +1321,7 @@ def _build_recent_notifications(tenant_id):
             recent_notifications.append({
                 'id': f"lead-{lead.get('id')}",
                 'type': 'lead',
-                'title': f'New Lead from your FORMULARIO DE CONTACTO ASTRAL WEDDINGS: {name}',
+                'title': f'New Lead from your FORMULARIO DE CONTACTO {_brand_display_name_for_tenant(tenant_id).upper()}: {name}',
                 'date': lead.get('created') or datetime.now().strftime('%d %b %Y'),
                 'time': lead.get('created_time') or '',
                 'age': lead.get('age') or '',
@@ -1295,7 +1420,11 @@ def _package_config_view(package):
     return {
         'id': package.get('id'),
         'Name': package.get('name') or package.get('Name'),
-        'Marca': package.get('marca') or package.get('Marca') or 'ASTRAL WEDDINGS',
+        # Un paquete sin marca NO puede caer en Astral por default: si lo
+        # crea Norkevin Photography, quedaria etiquetado con la otra
+        # empresa. Se resuelve por el tenant activo, como todo lo demas.
+        'Marca': (package.get('marca') or package.get('Marca')
+                  or _brand_display_name_for_tenant(get_current_tenant_id())),
         'Precio Q': package.get('price') or package.get('Precio Q') or 0,
         'Activo': package.get('active', package.get('Activo', True)),
         'Notas': package.get('description') or package.get('Notas') or '',
@@ -1303,14 +1432,19 @@ def _package_config_view(package):
 
 
 def _default_config_items(kind):
+    # Los items semilla se etiquetan con la marca de la cuenta que los pide.
+    # Antes decian 'ASTRAL WEDDINGS' fijo: al abrir Configuracion por
+    # primera vez con Norkevin Photography, sus cuentas bancarias y sus
+    # reglas de pago a equipo aparecian con el nombre de la otra empresa.
+    _marca = _brand_display_name_for_tenant(get_current_tenant_id())
     if kind == 'cuentas':
         return [
-            {'id': 'cuenta-transferencia', 'Name': 'Transferencia bancaria', 'Marca': 'ASTRAL WEDDINGS', 'Notas': 'Cuenta principal para anticipos y pagos finales', 'Activo': True},
+            {'id': 'cuenta-transferencia', 'Name': 'Transferencia bancaria', 'Marca': _marca, 'Notas': 'Cuenta principal para anticipos y pagos finales', 'Activo': True},
         ]
     if kind == 'reglas':
         return [
-            {'id': 'regla-foto-principal', 'Name': 'Fotografo principal', 'Marca': 'ASTRAL WEDDINGS', 'Porcentaje': 20, 'Notas': 'Referencia inicial para liquidacion de equipo', 'Activo': True},
-            {'id': 'regla-asistente', 'Name': 'Asistente', 'Marca': 'ASTRAL WEDDINGS', 'Porcentaje': 10, 'Notas': 'Referencia inicial para apoyo de evento', 'Activo': True},
+            {'id': 'regla-foto-principal', 'Name': 'Fotografo principal', 'Marca': _marca, 'Porcentaje': 20, 'Notas': 'Referencia inicial para liquidacion de equipo', 'Activo': True},
+            {'id': 'regla-asistente', 'Name': 'Asistente', 'Marca': _marca, 'Porcentaje': 10, 'Notas': 'Referencia inicial para apoyo de evento', 'Activo': True},
         ]
     if kind == 'fuentes':
         names = ['Instagram', 'Facebook', 'WhatsApp', 'Recomendacion', 'Google', 'Wedding Planner', 'Web']
@@ -1401,7 +1535,7 @@ def _workflow_instance_for(subject_type, subject_id):
     return instances[0] if instances else None
 
 
-def compute_workflow_steps_for_lead(lead):
+def compute_workflow_steps_for_lead(lead, jobs_cache=None):
     from datetime import datetime, timedelta
     tmpl = LEAD_WORKFLOW()
     try:
@@ -1412,7 +1546,7 @@ def compute_workflow_steps_for_lead(lead):
     instance = _workflow_instance_for('lead', lead.get('id', ''))
     state_map = getattr(instance, 'step_states', {}) if instance else {}
     result_map = getattr(instance, 'step_results', {}) if instance else {}
-    force_done = _lead_is_converted(lead)
+    force_done = _lead_is_converted(lead, jobs_cache)
     steps = []
     for step in tmpl.steps:
         scheduled = trigger_at + timedelta(minutes=step.offset_minutes)
@@ -1769,7 +1903,12 @@ def api_gallery_job_search():
     page = results[offset:offset + limit]
     return jsonify({
         'ok': True,
-        'source': 'Astral Weddings',
+        # Esta integracion es servidor-a-servidor con token: NO hay sesion,
+        # asi que get_current_tenant_id() daria None y la marca saldria como
+        # "(empresa sin identificar)". La cuenta a la que sirve ya esta
+        # resuelta arriba (astral_tenant_id, con GALLERY_TENANT_ID como
+        # override), y esa es la fuente correcta.
+        'source': _brand_display_name_for_tenant(astral_tenant_id),
         'jobs': page,
         'total': total,
         'offset': offset,
@@ -2406,16 +2545,19 @@ def dashboard():
                 upcoming_jobs.append(j)
         except Exception:
             pass
-    upcoming_jobs.sort(key=lambda j: j.get('dias_restantes', 999))
+    upcoming_jobs.sort(key=lambda j: (j.get('dias_restantes') if j.get('dias_restantes') is not None else 999))
 
-    # Kevin: para la tabla "Recent jobs" del dashboard (mismo patron que ya
-    # usa /jobs) -- solo nombre de cliente y progreso del workflow, nada de
-    # logica nueva.
+    # Tabla "Trabajos recientes" del dashboard. Usa exactamente el mismo
+    # helper que /jobs (_job_clients_display): antes armaba el nombre a
+    # mano desde `client_id`, o sea SOLO el cliente principal. La misma
+    # boda mostraba una persona en el dashboard y dos o tres en la lista
+    # de trabajos -- y la novia no aparecia en la pantalla de inicio.
     _dash_clients_by_id = {c['id']: c for c in _canonical_clients()}
+    _dash_rel = _relaciones_por_job(upcoming_jobs[:5])
     _month_abbrs_es = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC']
     for j in upcoming_jobs[:5]:
-        client = _dash_clients_by_id.get(j.get('client_id'))
-        j['client_name'] = f"{client.get('first_name', '')} {client.get('last_name', '')}".strip() if client else 'Sin cliente'
+        j['client_name'] = _job_clients_display(
+            j, _dash_clients_by_id, _dash_rel.get(j.get('id'), []))
         try:
             _, prog, _ = compute_workflow_steps_for_job(j)
             j['workflow_progress'] = prog
@@ -2432,8 +2574,11 @@ def dashboard():
     # Recent leads (ultimos 5)
     recent_leads = sorted(_open_leads(), key=lambda l: l.get('created', ''), reverse=True)[:5]
 
-    # Workflow events
-    workflow_events = workflow_engine.get_history(limit=10) if hasattr(workflow_engine, 'get_history') else []
+    # Workflow events -- solo los de esta cuenta. Sin el filtro, el
+    # dashboard de Astral mostraba movimientos de bodas de Norkevin.
+    _mis_instancias = {i.id for i in _workflow_instances_del_tenant()}
+    workflow_events = [h for h in workflow_engine.get_history(limit=2000)
+                       if h.get('instance_id') in _mis_instancias][-10:]
 
     total_upcoming = sum(coerce_amount(j.get('price_total') or j.get('Total facturado al cliente (Q)')) for j in upcoming_jobs)
 
@@ -2729,10 +2874,14 @@ def leads_list():
             open_leads_by_date[fecha_l].append(l.get('id'))
     tracker = get_tracker()
 
+    # Una sola lectura de jobs para toda la pantalla (ver jobs_cache en
+    # _converted_job_for_lead).
+    _jobs_cache = list_jobs()
+
     for lead in leads:
         if lead.get('status') not in ('Convertido', 'Perdido'):
             try:
-                steps, progress, _ = compute_workflow_steps_for_lead(lead)
+                steps, progress, _ = compute_workflow_steps_for_lead(lead, _jobs_cache)
                 pending = next((s for s in steps if s.get('status') != 'done'), None)
                 lead['workflow_progress'] = progress
                 lead['next_task'] = pending.get('name') if pending else (lead.get('next_task') or 'Trabajo aceptado')
@@ -2940,7 +3089,7 @@ def lead_detail(lead_id):
     # Combinar steps (los primeros 4 son lead, el resto production)
     workflow_steps = lead_steps + prod_steps
     workflow_progress = lead_progress
-    workflow_name = 'BODAS ASTRAL WEDDINGS'
+    workflow_name = f'BODAS {_brand_display_name_for_tenant(lead.get("tenant_id")).upper()}'
 
     # Mail Log (tracking real)
     tracker = get_tracker()
@@ -3007,6 +3156,9 @@ def clients_list():
     leads = _open_leads()
     jobs = _canonical_jobs()
     payments = list_payments()
+    # Un solo indice para toda la tabla: sin esto habria que recorrer los
+    # jobs (y releer job_clients) una vez por cliente.
+    jobs_de = _jobs_por_cliente(jobs)
     for client in clients:
         client_id = client.get('id')
         email = _norm_email(client.get('email'))
@@ -3014,7 +3166,7 @@ def clients_list():
             1 for lead in leads
             if lead.get('client_id') == client_id or (email and _norm_email(lead.get('email')) == email)
         )
-        client['jobs_count'] = sum(1 for job in jobs if job.get('client_id') == client_id)
+        client['jobs_count'] = len(jobs_de.get(client_id, []))
         client['balance_due'] = sum(
             float(payment.get('amount') or 0)
             for payment in payments
@@ -3181,7 +3333,8 @@ def api_lead_send_email(lead_id):
 
     data = request.get_json() or {}
     template = _get_email_template(data.get('template_id'))
-    subject = data.get('subject') or (template or {}).get('asunto') or 'Mensaje de ASTRAL WEDDINGS'
+    subject = data.get('subject') or (template or {}).get('asunto') or \
+        f'Mensaje de {_brand_display_name_for_tenant(lead.get("tenant_id"))}'
     body = data.get('body') or (template or {}).get('cuerpo') or ''
     subject = _render_message_template(subject, lead=lead)
     body = _render_message_template(body, lead=lead)
@@ -3441,8 +3594,17 @@ def api_lead_accept_quote(lead_id):
     })
 
 
-def _job_estado_label(job):
-    """Estado real del Job, separado del avance del workflow.
+def _job_saldo_pendiente(job_payments):
+    """Saldo que el cliente todavia debe. 'amount' de una fila pendiente YA
+    es su saldo actual (se ajusta con cada abono), por eso no se le resta
+    lo pagado otra vez."""
+    return sum(float(p.get('amount') or 0)
+               for p in (job_payments or []) if p.get('status') != 'Pagado')
+
+
+def _job_estado_label(job, job_payments=None):
+    """Estado real del Job: fecha del evento PRIMERO, dinero despues, y el
+    workflow solo como ultimo desempate.
 
     Kevin: "no quiero que todos los Jobs aparezcan 100% Completado
     simplemente porque el workflow este tecnicamente marcado asi... un
@@ -3451,26 +3613,553 @@ def _job_estado_label(job):
     El % del workflow mide cuantos pasos administrativos estan hechos (y en
     los jobs importados de Studio Ninja se marcaron como saltados de golpe,
     justamente para no re-enviar correos). Eso no dice nada sobre si la boda
-    ya paso. Aca manda la fecha del evento; el workflow solo desempata
-    despues de que ocurrio.
+    ya paso, ni sobre si el cliente ya pago.
+
+    AGREGADO (uso diario, agosto 2026): una boda que YA OCURRIO pero que
+    todavia tiene saldo pendiente NO es un trabajo completado -- es un
+    trabajo que falta cobrar. Antes se pintaba "Completada" en verde solo
+    porque el workflow estaba al 100%, y un job con dinero pendiente
+    desaparecia visualmente entre los cerrados. Ahora ese caso sale como
+    "Por cobrar" y cuenta como ACTIVO.
+
+    Devuelve (label, tone, estado_key). `estado_key` es la forma canonica
+    y estable del estado, para que la interfaz filtre por ELLA en vez de
+    volver a deducir el estado por su cuenta (era justo la incoherencia:
+    el chip decia "Completada" y el filtro "Completados" no lo encontraba).
     """
     estado = (job.get('status') or '').strip()
     if estado == 'Archivado':
-        return 'Archivado', 'muted'
+        return 'Archivado', 'muted', 'archivado'
     if estado == 'Cancelado':
-        return 'Cancelado', 'red'
+        return 'Cancelado', 'red', 'cancelado'
 
     dias = job.get('dias_restantes')
     if dias is None:
-        return 'Sin fecha', 'muted'
+        return 'Sin fecha', 'muted', 'sin_fecha'
     if dias > 0:
-        return 'Proxima', 'violet'
+        return 'Proxima', 'violet', 'proxima'
     if dias == 0:
-        return 'Hoy', 'orange'
-    # Ya paso: recien aca tiene sentido hablar de completado.
+        return 'Hoy', 'orange', 'hoy'
+
+    # Ya paso. Antes de hablar de "completado", el dinero.
+    saldo = _job_saldo_pendiente(job_payments)
+    if saldo > 0:
+        return f'Por cobrar Q{saldo:,.0f}', 'red', 'por_cobrar'
+
     if (job.get('workflow_progress') or 0) >= 100 or estado == 'Listo':
-        return 'Completada', 'green'
-    return 'Por cerrar', 'orange'
+        return 'Completada', 'green', 'completada'
+    return 'Por cerrar', 'orange', 'por_cerrar'
+
+
+# Estados en los que el job todavia PIDE ALGO: aparecer o no en "Activos"
+# se decide por esta lista, no por el string libre de job['status'].
+ESTADOS_JOB_ACTIVOS = {'proxima', 'hoy', 'por_cobrar', 'por_cerrar', 'sin_fecha'}
+ESTADOS_JOB_COMPLETOS = {'completada'}
+
+
+# Roles de cliente que un job puede tener hoy. El orden importa: es el
+# orden en que se muestran y en que se arma el To: de un correo.
+ROLES_CLIENTE_JOB = (
+    ('client_id', 'Principal'),
+    ('secondary_client_id', 'Cliente adicional'),
+    ('planner_client_id', 'Wedding planner'),
+)
+
+
+ETIQUETA_ROL = {
+    'principal': 'Principal',
+    'pareja': 'Pareja',
+    'wedding_planner': 'Wedding planner',
+    'contacto': 'Contacto',
+    'otro': 'Otro',
+}
+
+# El frontend existente manda 'secondary'/'planner'. Se aceptan como
+# alias para no tener que tocar el JS de job_detail.html, pero por dentro
+# todo se guarda con el rol canonico.
+ALIAS_ROL_LEGACY = {
+    'secondary': 'pareja',
+    'planner': 'wedding_planner',
+    'principal': 'principal',
+    'primary': 'principal',
+}
+
+ROL_PRINCIPAL = 'principal'
+ROL_PAREJA = 'pareja'
+ROL_PLANNER = 'wedding_planner'
+ROL_CONTACTO = 'contacto'
+ROL_OTRO = 'otro'
+ROLES_JOB_CLIENT = (ROL_PRINCIPAL, ROL_PAREJA, ROL_PLANNER, ROL_CONTACTO, ROL_OTRO)
+
+# Los roles que reciben documentos cliente-facing por defecto. El wedding
+# planner NO esta aca a proposito: Kevin fue explicito -- "no mandar
+# accidentalmente un contrato a un wedding planner". Ser MIEMBRO del job y
+# ser DESTINATARIO de una accion concreta son dos cosas distintas.
+ROLES_DESTINATARIOS_DOCUMENTOS = (ROL_PRINCIPAL, ROL_PAREJA)
+
+# Mapeo de los 3 campos viejos al rol canonico. Se sigue LEYENDO para no
+# romper jobs existentes, pero nada nuevo escribe aca.
+LEGACY_CLIENT_FIELDS = (
+    ('client_id', ROL_PRINCIPAL),
+    ('secondary_client_id', ROL_PAREJA),
+    ('planner_client_id', ROL_PLANNER),
+)
+
+
+def _job_client_relations(job):
+    """Relaciones job<->cliente en forma canonica, vengan de donde vengan.
+
+    ANTES: el job tenia 3 campos fijos (client_id, secondary_client_id,
+    planner_client_id). Un cuarto cliente no cabia, y la unica salida
+    hubiera sido seguir agregando client_4_id, client_5_id...
+
+    AHORA: la tabla `job_clients` guarda 0..N relaciones, cada una con su
+    rol. Los 3 campos viejos se siguen leyendo como ADAPTER (jobs creados
+    antes de este cambio siguen mostrando a su gente), pero solo si el job
+    todavia no tiene relaciones nuevas -- si las tiene, mandan ellas y los
+    campos viejos se ignoran para no duplicar a la misma persona.
+
+    Devuelve [{'client_id','role','orden'}...] ordenado. NO toca el store
+    ni migra nada: es solo lectura.
+    """
+    job_id = (job or {}).get('id')
+    if not job_id:
+        return []
+
+    relaciones = [r for r in store.list('job_clients') if r.get('job_id') == job_id]
+    if relaciones:
+        relaciones.sort(key=lambda r: (r.get('orden', 0), r.get('created_at') or ''))
+        return [{'client_id': r.get('client_id'), 'role': r.get('role') or ROL_OTRO,
+                 'orden': r.get('orden', 0)} for r in relaciones if r.get('client_id')]
+
+    # Adapter legacy: 3 campos viejos -> roles canonicos.
+    salida = []
+    vistos = set()
+    for idx, (campo, rol) in enumerate(LEGACY_CLIENT_FIELDS):
+        cid = (job or {}).get(campo)
+        if cid and cid not in vistos:
+            vistos.add(cid)
+            salida.append({'client_id': cid, 'role': rol, 'orden': idx})
+    return salida
+
+
+def _relaciones_por_job(jobs):
+    """job_id -> relaciones canonicas, leyendo `job_clients` UNA sola vez.
+
+    Misma semantica que _job_client_relations() pero para un conjunto de
+    jobs: si el job tiene relaciones nuevas mandan ellas; si no, se leen
+    los 3 campos legacy. Se deduplica conservando el orden.
+
+    Existe para que las pantallas que recorren varios jobs no llamen a
+    _job_client_relations() una vez por fila -- eso relee el archivo
+    entero por cada boda. Con 20 bodas no se nota; con 300 la ficha del
+    cliente se arrastra. Es la misma regla en un solo lugar, no una
+    segunda implementacion.
+    """
+    por_job = {}
+    for rel in store.list('job_clients'):
+        jid, cid = rel.get('job_id'), rel.get('client_id')
+        if jid and cid:
+            por_job.setdefault(jid, []).append(rel)
+
+    salida = {}
+    for job in jobs:
+        rels = por_job.get(job.get('id'))
+        if rels:
+            rels.sort(key=lambda r: (r.get('orden', 0), r.get('created_at') or ''))
+            lista = [{'client_id': r.get('client_id'),
+                      'role': r.get('role') or ROL_OTRO,
+                      'orden': r.get('orden', 0)} for r in rels]
+        else:
+            lista = [{'client_id': job.get(campo), 'role': rol, 'orden': i}
+                     for i, (campo, rol) in enumerate(LEGACY_CLIENT_FIELDS)
+                     if job.get(campo)]
+        vistos, dedup = set(), []
+        for r in lista:
+            if r['client_id'] not in vistos:
+                vistos.add(r['client_id'])
+                dedup.append(r)
+        salida[job.get('id')] = dedup
+    return salida
+
+
+def _jobs_por_cliente(jobs=None):
+    """Indice cliente -> jobs en los que participa, en CUALQUIER rol.
+
+    Bug de uso diario que esto corrige: `/clients` y `/clients/<id>` solo
+    miraban `job.client_id`. La otra mitad de la pareja entra al job como
+    rol `pareja` (o, en jobs viejos, por `secondary_client_id`), nunca como
+    `client_id`. Resultado: abrias la ficha de la novia y su propia boda no
+    aparecia -- decia que no tenia ningun job. Lo mismo con el wedding
+    planner.
+
+    Se lee `job_clients` UNA sola vez y se arma el indice de una pasada, en
+    vez de llamar a _job_client_relations() por cada job de cada cliente
+    (eso era una lectura del store por job, N x M).
+
+    Misma semantica que _job_client_relations(): si el job tiene relaciones
+    nuevas mandan ellas y los campos viejos se ignoran; si no las tiene, se
+    leen los 3 campos legacy. Es solo lectura: no migra ni escribe nada.
+    """
+    jobs = _canonical_jobs() if jobs is None else jobs
+    relaciones = _relaciones_por_job(jobs)
+
+    indice = {}
+    for job in jobs:
+        for rel in relaciones.get(job.get('id'), []):
+            indice.setdefault(rel['client_id'], []).append(job)
+    return indice
+
+
+def _set_job_clients(job, relaciones, *, tenant_id=None):
+    """Define TODAS las relaciones de un job de una sola vez (0..N).
+
+    `relaciones`: lista de (client_id, role) o dicts {'client_id','role'}.
+
+    Reglas:
+      - Identidad por tenant_id + client_id. NUNCA por nombre ni email.
+      - Un client_id de OTRA empresa se rechaza con TenantMismatchError:
+        aunque alguien arme el request a mano, un job de Astral no puede
+        quedar asociado a un cliente de Norkevin.
+      - La misma persona repetida en dos roles se guarda UNA vez, con el
+        primer rol indicado.
+      - Es idempotente: llamarla dos veces con lo mismo deja lo mismo.
+
+    Devuelve la lista canonica resultante.
+    """
+    import uuid
+    job_id = (job or {}).get('id')
+    if not job_id:
+        raise ValueError('_set_job_clients necesita un job con id')
+    tenant_id = tenant_id or job.get('tenant_id') or get_current_tenant_id()
+
+    normalizadas = []
+    vistos = set()
+    for item in relaciones or []:
+        if isinstance(item, dict):
+            cid, rol = item.get('client_id'), item.get('role') or ROL_OTRO
+        else:
+            cid, rol = item[0], (item[1] if len(item) > 1 else ROL_OTRO)
+        if not cid or cid in vistos:
+            continue
+        if rol not in ROLES_JOB_CLIENT:
+            rol = ROL_OTRO
+
+        cliente = store.get('clients', cid)
+        if not cliente:
+            # Cliente inexistente (o de otra empresa, que el store scoped
+            # ya oculta): no se asocia. No se inventa.
+            log_security_event('JOB_CLIENT_NO_ENCONTRADO', tabla='job_clients',
+                               registro=cid, cuenta_activa=tenant_id)
+            continue
+        dueno = cliente.get('tenant_id')
+        if dueno and dueno != tenant_id:
+            log_security_event('CROSS_TENANT_JOB_CLIENT_BLOCKED', tabla='job_clients',
+                               registro=cid, cuenta_activa=tenant_id,
+                               cuenta_del_registro=dueno)
+            raise TenantMismatchError(
+                'No se puede asociar a este job un cliente de otra empresa.')
+        vistos.add(cid)
+        normalizadas.append((cid, rol))
+
+    existentes = [r for r in store.list('job_clients') if r.get('job_id') == job_id]
+    deseados = {cid for cid, _r in normalizadas}
+    for r in existentes:
+        if r.get('client_id') not in deseados:
+            store.delete('job_clients', r.get('id'))
+
+    por_client = {r.get('client_id'): r for r in existentes}
+    ahora = datetime.now().isoformat()
+    for orden, (cid, rol) in enumerate(normalizadas):
+        previo = por_client.get(cid)
+        registro = {
+            'id': previo.get('id') if previo else f'jc-{uuid.uuid4().hex[:10]}',
+            'tenant_id': tenant_id,
+            'job_id': job_id,
+            'client_id': cid,
+            'role': rol,
+            'orden': orden,
+            'created_at': (previo or {}).get('created_at') or ahora,
+        }
+        store.upsert('job_clients', registro)
+
+    return _job_client_relations(job)
+
+
+def _sincronizar_campos_legacy(job):
+    """Refleja las 3 primeras relaciones canonicas en los campos viejos.
+
+    NO es la fuente de verdad -- job_clients lo es. Existe solo para que
+    cualquier vista o integracion que todavia lea job['client_id'] o
+    job['secondary_client_id'] no quede desfasada tras una edicion. Del
+    cuarto cliente en adelante no hay campo legacy donde reflejarlo, y esta
+    bien: por eso existe el modelo nuevo."""
+    relaciones = _job_client_relations(job)
+    por_rol = {}
+    for r in relaciones:
+        por_rol.setdefault(r['role'], []).append(r['client_id'])
+
+    principal = (por_rol.get(ROL_PRINCIPAL) or [None])[0]
+    pareja = (por_rol.get(ROL_PAREJA) or [None])[0]
+    planner = (por_rol.get(ROL_PLANNER) or [None])[0]
+
+    # Si nadie quedo como principal pero hay relaciones, la primera manda:
+    # un job sin client_id romperia vistas que todavia lo asumen.
+    if not principal and relaciones:
+        principal = relaciones[0]['client_id']
+
+    job['client_id'] = principal
+    job['secondary_client_id'] = pareja
+    job['planner_client_id'] = planner
+    return job
+
+
+def _job_recipient_clients(job, clients_by_id=None):
+    """Clientes que SI deben recibir un documento cliente-facing.
+
+    Distinto de _job_clients(): ese devuelve a todos los miembros del job.
+    Este filtra por rol, para no mandarle un contrato al wedding planner
+    solo porque esta asociado al job."""
+    return [c for c in _job_clients(job, clients_by_id)
+            if c.get('role') in ROLES_DESTINATARIOS_DOCUMENTOS]
+
+
+def _job_clients(job, clients_by_id=None, relaciones=None):
+    """TODOS los clientes de un job, en orden, con su rol.
+
+    Un job de boda casi nunca tiene un solo cliente: estan los dos novios
+    y a veces el wedding planner. El modelo ya lo soportaba
+    (client_id / secondary_client_id / planner_client_id) y el import de
+    Studio Ninja ya mapeaba 2 y 3 clientes, pero el resto del CRM seguia
+    preguntando por `job['client_id']` como si fuera el unico -- en la
+    lista de jobs se veia un solo nombre y los demas desaparecian.
+
+    Devuelve [{'id','rol','cliente','nombre'}...] saltando los vacios y
+    SIN repetir: si por un import quedo el mismo client_id en dos roles,
+    aparece una sola vez (con el primer rol), en vez de duplicar a la
+    persona en la interfaz y en el To: de los correos.
+
+    clients_by_id: dict opcional para no ir al store por cada job cuando
+    se esta armando una lista larga.
+
+    relaciones: si ya se calcularon en lote (con _relaciones_por_job), se
+    pasan aca. Sin esto, una lista de 300 bodas leia `job_clients` 300
+    veces -- una vez por fila. El parametro es opcional para no romper a
+    quien llama con un job suelto.
+    """
+    resultado = []
+    for relacion in (relaciones if relaciones is not None
+                     else _job_client_relations(job)):
+        cid = relacion['client_id']
+        cliente = (clients_by_id or {}).get(cid) if clients_by_id is not None else get_client(cid)
+        if not cliente:
+            # Cliente borrado: se omite en vez de romper la vista entera.
+            continue
+        nombre = (f"{cliente.get('first_name', '')} "
+                  f"{cliente.get('last_name', '')}").strip() or cliente.get('nombre') or 'Cliente'
+        resultado.append({
+            'id': cid,
+            'role': relacion['role'],
+            'rol': ETIQUETA_ROL.get(relacion['role'], relacion['role']),
+            'cliente': cliente,
+            'nombre': nombre,
+        })
+    return resultado
+
+
+def _job_clients_display(job, clients_by_id=None, relaciones=None):
+    """Nombres de todos los clientes del job para mostrar en una lista."""
+    clientes = _job_clients(job, clients_by_id, relaciones)
+    if not clientes:
+        return 'Sin cliente'
+    return ' + '.join(c['nombre'] for c in clientes)
+
+
+SCHEDULE_ACTIVE = 'active'
+SCHEDULE_SUPERSEDED = 'superseded'
+SCHEDULE_COMPLETED = 'completed'
+SCHEDULE_CANCELLED = 'cancelled'
+SCHEDULE_LEGACY = 'legacy_quarantined'
+ESTADOS_SCHEDULE = (SCHEDULE_ACTIVE, SCHEDULE_SUPERSEDED, SCHEDULE_COMPLETED,
+                    SCHEDULE_CANCELLED, SCHEDULE_LEGACY)
+
+
+def _schedule_origin_key(tenant_id, job_id, origen):
+    """Identidad logica de un calendario de pagos.
+
+    'origen' es normalmente el quote_id aceptado. Dos generaciones del
+    MISMO compromiso comercial comparten esta clave, y por eso no pueden
+    convivir dos activas."""
+    return f'{tenant_id}::{job_id}::{origen or "sin_origen"}'
+
+
+def _active_schedule_for(tenant_id, job_id, origen):
+    clave = _schedule_origin_key(tenant_id, job_id, origen)
+    for s in store.list('payment_schedules'):
+        if s.get('origin_key') == clave and s.get('status') == SCHEDULE_ACTIVE:
+            return s
+    return None
+
+
+def _validar_schedule(total_plan, cuotas, suma_cuotas, price_total):
+    """Discrepancias del plan. NO corrige nada: devuelve la lista.
+
+    Kevin: "si hay discrepancia NO la corrijas silenciosamente". Un
+    descuento real y un error de captura se ven igual desde aca, asi que
+    la decision es humana. Lo que si se exige es que un schedule generado
+    por el CRM a partir de una cotizacion valida cuadre exacto."""
+    avisos = []
+    if cuotas <= 0:
+        avisos.append('el plan no tiene cuotas')
+    if abs(round(suma_cuotas - total_plan, 2)) > 0.01:
+        avisos.append(
+            f'las cuotas suman {suma_cuotas:,.2f} pero el plan dice {total_plan:,.2f}')
+    if price_total and abs(round(float(price_total) - total_plan, 2)) > 0.01:
+        avisos.append(
+            f'el plan ({total_plan:,.2f}) no coincide con job.price_total ({float(price_total):,.2f})')
+    return avisos
+
+
+def _crear_schedule(tenant_id, job_id, origen, *, total_plan, cuotas,
+                    suma_cuotas, price_total=None, payment_ids=None):
+    """Registra un calendario ACTIVO, si no hay otro para la misma
+    identidad logica. Idempotente: si ya existe uno activo, lo devuelve
+    sin crear otro ni tocar los pagos existentes."""
+    import uuid
+    existente = _active_schedule_for(tenant_id, job_id, origen)
+    if existente:
+        return existente, False
+
+    avisos = _validar_schedule(total_plan, cuotas, suma_cuotas, price_total)
+    schedule = {
+        'id': f'sched-{uuid.uuid4().hex[:10]}',
+        'tenant_id': tenant_id,
+        'job_id': job_id,
+        'origin': origen,
+        'origin_key': _schedule_origin_key(tenant_id, job_id, origen),
+        'status': SCHEDULE_ACTIVE,
+        'total_plan': round(float(total_plan or 0), 2),
+        'cuotas': cuotas,
+        'suma_cuotas': round(float(suma_cuotas or 0), 2),
+        'payment_ids': list(payment_ids or []),
+        'avisos': avisos,
+        'created_at': datetime.now().isoformat(),
+        'superseded_by': None,
+    }
+    store.upsert('payment_schedules', schedule)
+    if avisos:
+        log_security_event('PAYMENT_SCHEDULE_CON_DISCREPANCIA',
+                           tabla='payment_schedules', registro=schedule['id'],
+                           cuenta_activa=tenant_id)
+    return schedule, True
+
+
+def supersede_schedule(schedule_id, nuevo_schedule_id=None, *, motivo=''):
+    """Marca un calendario como reemplazado. NUNCA lo borra.
+
+    Kevin: "si se cambia de cotizacion/plan NO borres el anterior... los
+    payments ya realizados deben conservar su historia. No reasignes
+    dinero automaticamente entre cotizaciones."
+
+    Por eso esto solo cambia el estado del schedule viejo y deja el
+    puntero al nuevo. Los pagos siguen colgando de su schedule original:
+    lo que ya se cobro contra una cotizacion sigue perteneciendo a esa
+    cotizacion."""
+    schedule = store.get('payment_schedules', schedule_id)
+    if not schedule:
+        return None
+    schedule['status'] = SCHEDULE_SUPERSEDED
+    schedule['superseded_by'] = nuevo_schedule_id
+    schedule['superseded_at'] = datetime.now().isoformat()
+    if motivo:
+        schedule['superseded_motivo'] = motivo
+    store.upsert('payment_schedules', schedule)
+    log_security_event('PAYMENT_SCHEDULE_SUPERSEDED', tabla='payment_schedules',
+                       registro=schedule_id, cuenta_activa=schedule.get('tenant_id'))
+    return schedule
+
+
+def _job_schedules(job_id):
+    return [s for s in store.list('payment_schedules') if s.get('job_id') == job_id]
+
+
+def _job_payment_summary(job, job_payments):
+    """UNA sola fuente de verdad para la plata de un job.
+
+    Antes cada vista calculaba lo suyo: /jobs sumaba `balance_due` por su
+    cuenta, job_detail volvia a sumar total/pagado con otra formula, y el
+    chip de estado usaba una tercera. Con tres formulas para el mismo
+    numero, tarde o temprano no coinciden.
+
+    Reglas:
+      - `amount` de una fila PENDIENTE ya es su saldo actual (se ajusta con
+        cada abono), asi que no se le vuelve a restar lo pagado.
+      - el total del job es lo cotizado (price_total) si existe; si no, la
+        suma de las cuotas -- un job sin cotizacion formal igual tiene que
+        mostrar un total coherente.
+    """
+    pagos = list(job_payments or [])
+    pagado = sum(_row_paid_amount(p) for p in pagos)
+    pendiente = _job_saldo_pendiente(pagos)
+
+    total_cuotas = sum(_row_original_amount(p) for p in pagos)
+    try:
+        total_cotizado = float((job or {}).get('price_total') or 0)
+    except (TypeError, ValueError):
+        total_cotizado = 0.0
+    total = total_cotizado or total_cuotas
+
+    vencidos = [p for p in pagos if p.get('status') == 'Late']
+    proximas = sorted(
+        (p for p in pagos if p.get('status') != 'Pagado' and p.get('due_date')),
+        key=lambda p: p.get('due_date') or '')
+    proximo = proximas[0] if proximas else None
+
+    return {
+        'total': total,
+        'pagado': pagado,
+        'pendiente': pendiente,
+        'cuotas': len(pagos),
+        'cuotas_pagadas': sum(1 for p in pagos if p.get('status') == 'Pagado'),
+        'vencidas': len(vencidos),
+        'proximo_pago_fecha': (proximo or {}).get('due_date'),
+        'proximo_pago_monto': float((proximo or {}).get('amount') or 0) if proximo else 0.0,
+        'esta_pagado': bool(pagos) and pendiente <= 0,
+        # Discrepancia entre lo cotizado y lo que suman las cuotas: no se
+        # corrige sola (puede ser un descuento legitimo), se expone.
+        'descuadre_cotizado_vs_cuotas': (
+            round(total_cotizado - total_cuotas, 2)
+            if total_cotizado and total_cuotas else 0.0),
+    }
+
+
+def _job_orden_relevancia(job):
+    """Orden por defecto: lo que pide atencion primero.
+
+    Kevin: "por defecto quiero los jobs mas nuevos/relevantes primero, no
+    los mas viejos".
+
+    El orden anterior era `sorted(key=dias_restantes or 999)` y tenia dos
+    bugs:
+      1. Los dias de un evento pasado son NEGATIVOS, asi que ordenar
+         ascendente ponia la boda MAS VIEJA en primer lugar -- justo lo
+         contrario de lo util.
+      2. `or 999`: para la boda de HOY, dias_restantes es 0, que es falsy,
+         asi que se convertia en 999 y la boda de hoy caia al FINAL de la
+         lista.
+
+    Ahora: primero los eventos futuros (el mas proximo arriba), despues
+    los ya ocurridos (el mas reciente arriba), y al final los que no
+    tienen fecha. Empate resuelto por fecha de creacion descendente, para
+    que el orden sea ESTABLE entre servidor e interfaz.
+    """
+    dias = job.get('dias_restantes')
+    creado = str(job.get('created') or '')
+    if dias is None:
+        return (2, 0, creado, str(job.get('id') or ''))
+    if dias >= 0:
+        return (0, dias, creado, str(job.get('id') or ''))
+    return (1, -dias, creado, str(job.get('id') or ''))
 
 
 def _job_pago_label(job, job_payments):
@@ -3478,7 +4167,7 @@ def _job_pago_label(job, job_payments):
     explicitamente: "mantener el estado financiero separado")."""
     if not job_payments:
         return '', ''
-    saldo = sum(float(p.get('amount') or 0) for p in job_payments if p.get('status') != 'Pagado')
+    saldo = _job_saldo_pendiente(job_payments)
     vencidos = [p for p in job_payments if p.get('status') == 'Late']
     if vencidos:
         return 'Pago atrasado', 'red'
@@ -3511,6 +4200,11 @@ def jobs_list():
         if l.get('fecha_tentativa'):
             open_leads_by_date[l['fecha_tentativa']].append(l.get('id'))
 
+    # Una sola lectura de `job_clients` para toda la lista. Antes cada fila
+    # llamaba a _job_clients_display(), que por dentro releia la tabla
+    # entera: con 300 bodas eran 300 lecturas de disco por pagina.
+    _rel_por_job = _relaciones_por_job(jobs)
+
     for j in jobs:
         try:
             d = datetime.strptime(j['boda_date'], '%Y-%m-%d').date()
@@ -3530,17 +4224,22 @@ def jobs_list():
             j['workflow_progress'] = prog
         except Exception:
             j['next_task'] = '—'
-        client = clients.get(j.get('client_id'))
-        if client:
-            j['client_name'] = f"{client.get('first_name', '')} {client.get('last_name', '')}".strip()
-        else:
-            j['client_name'] = 'Sin cliente'
+        # Todos los clientes del job, no solo el principal: una boda tiene
+        # dos novios (y a veces wedding planner) y antes solo se veia uno.
+        _rel_j = _rel_por_job.get(j.get('id'), [])
+        j['clientes'] = _job_clients(j, clients, _rel_j)
+        j['client_name'] = _job_clients_display(j, clients, _rel_j)
+        j['clientes_count'] = len(j['clientes'])
         job_payments = payments_by_job.get(j.get('id'), [])
-        j['payments_count'] = len(job_payments)
-        j['balance_due'] = sum(float(p.get('amount') or 0) for p in job_payments if p.get('status') != 'Pagado')
-        j['estado_label'], j['estado_tone'] = _job_estado_label(j)
+        resumen = _job_payment_summary(j, job_payments)
+        j['pagos'] = resumen
+        j['payments_count'] = resumen['cuotas']
+        j['balance_due'] = resumen['pendiente']
+        j['estado_label'], j['estado_tone'], j['estado_key'] = _job_estado_label(j, job_payments)
+        j['es_activo'] = j['estado_key'] in ESTADOS_JOB_ACTIVOS
+        j['es_completado'] = j['estado_key'] in ESTADOS_JOB_COMPLETOS
         j['pago_label'], j['pago_tone'] = _job_pago_label(j, job_payments)
-    jobs.sort(key=lambda j: (j.get('dias_restantes') or 999))
+    jobs.sort(key=_job_orden_relevancia)
     all_clients = sorted(clients.values(), key=lambda c: (c.get('first_name') or '').lower())
     return render_template('jobs.html', jobs=jobs, all_clients=all_clients)
 
@@ -3617,15 +4316,34 @@ def job_detail(job_id):
     pending_steps = [s for s in workflow_steps if s['status'] == 'pending']
     job['production_tasks'] = ', '.join(s['name'] for s in pending_steps[:3]) if pending_steps else 'Sin tareas pendientes'
     job['invoices'] = f"{len(invoice_groups)} invoices" if invoice_groups else 'Sin invoices'
-    total_paid = sum(_row_paid_amount(p) for p in payments)
-    # 'amount' de una fila pendiente YA es su saldo actual (se ajusta con
-    # cada abono directo o credito de otra cuota) -- no hay que restarle
-    # _row_paid_amount otra vez, eso contaria el abono dos veces.
-    balance_due = sum(
-        float(p.get('amount') or 0)
-        for p in payments if p.get('status') != 'Pagado'
-    )
+    # FUENTE UNICA de la plata del job. El detalle calculaba lo suyo con
+    # una formula propia, la lista otra y el chip de estado una tercera --
+    # tres numeros para lo mismo, que tarde o temprano no coinciden.
+    # Ahora los tres salen de _job_payment_summary().
+    pagos_resumen = _job_payment_summary(job, payments)
+    total_paid = pagos_resumen['pagado']
+    balance_due = pagos_resumen['pendiente']
+
+    # Estado del job: la MISMA autoridad que usa la lista (estado_key).
+    job['estado_label'], job['estado_tone'], job['estado_key'] = _job_estado_label(job, payments)
+    job['es_activo'] = job['estado_key'] in ESTADOS_JOB_ACTIVOS
+    job['es_completado'] = job['estado_key'] in ESTADOS_JOB_COMPLETOS
+
+    # Calendario de pagos vigente (los superseded NO cuentan como activos).
+    schedules_job = _job_schedules(job_id)
+    schedule_activo = next(
+        (s for s in schedules_job if s.get('status') == SCHEDULE_ACTIVE), None)
+    # Modelo N-clientes para la vista: la plantilla recorre esta lista en
+    # vez de los 3 campos fijos, y ofrece el selector de rol.
+    job_clientes = _job_clients(job)
+    roles_disponibles = [(r, ETIQUETA_ROL.get(r, r)) for r in ROLES_JOB_CLIENT]
+
     return render_template('job_detail.html',
+                          job_clientes=job_clientes,
+                          roles_disponibles=roles_disponibles,
+                          pagos_resumen=pagos_resumen,
+                          schedule_activo=schedule_activo,
+                          schedules_job=schedules_job,
                           job=job,
                           lead=lead,
                           lead_steps=lead_steps,
@@ -4062,7 +4780,7 @@ def settings():
     stats = {
         'leads_mes': sum(1 for l in leads if l.get('created', '') >= inicio_mes.isoformat()),
         'bodas_activas': sum(1 for j in jobs if j.get('status') not in ('Listo', 'Archivado')),
-        'total_instances': len([i for i in workflow_engine.list_instances() if i.status.value == 'active']),
+        'total_instances': len([i for i in _workflow_instances_del_tenant() if i.status.value == 'active']),
     }
 
     from src import gmail_delivery, recurrente
@@ -4102,27 +4820,97 @@ def api_admin_reset_test_data():
     cuestionarios/archivos/mail/calendario para volver a un CRM vacio.
     NO toca configuracion (plantillas de correo, paquetes, equipo, fuentes,
     workflow templates guardados, conexion de Gmail/Recurrente, tenants) --
-    eso costo tiempo configurarlo y no es "dato de prueba". Cada tabla se
-    respalda automaticamente en data/backups/ antes de vaciarse (JsonStore),
-    asi que esto es recuperable si algo sale mal."""
+    eso costo tiempo configurarlo y no es "dato de prueba".
+
+    HARDENING (estabilizacion, agosto 2026, bloque de cierre de brechas):
+    esta ruta es capaz de vaciar 11 tablas completas de UNA cuenta con una
+    sola llamada autenticada. La version anterior solo pedia
+    confirm=='BORRAR' -- facil de reproducir por error (un script de
+    pruebas, un curl copiado sin pensar) y sin nada que la desactive en
+    produccion. Ahora:
+      1. Deshabilitada por defecto salvo ALLOW_DESTRUCTIVE_ADMIN_OPERATIONS=1
+         explicito en el entorno (pensado para NO estar presente en Render/
+         produccion real).
+      2. Confirmacion especifica por cuenta: confirm debe ser
+         'BORRAR-<tenant_id>' de la cuenta activa, no un string generico
+         que funcione igual para cualquier cuenta.
+      3. Backup VERIFICADO (store.backup_now(), no solo el backup pasivo
+         de _save) de cada tabla ANTES de tocar nada. Si cualquiera falla,
+         se aborta sin haber vaciado ninguna tabla.
+      4. Audit event con actor, tenant, timestamp, IP, tablas afectadas y
+         resultado -- tambien cuando se bloquea o se aborta, no solo
+         cuando se ejecuta."""
+    tenant_id = get_current_tenant_id()
+    actor = session.get('user_email')
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+
+    if os.environ.get('ALLOW_DESTRUCTIVE_ADMIN_OPERATIONS', '0') not in ('1', 'true', 'True'):
+        log_security_event('RESET_TEST_DATA_BLOQUEADO_POR_FLAG', actor=actor,
+                           tenant_id=tenant_id, ip=ip)
+        return jsonify({
+            'ok': False,
+            'error': ('Esta operacion esta deshabilitada. Requiere '
+                      'ALLOW_DESTRUCTIVE_ADMIN_OPERATIONS=1 en el entorno del '
+                      'servidor (deliberadamente ausente en produccion).'),
+        }), 403
+
     data = request.get_json(silent=True) or {}
-    if data.get('confirm') != 'BORRAR':
-        return jsonify({'ok': False, 'error': 'Confirmacion requerida'}), 400
+    expected_confirm = f'BORRAR-{tenant_id}'
+    if not tenant_id or data.get('confirm') != expected_confirm:
+        log_security_event('RESET_TEST_DATA_CONFIRMACION_INVALIDA', actor=actor,
+                           tenant_id=tenant_id, ip=ip)
+        return jsonify({
+            'ok': False,
+            'error': f"Confirmacion requerida: envia {{'confirm': '{expected_confirm}'}}.",
+        }), 400
 
     tables_to_wipe = [
         'leads', 'clients', 'jobs', 'quotes', 'payments', 'contracts',
         'questionnaires', 'files', 'mail_log', 'mail_outbox', 'calendar',
     ]
+
+    # Paso 1: backup VERIFICADO de cada tabla antes de tocar nada. Si
+    # cualquiera falla, abortar -- 0 tablas vaciadas.
+    backup_paths = {}
+    try:
+        for table in tables_to_wipe:
+            backup_paths[table] = store.backup_now(table)
+    except Exception as exc:
+        log_security_event('RESET_TEST_DATA_ABORTADO_BACKUP_FALLO', actor=actor,
+                           tenant_id=tenant_id, ip=ip, tabla_fallida=table, error=str(exc))
+        return jsonify({
+            'ok': False,
+            'error': f'Backup de "{table}" no se pudo verificar -- se abortó sin borrar nada. {exc}',
+            'tables_wiped': 0,
+        }), 500
+
+    # Paso 2: recien con TODOS los backups verificados, vaciar.
     wiped = {}
-    for table in tables_to_wipe:
-        wiped[table] = len(store.list(table))
-        store.clear(table)
+    try:
+        for table in tables_to_wipe:
+            wiped[table] = len(store.list(table))
+            store.clear(table)
+        workflow_engine.instances = {}
+        workflow_engine.history = []
+        workflow_engine._save_to_storage()
+    except Exception as exc:
+        # Interrupcion a mitad de camino: no es atomico entre tablas (cada
+        # store.clear() es su propio archivo), asi que se deja constancia
+        # explicita de exactamente donde se detuvo en vez de fingir que
+        # termino limpio.
+        log_security_event('RESET_TEST_DATA_INTERRUMPIDO', actor=actor,
+                           tenant_id=tenant_id, ip=ip, tablas_vaciadas=list(wiped.keys()),
+                           error=str(exc))
+        return jsonify({
+            'ok': False,
+            'error': f'Interrumpido despues de vaciar {list(wiped.keys())}: {exc}',
+            'tables_wiped_before_error': wiped,
+            'backup_paths': backup_paths,
+        }), 500
 
-    workflow_engine.instances = {}
-    workflow_engine.history = []
-    workflow_engine._save_to_storage()
-
-    logger.info(f"Datos de prueba reiniciados por {session.get('user_email')}: {wiped}")
+    log_security_event('RESET_TEST_DATA_EJECUTADO', actor=actor, tenant_id=tenant_id,
+                       ip=ip, tablas=wiped, backups=backup_paths)
+    logger.info(f"Datos de prueba reiniciados por {actor} (tenant={tenant_id}): {wiped}")
     return jsonify({'ok': True, 'wiped': wiped})
 
 
@@ -4195,7 +4983,11 @@ def api_admin_import_studio_ninja():
                 'last_name': c.get('last_name') or '',
                 'email': c.get('email') or '',
                 'phone': c.get('phone') or '',
-                'address': entry.get('location') or '',
+                # NO se copia entry['location'] a address: el venue del
+                # evento no es la direccion de facturacion del cliente.
+                # Es la misma contaminacion que se corrigio en
+                # _ensure_client_for_lead y api_lead_create; esta tercera
+                # puerta habia quedado abierta.
                 'estado': 'Activo',
                 'tenant_id': tenant_id,
                 'created': entry['created'],
@@ -4254,7 +5046,7 @@ def api_admin_import_studio_ninja():
             'client_id': client_id,
             'lead_id': lead_id,
             'status': computed_status,
-            'empresa': 'ASTRAL WEDDINGS',
+            'empresa': _brand_display_name_for_tenant(tenant_id),
             'price_total': price_total,
             'tenant_id': tenant_id,
             'created': entry['created'],
@@ -4268,6 +5060,16 @@ def api_admin_import_studio_ninja():
         if len(client_ids) > 2:
             job_dict['planner_client_id'] = client_ids[2]
         store.upsert('jobs', job_dict)
+
+        # Modelo canonico N-clientes: ya no se pierde el 4to en adelante.
+        # Los campos legacy de arriba se siguen escribiendo para que nada
+        # que todavia los lea se rompa, pero la fuente de verdad es esta.
+        if client_ids:
+            _roles_import = [ROL_PRINCIPAL, ROL_PAREJA, ROL_PLANNER]
+            _set_job_clients(job_dict, [
+                (cid, _roles_import[i] if i < len(_roles_import) else ROL_CONTACTO)
+                for i, cid in enumerate(client_ids)
+            ], tenant_id=tenant_id)
 
         # Salvaguarda: se marca SKIPPED (nunca 'pending') apenas se crea el
         # job, ANTES de procesar cotizaciones/pagos/contrato -- eso puede
@@ -4747,12 +5549,78 @@ def client_detail(client_id):
             if lead.get('client_id') == client_id or (client_email and _norm_email(lead.get('email')) == client_email)
         ]
         leads_vinculados = [lead for lead in all_client_leads if _lead_is_open(lead)]
-        jobs_vinculados = [
-            _job_detail_view_model(j)
-            for j in _canonical_jobs()
-            if j.get('client_id') == client_id
-        ]
-        jobs_raw = [j for j in _canonical_jobs() if j.get('client_id') == client_id]
+        # Cualquier rol, no solo `principal`: la novia entra como `pareja` y
+        # antes su propia boda no salia en su ficha.
+        jobs_raw = _jobs_por_cliente().get(client_id, [])
+        jobs_vinculados = [_job_detail_view_model(j) for j in jobs_raw]
+
+        # La ficha del cliente tenia menos informacion que la del job: solo
+        # nombre, fecha y una barra de avance del workflow. Faltaba lo que
+        # se pregunta de verdad cuando alguien llama por telefono: que rol
+        # tiene esta persona en la boda, en que estado esta el evento,
+        # cuanto falta por cobrar y quien mas esta en ese job.
+        #
+        # Todo sale de las MISMAS fuentes canonicas que usa la lista de
+        # jobs y la ficha del job. No hay un segundo calculo paralelo: el
+        # estado viene de _job_estado_label y la plata de
+        # _job_payment_summary.
+        pagos_por_job = {}
+        for pago in list_payments():
+            pagos_por_job.setdefault(pago.get('job_id'), []).append(pago)
+        clientes_por_id = {c.get('id'): c for c in list_clients()}
+
+        relaciones_por_job = _relaciones_por_job(jobs_raw)
+
+        jobs_resumen = []
+        for j in jobs_raw:
+            relaciones = relaciones_por_job.get(j.get('id'), [])
+            mi_rol = next((r.get('role') for r in relaciones
+                           if r.get('client_id') == client_id), None)
+            pagos_j = pagos_por_job.get(j.get('id'), [])
+            etiqueta, tono, estado_key = _job_estado_label(j, pagos_j)
+            # Con quien mas comparte esta boda. Se omite a los que ya no
+            # existen en vez de romper la pagina.
+            acompanantes = []
+            for rel in relaciones:
+                otro_id = rel.get('client_id')
+                if otro_id == client_id:
+                    continue
+                otro = clientes_por_id.get(otro_id)
+                if not otro:
+                    continue
+                acompanantes.append({
+                    'id': otro_id,
+                    'nombre': (f"{otro.get('first_name') or ''} "
+                               f"{otro.get('last_name') or ''}").strip() or 'Sin nombre',
+                    'rol': ETIQUETA_ROL.get(rel.get('role'), rel.get('role')),
+                })
+            jobs_resumen.append({
+                'job': j,
+                'rol': mi_rol,
+                'rol_etiqueta': ETIQUETA_ROL.get(mi_rol, mi_rol) if mi_rol else None,
+                'recibe_documentos': mi_rol in ROLES_DESTINATARIOS_DOCUMENTOS,
+                'estado_label': etiqueta,
+                'estado_tone': tono,
+                'estado_key': estado_key,
+                'pagos': _job_payment_summary(j, pagos_j),
+                'acompanantes': acompanantes,
+            })
+        # Las bodas por venir primero: es lo que se mira al abrir la ficha.
+        jobs_resumen.sort(key=lambda r: _job_orden_relevancia(r['job']))
+
+        # Encabezado de la ficha: cuantas bodas activas, cuanto falta por
+        # cobrar entre todas, y cuando es el proximo pago.
+        activos = [r for r in jobs_resumen if r['estado_key'] in ESTADOS_JOB_ACTIVOS]
+        proximos = sorted(
+            (r['pagos']['proximo_pago_fecha'] for r in jobs_resumen
+             if r['pagos'].get('proximo_pago_fecha')))
+        resumen_cliente = {
+            'jobs_total': len(jobs_resumen),
+            'jobs_activos': len(activos),
+            'pendiente': sum(r['pagos'].get('pendiente') or 0 for r in jobs_resumen),
+            'vencidas': sum(r['pagos'].get('vencidas') or 0 for r in jobs_resumen),
+            'proximo_pago': proximos[0] if proximos else None,
+        }
         job_ids = {j.get('id') for j in jobs_raw}
         lead_ids = {l.get('id') for l in all_client_leads}
         payments_vinculados = [
@@ -4781,6 +5649,8 @@ def client_detail(client_id):
                                cliente=cliente,
                                jobs=jobs_vinculados,
                                jobs_raw=jobs_raw,
+                               jobs_resumen=jobs_resumen,
+                               resumen_cliente=resumen_cliente,
                                leads=leads_vinculados,
                                payments=payments_vinculados,
                                quotes=quotes_vinculadas,
@@ -5344,7 +6214,26 @@ def api_job_new():
     """Crea un job directo. No se puede saltar el paso de cliente: siempre
     hay que seleccionar un cliente EXISTENTE (no texto libre) -- pero ya no
     exige pasar primero por un lead. Si el job viene de convertir un lead
-    real, usa _convert_lead_to_job en su lugar."""
+    real, usa _convert_lead_to_job en su lugar.
+
+    IDEMPOTENCIA (post-incidente Camila Rios, 10-11 jul 2026): esta ruta
+    creaba un job NUEVO en cada llamada sin verificar si el lead_id que
+    llega ya tenia uno. /api/leads/<id>/accept-quote SI tenia esa guardia
+    (_find_job_for_lead); esta puerta no, y por eso un mismo lead termino
+    con 4 jobs y 4 workflow_instances distintos (boda-69f508a1,
+    boda-1d62d5e2, boda-35bd38a1, boda-e8b7e2a7 -- solo el ultimo sobrevive
+    en jobs.json hoy). El flujo de Pick & Choose llega a esta ruta, no a
+    accept-quote, asi que el parche de idempotencia de julio no la cubria.
+
+    NOTA: esto es un guardia a nivel aplicacion sobre almacenamiento JSON.
+    No reemplaza el constraint a nivel de base de datos que exige el punto
+    3 de la fase de estabilizacion (ver migrations/idempotency_patch_v5.2.sql
+    y src/lead_conversion.py) -- ese es el que realmente cierra la ventana
+    de carrera entre 2 requests simultaneos. Este guardia sola reduce el
+    caso comun (llamadas secuenciales, doble click) pero dos requests
+    concurrentes contra JsonStore todavia pueden intercalarse entre el
+    _find_job_for_lead() y el upsert_job(); la garantia dura vive en SQL,
+    no aca."""
     import uuid
     data = request.json or request.form
     nombre = (data.get('nombre') or data.get('name') or '').strip()
@@ -5360,41 +6249,111 @@ def api_job_new():
 
     lead_id = (data.get('lead_id') or '').strip()
 
+    lead = get_lead(lead_id) if lead_id else None
+    if lead_id and not lead:
+        return jsonify({'ok': False, 'error': 'Ese lead no existe'}), 404
+
     try:
         price_total = float(data.get('price_total') or data.get('monto') or 0)
     except (TypeError, ValueError):
         price_total = 0
+
+    if lead:
+        # CONSOLIDACION (prioridad 8, cierre de brechas -- agosto 2026):
+        # esta rama ya NO arma su propio dict de job a mano. El bug de
+        # Camila Rios (4 jobs / 4 workflow_instances distintos, ver nota de
+        # julio arriba) paso justo porque esta ruta tenia su propia copia
+        # parcial de la logica de conversion (creaba el job pero se
+        # olvidaba de crear workflow/payment schedule/questionnaire, y su
+        # guardia de idempotencia vivia por separado de la de accept-quote).
+        # Ahora /api/jobs/new y /api/leads/<id>/accept-quote llaman a la
+        # MISMA funcion (_convert_lead_to_job), que ya trae su propia
+        # guardia de idempotencia (_find_job_for_lead dentro de
+        # _ensure_job_for_lead) -- una sola fuente de verdad para
+        # tenant/lead/quote/client/job/workflow/payment schedule/
+        # cuestionario. Repetir esta llamada con el mismo lead_id nunca
+        # duplica nada: _ensure_job_for_lead devuelve el job existente,
+        # _ensure_production_workflow_for_job devuelve la workflow_instance
+        # existente, y _ensure_payments_for_quote devuelve [] sin crear
+        # filas nuevas si ya existen para ese quote_id.
+        #
+        # No hay una cotizacion formal en el flujo "Pick & Choose" (el
+        # usuario arma el job a mano con nombre/precio/paquete sueltos), asi
+        # que se pasa quote=None y create_payments=False -- el calendario de
+        # pagos automatico requiere un quote con plan_pago; si no hay quote,
+        # no se inventan cuotas. El cliente ya viene resuelto por client_id
+        # explicito (no por _ensure_client_for_lead), asi que si el job es
+        # nuevo se le pisan los campos que SI vinieron en este formulario
+        # (nombre/precio/paquete/ubicacion/fecha) despues de que la funcion
+        # canonica lo cree con sus defaults.
+        already_existed = bool(_find_job_for_lead(lead))
+        result = _convert_lead_to_job(lead, quote=None, status=data.get('status') or 'Cotizando', create_payments=False)
+        job = result['job']
+
+        if already_existed:
+            log_security_event(
+                'DUPLICATE_JOB_CREATION_BLOCKED',
+                tabla='jobs', registro=lead_id,
+                cuenta_activa=job.get('tenant_id'),
+            )
+            return jsonify({
+                'ok': True,
+                'already_converted': True,
+                'job_created': False,
+                'job_id': job['id'],
+                'job': job,
+                'message': ('Este lead ya tiene un job existente '
+                            f"({job['id']}). Se devolvio el "
+                            'existente en vez de crear uno duplicado.'),
+            }), 200
+
+        if result['job_created']:
+            # Job recien creado por la funcion canonica -- ahora si se
+            # aplican los campos que llegaron sueltos en este formulario
+            # (client_id ya se resolvio via el cliente EXISTENTE que exige
+            # esta ruta, no via _ensure_client_for_lead).
+            job['nombre'] = nombre or job.get('nombre')
+            job['boda_date'] = data.get('boda_date') or data.get('fecha_evento') or job.get('boda_date')
+            job['type'] = data.get('type') or job.get('type')
+            job['location'] = data.get('location') or data.get('lugar_evento') or job.get('location')
+            job['package'] = data.get('package') or job.get('package')
+            job['client_id'] = client['id']
+            if price_total:
+                job['price_total'] = price_total
+            upsert_job(job)
+
+        return jsonify({
+            'ok': True, 'job_id': job['id'], 'job': job,
+            'job_created': result['job_created'],
+            'workflow_created': result['workflow_created'],
+        })
+
+    # Sin lead_id: job manual puro (no hay conversion que consolidar, no
+    # hay workflow/quote/payment-schedule automaticos que crear).
     job_id = 'boda-' + uuid.uuid4().hex[:8]
+    tenant_id = client.get('tenant_id') or get_current_tenant_id()
     job = {
         'id': job_id,
         'nombre': nombre,
         'boda_date': data.get('boda_date') or data.get('fecha_evento') or None,
         'status': data.get('status') or 'Cotizando',
         'workflow_progress': 0,
-        'empresa': 'ASTRAL WEDDINGS',
+        # Antes hardcodeado a 'ASTRAL WEDDINGS' sin importar el tenant real.
+        # Ver src/tenant_brand_map.py -- unica fuente de verdad de marca.
+        'empresa': _brand_display_name_for_tenant(tenant_id),
         'type': data.get('type') or 'Boda',
         'location': data.get('location') or data.get('lugar_evento') or '',
         'package': data.get('package') or '',
         'client_id': client['id'],
-        'lead_id': lead_id,
+        'lead_id': '',
         'price_total': price_total,
         'price_paid': 0,
         'created': date.today().isoformat(),
-        'tenant_id': client.get('tenant_id') or get_current_tenant_id(),
+        'tenant_id': tenant_id,
     }
     upsert_job(job)
 
-    if lead_id:
-        lead = get_lead(lead_id)
-        if lead:
-            lead['status'] = 'Convertido'
-            lead['converted_to_job'] = job_id
-            lead['job_id'] = job_id
-            lead['client_id'] = client['id']
-            lead['converted_at'] = lead.get('converted_at') or datetime.now().isoformat()[:10]
-            upsert_lead(lead)
-
-    return jsonify({'ok': True, 'job_id': job_id, 'job': job})
+    return jsonify({'ok': True, 'job_id': job_id, 'job': job, 'job_created': True})
 
 
 @app.route('/api/jobs/export.csv')
@@ -5494,7 +6453,8 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
         return {'error': 'Este job no tiene email de cliente'}
 
     template = _get_email_template(template_id)
-    rendered_subject = subject or (template or {}).get('asunto') or 'Mensaje de ASTRAL WEDDINGS'
+    rendered_subject = subject or (template or {}).get('asunto') or \
+        f'Mensaje de {_brand_display_name_for_tenant(job.get("tenant_id"))}'
     rendered_body = body or (template or {}).get('cuerpo') or ''
     rendered_subject = _render_message_template(rendered_subject, client=client, lead=lead, job=job)
     rendered_body = _render_message_template(rendered_body, client=client, lead=lead, job=job)
@@ -5736,7 +6696,9 @@ def api_reconcile_studio_ninja_jobs():
                 'last_name': c2.get('last_name') or '',
                 'email': c2.get('email') or '',
                 'phone': c2.get('phone') or '',
-                'address': new_location or job.get('location') or '',
+                # El venue del evento NO es la direccion de facturacion
+                # del cliente (misma contaminacion cerrada en las otras
+                # rutas de creacion de clientes).
                 'estado': 'Activo',
                 'tenant_id': tenant_id,
                 # Nunca None: un job sin fecha detectada (folder "[no date]")
@@ -5977,7 +6939,10 @@ def api_pending_email_retry(pending_id):
     """
     from src.mail_tracker import MailTracker
 
-    resultado = MailTracker().retry_failed(pending_id, actor=_actor_actual())
+    # sender_tenant_id explicito: no depender de que store.current_tenant_id()
+    # resuelva la sesion por su cuenta (ver nota en MailTracker.retry_failed).
+    resultado = MailTracker().retry_failed(
+        pending_id, actor=_actor_actual(), sender_tenant_id=get_current_tenant_id())
     if not resultado.get('ok'):
         respuesta = {'ok': False, 'error': resultado.get('error')}
         if resultado.get('pendiente'):
@@ -6689,7 +7654,8 @@ def api_fix_secondary_clients():
             suffix = '-2' if role == 'secondary' else '-planner'
             c = {
                 'id': f"client-sn-{item['slug']}{suffix}",
-                'address': job.get('location') or '',
+                # Sin heredar el venue como address -- ver nota en
+                # _ensure_client_for_lead.
                 'estado': 'Activo',
                 'tenant_id': job.get('tenant_id'),
                 'created': job.get('created') or date.today().isoformat(),
@@ -6763,6 +7729,7 @@ def questionnaire_view(questionnaire_id):
         abort(404)
     job = get_job(q.get('job_id', '')) if q.get('job_id') else None
     client = get_client(q.get('client_id', '')) if q.get('client_id') else None
+    brand = resolve_pdf_brand((job.get('tenant_id') if job else None) or q.get('tenant_id'))
     return render_template(
         'questionnaire_view.html',
         questionnaire=q,
@@ -6770,6 +7737,7 @@ def questionnaire_view(questionnaire_id):
         client=client,
         groups=q.get('questions') or QUESTIONNAIRE_QUESTIONS,
         answers=q.get('answers') or {},
+        brand=brand,
     )
 
 
@@ -7427,9 +8395,11 @@ def api_job_link_client(job_id):
 
     data = request.get_json() or {}
     role = data.get('role')
-    field = JOB_CLIENT_ROLES.get(role)
-    if not field:
-        return jsonify({'ok': False, 'error': 'Rol invalido (secondary o planner)'}), 400
+    # La validacion del rol la hace ALIAS_ROL_LEGACY/ROLES_JOB_CLIENT mas
+    # abajo, que acepta tanto los alias viejos ('secondary'/'planner') como
+    # los roles canonicos. La guardia anterior usaba JOB_CLIENT_ROLES, que
+    # solo conocia esos dos alias, y rechazaba con 400 cualquier rol nuevo
+    # ('principal', 'contacto', 'otro') ANTES de llegar al codigo canonico.
 
     client_id = data.get('client_id')
     if client_id:
@@ -7454,10 +8424,35 @@ def api_job_link_client(job_id):
         }
         store.upsert('clients', client)
 
-    job[field] = client_id
+    # Escribe en el modelo canonico job_clients (0..N), no en los 3 campos
+    # fijos. `role` acepta tanto los alias viejos ('secondary'/'planner')
+    # como los roles canonicos ('pareja', 'wedding_planner', 'contacto',
+    # 'otro', 'principal'), asi el frontend existente sigue funcionando.
+    rol_canonico = ALIAS_ROL_LEGACY.get(role, role)
+    if rol_canonico not in ROLES_JOB_CLIENT:
+        return jsonify({'ok': False, 'error': f'Rol invalido: {role}'}), 400
+
+    relaciones = _job_client_relations(job)
+    ya = next((r for r in relaciones if r['client_id'] == client_id), None)
+    if ya:
+        ya['role'] = rol_canonico  # cambiar el rol de alguien ya asociado
+    else:
+        relaciones.append({'client_id': client_id, 'role': rol_canonico})
+
+    try:
+        _set_job_clients(job, relaciones, tenant_id=job.get('tenant_id'))
+    except TenantMismatchError as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 403
+
+    # Compatibilidad de LECTURA: se mantienen los campos viejos alineados
+    # para que cualquier vista que todavia los lea no quede desfasada. La
+    # fuente de verdad es job_clients.
+    _sincronizar_campos_legacy(job)
     job['updated_at'] = datetime.now().isoformat()
     upsert_job(job)
-    return jsonify({'ok': True, 'client': client})
+    return jsonify({'ok': True, 'client': client,
+                    'clientes': [{'id': c['id'], 'role': c['role'], 'nombre': c['nombre']}
+                                 for c in _job_clients(job)]})
 
 
 @app.route('/api/jobs/<job_id>/unlink-client', methods=['POST'])
@@ -7470,14 +8465,31 @@ def api_job_unlink_client(job_id):
 
     data = request.get_json() or {}
     role = data.get('role')
-    field = JOB_CLIENT_ROLES.get(role)
-    if not field:
-        return jsonify({'ok': False, 'error': 'Rol invalido (secondary o planner)'}), 400
+    client_id = data.get('client_id')
 
-    job[field] = None
+    # Se puede quitar por client_id (preciso, y lo unico que sirve cuando
+    # hay varios contactos con el mismo rol) o por rol (compatibilidad).
+    relaciones = _job_client_relations(job)
+    if client_id:
+        quedan = [r for r in relaciones if r['client_id'] != client_id]
+    else:
+        rol_canonico = ALIAS_ROL_LEGACY.get(role, role)
+        if rol_canonico not in ROLES_JOB_CLIENT:
+            return jsonify({'ok': False, 'error': 'Indica client_id o un rol valido'}), 400
+        quedan = [r for r in relaciones if r['role'] != rol_canonico]
+
+    if len(quedan) == len(relaciones):
+        return jsonify({'ok': False, 'error': 'Esa relacion no existe en este job'}), 404
+
+    # SOLO se elimina la relacion. El cliente sigue existiendo con toda su
+    # historia -- quitarlo de un job no puede borrar a la persona.
+    _set_job_clients(job, quedan, tenant_id=job.get('tenant_id'))
+    _sincronizar_campos_legacy(job)
     job['updated_at'] = datetime.now().isoformat()
     upsert_job(job)
-    return jsonify({'ok': True})
+    return jsonify({'ok': True,
+                    'clientes': [{'id': c['id'], 'role': c['role'], 'nombre': c['nombre']}
+                                 for c in _job_clients(job)]})
 
 
 # ============================================================
@@ -7713,13 +8725,17 @@ def _invoice_send_email_text(pay, client, job, lead, host):
     invoice_url = _client_facing_invoice_url(host, client, invoice_id)
     name = _client_name(client=client, lead=lead, job=job)
     amount = float(pay.get('amount') or 0)
+    # Antes hardcodeado a 'ASTRAL WEDDINGS' sin importar el tenant del job --
+    # mismo patron del incidente del 16 de agosto, aca en la firma de la
+    # factura. Resuelto via la marca canonica del tenant dueno del pago/job.
+    empresa = _brand_display_name_for_tenant((job or {}).get('tenant_id') or pay.get('tenant_id'))
 
-    subject = f'Factura {invoice_id} - ASTRAL WEDDINGS'
+    subject = f'Factura {invoice_id} - {empresa}'
     body = (
         f"Hola {name},\n\n"
         f"Tu factura por Q{amount:,.2f} ({pay.get('concepto') or 'Pago'}) esta lista.\n"
         f"Puedes verla y pagarla en este enlace:\n{invoice_url}\n\n"
-        "Saludos,\nASTRAL WEDDINGS"
+        f"Saludos,\n{empresa}"
     )
     return subject, body, invoice_url
 
@@ -7851,7 +8867,13 @@ def _payment_reminder_email_text(pay, client, job, payment_link):
     envio automatico (check_and_send_payment_reminders) y la vista previa /
     envio manual desde 'Generar link de pago', para que sea EXACTAMENTE el
     mismo correo en ambos casos."""
-    settings_dict = get_settings()
+    # tenant_id explicito: esta funcion la llama tambien el scheduler
+    # automatico (check_and_send_payment_reminders), que no tiene sesion
+    # Flask -- sin esto, get_settings()/_brand_display_name_for_tenant()
+    # caerian al fallback global (ver comentario de get_settings()).
+    job_tenant_id = (job or {}).get('tenant_id') or pay.get('tenant_id')
+    settings_dict = get_settings(tenant_id=job_tenant_id)
+    empresa = _brand_display_name_for_tenant(job_tenant_id)
     bank_info = (settings_dict.get('company') or {}).get('bank_info') or ''
     name = _client_name(client=client, lead=None, job=job)
     amount = round(float(pay.get('amount') or 0), 2)
@@ -7869,7 +8891,7 @@ def _payment_reminder_email_text(pay, client, job, payment_link):
                 when_text = f'vencio hace {-days_until} dia(s)'
         except ValueError:
             pass
-    subject = f'Recordatorio de pago - {when_text} - ASTRAL WEDDINGS'
+    subject = f'Recordatorio de pago - {when_text} - {empresa}'
 
     raw_options = []
     if bank_info.strip():
@@ -7882,11 +8904,11 @@ def _payment_reminder_email_text(pay, client, job, payment_link):
 
     body = (
         f"Hola {name},\n\n"
-        f"Te escribo para recordarte tu proximo pago con ASTRAL WEDDINGS.\n\n"
+        f"Te escribo para recordarte tu proximo pago con {empresa}.\n\n"
         f"Monto: Q{amount:,.2f}\n"
         f"Vence: {due_date_str or 'Por definir'} ({when_text})\n\n"
         f"Opciones de pago:\n\n" + "\n\n".join(options) + "\n\n"
-        f"Cualquier duda, avisame.\n\nSaludos,\nASTRAL WEDDINGS"
+        f"Cualquier duda, avisame.\n\nSaludos,\n{empresa}"
     )
     return subject, body
 
@@ -8132,7 +9154,9 @@ def api_lead_accept_shoot(lead_id):
         props_job = {
             'BODA': {'title': [{'type': 'text', 'text': {'content': nombre_boda}}]},
             'Estado': {'status': {'name': 'Cotizando'}},
-            'EMPRESA': {'select': {'name': 'ASTRAL WEDDINGS'}},
+            # Push a Notion (legado): la empresa tambien sale del tenant
+            # activo, no de un string fijo.
+            'EMPRESA': {'select': {'name': _brand_display_name_for_tenant(get_current_tenant_id())}},
             'Tipo de evento': {'select': {'name': lead.get('Tipo de evento') or 'Boda'}},
             'Cliente': {'relation': [{'id': cliente_id}]},
         }
@@ -8491,7 +9515,7 @@ def api_config_paquetes_create():
         'num_photos': data.get('num_photos', 0),
         'price': float(data.get('precio_q') or 0),
         'includes': [],
-        'marca': data.get('Marca', 'ASTRAL WEDDINGS'),
+        'marca': data.get('Marca') or _brand_display_name_for_tenant(get_current_tenant_id()),
         'active': bool(data.get('Activo', True)),
     }
     store.upsert('packages', package)
@@ -8528,7 +9552,7 @@ def api_config_cuentas_create():
         return jsonify({'ok': False, 'error': 'Nombre requerido'}), 400
     item = _upsert_config_item('cuentas', None, {
         'Name': data['Name'],
-        'Marca': data.get('Marca', 'ASTRAL WEDDINGS'),
+        'Marca': data.get('Marca') or _brand_display_name_for_tenant(get_current_tenant_id()),
         'Notas': data.get('Notas', ''),
         'Activo': data.get('Activo', True),
     })
@@ -8711,25 +9735,80 @@ def api_workflow_test(template_id):
     return jsonify({'ok': True, 'instance_id': instance.id, 'subject': fake_name})
 
 
+def _instancia_es_de_la_cuenta(inst, job_ids=None, lead_ids=None):
+    """True si el job/lead de la instancia es visible en la cuenta activa.
+
+    El WorkflowEngine guarda TODAS las instancias en un solo diccionario en
+    memoria y en un `workflow_instances.json` global (sin sufijo de
+    cuenta). La nota de _persist_workflow_template dice que el AVANCE si
+    esta aislado "ligado al job que ya paso por el filtro de tenant al
+    buscarlo" -- y eso es cierto en job_detail, que lo busca por job. Pero
+    /api/workflow/instances listaba el diccionario entero sin pasar por
+    ningun job, asi que Astral veia los nombres de las bodas de Norkevin.
+
+    El dueno se resuelve por los datos, no por un campo nuevo: si el
+    job/lead no aparece en las listas ya filtradas por cuenta, la instancia
+    no es de esta cuenta. No hay migracion ni cambio de formato.
+
+    Efecto lateral buscado: las instancias cuyo subject ya no existe (las
+    143 filas huerfanas de los datos demo) dejan de aparecer. Una instancia
+    que apunta a un job borrado no es accionable por nadie.
+    """
+    if job_ids is None:
+        job_ids = {j.get('id') for j in list_jobs()}
+    if lead_ids is None:
+        lead_ids = {l.get('id') for l in list_leads()}
+    if inst.subject_type == 'job':
+        return inst.subject_id in job_ids
+    if inst.subject_type == 'lead':
+        return inst.subject_id in lead_ids
+    return False
+
+
+def _workflow_instances_del_tenant():
+    """Instancias de workflow de la cuenta activa, en una sola pasada."""
+    job_ids = {j.get('id') for j in list_jobs()}
+    lead_ids = {l.get('id') for l in list_leads()}
+    return [i for i in workflow_engine.list_instances()
+            if _instancia_es_de_la_cuenta(i, job_ids, lead_ids)]
+
+
 @app.route('/api/workflow/instances')
 def api_workflow_instances():
+    instancias = _workflow_instances_del_tenant()
+    por_estado = {}
+    for inst in instancias:
+        clave = inst.status.value
+        por_estado[clave] = por_estado.get(clave, 0) + 1
     return jsonify({
-        'instances': [i.to_dict() for i in workflow_engine.list_instances()],
-        'stats': workflow_engine.stats(),
+        'instances': [i.to_dict() for i in instancias],
+        # Las stats se calculan aca sobre las instancias de ESTA cuenta.
+        # workflow_engine.stats() cuenta las de todas las marcas juntas y
+        # ademas nunca incrementa su contador por estado (siempre da 0).
+        'stats': {
+            'total_instances': len(instancias),
+            'by_status': por_estado,
+            'templates': list(workflow_engine.templates.keys()),
+        },
     })
 
 
 @app.route('/api/workflow/instances/<instance_id>')
 def api_workflow_instance_detail(instance_id):
     inst = workflow_engine.get_instance(instance_id)
-    if not inst:
+    if not inst or not _instancia_es_de_la_cuenta(inst):
+        # Mismo 404 para "no existe" y "no es tuya": responder distinto
+        # confirmaria a una marca que la otra tiene esa instancia.
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
     return jsonify({'ok': True, 'instance': inst.to_dict()})
 
 
 @app.route('/api/workflow/history')
 def api_workflow_history():
-    return jsonify({'history': workflow_engine.get_history(limit=100)})
+    mios = {i.id for i in _workflow_instances_del_tenant()}
+    historial = [h for h in workflow_engine.get_history(limit=2000)
+                 if h.get('instance_id') in mios]
+    return jsonify({'history': historial[-100:]})
 
 
 # Trigger automatico: cuando se crea un lead, dispara LEAD_WORKFLOW
@@ -8759,7 +9838,10 @@ def api_lead_create():
     if client:
         data.setdefault('email', client.get('email', ''))
         data.setdefault('telefono', client.get('phone', ''))
-        data.setdefault('locacion', client.get('address', ''))
+        # NO se rellena 'locacion' con la direccion de facturacion del
+        # cliente: son campos distintos (venue del evento vs direccion de
+        # cobro) y este setdefault era la segunda mitad del bucle de
+        # contaminacion. Si no se sabe el lugar del evento, se deja vacio.
     if not data.get('nombre'):
         return jsonify({'ok': False, 'error': 'nombre requerido'}), 400
 
@@ -9099,6 +10181,16 @@ def quote_view(quote_id):
             key=lambda p: p.get('due_date') or ''
         )
 
+    # La cotizacion no siempre tiene su propio tenant_id en registros viejos;
+    # el job (cuando existe) es la fuente mas confiable, igual que en
+    # contract_view. Sin ninguno de los dos, resolve_pdf_brand devuelve el
+    # placeholder neutro -- nunca "Astral Weddings" por default.
+    _job_para_marca = get_job(quote.get('job_id', '')) if quote.get('job_id') else None
+    brand = resolve_pdf_brand(
+        (_job_para_marca.get('tenant_id') if _job_para_marca else None)
+        or quote.get('tenant_id') or lead.get('tenant_id')
+    )
+
     return render_template(
         'quote_view.html',
         quote=quote,
@@ -9106,6 +10198,7 @@ def quote_view(quote_id):
         options=_normalize_quote_options(quote),
         plan_choices=_quote_plan_choices(quote),
         payment_schedule=payment_schedule,
+        brand=brand,
     )
 
 
@@ -9125,6 +10218,9 @@ def quote_edit(quote_id):
     client = get_client(quote.get('client_id') or (job.get('client_id') if job else '')) if (quote.get('client_id') or (job and job.get('client_id'))) else None
     display_name = _client_name(client=client, lead=lead, job=job)
     display_email = _email_for(client=client, lead=lead)
+    # Pagina interna con sesion: el tenant es el de la sesion, no hay que
+    # deducirlo de los datos del quote/lead/job.
+    brand = resolve_pdf_brand(get_current_tenant_id())
 
     return render_template(
         'quote_edit.html',
@@ -9134,6 +10230,7 @@ def quote_edit(quote_id):
         display_email=display_email,
         plan_pago_opciones=quote.get('plan_pago_opciones') or [1, 2, 3, 4],
         saved_packages=_load_packages(),
+        brand=brand,
     )
 
 
@@ -9264,6 +10361,7 @@ def quote_accept(quote_id):
     quote = next((q for q in quotes if q.get('id') == quote_id), None)
     if not quote:
         abort(404)
+    brand = resolve_pdf_brand(quote.get('tenant_id'))
 
     if quote.get('status') != 'Aceptada':
         data = request.get_json(silent=True) or request.form or {}
@@ -9296,20 +10394,20 @@ def quote_accept(quote_id):
         if quote.get('job_id'):
             _accept_quote_for_existing_job(quote)
         quote = store.get('quotes', quote_id) or quote
-        return render_template('quote_accepted.html', quote=quote, already=True,
+        return render_template('quote_accepted.html', quote=quote, already=True, brand=brand,
                                 portal_url=(f"/portal/{quote['client_id']}" if quote.get('client_id') else None))
 
     if quote.get('job_id'):
         _accept_quote_for_existing_job(quote)
         quote = store.get('quotes', quote_id) or quote
-        return render_template('quote_accepted.html', quote=quote, already=False,
+        return render_template('quote_accepted.html', quote=quote, already=False, brand=brand,
                                 portal_url=(f"/portal/{quote['client_id']}" if quote.get('client_id') else None))
 
     if not quote.get('lead_id'):
         quote['status'] = 'Aceptada'
         quote['aceptada_en'] = date.today().isoformat()
         store.upsert('quotes', quote)
-        return render_template('quote_accepted.html', quote=quote, already=False, portal_url=None)
+        return render_template('quote_accepted.html', quote=quote, already=False, brand=brand, portal_url=None)
 
     lead = get_lead(quote.get('lead_id', ''))
     if not lead:
@@ -9317,7 +10415,7 @@ def quote_accept(quote_id):
 
     _convert_lead_to_job(lead, quote=quote, status='Confirmado', create_payments=True)
     quote = store.get('quotes', quote_id) or quote
-    return render_template('quote_accepted.html', quote=quote, already=False,
+    return render_template('quote_accepted.html', quote=quote, already=False, brand=brand,
                             portal_url=(f"/portal/{quote['client_id']}" if quote.get('client_id') else None))
 
 
@@ -9369,12 +10467,13 @@ def api_quote_send(quote_id):
     quote_url = host + f'/quotes/{quote_id}'
 
     data = request.json or request.form or {}
-    subject = (data.get('subject') or '').strip() or f'Cotizacion {quote.get("number") or quote_id} - ASTRAL WEDDINGS'
+    empresa = _brand_display_name_for_tenant(quote.get('tenant_id') or (job or {}).get('tenant_id'))
+    subject = (data.get('subject') or '').strip() or f'Cotizacion {quote.get("number") or quote_id} - {empresa}'
     body = (data.get('body') or '').strip() or (
         f"Hola {lead.get('nombre') or 'Cliente'},\n\n"
         "Tu cotizacion esta lista. Puedes verla y aceptarla en este enlace:\n"
         f"{quote_url}\n\n"
-        "Saludos,\nASTRAL WEDDINGS"
+        f"Saludos,\n{empresa}"
     )
     mail = get_tracker().log_email(
         to_email=to_email,
@@ -9409,7 +10508,7 @@ def api_quote_send(quote_id):
 # ============================================================
 import sys
 sys.path.insert(0, os.path.dirname(__file__))
-from src.pdf_generator import generate_quote_pdf, generate_contract_pdf, generate_invoice_pdf, contract_terms
+from src.pdf_generator import generate_quote_pdf, generate_contract_pdf, generate_invoice_pdf, contract_terms, resolve_pdf_brand
 
 
 @app.route('/quotes/<quote_id>/pdf')
@@ -9454,7 +10553,12 @@ def quote_pdf(quote_id):
         quote_for_pdf['incluye'] = selected.get('incluye')
         quote_for_pdf['notas'] = quote.get('notas') or selected.get('notas')
 
-    pdf_bytes = generate_quote_pdf(quote_for_pdf, lead)
+    # tenant_id de la cotizacion misma primero -- esta ruta es publica (el
+    # cliente la abre desde el link del correo, sin sesion), asi que no se
+    # puede depender de session['tenant_id'] como en las rutas internas.
+    pdf_tenant_id = quote.get('tenant_id') or (locals().get('job') or {}).get('tenant_id')
+    brand = resolve_pdf_brand(pdf_tenant_id)
+    pdf_bytes = generate_quote_pdf(quote_for_pdf, lead, brand=brand)
     return Response(pdf_bytes, mimetype='application/pdf', headers={
         'Content-Disposition': f'inline; filename="cotizacion-{quote_id}.pdf"'
     })
@@ -9470,12 +10574,17 @@ def contract_view(contract_id):
     client = get_client(contract.get('client_id', ''))
     if not job or not client:
         abort(404)
+    # contract.tenant_id no es confiable (los contratos legados no siempre
+    # lo tienen -- ver STABILIZATION_EXECUTION_REPORT.md); job.tenant_id
+    # es la fuente primaria.
+    brand = resolve_pdf_brand(job.get('tenant_id') or contract.get('tenant_id'))
     return render_template(
         'contract_view.html',
         contract=contract,
         job=job,
         client=client,
-        terms=contract_terms(job),
+        terms=contract_terms(job, brand=brand),
+        brand=brand,
     )
 
 
@@ -9490,8 +10599,9 @@ def contract_pdf(contract_id):
     client = get_client(contract.get('client_id', ''))
     if not job or not client:
         abort(404)
-    
-    pdf_bytes = generate_contract_pdf(contract, job, client)
+
+    brand = resolve_pdf_brand(job.get('tenant_id') or contract.get('tenant_id'))
+    pdf_bytes = generate_contract_pdf(contract, job, client, brand=brand)
     return Response(pdf_bytes, mimetype='application/pdf', headers={
         'Content-Disposition': f'inline; filename="contrato-{contract_id}.pdf"'
     })
@@ -9525,8 +10635,10 @@ def invoice_pdf(invoice_id):
         schedule = [pay]
         package_name = job.get('package')
 
+    brand = resolve_pdf_brand(job.get('tenant_id') or pay.get('tenant_id'))
     pdf_bytes = generate_invoice_pdf(pay, job, client, schedule=schedule,
-                                      package_name=package_name, package_incluye=package_incluye)
+                                      package_name=package_name, package_incluye=package_incluye,
+                                      brand=brand)
     return Response(pdf_bytes, mimetype='application/pdf', headers={
         'Content-Disposition': f'inline; filename="factura-{invoice_id}.pdf"'
     })
@@ -9618,9 +10730,23 @@ def client_portal(client_id):
     if not client:
         abort(404)
 
-    # Buscar jobs del cliente
-    jobs = [j for j in _canonical_jobs() if j.get('client_id') == client_id]
-    job_ids = {j.get('id') for j in jobs}
+    # Buscar jobs del cliente, en cualquier rol que reciba documentos
+    # (principal o pareja -- ROLES_DESTINATARIOS_DOCUMENTOS). Antes esto
+    # miraba solo job.client_id (el principal): la pareja abria SU PROPIO
+    # link de portal y lo veia vacio, sin su cotizacion ni su contrato --
+    # el mismo bug que ya se habia cerrado en /clients/<id>, colado aca
+    # porque esta puerta nunca paso por el mismo helper canonico. El
+    # wedding planner y otros roles de contacto siguen sin ver nada en su
+    # portal: no es un descuido, es la regla de "el planner nunca recibe
+    # contratos" aplicada tambien aca, no solo en el envio de correos.
+    _jobs_todos = _canonical_jobs()
+    _relaciones = _relaciones_por_job(_jobs_todos)
+    job_ids = {
+        job.get('id') for job in _jobs_todos
+        for rel in _relaciones.get(job.get('id'), [])
+        if rel['client_id'] == client_id and rel['role'] in ROLES_DESTINATARIOS_DOCUMENTOS
+    }
+    jobs = [j for j in _jobs_todos if j.get('id') in job_ids]
 
     # Un cliente puede seguir siendo lead (sin job todavia): buscamos sus
     # leads tambien para que sus cotizaciones/cuestionarios se vean igual.
@@ -9655,7 +10781,12 @@ def client_portal(client_id):
     # Pagos/facturas: se agrupan por cotizacion (o job) para que el cliente
     # vea UNA sola factura por job, con el desglose de cuotas internamente
     # en vez de una factura separada por cada pago.
-    payments = [p for p in list_payments() if p.get('client_id') == client_id]
+    # Los pagos se crean siempre con el client_id del principal (ver
+    # _ensure_payments_for_quote): sin el `or job_id in job_ids`, la pareja
+    # nunca veia sus propias cuotas aca aunque ya se le reconociera el job
+    # arriba.
+    payments = [p for p in list_payments()
+                if p.get('client_id') == client_id or p.get('job_id') in job_ids]
     payments.sort(key=lambda p: p.get('due_date') or '')
 
     # El boton "Pagar ahora" solo aparece si el pago ya tiene un
@@ -9728,8 +10859,11 @@ def client_portal(client_id):
             'status': group_status,
         })
 
-    # Contratos
-    contracts = [c for c in store.list('contracts') if c.get('client_id') == client_id]
+    # Contratos. Un solo contrato por job, creado con el client_id del
+    # principal (ver api_contract_new): el `or job_id in job_ids` es lo que
+    # deja que la pareja tambien lo vea y lo firme desde su propio portal.
+    contracts = [c for c in store.list('contracts')
+                 if c.get('client_id') == client_id or c.get('job_id') in job_ids]
 
     # Cuestionarios (creados desde el job, ver /api/jobs/<id>/questionnaires)
     questionnaires = [
@@ -9772,8 +10906,10 @@ def client_portal(client_id):
         bool(files),
     ])
 
+    brand = resolve_pdf_brand(client.get('tenant_id'))
     return render_template('client_portal.html',
                           client=client,
+                          brand=brand,
                           jobs=jobs,
                           primary_job=primary_job,
                           days_until_wedding=days_until_wedding,
@@ -9881,12 +11017,13 @@ def api_contract_send(contract_id):
     name = _client_name(client=client, lead=lead, job=job)
 
     data = request.json or request.form or {}
-    subject = (data.get('subject') or '').strip() or 'Tu contrato de servicios fotograficos - ASTRAL WEDDINGS'
+    empresa = _brand_display_name_for_tenant((job or {}).get('tenant_id') or contract.get('tenant_id'))
+    subject = (data.get('subject') or '').strip() or f'Tu contrato de servicios fotograficos - {empresa}'
     body = (data.get('body') or '').strip() or (
         f"Hola {name},\n\n"
         "Aqui esta el contrato de servicios. Puedes leerlo y firmarlo electronicamente desde este link:\n"
         f"{contract_url}\n\n"
-        "Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\nASTRAL WEDDINGS"
+        f"Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\n{empresa}"
     )
     # Igual que con cuestionarios: si Kevin elige una plantilla de Settings
     # que no trae el link del contrato, el correo saldria sin forma de
@@ -10078,7 +11215,9 @@ def api_check_date(lead_id):
         'fecha': fecha,
         'disponible': len(conflicts) == 0,
         'conflicts': conflicts,
-        'recomendacion': 'Astral Films' if conflicts else 'ASTRAL WEDDINGS',
+        # La recomendacion no puede nombrar una marca fija: quien consulta
+        # la fecha puede ser cualquiera de las dos empresas.
+        'recomendacion': _brand_display_name_for_tenant(get_current_tenant_id()),
     })
 
 
@@ -10363,6 +11502,63 @@ def start_reminder_scheduler():
 
 
 start_reminder_scheduler()
+
+
+# ============================================================
+# PAGINAS DE ERROR
+# ============================================================
+# templates/404.html y templates/500.html existian desde hace tiempo pero
+# NUNCA se mostraban: sin un errorhandler registrado, Flask sirve su
+# propia pagina blanca ("Not Found" / "Internal Server Error"), sin menu,
+# sin marca y sin forma de volver. Un enlace viejo dejaba a Kevin en un
+# callejon sin salida en medio de una reunion con un cliente.
+
+
+@app.errorhandler(404)
+def pagina_no_encontrada(_e):
+    # Las rutas /api/ las consume JavaScript: devolverles HTML haria que
+    # el fetch explote al parsear en vez de mostrar un mensaje util.
+    if request.path.startswith('/api/'):
+        return jsonify({'ok': False, 'error': 'No encontrado'}), 404
+    return render_template('404.html'), 404
+
+
+@app.errorhandler(Exception)
+def error_interno(e):
+    # Las excepciones HTTP con codigo propio (403, 404, 405...) se dejan
+    # pasar tal cual: convertirlas todas en 500 esconderia la causa real.
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+
+    # En los tests la excepcion tiene que seguir subiendo. Un handler de
+    # Exception se aplica ANTES que PROPAGATE_EXCEPTIONS de Flask, asi que
+    # sin esto un bug real llegaria a pytest disfrazado de "500" en vez de
+    # con su traza, y algun test podria hasta darlo por bueno.
+    if app.config.get('TESTING') or app.config.get('PROPAGATE_EXCEPTIONS'):
+        raise e
+
+    # La traza va al log (logs/crm_runtime.log), no a la pantalla: al
+    # usuario le sirve saber que fallo y como volver, no el stack.
+    logger.exception(f'Error no controlado en {request.method} {request.path}')
+
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'ok': False,
+            'error': 'Algo fallo del lado del servidor. Quedo registrado en el log del CRM.',
+        }), 500
+
+    try:
+        return render_template(
+            '500.html',
+            error='Algo fallo del lado del servidor. El detalle quedo en el log del CRM.',
+        ), 500
+    except Exception:
+        # Si la propia pagina de error falla (por ejemplo porque base.html
+        # necesita contexto que no existe en esta peticion), se responde
+        # texto plano antes que dejar al usuario sin nada.
+        logger.exception('Fallo tambien la pagina de error 500')
+        return 'Error interno del CRM. Revisa logs/crm_runtime.log', 500
 
 
 if __name__ == '__main__':

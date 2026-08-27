@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Products & Packages · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Products & Packages · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Products &amp; Packages{% endblock %}
 {% block subtitle %}Dashboard &gt; Settings &gt; Products &amp; Packages{% endblock %}
 {% block topbar_title %}Settings{% endblock %}
@@ -43,8 +43,8 @@
           <td data-label="Fotos">{{ p.num_photos }}</td>
           <td data-label="Precio" style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(p.price or 0) }}</span></td>
           <td class="stack-actions" style="text-align:right;">
-            <button class="sn-btn sn-btn-sm" type="button" onclick='openPackageModal({{ p|tojson }})'>Edit</button>
-            <button class="sn-btn sn-btn-sm" type="button" onclick="deletePackage('{{ p.id }}')" style="color:#b3263b;">Delete</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick='openPackageModal({{ p|tojson }})'>Editar</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="deletePackage('{{ p.id }}')" style="color:#b3263b;">Eliminar</button>
           </td>
         </tr>
         {% else %}
@@ -94,7 +94,7 @@
         <textarea class="form-input" id="pkg-includes" rows="5" placeholder="1 Fotografo profesional&#10;300 fotografias editadas&#10;Galeria online privada"></textarea>
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
-        <button class="sn-btn" type="button" onclick="closeModal('package-modal')">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeModal('package-modal')">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
       </div>
     </form>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Invoice {{ invoice.invoice_id }} · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Invoice {{ invoice.invoice_id }} · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Invoice {{ invoice.invoice_id }}{% endblock %}
 {% block subtitle %}Dashboard &gt; Jobs &gt; {{ job.nombre if job else 'Job' }} &gt; Payments &gt; Invoice {{ invoice.invoice_id }}{% endblock %}
 {% block topbar_title %}Payments{% endblock %}
@@ -160,7 +160,7 @@
     <div>
       <h2 class="sn-page-title" style="font-size:22px;">Payment Schedule</h2>
       <div class="sn-muted">
-        {% if quote %}Generated from accepted quote {{ quote.id }}{% else %}Manual invoice{% endif %}
+        {% if quote %}Generada desde la cotizacion aceptada {{ quote.id }}{% else %}Factura manual{% endif %}
       </div>
     </div>
     <div class="sn-actions">
@@ -180,17 +180,17 @@
     <table class="sn-table">
       <thead>
         <tr>
-          <th style="width:130px;">Status</th>
+          <th style="width:130px;">Estado</th>
           <th style="width:200px;">Due</th>
           <th>Last Action</th>
-          <th style="width:150px;text-align:right;">Amount</th>
+          <th style="width:150px;text-align:right;">Monto</th>
           <th style="width:180px;text-align:right;"></th>
         </tr>
       </thead>
       <tbody>
       {% for row in schedule %}
         <tr class="{{ 'is-selected' if row.is_selected else '' }}">
-          <td data-label="Status">
+          <td data-label="Estado">
             {% if row.status == 'Pagado' %}
               <span class="sn-chip green">Paid</span>
             {% elif row.status == 'Late' %}
@@ -211,7 +211,7 @@
             {% if row.relative_due %}<div class="sn-list-meta">{{ row.relative_due }}</div>{% endif %}
           </td>
           <td data-label="Last Action">{{ row.last_action_display or '-' }}</td>
-          <td data-label="Amount" style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(row.amount or 0) }}</span></td>
+          <td data-label="Monto" style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(row.amount or 0) }}</span></td>
           <td class="stack-actions" style="text-align:right;">
             <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;">
             {% if row.status == 'Pagado' %}
@@ -241,7 +241,7 @@
   <div class="invoice-total-panel" style="margin-top:28px;">
     <div class="invoice-total-line"><span>Subtotal</span><span>Q{{ '{:,.2f}'.format(total) }}</span></div>
     <div class="invoice-total-line"><span>Paid</span><span>Q{{ '{:,.2f}'.format(paid) }}</span></div>
-    <div class="invoice-total-line total"><span>Balance due</span><span>Q{{ '{:,.2f}'.format(balance) }}</span></div>
+    <div class="invoice-total-line total"><span>Saldo pendiente</span><span>Q{{ '{:,.2f}'.format(balance) }}</span></div>
   </div>
 
   <div class="invoice-doc-card" style="margin-top:34px;">
@@ -260,7 +260,7 @@
         <div class="invoice-doc-parties">
           <div class="block">
             <div class="sn-list-meta" style="color:rgba(255,255,255,.65);">From</div>
-            <strong>{{ current_tenant.name|default('ASTRAL WEDDINGS') }}</strong>
+            <strong>{{ current_tenant.name|default('Flow CRM') }}</strong>
             {{ company_email or '' }}
           </div>
           <div class="block">
@@ -306,7 +306,7 @@
       </div>
       <div class="sn-actions" style="justify-content:flex-start;">
         <button class="sn-btn sn-btn-primary" type="submit">Save Payment</button>
-        <button class="sn-btn" type="button" onclick="closeRecordPayment()">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeRecordPayment()">Cancelar</button>
       </div>
     </form>
   </div>
@@ -324,7 +324,7 @@
       </div>
       <div class="sn-actions" style="justify-content:flex-start;">
         <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
-        <button class="sn-btn" type="button" onclick="closeModal('due-date-modal')">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeModal('due-date-modal')">Cancelar</button>
       </div>
     </form>
   </div>

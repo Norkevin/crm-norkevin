@@ -60,3 +60,25 @@ data/*
 # Secrets de OAuth / archivos subidos por usuarios (nunca deben commitearse)
 data/google_token.json
 data/uploads/
+
+# Evidencia del incidente del 16 de agosto de 2026.
+# NO se sube: este repo es publico y estos archivos contienen nombres y
+# direcciones de correo de clientes reales. Se conservan solo en local.
+evidencia/
+
+# Snapshots protegidos de datos reales (pre-cutover). Contienen datos de
+# negocio y a veces secretos (tokens OAuth) -- ver tools/create_pre_cutover_snapshot.py.
+# Se conservan solo en local, nunca en el repo publico.
+protected_snapshots/
+
+# Marcadores de estado en tiempo de ejecucion escritos por los launchers/
+# runners de validacion (ABRIR CRM.bat, VALIDAR CRM.bat, run_pre_cutover_validation.ps1).
+# Se regeneran en cada corrida -- no son codigo fuente.
+*.marker
+
+# Artefactos de corridas de validacion (logs, resumenes, DBs de prueba por
+# timestamp). Se regeneran en cada corrida de VALIDAR CRM -- no son codigo fuente.
+artifacts/
+
+# Estado interno del agente/asistente -- no es parte del producto.
+.claude/

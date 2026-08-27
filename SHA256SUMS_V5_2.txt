@@ -1,0 +1,10 @@
+# SHA256SUMS_V5_2.txt
+# Generado el 2026-07-10 08:00:58 UTC
+# No incluye el hash de este archivo ni CODEX_VALIDATION_OUTPUT.txt para evitar dependencias circulares de evidencia
+1167a15e5edd0818be6e35247f6b2e781243e7770ffe77118338c7561af3f10c  schema_v5.2.sql
+2dfb47198041fff8b4956d27acdfd89e69a7087fea5c9f6e0e695138f8be10f3  validate_schema_v5.2.py
+f6a7d84dd2dd1098c3a28aeb361f76228de0465e85c2a0051ee018ba7821e75b  verify_v5_consistency.py
+9560492e9d648f1dbe51612b2cbcb89d30c8ffa24b510a8a40164017a5e6e33a  codex_audit_v5_2.py
+8b6efb03bd4f85f3a38ec35b05d0c79b0373202ac78e81f77f129750def44a77  MODELO_DE_DATOS_CRM_V5.md
+7149ded28ad1011b0ad3497a2db7a3f7b7ecf117d6f15d9eb4c8ca10b1f751e3  VALIDACION_V5_OUTPUT.txt
+c4489ffc85bdc0e9f21927c5fe224b12350bb591a3416717697b908b4bcf9f90  AUDITORIA_CODEX_V5_2.md

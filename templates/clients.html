@@ -24,9 +24,9 @@
   vertical-align: top;
 }
 .clients-page .sn-table-row td.stack-actions,
-.clients-page .sn-table-row td[data-label="Created"],
-.clients-page .sn-table-row td[data-label="Phone"],
-.clients-page .sn-table-row td[data-label="Company"] {
+.clients-page .sn-table-row td[data-label="Creado"],
+.clients-page .sn-table-row td[data-label="Telefono"],
+.clients-page .sn-table-row td[data-label="Empresa"] {
   vertical-align: middle;
 }
 .clients-page .client-primary {
@@ -106,10 +106,10 @@
     <table class="sn-table" id="clients-table">
       <thead>
         <tr>
-          <th style="width: 340px;">Client</th>
-          <th style="width: 220px;">Company</th>
-          <th style="width: 180px;">Phone</th>
-          <th style="width: 160px;">Created</th>
+          <th style="width: 340px;">Cliente</th>
+          <th style="width: 220px;">Empresa</th>
+          <th style="width: 180px;">Telefono</th>
+          <th style="width: 160px;">Creado</th>
           <th style="width: 44px;"></th>
         </tr>
       </thead>
@@ -129,7 +129,7 @@
             data-balance="{{ c.balance_due or 0 }}"
             data-email="{{ c.email or '' }}"
             onclick="goClient(event, '{{ c.id }}')">
-          <td class="sn-ellipsis stack-full" data-label="Client">
+          <td class="sn-ellipsis stack-full" data-label="Cliente">
             <div style="display:flex;align-items:center;gap:10px;min-width:0;">
               <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (c.first_name or '?')[:1]|upper }}{{ (c.last_name or '')[:1]|upper }}</span>
               <div class="client-primary">
@@ -138,9 +138,9 @@
               </div>
             </div>
           </td>
-          <td class="sn-ellipsis client-meta" data-label="Company">{{ c.company or '—' }}</td>
-          <td class="sn-ellipsis client-meta" data-label="Phone">{{ c.phone or '—' }}</td>
-          <td class="sn-ellipsis client-meta" data-label="Created">{{ c.created_display or c.created or '—' }}</td>
+          <td class="sn-ellipsis client-meta" data-label="Empresa">{{ c.company or '—' }}</td>
+          <td class="sn-ellipsis client-meta" data-label="Telefono">{{ c.phone or '—' }}</td>
+          <td class="sn-ellipsis client-meta" data-label="Creado">{{ c.created_display or c.created or '—' }}</td>
           <td class="stack-actions" style="text-align:right;">
             <button class="sn-menu-dots" type="button" title="Actions" onclick="openClientActions(event, '{{ c.id }}', this.closest('tr').dataset.email)">
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
@@ -150,9 +150,18 @@
         {% endfor %}
         {% if not clients %}
         <tr>
-          <td colspan="5" style="text-align:center;padding:44px;color:var(--sn-muted);">
-            No clients yet.
-            <button type="button" class="sn-btn-link" onclick="openClientModal()">Create the first one</button>
+          <td colspan="6" style="padding:0;">
+            <div class="sn-empty-state">
+              <div class="sn-empty-state-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-4.13a4 4 0 10-4-4 4 4 0 004 4zm6-6a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+              </div>
+              <h3 class="sn-empty-state-title">Todavia no hay clientes</h3>
+              <p class="sn-empty-state-desc">Cada persona con la que trabajas vive aca: sus datos, sus bodas y su historial. Se crean solos al convertir un lead, o podes agregar uno a mano.</p>
+              <button type="button" class="sn-btn sn-btn-primary sn-empty-state-cta" onclick="openClientModal()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+                Nuevo cliente
+              </button>
+            </div>
           </td>
         </tr>
         {% endif %}
@@ -177,12 +186,12 @@
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label" for="client-company">Company</label>
+        <label class="form-label" for="client-company">Empresa</label>
         <input class="form-input" id="client-company" name="company">
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="client-phone">Phone</label>
+          <label class="form-label" for="client-phone">Telefono</label>
           <input class="form-input" id="client-phone" name="phone">
         </div>
         <div class="form-group">
@@ -208,7 +217,7 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="client-status">Status</label>
+          <label class="form-label" for="client-status">Estado</label>
           <select class="form-input" id="client-status" name="estado">
             <option value="Activo">Active</option>
             <option value="Inactivo">Inactive</option>
@@ -217,7 +226,7 @@
         </div>
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
-        <button class="sn-btn" type="button" onclick="closeClientModal()">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeClientModal()">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Create Client</button>
       </div>
     </form>
@@ -238,6 +247,22 @@ function filterClients() {
   renderClientsRows();
 }
 
+function mostrarSinResultados(vacio) {
+  var tbody = document.querySelector('#clients-table tbody');
+  if (!tbody) return;
+  var fila = document.getElementById('sin-resultados');
+  if (!vacio) { if (fila) fila.remove(); return; }
+  if (fila) return;
+  fila = document.createElement('tr');
+  fila.id = 'sin-resultados';
+  fila.innerHTML = '<td colspan="6" style="padding:0;">'
+    + '<div class="sn-empty-state">'
+    + '<h3 class="sn-empty-state-title">Ningun cliente coincide</h3>'
+    + '<p class="sn-empty-state-desc">Proba con otras palabras, o limpia el buscador y los filtros para ver todo de nuevo.</p>'
+    + '</div></td>';
+  tbody.appendChild(fila);
+}
+
 function renderClientsRows() {
   var q = (document.getElementById('client-search').value || '').trim().toLowerCase();
   var rows = Array.prototype.slice.call(document.querySelectorAll('#clients-table tbody tr[data-text]'));
@@ -250,6 +275,9 @@ function renderClientsRows() {
   var pageRows = matched.slice(start, start + CLIENTS_PAGE_SIZE);
   rows.forEach(function(row) { row.style.display = 'none'; });
   pageRows.forEach(function(row) { row.style.display = ''; });
+  // Sin esto, filtrar algo que no existe dejaba la lista en blanco, sin
+  // ninguna explicacion: parecia que se habian perdido los datos.
+  mostrarSinResultados(matched.length === 0);
   renderClientsPagination(totalPages, matched.length);
 }
 

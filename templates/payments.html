@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Pagos · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Pagos · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Pagos{% endblock %}
 {% block subtitle %}Dashboard &gt; Payments Overview{% endblock %}
 {% block topbar_title %}Payments{% endblock %}
@@ -62,8 +62,8 @@
   }
 
   .payments-page .stack-actions,
-  .payments-page .sn-table tbody td[data-label="Status"],
-  .payments-page .sn-table tbody td[data-label="Amount"] {
+  .payments-page .sn-table tbody td[data-label="Estado"],
+  .payments-page .sn-table tbody td[data-label="Monto"] {
     vertical-align: middle;
   }
 
@@ -147,10 +147,10 @@
     <table class="sn-table" id="payments-table">
       <thead>
         <tr>
-          <th style="width:11%;">Status</th>
+          <th style="width:11%;">Estado</th>
           <th style="width:16%;">Due</th>
           <th>Client &amp; Job</th>
-          <th style="width:15%;text-align:right;">Amount</th>
+          <th style="width:15%;text-align:right;">Monto</th>
           <th style="width:5%;text-align:right;"></th>
         </tr>
       </thead>
@@ -160,13 +160,13 @@
             data-status="{{ p.status }}"
             data-text="{{ (p.invoice_id ~ ' ' ~ p.client_name ~ ' ' ~ p.job_name ~ ' ' ~ (p.concepto or ''))|lower }}"
             onclick="goPayment(event, '{{ p.job_id }}', '{{ p.client_id }}')">
-          <td data-label="Status">
+          <td data-label="Estado">
             {% if p.status == 'Late' %}
               <span class="sn-chip red">Atrasados</span>
             {% elif p.status == 'Pagado' %}
               <span class="sn-chip green">Pagados</span>
             {% elif p.original_amount and p.amount is not none and p.amount|float < p.original_amount|float %}
-              <span class="sn-chip yellow">Partial</span>
+              <span class="sn-chip yellow">Parcial</span>
             {% elif p.days_until %}
               <span class="sn-chip blue">Expected</span>
             {% else %}
@@ -177,9 +177,9 @@
             <div class="sn-payment-due">
               <span>{{ p.due_date_display or p.due_date or 'No due date' }}</span>
             {% if p.days_ago %}
-              <span class="sn-muted" style="color:#b3263b;">({{ p.days_ago }} days ago)</span>
+              <span class="sn-muted" style="color:#b3263b;">(hace {{ p.days_ago }} dias)</span>
             {% elif p.days_until %}
-              <span class="sn-muted">(in {{ p.days_until }} days)</span>
+              <span class="sn-muted">(en {{ p.days_until }} dias)</span>
             {% endif %}
             </div>
           </td>
@@ -192,7 +192,12 @@
               </div>
             </div>
           </td>
-          <td data-label="Amount" style="text-align:right;"><span class="sn-money sn-payment-amount">Q{{ '{:,.2f}'.format(p.amount) }}</span></td>
+          <td data-label="Monto" style="text-align:right;">
+            <span class="sn-money sn-payment-amount">Q{{ '{:,.2f}'.format(p.amount) }}</span>
+            {% if p.status != 'Pagado' and p.original_amount and p.amount is not none and p.amount|float < p.original_amount|float %}
+            <div class="sn-muted" style="font-size:11px;">de Q{{ '{:,.2f}'.format(p.original_amount|float) }}</div>
+            {% endif %}
+          </td>
           <td class="stack-actions" style="text-align:right;" onclick="event.stopPropagation()">
             <button class="sn-menu-dots" type="button" title="Actions" onclick='openPaymentActions(event, {{ p.id|tojson }}, {{ (p.invoice_id or p.id)|tojson }}, {{ (p.job_id or "")|tojson }}, {{ (p.client_id or "")|tojson }}, {{ (p.status or "")|tojson }}, {{ (p.amount or 0)|tojson }})'>
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
@@ -201,7 +206,18 @@
         </tr>
         {% endfor %}
         {% if not payments %}
-        <tr><td colspan="5" style="text-align:center;padding:44px;color:var(--sn-muted);">No payments registered.</td></tr>
+        <tr>
+          <td colspan="6" style="padding:0;">
+            <div class="sn-empty-state">
+              <div class="sn-empty-state-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 6h18v12H3zM7 15h4"/></svg>
+              </div>
+              <h3 class="sn-empty-state-title">Todavia no hay pagos</h3>
+              <p class="sn-empty-state-desc">Aca se ve todo lo cobrado y lo pendiente de las dos marcas por separado. Las cuotas se crean al aceptarse una cotizacion.</p>
+              <a class="sn-btn sn-btn-primary sn-empty-state-cta" href="/jobs">Ver trabajos</a>
+            </div>
+          </td>
+        </tr>
         {% endif %}
       </tbody>
     </table>
@@ -211,9 +227,9 @@
     <div class="sn-muted">Total: {{ payments|length }} invoices</div>
     <div class="sn-toolbar-right">
       <span class="sn-muted">Unpaid:</span><span class="sn-money">Q{{ '{:,.2f}'.format(total_unpaid) }}</span>
-      <span class="sn-muted">Expected:</span><span class="sn-money">Q{{ '{:,.2f}'.format(total_expected or 0) }}</span>
-      <span class="sn-muted">Late:</span><span style="color:#b3263b;font-weight:600;">Q{{ '{:,.2f}'.format(total_late) }}</span>
-      <span class="sn-muted">Paid:</span><span class="sn-money">Q{{ '{:,.2f}'.format(total_paid) }}</span>
+      <span class="sn-muted">Esperado:</span><span class="sn-money">Q{{ '{:,.2f}'.format(total_expected or 0) }}</span>
+      <span class="sn-muted">Vencido:</span><span style="color:#b3263b;font-weight:600;">Q{{ '{:,.2f}'.format(total_late) }}</span>
+      <span class="sn-muted">Pagado:</span><span class="sn-money">Q{{ '{:,.2f}'.format(total_paid) }}</span>
     </div>
   </div>
   <div class="sn-pagination" id="payments-pagination"></div>
@@ -236,7 +252,7 @@
       </div>
       <div class="sn-actions" style="justify-content:flex-start;">
         <button class="sn-btn sn-btn-primary" type="submit">Save Payment</button>
-        <button class="sn-btn" type="button" onclick="closeRecordPaymentModal()">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeRecordPaymentModal()">Cancelar</button>
       </div>
     </form>
   </div>

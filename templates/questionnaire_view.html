@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cuestionario - {{ client.first_name if client else '' }} · ASTRAL WEDDINGS</title>
+<title>Cuestionario - {{ client.first_name if client else '' }} · {{ brand.display_name }}</title>
 {% include "_document_style.html" %}
 <style>
   .q-group { margin-bottom: 26px; }
@@ -37,9 +37,9 @@
 
     <div class="doc-side">
       <div class="doc-side-brand">
-        <div class="glyph">A</div>
+        <div class="glyph">{{ brand.initial }}</div>
         <div>
-          <div class="name">ASTRAL WEDDINGS</div>
+          <div class="name">{{ brand.display_name }}</div>
           <div class="tag">PHOTOGRAPHY &amp; FILMS</div>
         </div>
       </div>
@@ -61,7 +61,7 @@
         <span class="doc-pill amber">Pendiente</span>
         {% endif %}
       </div>
-      <div class="doc-side-footer">info@astralweddings.com<br>+502 2222 3333</div>
+      <div class="doc-side-footer">{{ brand.email }}<br>{{ brand.phone }}</div>
     </div>
 
     <div class="doc-main">
@@ -115,7 +115,7 @@
         {% endif %}
       </form>
 
-      <div class="doc-footer">ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333</div>
+      <div class="doc-footer">{{ brand.display_name }} &middot; {{ brand.email }} &middot; {{ brand.phone }}</div>
 
     </div>
 

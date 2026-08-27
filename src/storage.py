@@ -61,6 +61,8 @@ import json
 import logging
 import os
 import shutil
+import threading
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -83,6 +85,12 @@ TENANT_SCOPED_TABLES = {
     'leads', 'clients', 'jobs', 'quotes', 'payments', 'contracts',
     'questionnaires', 'email_templates', 'packages', 'calendar',
     'files', 'mail_log',
+    # Relacion N a N entre jobs y clientes (agosto 2026): reemplaza el
+    # tope de 3 clientes por job. Va scoped como todo lo demas -- una
+    # relacion de Astral no puede verse ni escribirse desde Norkevin.
+    'job_clients',
+    # Calendarios de pago con estado explicito (active/superseded/...).
+    'payment_schedules',
     # Correos generados que esperan aprobacion manual. Van scoped como todo
     # lo demas: un pendiente de Astral no debe verse ni aprobarse desde
     # Norkevin.
@@ -91,6 +99,58 @@ TENANT_SCOPED_TABLES = {
 
 
 logger = logging.getLogger(__name__)
+
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Rutas que NUNCA deben poder ser alcanzadas por _prune_backups() ni por
+# ninguna operacion destructiva automatizada (reset-test-data, migraciones,
+# quarantine). Estabilizacion agosto 2026, prioridad 7. Dos categorias:
+#   protected_snapshot -- copias historicas completas de data/*.json que ya
+#     sirvieron de fixture legacy para pruebas (ver STABILIZATION_EXECUTION_REPORT.md).
+#   incident_evidence  -- evidencia preservada de un incidente real, fuera
+#     del dataset operacional por diseno.
+# Si algun dia una de estas carpetas se copia adentro de data/backups/ por
+# error, is_protected_path() la sigue reconociendo por ruta absoluta.
+PROTECTED_PATHS = (
+    os.path.join(_REPO_ROOT, 'data', '_backup_pre_migracion_sqlite_20260712_012749'),
+    os.path.join(_REPO_ROOT, 'evidencia', 'mail_log_incidente_2026-08-16_preservado.json'),
+    # pre_cutover_snapshot -- snapshots completos tomados JUSTO ANTES de un
+    # cutover controlado (ver tools/create_pre_cutover_snapshot.py y
+    # CONTROLLED_CUTOVER_PLAN.md). Es LA copia de la que depende el
+    # rollback entero: si esto se poda, se pierde la unica forma de volver
+    # al estado previo al cutover. Se protege el directorio raiz completo,
+    # asi que cualquier snapshot nuevo queda protegido automaticamente sin
+    # tener que agregarlo aca uno por uno.
+    os.path.join(_REPO_ROOT, 'protected_snapshots'),
+)
+
+
+def is_protected_path(path):
+    """True si `path` esta dentro de (o es) una ruta protegida -- nunca se
+    borra ni se sobreescribe automaticamente, sin importar que funcion lo
+    este pidiendo."""
+    resolved = os.path.abspath(path)
+    for protected in PROTECTED_PATHS:
+        if resolved == protected or resolved.startswith(protected + os.sep):
+            return True
+    return False
+
+
+def verify_protected_paths():
+    """Audita que cada ruta protegida siga existiendo y devuelve un reporte
+    dict {path: {'exists': bool, 'is_dir': bool, 'file_count': int|None}}.
+    Pensado para correrse periodicamente (o antes/despues de una operacion
+    destructiva) y confirmar que nada las toco."""
+    report = {}
+    for protected in PROTECTED_PATHS:
+        exists = os.path.exists(protected)
+        is_dir = os.path.isdir(protected) if exists else False
+        file_count = None
+        if is_dir:
+            file_count = sum(len(files) for _r, _d, files in os.walk(protected))
+        report[protected] = {'exists': exists, 'is_dir': is_dir, 'file_count': file_count}
+    return report
 
 
 class TenantMismatchError(Exception):
@@ -107,6 +167,78 @@ class MissingTenantContextError(Exception):
     cuenta". Devolver [] es seguro pero se confunde con "no hay registros";
     esta excepcion existe para que las operaciones sensibles fallen fuerte
     en vez de fallar en silencio (ver list_strict)."""
+
+
+# ============================================================
+# Exclusion mutua por ARCHIVO (agosto 2026)
+# ============================================================
+# Problema demostrado con 5 peticiones simultaneas sobre la misma
+# conversion (stress de concurrencia, corrida 20260820_134955): 71 errores
+# en 40 iteraciones -- 46 FileNotFoundError y 25 PermissionError. Ninguno
+# produjo datos duplicados (la unicidad de la conversion la garantiza
+# src/conversion_registry.py con un PRIMARY KEY), pero los hilos se caian.
+#
+# Las tres carreras eran:
+#   1. _save(): dos escritores reemplazando el mismo archivo.
+#   2. _backup_existing_file(): shutil.copy2() sobre un archivo que otro
+#      hilo acababa de reemplazar -> FileNotFoundError.
+#   3. _read_raw(): abrir el archivo justo cuando otro hilo lo sustituye
+#      -> PermissionError en Windows.
+#
+# Solucion: un RLock POR ARCHIVO. No un lock global: dos tablas distintas
+# (jobs y payments, por ejemplo) se escriben en paralelo sin estorbarse, y
+# el CRM no se convierte en un cuello de botella. Solo compiten los hilos
+# que tocan EL MISMO archivo, que es exactamente donde estaba la carrera.
+#
+# RLock (no Lock) porque las llamadas son reentrantes por diseno:
+# upsert() toma el lock y adentro llama a _read_raw() y _save(), que
+# vuelven a tomarlo. Con un Lock normal eso seria un deadlock inmediato.
+#
+# La clave del registry es la ruta absoluta normalizada (os.path.normcase
+# para que Windows no trate 'Jobs.json' y 'jobs.json' como archivos
+# distintos), de modo que dos instancias de JsonStore apuntando al mismo
+# directorio comparten el MISMO lock -- un lock por instancia no protegeria
+# nada.
+_FILE_LOCKS = {}
+_FILE_LOCKS_GUARD = threading.Lock()
+
+# Reintento como defensa SECUNDARIA, no como mecanismo de concurrencia:
+# el lock ya serializa a los hilos de este proceso. Esto solo cubre el caso
+# de otro PROCESO (o el antivirus de Windows) manteniendo el archivo
+# abierto unos milisegundos. Acotado a proposito: si el problema persiste,
+# la excepcion se propaga en vez de esconder una corrupcion real.
+_REINTENTOS_IO = 5
+_ESPERA_IO_BASE = 0.01
+
+
+def _lock_for_path(path):
+    """RLock compartido para una ruta concreta."""
+    clave = os.path.normcase(os.path.abspath(path))
+    lock = _FILE_LOCKS.get(clave)
+    if lock is None:
+        with _FILE_LOCKS_GUARD:
+            lock = _FILE_LOCKS.get(clave)
+            if lock is None:
+                lock = threading.RLock()
+                _FILE_LOCKS[clave] = lock
+    return lock
+
+
+def _leer_json_con_reintento(path):
+    """Lee y parsea un JSON tolerando que otro proceso lo tenga tomado un
+    instante. NO tolera JSON invalido: eso es corrupcion real y debe
+    explotar, no reintentarse en silencio."""
+    ultimo = None
+    for intento in range(_REINTENTOS_IO):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (PermissionError, FileNotFoundError) as exc:
+            # El archivo esta a mitad de una sustitucion hecha por otro
+            # proceso. Se reintenta brevemente.
+            ultimo = exc
+            time.sleep(_ESPERA_IO_BASE * (intento + 1))
+    raise ultimo
 
 
 def log_security_event(evento, **datos):
@@ -207,16 +339,19 @@ class JsonStore:
         completa de TODAS las cuentas para no perder los registros de las
         otras al reescribir el archivo."""
         path = self._path(table)
-        if not os.path.exists(path):
-            return []
-        mtime = os.path.getmtime(path)
-        cached = self._cache.get(table)
-        if cached and cached[0] == mtime:
-            return copy.deepcopy(cached[1])
-        with open(path, 'r', encoding='utf-8') as f:
-            records = json.load(f)
-        self._cache[table] = (mtime, records)
-        return copy.deepcopy(records)
+        # Bajo el lock del archivo: nunca se observa una sustitucion a
+        # medias. Sin esto, abrir el archivo mientras otro hilo hace
+        # os.replace() daba PermissionError/FileNotFoundError en Windows.
+        with _lock_for_path(path):
+            if not os.path.exists(path):
+                return []
+            mtime = os.path.getmtime(path)
+            cached = self._cache.get(table)
+            if cached and cached[0] == mtime:
+                return copy.deepcopy(cached[1])
+            records = _leer_json_con_reintento(path)
+            self._cache[table] = (mtime, records)
+            return copy.deepcopy(records)
 
     def list(self, table):
         records = self._read_raw(table)
@@ -363,6 +498,14 @@ class JsonStore:
         return None
 
     def upsert(self, table, record):
+        # El ciclo COMPLETO leer -> decidir -> escribir bajo el mismo lock.
+        # Sin esto, dos hilos podian leer la misma lista, cada uno agregar
+        # su registro y el segundo _save() pisaba el del primero (update
+        # perdido), ademas de las carreras de archivo.
+        with _lock_for_path(self._path(table)):
+            return self._upsert_locked(table, record)
+
+    def _upsert_locked(self, table, record):
         scoped = table in TENANT_SCOPED_TABLES
         aislar, tenant_id = self._tenant_scope() if scoped else (False, None)
         if scoped and aislar and not tenant_id:
@@ -410,6 +553,10 @@ class JsonStore:
         return record
 
     def delete(self, table, record_id):
+        with _lock_for_path(self._path(table)):
+            return self._delete_locked(table, record_id)
+
+    def _delete_locked(self, table, record_id):
         records = self._read_raw(table)
         if table in TENANT_SCOPED_TABLES:
             aislar, tenant_id = self._tenant_scope()
@@ -452,15 +599,94 @@ class JsonStore:
                 return
         self._save(table, [])
 
-    def _save(self, table, records):
+    def backup_now(self, table):
+        """Respaldo explicito y VERIFICADO, para operaciones destructivas
+        que deben poder abortar si el backup no se pudo confirmar (ver
+        api_admin_reset_test_data en app.py). A diferencia de
+        `_backup_existing_file` (que se llama automaticamente dentro de
+        `_save` y no se verifica despues), esta funcion:
+          1. Copia el archivo actual a data/backups/<fecha>/.
+          2. Verifica que la copia exista y tenga el MISMO tamano que el
+             original (deteccion barata de una copia truncada/corrupta).
+          3. Devuelve la ruta del backup si todo salio bien, o lanza
+             RuntimeError si algo fallo -- el llamador debe interpretar
+             eso como "no borrar nada".
+        Si la tabla no tiene archivo todavia (tabla vacia/nunca escrita),
+        no hay nada que respaldar y devuelve None (no es un fallo)."""
         path = self._path(table)
-        self._backup_existing_file(table, path)
-        tmp_path = path + '.tmp'
-        with open(tmp_path, 'w', encoding='utf-8') as f:
-            json.dump(records, f, indent=2, ensure_ascii=False)
-        shutil.move(tmp_path, path)
-        # Invalida el cache; la proxima list() vuelve a leer y re-cachear.
-        self._cache.pop(table, None)
+        if not os.path.exists(path):
+            return None
+        backups_root = os.path.join(self.data_dir, 'backups', datetime.now().strftime('%Y%m%d'))
+        os.makedirs(backups_root, exist_ok=True)
+        timestamp = datetime.now().strftime('%H%M%S_%f')
+        backup_path = os.path.join(backups_root, f'{table}_manual_{timestamp}.json')
+        shutil.copy2(path, backup_path)
+        if not os.path.exists(backup_path):
+            raise RuntimeError(f"Backup de '{table}' no se pudo verificar (archivo no existe tras copiar).")
+        if os.path.getsize(backup_path) != os.path.getsize(path):
+            raise RuntimeError(f"Backup de '{table}' no se pudo verificar (tamano distinto al original).")
+        return backup_path
+
+    def _save(self, table, records):
+        """Escribe la tabla completa de forma atomica.
+
+        CONCURRENCIA (bug real encontrado en la corrida de Windows del
+        20-ago-2026): la version anterior usaba SIEMPRE el mismo nombre de
+        temporal, `<tabla>.json.tmp`, y luego shutil.move(). Con dos o mas
+        hilos escribiendo la misma tabla a la vez eso rompe de dos formas:
+
+          1. Los hilos se pisan el MISMO archivo temporal (uno lo trunca
+             mientras el otro todavia lo esta escribiendo).
+          2. En Windows, os.rename() sobre un destino que otro hilo tiene
+             abierto falla con PermissionError [WinError 5].
+
+        Lo observado: en el test de 5 requests concurrentes, 4 de los 5
+        hilos MURIERON con WinError 5 y solo 1 completo la peticion. El
+        test daba PASS pero no porque la idempotencia funcionara, sino
+        porque los otros 4 nunca llegaron a crear nada. Un verde falso.
+
+        Ahora: (a) el temporal lleva pid+thread id, asi que dos escritores
+        nunca comparten archivo; (b) el reemplazo usa os.replace(), que es
+        atomico en POSIX y en Windows; (c) si aun asi Windows devuelve un
+        error transitorio de comparticion, se reintenta brevemente en vez
+        de matar el hilo.
+
+        Esto NO sustituye la garantia de unicidad de la conversion
+        lead->job (eso vive en src/conversion_registry.py, con un UNIQUE
+        de verdad). Aca solo se garantiza que una escritura concurrente no
+        corrompa el archivo ni explote."""
+        path = self._path(table)
+        # TODO el ciclo backup -> escribir temporal -> reemplazar ocurre
+        # bajo el mismo lock, para que el backup corresponda siempre a un
+        # estado anterior VALIDO y para que ningun lector vea el archivo a
+        # mitad de la sustitucion.
+        with _lock_for_path(path):
+            self._backup_existing_file(table, path)
+            tmp_path = f'{path}.{os.getpid()}.{threading.get_ident()}.tmp'
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(records, f, indent=2, ensure_ascii=False)
+
+            ultimo_error = None
+            for intento in range(_REINTENTOS_IO):
+                try:
+                    os.replace(tmp_path, path)
+                    ultimo_error = None
+                    break
+                except PermissionError as exc:
+                    # Defensa SECUNDARIA: dentro del proceso el lock ya
+                    # serializa. Esto solo cubre otro proceso/antivirus
+                    # tocando el archivo un instante.
+                    ultimo_error = exc
+                    time.sleep(_ESPERA_IO_BASE * (intento + 1))
+            if ultimo_error is not None:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise ultimo_error
+
+            # Invalida el cache; la proxima list() vuelve a leer y re-cachear.
+            self._cache.pop(table, None)
 
     def _backup_existing_file(self, table, path):
         if not os.path.exists(path):
@@ -473,6 +699,26 @@ class JsonStore:
         self._prune_backups(table, keep=50)
 
     def _prune_backups(self, table, keep=50):
+        """Poda SOLO dentro de data/backups/<fecha>/ -- los backups
+        rotativos automaticos de cada _save()/clear(). Nunca debe poder
+        alcanzar nada fuera de ahi.
+
+        Distincion explicita (estabilizacion, agosto 2026, prioridad 7 --
+        Kevin: 'revisa si un ciclo intensivo de pruebas podria terminar
+        eliminando la ultima copia util de datos reales'):
+          - rotational_backup:  esto. Se poda a `keep` mas recientes por
+            tabla. Vive en data/backups/.
+          - protected_snapshot: copias como
+            data/_backup_pre_migracion_sqlite_20260712_012749/ -- NO viven
+            en data/backups/, esta funcion nunca las toca por construccion
+            (os.walk esta acotado a backups_root), y ademas se listan en
+            PROTECTED_PATHS como defensa en profundidad por si algun dia
+            alguien cambia backups_root o copia una de estas carpetas
+            adentro de data/backups/ sin darse cuenta.
+          - incident_evidence:  evidencia/mail_log_incidente_*.json -- fuera
+            del directorio de datos operacional por completo, tampoco
+            alcanzable por _save()/clear() de ninguna tabla (no es una
+            'tabla' del store)."""
         backups_root = os.path.join(self.data_dir, 'backups')
         if not os.path.isdir(backups_root):
             return
@@ -481,6 +727,8 @@ class JsonStore:
             for filename in files:
                 if filename.startswith(f'{table}_') and filename.endswith('.json'):
                     path = os.path.join(root, filename)
+                    if is_protected_path(path):
+                        continue  # defensa en profundidad -- nunca deberia matchear aca
                     try:
                         matches.append((os.path.getmtime(path), path))
                     except OSError:
@@ -496,19 +744,40 @@ class JsonStore:
     def get_dict(self, name: str) -> Dict[str, Any]:
         """Lee un archivo JSON como dict (no como lista de records)."""
         path = os.path.join(self.data_dir, f'{name}.json')
-        if not os.path.exists(path):
-            return {}
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        with _lock_for_path(path):
+            if not os.path.exists(path):
+                return {}
+            return _leer_json_con_reintento(path)
 
     def save_dict(self, name: str, data: Dict[str, Any]):
-        """Guarda un dict en JSON."""
+        """Guarda un dict en JSON, de forma atomica y serializada.
+
+        Mismo tratamiento que _save(): esta ruta la usa el motor de
+        workflows (`workflow_instances`), asi que tenia exactamente el
+        mismo defecto -- temporal compartido `<name>.json.tmp` y
+        shutil.move() -- y por lo tanto las mismas carreras."""
         path = os.path.join(self.data_dir, f'{name}.json')
-        self._backup_existing_file(name, path)
-        tmp_path = path + '.tmp'
-        with open(tmp_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        shutil.move(tmp_path, path)
+        with _lock_for_path(path):
+            self._backup_existing_file(name, path)
+            tmp_path = f'{path}.{os.getpid()}.{threading.get_ident()}.tmp'
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+            ultimo_error = None
+            for intento in range(_REINTENTOS_IO):
+                try:
+                    os.replace(tmp_path, path)
+                    ultimo_error = None
+                    break
+                except PermissionError as exc:
+                    ultimo_error = exc
+                    time.sleep(_ESPERA_IO_BASE * (intento + 1))
+            if ultimo_error is not None:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise ultimo_error
 
     def _tenant_dict_key(self, name, tenant_id=None):
         """Nombre de archivo para un dict que SI es distinto por cuenta

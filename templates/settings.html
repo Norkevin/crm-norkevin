@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Configuracion · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Configuracion · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Configuracion{% endblock %}
 {% block subtitle %}Empresa, sistema, captacion y templates.{% endblock %}
 
@@ -51,10 +51,10 @@
   <div class="flex items-center justify-between" style="flex-wrap:wrap;gap:12px;">
     <div class="flex items-center gap-4">
       <div class="w-12 h-12 rounded-lg flex items-center justify-center text-white text-xs font-medium" style="background:#101112;">
-        {{ company.logo_letter|default('A') }}
+        {{ company.logo_letter or current_tenant.logo_letter or 'C' }}
       </div>
       <div>
-        <h2 style="font-size:17px;font-weight:600;margin:0;">{{ company.name or 'ASTRAL WEDDINGS' }}</h2>
+        <h2 style="font-size:17px;font-weight:600;margin:0;">{{ company.name or current_tenant.name or 'CRM' }}</h2>
         <p class="sn-muted text-xs" style="margin-top:2px;">{{ company.email or 'Sin email configurado' }} &middot; {{ company.currency or 'GTQ' }}</p>
       </div>
     </div>
@@ -371,7 +371,7 @@
         <input class="form-input" id="company-email" type="email" value="{{ company.email or '' }}">
       </div>
       <div class="form-group">
-        <label class="form-label">Phone</label>
+        <label class="form-label">Telefono</label>
         <input class="form-input" id="company-phone" value="{{ company.phone or '' }}">
       </div>
       <div class="form-group">
@@ -383,8 +383,8 @@
         <textarea class="form-input" id="company-bank-info" rows="3" placeholder="Banco Industrial, Cuenta 000-000000-0, A nombre de Kevin Lemus">{{ company.bank_info or '' }}</textarea>
       </div>
       <div class="sn-actions" style="justify-content:flex-start;">
-        <button class="sn-btn sn-btn-primary" type="submit">Save</button>
-        <button class="sn-btn" type="button" onclick="closeGlobalModal('edit-company-modal')">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
+        <button class="sn-btn" type="button" onclick="closeGlobalModal('edit-company-modal')">Cancelar</button>
       </div>
     </form>
   </div>

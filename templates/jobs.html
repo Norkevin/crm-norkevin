@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Trabajos · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Trabajos · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Trabajos{% endblock %}
 {% block subtitle %}{{ jobs|length }} trabajos{% endblock %}
 
@@ -129,16 +129,17 @@
       <select id="job-status-filter" class="sn-select" onchange="filterJobs()">
         <option value="active">Trabajos activos</option>
         <option value="upcoming">Activos con evento proximo</option>
+        <option value="por_cobrar">Ya ocurrieron y falta cobrar</option>
         <option value="completed">Completados</option>
         <option value="archived">Archivados</option>
         <option value="all">Todos los trabajos</option>
       </select>
       <select id="job-sort" class="sn-select" onchange="filterJobs()">
-        <option value="date_asc">Fecha del evento (ascendente)</option>
-        <option value="upcoming_first">Proximos eventos primero</option>
-        <option value="created_desc">Mas recientes primero</option>
+        <option value="relevancia">Mas relevantes primero (por defecto)</option>
+        <option value="created_desc">Mas nuevos primero</option>
         <option value="created_asc">Mas antiguos primero</option>
-        <option value="date_desc">Fecha del evento (descendente)</option>
+        <option value="date_asc">Fecha del evento (mas proxima primero)</option>
+        <option value="date_desc">Fecha del evento (mas lejana primero)</option>
       </select>
     </div>
     <div class="sn-toolbar-right">
@@ -168,6 +169,9 @@
         {% for job in jobs %}
         <tr class="sn-table-row"
             data-status="{{ job.status or '' }}"
+            data-estado-key="{{ job.estado_key or '' }}"
+            data-activo="{{ '1' if job.es_activo else '0' }}"
+            data-completado="{{ '1' if job.es_completado else '0' }}"
             data-date="{{ job.boda_date or '' }}"
             data-created="{{ job.created or '' }}"
             data-name="{{ (job.nombre or '')|lower }}"
@@ -197,7 +201,7 @@
               <span class="sn-muted">Sin fecha</span>
             {% endif %}
           </td>
-          <td class="sn-ellipsis stack-full" data-label="Job">
+          <td class="sn-ellipsis stack-full" data-label="Trabajo">
             <div style="display:flex;align-items:center;gap:10px;min-width:0;">
               <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (job.nombre or '?')[:1]|upper }}</span>
               <div class="job-primary">
@@ -208,7 +212,7 @@
               </div>
             </div>
           </td>
-          <td data-label="Progress">
+          <td data-label="Avance">
             {# Kevin: separar estado del Job / progreso del workflow / estado
                de pago. La barra sigue siendo el avance administrativo; el
                chip de la izquierda es el estado real segun la fecha. #}
@@ -234,6 +238,25 @@
             </button>
           </td>
         </tr>
+        {% else %}
+        {# Sin esto, un CRM recien empezado mostraba una tabla con
+           encabezados y nada mas: ni una explicacion ni un boton. Es la
+           primera pantalla que ve alguien que todavia no cargo nada. #}
+        <tr>
+          <td colspan="6" style="padding:0;">
+            <div class="sn-empty-state">
+              <div class="sn-empty-state-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6h4M5 8h14v11H5zM8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </div>
+              <h3 class="sn-empty-state-title">Todavia no hay trabajos</h3>
+              <p class="sn-empty-state-desc">Cada boda confirmada vive aca, con su fecha, su gente y su plan de pago. Lo normal es que se creen al aceptarse una cotizacion, pero tambien podes cargar una a mano.</p>
+              <button type="button" class="sn-btn sn-btn-primary sn-empty-state-cta" onclick="openJobModal()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+                Nueva boda
+              </button>
+            </div>
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
@@ -243,7 +266,7 @@
 
 <div class="modal-overlay" id="job-modal">
   <div class="modal-content">
-    <h2 class="modal-title">Add New Job</h2>
+    <h2 class="modal-title">Nueva boda</h2>
     <form id="job-form" onsubmit="createJob(event)">
       <div class="form-group">
         <label class="form-label" for="job-client">Client *</label>
@@ -267,7 +290,7 @@
           <input class="form-input" id="job-date" name="boda_date" type="date">
         </div>
         <div class="form-group">
-          <label class="form-label" for="job-type">Type</label>
+          <label class="form-label" for="job-type">Tipo</label>
           <input class="form-input" id="job-type" name="type" value="Boda">
         </div>
       </div>
@@ -286,7 +309,7 @@
         </div>
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
-        <button class="sn-btn" type="button" onclick="closeJobModal()">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeJobModal()">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Create Job</button>
       </div>
     </form>
@@ -307,6 +330,22 @@ function filterJobs() {
   renderJobsRows();
 }
 
+function mostrarSinResultados(vacio) {
+  var tbody = document.querySelector('#jobs-table tbody');
+  if (!tbody) return;
+  var fila = document.getElementById('sin-resultados');
+  if (!vacio) { if (fila) fila.remove(); return; }
+  if (fila) return;
+  fila = document.createElement('tr');
+  fila.id = 'sin-resultados';
+  fila.innerHTML = '<td colspan="6" style="padding:0;">'
+    + '<div class="sn-empty-state">'
+    + '<h3 class="sn-empty-state-title">Ningun trabajo coincide</h3>'
+    + '<p class="sn-empty-state-desc">Proba con otras palabras, o limpia el buscador y los filtros para ver todo de nuevo.</p>'
+    + '</div></td>';
+  tbody.appendChild(fila);
+}
+
 function renderJobsRows() {
   var q = (document.getElementById('job-search').value || '').trim().toLowerCase();
   var status = document.getElementById('job-status-filter').value;
@@ -316,15 +355,25 @@ function renderJobsRows() {
   var matched = rows.filter(function(row) {
     var name = row.getAttribute('data-name') || '';
     var rowStatus = row.getAttribute('data-status') || '';
-    var active = rowStatus !== 'Archivado' && rowStatus !== 'Listo';
-    var upcoming = active && (row.getAttribute('data-date') || '') >= today;
-    var completed = rowStatus === 'Listo';
-    var archived = rowStatus === 'Archivado';
+    // El estado lo decide el servidor (_job_estado_label) y viaja en
+    // data-estado-key / data-activo / data-completado. Antes esto lo volvia
+    // a deducir por su cuenta a partir de data-status, y las dos versiones
+    // no coincidian: el chip podia decir "Completada" (workflow al 100%)
+    // mientras el filtro "Completados" solo aceptaba status == 'Listo', asi
+    // que ese job no aparecia en ningun filtro coherente. Una sola fuente
+    // de verdad, la del servidor.
+    var estadoKey = row.getAttribute('data-estado-key') || '';
+    var active = row.getAttribute('data-activo') === '1';
+    var completed = row.getAttribute('data-completado') === '1';
+    var upcoming = estadoKey === 'proxima' || estadoKey === 'hoy';
+    var archived = estadoKey === 'archivado';
+    var porCobrar = estadoKey === 'por_cobrar';
     var statusOk =
       status === 'all' ||
       (status === 'active' && active) ||
       (status === 'upcoming' && upcoming) ||
       (status === 'completed' && completed) ||
+      (status === 'por_cobrar' && porCobrar) ||
       (status === 'archived' && archived);
     var searchOk = !q || name.indexOf(q) !== -1;
     return statusOk && searchOk;
@@ -341,8 +390,13 @@ function renderJobsRows() {
   else if (sortBy === 'created_asc') matched.sort(createdCmp);
   else if (sortBy === 'date_asc') matched.sort(dateCmp);
   else if (sortBy === 'date_desc') matched.sort(function(a, b) { return dateCmp(b, a); });
-  // 'upcoming_first' deja el orden que ya trae el servidor (dias_restantes
-  // ascendente), no hace falta reordenar en JS.
+  // 'relevancia' (el default) deja EXACTAMENTE el orden que ya trae el
+  // servidor desde _job_orden_relevancia(): eventos futuros primero (el
+  // mas proximo arriba), despues los ya ocurridos (el mas reciente
+  // arriba), y al final los que no tienen fecha. No se reordena en JS
+  // para que servidor e interfaz no puedan discrepar. Antes el <select>
+  // arrancaba en 'date_asc' mientras el servidor ordenaba de otra forma:
+  // lo que se veia al abrir la pagina no correspondia a ninguna opcion.
 
   var totalPages = Math.max(1, Math.ceil(matched.length / JOBS_PAGE_SIZE));
   if (jobsPage > totalPages) jobsPage = totalPages;
@@ -355,6 +409,9 @@ function renderJobsRows() {
   matched.forEach(function(row) { tbody.appendChild(row); });
   rows.forEach(function(row) { row.style.display = 'none'; });
   pageRows.forEach(function(row) { row.style.display = ''; });
+  // Sin esto, filtrar algo que no existe dejaba la lista en blanco, sin
+  // ninguna explicacion: parecia que se habian perdido los datos.
+  mostrarSinResultados(matched.length === 0);
   renderJobsPagination(totalPages, matched.length);
 }
 

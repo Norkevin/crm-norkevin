@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Pagos al Equipo · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Pagos al Equipo · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Pagos al Equipo{% endblock %}
 {% block subtitle %}Cuentas por pagar &middot; {{ total_pendiente }} pendiente{{ 's' if total_pendiente != 1 else '' }}{% endblock %}
 
@@ -56,20 +56,20 @@
   <table class="table-responsive">
     <thead class="bg-line/30 text-xs uppercase tracking-wide text-ink-soft">
       <tr>
-        <th class="text-left px-4 py-3 font-semibold">Status</th>
-        <th class="text-left px-4 py-3 font-semibold">Due Date</th>
+        <th class="text-left px-4 py-3 font-semibold">Estado</th>
+        <th class="text-left px-4 py-3 font-semibold">Vence</th>
         <th class="text-left px-4 py-3 font-semibold">Invoice ID</th>
         <th class="text-left px-4 py-3 font-semibold">Miembro</th>
         <th class="text-left px-4 py-3 font-semibold">Concepto (Job)</th>
-        <th class="text-right px-4 py-3 font-semibold">Amount</th>
-        <th class="text-right px-4 py-3 font-semibold">Action</th>
+        <th class="text-right px-4 py-3 font-semibold">Monto</th>
+        <th class="text-right px-4 py-3 font-semibold">Accion</th>
       </tr>
     </thead>
     <tbody>
       {% for p in payments %}
       <tr class="border-b border-line/50 hover:bg-line/20"
           data-status="{{ p.status }}" data-team="{{ p.team_id }}">
-        <td class="px-4 py-3">
+        <td data-label="Estado" class="px-4 py-3">
           {% if p.status == 'Pagado' %}
           <span class="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700">{{ p.status }}</span>
           {% elif p.status == 'Late' %}
@@ -78,11 +78,11 @@
           <span class="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">{{ p.status }}</span>
           {% endif %}
         </td>
-        <td class="px-4 py-3 text-xs text-ink-soft">{{ p.due_date }}</td>
-        <td class="px-4 py-3 text-sm font-medium text-ink">{{ p.invoice_id }}</td>
-        <td class="px-4 py-3 text-sm text-ink">{{ p.team_name }}</td>
-        <td class="px-4 py-3 text-sm text-ink-soft">{{ p.concepto }}</td>
-        <td class="px-4 py-3 text-sm font-semibold text-ink text-right">Q{{ '{:,.0f}'.format(p.amount) }}</td>
+        <td data-label="Vence" class="px-4 py-3 text-xs text-ink-soft">{{ p.due_date }}</td>
+        <td data-label="Factura" class="px-4 py-3 text-sm font-medium text-ink">{{ p.invoice_id }}</td>
+        <td data-label="Miembro" class="px-4 py-3 text-sm text-ink">{{ p.team_name }}</td>
+        <td data-label="Concepto" class="px-4 py-3 text-sm text-ink-soft">{{ p.concepto }}</td>
+        <td data-label="Monto" class="px-4 py-3 text-sm font-semibold text-ink text-right">Q{{ '{:,.0f}'.format(p.amount) }}</td>
         <td class="px-4 py-3 text-right">
           {% if p.status != 'Pagado' %}
           <button onclick="markPaid('{{ p.id }}')" class="text-xs px-2 py-1 bg-emerald-500 text-white rounded hover:bg-emerald-600">

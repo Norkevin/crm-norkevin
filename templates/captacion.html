@@ -15,6 +15,34 @@
   }
   .field-simple:focus { outline: none; background: #FFFFFF; border-color: #0A0E1A; }
   .label-simple { font-size: 14px; font-weight: 500; color: #1F2937; display: block; margin-bottom: 6px; }
+
+  /* El formulario de captacion es publico: casi todos los leads llegan
+     desde un telefono, muchas veces por un link de Instagram. Con inputs
+     de menos de 16px, Safari hace zoom en cada campo y el formulario se
+     vuelve incomodo justo en el momento en que alguien decide escribir.
+     Un lead perdido aca es un lead que nunca existio. */
+  @media (max-width: 760px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="date"],
+    select {
+      min-height: 46px;
+    }
+    textarea { min-height: 96px; }
+    input[type="checkbox"],
+    input[type="radio"] { width: 24px; height: 24px; }
+    button,
+    .btn,
+    a.btn { min-height: 48px; }
+    body { overflow-wrap: anywhere; }
+  }
+
 </style>
 </head>
 <body>

@@ -2,23 +2,23 @@
 {% block title %}{{ cliente['Nombre'] }} · Client{% endblock %}
 {% block header %}{{ cliente['Nombre'] }}{% endblock %}
 {% block subtitle %}Dashboard &gt; Clients Overview &gt; {{ cliente['Nombre'] }}{% endblock %}
-{% block topbar_title %}Client{% endblock %}
+{% block topbar_title %}Cliente{% endblock %}
 
 {% block content %}
 <section class="sn-page-wide">
   <div class="sn-page-head">
     <div>
       <h1 class="sn-page-title">{{ cliente['Nombre'] }}</h1>
-      <div class="sn-breadcrumbs">Dashboard &gt; Clients Overview &gt; {{ cliente['Nombre'] }}</div>
+      <div class="sn-breadcrumbs"><a href="/dashboard">Inicio</a> &gt; <a href="/clients">Clientes</a> &gt; {{ cliente['Nombre'] }}</div>
     </div>
     <div class="sn-actions">
       <button class="sn-btn" type="button" onclick="openPortal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-        View Client Portal
+        Ver portal del cliente
       </button>
       <button class="sn-btn sn-btn-primary" type="button" onclick="openLeadModal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-        Add New
+        Nuevo
       </button>
     </div>
   </div>
@@ -27,17 +27,52 @@
     <div class="client-summary-avatar">{{ (cliente['Nombre'] or '?')[:1] }}</div>
     <div class="client-summary-copy">
       <div class="client-summary-name">{{ cliente['Nombre'] }}</div>
-      <div class="client-summary-meta">{{ cliente.get('Estado') or 'Activo' }} &middot; {{ cliente.get('Email') or 'No email' }}</div>
+      <div class="client-summary-meta">{{ cliente.get('Estado') or 'Activo' }} &middot; {{ cliente.get('Email') or 'Sin correo' }}</div>
     </div>
     <div class="client-summary-due">
-      <div class="sn-muted" style="font-size:11px;">Balance due</div>
+      <div class="sn-muted" style="font-size:11px;">Saldo pendiente</div>
       <div class="sn-money">Q{{ '{:,.2f}'.format(total_due or 0) }}</div>
     </div>
   </div>
 
+  {# Resumen de una linea: lo primero que se necesita saber al abrir la
+     ficha de alguien que acaba de llamar. Sale de los mismos helpers que
+     la lista de jobs, asi que no puede contradecirla. #}
+  {% if resumen_cliente is defined and resumen_cliente.jobs_total %}
+  <div class="sn-card" style="margin-bottom:14px;">
+    <div class="sn-card-body" style="display:flex;flex-wrap:wrap;gap:22px;align-items:baseline;">
+      <div>
+        <div class="sn-muted" style="font-size:11px;">Bodas</div>
+        <div style="font-weight:600;">
+          {{ resumen_cliente.jobs_total }}
+          {% if resumen_cliente.jobs_activos %}
+          <span class="sn-muted" style="font-weight:400;">({{ resumen_cliente.jobs_activos }} activa{{ 's' if resumen_cliente.jobs_activos > 1 }})</span>
+          {% endif %}
+        </div>
+      </div>
+      <div>
+        <div class="sn-muted" style="font-size:11px;">Pendiente de cobro</div>
+        <div style="font-weight:600;">Q{{ '{:,.0f}'.format(resumen_cliente.pendiente or 0) }}</div>
+      </div>
+      {% if resumen_cliente.proximo_pago %}
+      <div>
+        <div class="sn-muted" style="font-size:11px;">Proximo pago</div>
+        <div style="font-weight:600;">{{ resumen_cliente.proximo_pago }}</div>
+      </div>
+      {% endif %}
+      {% if resumen_cliente.vencidas %}
+      <div>
+        <div class="sn-muted" style="font-size:11px;">Cuotas vencidas</div>
+        <div style="font-weight:600;color:var(--sn-red,#dc2626);">{{ resumen_cliente.vencidas }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <div class="client-tabs" role="tablist">
     <button class="client-tab active" type="button" data-tab="info" onclick="showClientTab('info')">Información</button>
-    <button class="client-tab" type="button" data-tab="jobs" onclick="showClientTab('jobs')">Jobs</button>
+    <button class="client-tab" type="button" data-tab="jobs" onclick="showClientTab('jobs')">Trabajos</button>
     <button class="client-tab" type="button" data-tab="cotizaciones" onclick="showClientTab('cotizaciones')">Cotizaciones</button>
     <button class="client-tab" type="button" data-tab="contratos" onclick="showClientTab('contratos')">Contratos</button>
     <button class="client-tab" type="button" data-tab="facturas" onclick="showClientTab('facturas')">Facturas</button>
@@ -50,7 +85,7 @@
   <div class="client-tab-panel active" id="tab-info">
     <section class="sn-card">
       <div class="sn-card-head">
-        <div class="sn-card-title">Contact info</div>
+        <div class="sn-card-title">Datos de contacto</div>
         <button class="sn-btn sn-btn-sm" type="button" onclick="openClientEdit()">Edit Client</button>
       </div>
       <div class="sn-card-body">
@@ -63,7 +98,7 @@
           <div class="sn-field-label">Country:</div><div class="sn-field-value">Guatemala</div>
         </div>
         <div class="sn-list-actions" style="margin-top:14px;">
-          <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Send Email</button>
+          <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Enviar correo</button>
           <button class="sn-btn sn-btn-sm" type="button" onclick="archiveClient()">Archive</button>
         </div>
       </div>
@@ -123,7 +158,7 @@
             {% endfor %}
           </div>
         {% else %}
-          <div class="sn-muted">No leads attached.</div>
+          <div class="sn-muted">Sin leads asociados.</div>
         {% endif %}
       </div>
     </section>
@@ -132,34 +167,70 @@
       <div class="sn-card-head">
         <div class="sn-card-title">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6h4M5 8h14v11H5zM8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          Jobs
+          Bodas de este cliente
         </div>
         <button class="sn-btn-icon" type="button" onclick="openJobModal()">+</button>
       </div>
       <div class="sn-card-body">
-        {% if jobs_raw %}
+        {# Antes esta tarjeta mostraba nombre, fecha y una barra de avance
+           del workflow -- que NO es el estado del evento. Ahora muestra lo
+           que se pregunta cuando el cliente llama: que rol tiene en la
+           boda, en que estado esta, cuanto falta por cobrar y con quien
+           mas comparte el job. Todo sale de los helpers canonicos. #}
+        {% if jobs_resumen is defined and jobs_resumen %}
           <div class="sn-list">
-            {% for job in jobs_raw %}
+            {% for r in jobs_resumen %}
             <div class="sn-list-item">
               <div class="sn-list-row">
-                <div>
-                  <div class="sn-list-title">{{ job.nombre }}</div>
-                  <div class="sn-list-meta">{{ job.type or 'BODAS' }} · {{ job.boda_date or 'No date' }} · {{ job.location or 'No location' }}</div>
+                <div style="min-width:0;">
+                  <div class="sn-list-title">{{ r.job.nombre or 'Sin nombre' }}</div>
+                  <div class="sn-list-meta">
+                    {{ r.job.boda_date or 'Sin fecha' }}
+                    {% if r.job.location %} · {{ r.job.location }}{% endif %}
+                  </div>
+                  {% if r.rol_etiqueta %}
+                  <div class="sn-list-meta" style="margin-top:6px;">
+                    <span class="sn-chip {{ 'violet' if r.rol == 'principal' else 'muted' }}">{{ r.rol_etiqueta }}</span>
+                    {% if not r.recibe_documentos %}
+                    <span style="font-size:11px;">no recibe documentos</span>
+                    {% endif %}
+                  </div>
+                  {% endif %}
                 </div>
-                <span class="sn-chip yellow">{{ job.status or 'Cotizando' }}</span>
+                <span class="sn-chip {{ r.estado_tone }}">{{ r.estado_label }}</span>
               </div>
-              <div class="sn-progress-wrap mt-2">
-                <div class="sn-progress"><div class="sn-progress-fill" style="width: {{ job.workflow_progress or 0 }}%;"></div></div>
-                <span class="sn-progress-pct">{{ job.workflow_progress or 0 }}%</span>
+
+              {# Dinero: la misma fuente que la ficha del job y la lista. #}
+              <div class="sn-list-meta" style="margin-top:10px;">
+                {% if r.pagos.esta_pagado %}
+                  Pagado por completo · Q{{ '{:,.0f}'.format(r.pagos.total or 0) }}
+                {% else %}
+                  Pendiente <strong>Q{{ '{:,.0f}'.format(r.pagos.pendiente or 0) }}</strong>
+                  de Q{{ '{:,.0f}'.format(r.pagos.total or 0) }}
+                  {% if r.pagos.proximo_pago_fecha %}
+                  · proximo pago {{ r.pagos.proximo_pago_fecha }}
+                  {% endif %}
+                {% endif %}
+                {% if r.pagos.vencidas %}
+                <span class="sn-chip red" style="margin-left:6px;">{{ r.pagos.vencidas }} vencida{{ 's' if r.pagos.vencidas > 1 }}</span>
+                {% endif %}
               </div>
+
+              {% if r.acompanantes %}
+              <div class="sn-list-meta" style="margin-top:6px;">
+                Con
+                {% for a in r.acompanantes %}<a href="/clients/{{ a.id }}">{{ a.nombre }}</a> ({{ a.rol }}){% if not loop.last %}, {% endif %}{% endfor %}
+              </div>
+              {% endif %}
+
               <div class="sn-list-actions">
-                <a class="sn-btn sn-btn-sm" href="/jobs/{{ job.id }}">View Job</a>
+                <a class="sn-btn sn-btn-sm" href="/jobs/{{ r.job.id }}">Abrir boda</a>
               </div>
             </div>
             {% endfor %}
           </div>
         {% else %}
-          <div class="sn-muted">No jobs attached.</div>
+          <div class="sn-muted">Este cliente todavia no esta en ninguna boda.</div>
         {% endif %}
       </div>
     </section>
@@ -194,7 +265,7 @@
             {% endfor %}
           </div>
         {% else %}
-          <div class="sn-muted">Quotes will appear here.</div>
+          <div class="sn-muted">Las cotizaciones de este lead van a aparecer aca.</div>
         {% endif %}
       </div>
     </section>
@@ -223,13 +294,13 @@
               </div>
               <div class="sn-list-actions">
                 <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf">View</a>
-                <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Send</button>
+                <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Enviar</button>
               </div>
             </div>
             {% endfor %}
           </div>
         {% else %}
-          <div class="sn-muted">No contract attached.</div>
+          <div class="sn-muted">Sin contratos.</div>
         {% endif %}
       </div>
     </section>
@@ -258,7 +329,7 @@
                 <div class="sn-money">Q{{ '{:,.2f}'.format(p.amount or 0) }}</div>
               </div>
               <div class="sn-list-actions">
-                <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ p.id }}')">Send</button>
+                <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ p.id }}')">Enviar</button>
                 {% if p.status != 'Pagado' %}
                 <button class="sn-btn sn-btn-sm" type="button" onclick="markPaymentPaid('{{ p.id }}')">Record Payment</button>
                 {% else %}
@@ -269,7 +340,7 @@
             {% endfor %}
           </div>
         {% else %}
-          <div class="sn-muted">No invoices attached.</div>
+          <div class="sn-muted">Sin facturas.</div>
         {% endif %}
       </div>
     </section>
@@ -302,7 +373,7 @@
             {% endfor %}
           </div>
         {% else %}
-          <div class="sn-muted">No payments recorded yet.</div>
+          <div class="sn-muted">Todavia no hay pagos registrados.</div>
         {% endif %}
       </div>
     </section>
@@ -335,7 +406,7 @@
             {% endfor %}
           </div>
         {% else %}
-          <div class="sn-muted">No emails logged for this client yet.</div>
+          <div class="sn-muted">Todavia no hay correos con este cliente.</div>
         {% endif %}
       </div>
     </section>
@@ -384,7 +455,7 @@
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="cl-telefono">Phone</label>
+          <label class="form-label" for="cl-telefono">Telefono</label>
           <input class="form-input" id="cl-telefono" name="telefono" value="{{ cliente.get('Teléfono') or '' }}">
         </div>
         <div class="form-group">
@@ -397,7 +468,7 @@
         <input class="form-input" id="cl-direccion" name="direccion_fact" value="{{ cliente.get('Dirección facturación') or '' }}">
       </div>
       <div class="form-group">
-        <label class="form-label" for="cl-estado">Status</label>
+        <label class="form-label" for="cl-estado">Estado</label>
         <select class="form-input" id="cl-estado" name="estado">
           {% for s in ['Activo','Inactivo','Archivado'] %}
           <option value="{{ s }}" {% if s == cliente.get('Estado') %}selected{% endif %}>{{ s }}</option>
@@ -405,7 +476,7 @@
         </select>
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
-        <button class="sn-btn" type="button" onclick="closeClientEdit()">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeClientEdit()">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Save Client</button>
       </div>
     </form>
@@ -414,7 +485,7 @@
 
 <div class="modal-overlay" id="lead-modal">
   <div class="modal-content">
-    <h2 class="modal-title">Add New Lead</h2>
+    <h2 class="modal-title">Nuevo lead</h2>
     <form id="lead-form" onsubmit="createLead(event)">
       <input type="hidden" name="client_id" value="{{ cliente.id }}">
       <div class="form-group">
@@ -427,13 +498,13 @@
           <input class="form-input" id="lead-email" name="email" type="email" value="{{ cliente.get('Email') or '' }}">
         </div>
         <div class="form-group">
-          <label class="form-label" for="lead-phone">Phone</label>
+          <label class="form-label" for="lead-phone">Telefono</label>
           <input class="form-input" id="lead-phone" name="telefono" value="{{ cliente.get('Teléfono') or '' }}">
         </div>
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="lead-type">Type</label>
+          <label class="form-label" for="lead-type">Tipo</label>
           <input class="form-input" id="lead-type" name="tipo_evento" value="Boda">
         </div>
         <div class="form-group">
@@ -442,11 +513,12 @@
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label" for="lead-location">Location</label>
-        <input class="form-input" id="lead-location" name="locacion" value="{{ cliente.get('Dirección facturación') or '' }}">
+        <label class="form-label" for="lead-address">Dirección de facturación</label>
+        <input class="form-input" id="lead-address" name="address" value="{{ cliente.get('Dirección facturación') or '' }}"
+               placeholder="Dirección para facturar (no el lugar del evento)">
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
-        <button class="sn-btn" type="button" onclick="closeLeadModal()">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeLeadModal()">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Create Lead</button>
       </div>
     </form>
@@ -455,7 +527,7 @@
 
 <div class="modal-overlay" id="job-modal">
   <div class="modal-content">
-    <h2 class="modal-title">Add New Job</h2>
+    <h2 class="modal-title">Nueva boda</h2>
     <form id="job-form" onsubmit="createJob(event)">
       <input type="hidden" name="client_id" value="{{ cliente.id }}">
       <div class="form-group">
@@ -477,7 +549,7 @@
         <input class="form-input" id="job-location" name="location" value="{{ cliente.get('Dirección facturación') or '' }}">
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
-        <button class="sn-btn" type="button" onclick="closeJobModal()">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeJobModal()">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Create Job</button>
       </div>
     </form>

@@ -93,6 +93,54 @@ def _restore_tenants_table(_isolated_environment):
     app_module.store._save('tenants', snapshot)
 
 
+class RealProviderCallBlocked(AssertionError):
+    """Un test intento llegar a un proveedor de correo real (SMTP/Resend/
+    Gmail). Esto NUNCA debe pasar en la suite de pytest, sin importar el
+    kill switch (OUTBOUND_EMAIL_ENABLED/DISABLE_OUTBOUND_EMAIL) -- ese
+    kill switch es la primera linea de defensa (src/email_delivery.py:
+    send_email() lo revisa ANTES de mirar el proveedor), pero este guardia
+    es la segunda: si un refactor futuro llegara a mover, saltarse o romper
+    ese chequeo, este guardia sigue frenando la llamada real en vez de
+    dejarla pasar en silencio."""
+
+
+@pytest.fixture(scope='session', autouse=True)
+def _block_real_email_providers():
+    """Guardia de infraestructura (prioridad 6, cierre de brechas -- 'quiero
+    una proteccion adicional en el runner/test environment... ninguna
+    prueba debe depender de conexion externa'). Reemplaza las funciones de
+    BAJO NIVEL que de verdad tocan red (smtplib, urlopen a Resend, la API
+    de Gmail) por una que siempre explota -- para toda la sesion de
+    pytest, sin importar que fixture use cada test. Los tests que SI
+    quieren simular un envio exitoso siguen pudiendo parchar
+    `src.mail_tracker.send_email` (una capa mas arriba, ver fixture
+    `client`) con su propio fake; ese parche gana porque queda mas cerca
+    de la llamada. Esto es ademas del kill switch de variables de entorno
+    (OUTBOUND_EMAIL_ENABLED=0 / DISABLE_OUTBOUND_EMAIL=1, forzadas por
+    pytest_configure arriba) -- doble candado, no un sustituto."""
+    import src.email_delivery as email_delivery
+    import src.gmail_delivery as gmail_delivery
+
+    def _blocked(*args, **kwargs):
+        raise RealProviderCallBlocked(
+            'Un test intento invocar una funcion de entrega de correo REAL '
+            '(SMTP/Resend/Gmail) durante la suite de pytest. Esto esta '
+            'bloqueado a proposito -- ningun test debe depender de, ni '
+            'poder alcanzar, un proveedor de correo real.'
+        )
+
+    # OJO: is_connected() NO se toca aca -- test_credential_isolation.py
+    # verifica legitimamente su comportamiento real (guardar/borrar token,
+    # aislamiento por tenant) sin que eso implique una llamada de red; solo
+    # send_gmail() (la funcion que de verdad habla con la API de Gmail) se
+    # bloquea. Si send_email() llegara a llamar a _send_gmail real porque
+    # is_connected() dio True en algun test, este guardia la frena igual.
+    for attr in ('_send_smtp', '_send_resend', '_send_gmail'):
+        pytest.MonkeyPatch().setattr(email_delivery, attr, _blocked, raising=True)
+    pytest.MonkeyPatch().setattr(gmail_delivery, 'send_gmail', _blocked, raising=True)
+    yield
+
+
 @pytest.fixture()
 def client(flask_app, monkeypatch):
     """Cliente HTTP de pruebas. El envio de correo esta parchado a un fake

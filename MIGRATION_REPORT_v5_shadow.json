@@ -1,0 +1,161 @@
+{
+  "counts": {
+    "tenants": 2,
+    "companies": 2,
+    "settings": 7,
+    "clients": 6,
+    "client_emails": 6,
+    "client_phones": 6,
+    "client_addresses": 6,
+    "products": 11,
+    "email_templates": 12,
+    "projects": 12,
+    "quotes": 6,
+    "quote_items": 6,
+    "invoices": 14,
+    "invoice_items": 14,
+    "payment_installments": 14,
+    "payment_transactions": 6,
+    "payment_allocations": 6,
+    "contracts_reviewed": 6,
+    "team_reviewed": 3,
+    "calendar_events": 6,
+    "workflow_template_families": 2,
+    "workflow_template_versions": 4,
+    "workflow_task_template_versions": 24,
+    "workflow_instances": 12,
+    "workflow_task_instances": 81,
+    "activity_log": 36,
+    "mail_log": 10
+  },
+  "legacy_mapped": 95,
+  "legacy_unmapped": [
+    {
+      "source_file": "workflow_instances.json",
+      "legacy_id": "lead-5ffc10d6",
+      "entity_type": "project",
+      "status": "skipped",
+      "notes": "Subject 'lead-5ffc10d6' referenciado por workflow_instances 'wi_6ecee1d2' ('Prueba Workflow Aceptado') sin cliente/lead real correspondiente en clients.json/leads.json. No se crea project para no mezclar datos de negocio con artefactos de prueba del workflow engine. Requiere decision de Kevin: purgar de workflow_instances.json o confirmar que es basura de QA."
+    },
+    {
+      "source_file": "workflow_instances.json",
+      "legacy_id": "boda-ac297991",
+      "entity_type": "project",
+      "status": "skipped",
+      "notes": "Subject 'boda-ac297991' referenciado por workflow_instances 'wi_71eecdbc' ('Prueba Workflow Aceptado') sin cliente/lead real correspondiente en clients.json/leads.json. No se crea project para no mezclar datos de negocio con artefactos de prueba del workflow engine. Requiere decision de Kevin: purgar de workflow_instances.json o confirmar que es basura de QA."
+    },
+    {
+      "source_file": "workflow_instances.json",
+      "legacy_id": "lead-f26d314c",
+      "entity_type": "project",
+      "status": "skipped",
+      "notes": "Subject 'lead-f26d314c' referenciado por workflow_instances 'wi_d70d4c63' ('Prueba Workflow Aceptado') sin cliente/lead real correspondiente en clients.json/leads.json. No se crea project para no mezclar datos de negocio con artefactos de prueba del workflow engine. Requiere decision de Kevin: purgar de workflow_instances.json o confirmar que es basura de QA."
+    },
+    {
+      "source_file": "workflow_instances.json",
+      "legacy_id": "boda-ac9a338f",
+      "entity_type": "project",
+      "status": "skipped",
+      "notes": "Subject 'boda-ac9a338f' referenciado por workflow_instances 'wi_14e0c297' ('Prueba Workflow Aceptado') sin cliente/lead real correspondiente en clients.json/leads.json. No se crea project para no mezclar datos de negocio con artefactos de prueba del workflow engine. Requiere decision de Kevin: purgar de workflow_instances.json o confirmar que es basura de QA."
+    },
+    {
+      "source_file": "contracts.json",
+      "legacy_id": "contract-6150b981",
+      "entity_type": "contract",
+      "status": "review_needed",
+      "notes": "contract 'contract-6150b981' (status=Borrador, signed=False) vincula a project 'boda-009a8781' (client_id=client-97399c98, lead_id=lead-2). schema_v5.2 NO tiene tabla `contracts` (solo workflow_task_template_versions.contract_template_id como referencia de plantilla). Este registro NO se puede insertar como entidad propia sin agregar una tabla al schema -- pendiente de decision de Kevin. El project destino sigue existiendo (ver legacy_record_map entity_type='project')."
+    },
+    {
+      "source_file": "contracts.json",
+      "legacy_id": "contract-b159169d",
+      "entity_type": "contract",
+      "status": "review_needed",
+      "notes": "contract 'contract-b159169d' (status=Borrador, signed=False) vincula a project 'boda-b6111bdf' (client_id=client-2eb0bd57, lead_id=lead-3f0bf51a). schema_v5.2 NO tiene tabla `contracts` (solo workflow_task_template_versions.contract_template_id como referencia de plantilla). Este registro NO se puede insertar como entidad propia sin agregar una tabla al schema -- pendiente de decision de Kevin. El project destino sigue existiendo (ver legacy_record_map entity_type='project')."
+    },
+    {
+      "source_file": "contracts.json",
+      "legacy_id": "contract-7a1ecd75",
+      "entity_type": "contract",
+      "status": "review_needed",
+      "notes": "contract 'contract-7a1ecd75' (status=Enviado, signed=False) vincula a project 'job-maria-carlos' (client_id=client-maria-carlos, lead_id=accepted-maria-carlos). schema_v5.2 NO tiene tabla `contracts` (solo workflow_task_template_versions.contract_template_id como referencia de plantilla). Este registro NO se puede insertar como entidad propia sin agregar una tabla al schema -- pendiente de decision de Kevin. El project destino sigue existiendo (ver legacy_record_map entity_type='project')."
+    },
+    {
+      "source_file": "contracts.json",
+      "legacy_id": "contract-c1cfd9e3",
+      "entity_type": "contract",
+      "status": "review_needed",
+      "notes": "contract 'contract-c1cfd9e3' (status=Enviado, signed=False) vincula a project 'boda-1d62d5e2' (client_id=client-camila-rios, lead_id=lead-camila-rios). schema_v5.2 NO tiene tabla `contracts` (solo workflow_task_template_versions.contract_template_id como referencia de plantilla). Este registro NO se puede insertar como entidad propia sin agregar una tabla al schema -- pendiente de decision de Kevin. El project destino sigue existiendo (ver legacy_record_map entity_type='project')."
+    },
+    {
+      "source_file": "contracts.json",
+      "legacy_id": "contract-39404f47",
+      "entity_type": "contract",
+      "status": "review_needed",
+      "notes": "contract 'contract-39404f47' (status=Enviado, signed=False) vincula a project 'boda-1d62d5e2' (client_id=client-camila-rios, lead_id=lead-camila-rios). schema_v5.2 NO tiene tabla `contracts` (solo workflow_task_template_versions.contract_template_id como referencia de plantilla). Este registro NO se puede insertar como entidad propia sin agregar una tabla al schema -- pendiente de decision de Kevin. El project destino sigue existiendo (ver legacy_record_map entity_type='project')."
+    },
+    {
+      "source_file": "contracts.json",
+      "legacy_id": "contract-f2b491e4",
+      "entity_type": "contract",
+      "status": "review_needed",
+      "notes": "contract 'contract-f2b491e4' (status=Enviado, signed=False) vincula a project 'boda-e8b7e2a7' (client_id=client-camila-rios, lead_id=lead-camila-rios). schema_v5.2 NO tiene tabla `contracts` (solo workflow_task_template_versions.contract_template_id como referencia de plantilla). Este registro NO se puede insertar como entidad propia sin agregar una tabla al schema -- pendiente de decision de Kevin. El project destino sigue existiendo (ver legacy_record_map entity_type='project')."
+    },
+    {
+      "source_file": "team.json",
+      "legacy_id": "team-1",
+      "entity_type": "staff_member",
+      "status": "review_needed",
+      "notes": "'Carlos Perez' (Fotografo principal) -- schema_v5.2 no tiene tabla de staff/equipo interno (la tabla `users` es para login de la app, con role owner/admin/editor/viewer, no aplica a fotografos/editores). Pendiente de decision de Kevin."
+    },
+    {
+      "source_file": "team.json",
+      "legacy_id": "team-2",
+      "entity_type": "staff_member",
+      "status": "review_needed",
+      "notes": "'Ana Mendoza' (Asistente de fotografia) -- schema_v5.2 no tiene tabla de staff/equipo interno (la tabla `users` es para login de la app, con role owner/admin/editor/viewer, no aplica a fotografos/editores). Pendiente de decision de Kevin."
+    },
+    {
+      "source_file": "team.json",
+      "legacy_id": "team-3",
+      "entity_type": "staff_member",
+      "status": "review_needed",
+      "notes": "'Luis Garcia' (Editor de video) -- schema_v5.2 no tiene tabla de staff/equipo interno (la tabla `users` es para login de la app, con role owner/admin/editor/viewer, no aplica a fotografos/editores). Pendiente de decision de Kevin."
+    }
+  ],
+  "special_cases": [
+    "Project 'boda-69f508a1' (Boda Camila Rios) migrado como operational_status='cancelled' -- job duplicado/huerfano, ver notes.",
+    "Project 'boda-1d62d5e2' (Boda Camila Rios) migrado como operational_status='cancelled' -- job duplicado/huerfano, ver notes.",
+    "Project 'boda-35bd38a1' (Boda Camila Rios) migrado como operational_status='cancelled' -- job duplicado/huerfano, ver notes.",
+    "Project 'boda-423e71c5' (Boda Valeria Mora) migrado como operational_status='cancelled' -- job duplicado/huerfano, ver notes.",
+    "Project 'boda-d8a57784' (Boda Sofia Castillo) migrado como operational_status='cancelled' -- job duplicado/huerfano, ver notes.",
+    "SKIPPED (sin project ni workflow_instance): subject 'lead-5ffc10d6' / instance 'wi_6ecee1d2' -- artefacto de prueba, no tiene cliente real.",
+    "SKIPPED (sin project ni workflow_instance): subject 'boda-ac297991' / instance 'wi_71eecdbc' -- artefacto de prueba, no tiene cliente real.",
+    "SKIPPED (sin project ni workflow_instance): subject 'lead-f26d314c' / instance 'wi_d70d4c63' -- artefacto de prueba, no tiene cliente real.",
+    "SKIPPED (sin project ni workflow_instance): subject 'boda-ac9a338f' / instance 'wi_14e0c297' -- artefacto de prueba, no tiene cliente real."
+  ],
+  "overlapping_payment_calendars": [
+    {
+      "project_id": "boda-e8b7e2a7",
+      "quotes_con_quote_id": [
+        "quote-47238c5c",
+        "quote-camila-rios"
+      ],
+      "tiene_pagos_sin_quote_id": false,
+      "nota": "Dos calendarios de pago activos sobre el mismo project (cotizacion vieja / pagos sin quote_id + cotizacion pick-and-choose aceptada). Migrados ambos tal cual, sin fusionar ni borrar. Kevin debe decidir cual invoice/quote cancelar."
+    },
+    {
+      "project_id": "job-daniel-paola",
+      "quotes_con_quote_id": [
+        "quote-8efbddb9"
+      ],
+      "tiene_pagos_sin_quote_id": true,
+      "nota": "Dos calendarios de pago activos sobre el mismo project (cotizacion vieja / pagos sin quote_id + cotizacion pick-and-choose aceptada). Migrados ambos tal cual, sin fusionar ni borrar. Kevin debe decidir cual invoice/quote cancelar."
+    }
+  ],
+  "pending_decisions": [
+    "CASO C: tenant 'norkevin' / company 'company-norkevin' tiene identidad 'ASTRAL WEDDINGS' y email 'info@astralweddings.com' (viene de tenants.json + settings.json TAL CUAL). Confirmar con Kevin antes de usar esta fila para enviar correos reales o mostrarla en produccion: puede que el nombre/tenant real deba ser 'norkevin' y 'astral weddings' sea una marca/tenant distinta.",
+    "schema_v5.2.sql no define una tabla `contracts`. Los 6 registros de contracts.json quedaron mapeados solo en legacy_record_map (review_needed), sin insertar en ninguna tabla de negocio. Si se necesita, hay que agregar una tabla `contracts` al schema v5.3.",
+    "schema_v5.2.sql no tiene tabla para staff interno (fotografos, editores de video). Los 3 registros de team.json quedaron solo en legacy_record_map (review_needed)."
+  ],
+  "errors": []
+}

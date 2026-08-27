@@ -12,6 +12,8 @@ en JsonStore, tenant_id resuelto SOLO de session['tenant_id']) realmente
 aisla las cuentas, no solo visualmente."""
 import uuid
 
+import pytest
+
 from conftest import login_as_tenant
 
 TENANT_B = 'tenant-isolation-test-b'
@@ -190,8 +192,22 @@ def test_reset_test_data_only_wipes_the_active_tenant(client):
     ids_b = _seed_full_dataset(app_module, TENANT_B, suf_b)
 
     login_as_tenant(client, TENANT_B)
-    resp = client.post('/api/admin/reset-test-data', json={'confirm': 'BORRAR'})
-    assert resp.status_code == 200
+    # Contrato actualizado por el hardening de /api/admin/reset-test-data
+    # (prioridad 6, agosto 2026): ya no basta con {'confirm': 'BORRAR'}.
+    # Ahora exige la flag de entorno ALLOW_DESTRUCTIVE_ADMIN_OPERATIONS=1 y
+    # una confirmacion especifica de la cuenta activa. Este test comprobaba
+    # -- y sigue comprobando -- otra cosa: que vaciar UNA cuenta no toque
+    # las demas. Solo se actualiza como se invoca la ruta.
+    # El rechazo de la confirmacion generica vieja tiene su propio test en
+    # tests/test_reset_endpoint_hardening.py::test_confirmacion_generica_ya_no_alcanza
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setenv('ALLOW_DESTRUCTIVE_ADMIN_OPERATIONS', '1')
+    try:
+        resp = client.post('/api/admin/reset-test-data',
+                           json={'confirm': f'BORRAR-{TENANT_B}'})
+        assert resp.status_code == 200, resp.get_data(as_text=True)[:300]
+    finally:
+        monkeypatch.undo()
 
     with app_module.app.test_request_context():
         from flask import session as _sess

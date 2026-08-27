@@ -153,6 +153,48 @@
   .doc-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--doc-mute); padding: 8px 4px; border-bottom: 1px solid var(--doc-line); font-weight: 600; }
   .doc-table td { padding: 10px 4px; border-bottom: 1px solid var(--doc-line); color: var(--doc-ink-soft); }
   .doc-table tr:last-child td { border-bottom: none; }
+
+  /* La cotizacion y el contrato se abren casi siempre desde el telefono:
+     llegan por WhatsApp. Una tabla de 4 columnas (Cuota / Fecha / Monto /
+     Estado) no entra en 375px -- las celdas se aplastan o la pagina saca
+     scroll horizontal, y el cliente ve su plan de pago cortado.
+
+     En movil cada fila pasa a ser una ficha: etiqueta a la izquierda,
+     valor a la derecha. Las etiquetas salen de data-label, asi que no
+     hace falta repetir el encabezado. */
+  @media (max-width: 560px) {
+    .doc-table thead { display: none; }
+    .doc-table,
+    .doc-table tbody,
+    .doc-table tr,
+    .doc-table td { display: block; width: 100%; }
+    .doc-table tr {
+      border: 1px solid var(--doc-line);
+      border-radius: 10px;
+      padding: 4px 12px;
+      margin-bottom: 10px;
+    }
+    .doc-table tr:last-child { margin-bottom: 0; }
+    .doc-table td {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      text-align: right !important;
+      padding: 9px 0;
+    }
+    .doc-table td:last-child { border-bottom: none; }
+    .doc-table td[data-label]::before {
+      content: attr(data-label);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--doc-mute);
+      font-weight: 600;
+      text-align: left;
+      flex: 0 0 auto;
+    }
+  }
   .doc-pill { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; }
   .doc-pill.green { background: #EAF8F0; color: #17864F; }
   .doc-pill.amber { background: #FDF1DC; color: #97620C; }
@@ -171,4 +213,61 @@
   .doc-hint { grid-column: 1 / -1; text-align: center; font-size: 11.5px; color: var(--doc-mute); margin-top: -4px; }
   .doc-footer { text-align: center; padding: 20px; font-size: 11px; color: var(--doc-mute); border-top: 1px solid var(--doc-line); }
   .doc-status-banner { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 20px; }
+
+  /* ============================================================
+     ERGONOMIA MOVIL DE LAS PAGINAS QUE VE EL CLIENTE
+     ------------------------------------------------------------
+     Cotizacion, contrato y cuestionario llegan por WhatsApp: casi
+     siempre se abren en un telefono, y muchas veces la persona firma o
+     responde ahi mismo. Estas paginas no heredan base.html, asi que las
+     correcciones de ergonomia movil del CRM no les llegaban.
+
+     El caso peor era el cuestionario: los radio y checkbox nativos miden
+     ~18px. Contestar un cuestionario de bodas tocando circulos de 18px
+     con el dedo es una forma segura de que el cliente lo abandone.
+     ============================================================ */
+  @media (max-width: 760px) {
+    /* Safari en iPhone hace zoom al enfocar un input de menos de 16px. */
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="date"],
+    select {
+      min-height: 44px;
+    }
+    textarea { min-height: 96px; }
+
+    input[type="checkbox"],
+    input[type="radio"] {
+      width: 24px;
+      height: 24px;
+      flex: 0 0 auto;
+    }
+    .q-radio-option,
+    .q-check-option {
+      min-height: 44px;
+      align-items: center;
+    }
+
+    .doc-btn {
+      min-height: 48px;
+      width: 100%;
+    }
+
+    /* Un correo o una direccion larga no pueden empujar la tarjeta fuera
+       de la pantalla. */
+    .doc-body,
+    .doc-side,
+    .doc-parties,
+    .doc-meta,
+    .doc-table td {
+      overflow-wrap: anywhere;
+    }
+  }
+
 </style>

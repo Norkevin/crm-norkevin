@@ -231,3 +231,41 @@ def test_invoice_view_shows_partial_badge_on_every_credited_row(auth_client):
     html = resp.get_data(as_text=True)
     assert html.count('>Partial<') == 4, 'las 4 cuotas restantes recibieron credito -- todas deben marcarse Partial'
     assert '>Unpaid<' not in html
+
+
+def test_job_detail_muestra_abonado_directo_pero_no_inventa_uno_por_credito(auth_client):
+    """P1.4b: job_detail.html debe aclarar 'de Q{original} (abonado Q{X})'
+    en cuotas parciales, usando el campo paid_amount TAL CUAL (igual que
+    _row_paid_amount) -- nunca 'original_amount - amount', porque esa resta
+    tambien cuenta el credito recibido de otra cuota sobrepagada como si
+    fuera un abono directo en esta fila (el mismo bug que _apply_payment_
+    sequentially ya documenta y evita).
+
+    Escenario: 3 cuotas de Q10,000. Primer pago Q12,000 -> cuota 1 Pagada,
+    cuotas 2 y 3 reciben Q1,000 de CREDITO cada una (sin abono directo,
+    paid_amount sigue en 0) y quedan en Q9,000. Segundo pago Q8,000 sobre
+    la cuota 2 (que ahora debe Q9,000) -> abono PARCIAL directo: queda en
+    Q1,000 con paid_amount=8,000.
+
+    La cuota 2 debe mostrar 'de Q10,000.00' y '(abonado Q8,000.00)' (pago
+    directo real). La cuota 3 debe mostrar 'de Q10,000.00' SIN ningun
+    '(abonado ...)' -- solo recibio credito, nunca un pago directo; si el
+    template todavia calculara con la resta, mostraria incorrectamente
+    '(abonado Q1,000.00)' ahi tambien."""
+    import app as app_module
+    jid, ids = _make_job_with_payments(app_module, [10000, 10000, 10000])
+
+    auth_client.post(f'/api/jobs/{jid}/record-payment', json={'amount': 12000, 'fecha_pago': '2026-01-01'})
+    auth_client.post(f'/api/jobs/{jid}/record-payment', json={'amount': 8000, 'fecha_pago': '2026-02-01'})
+
+    rows = _payments_for(app_module, jid)
+    assert rows[1]['amount'] == 1000 and rows[1]['paid_amount'] == 8000
+    assert rows[2]['amount'] == 9000 and not rows[2].get('paid_amount'), 'cuota 3 solo tiene credito, ningun abono directo'
+
+    resp = auth_client.get(f'/jobs/{jid}')
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+
+    assert 'de Q10,000.00' in html
+    assert '(abonado Q8,000.00)' in html, 'la cuota con abono DIRECTO debe mostrar cuanto se abono'
+    assert '(abonado Q1,000.00)' not in html, 'la cuota que solo recibio credito NO debe mostrar un abono inventado'

@@ -182,25 +182,44 @@ def _send_gmail(to_email, subject, body, *, attachments=None, metadata=None):
     return DeliveryResult(ok=False, provider='gmail', status='failed', error=result, mode='real')
 
 
+def outbound_email_enabled() -> bool:
+    """Unica fuente de verdad de si el sistema puede mandar correo real.
+
+    Fail-closed por diseno (fase de estabilizacion, agosto 2026): antes,
+    la ausencia de configuracion dejaba pasar el envio (`DISABLE_OUTBOUND_EMAIL`
+    era un opt-OUT -- si nadie lo seteaba, todo salia). Un despliegue nuevo,
+    un entorno de pruebas mal configurado, o simplemente olvidarse de la
+    variable, mandaban correo real por defecto. Ahora es opt-IN: hace falta
+    poner OUTBOUND_EMAIL_ENABLED=1 explicitamente para que algo pueda salir.
+
+    DISABLE_OUTBOUND_EMAIL=1 se mantiene y sigue funcionando igual que antes
+    (freno de emergencia que corta aunque OUTBOUND_EMAIL_ENABLED este en 1) --
+    no se quita nada, solo se agrega el default seguro que faltaba.
+    """
+    if os.environ.get('DISABLE_OUTBOUND_EMAIL') == '1':
+        return False
+    return os.environ.get('OUTBOUND_EMAIL_ENABLED', '0') == '1'
+
+
 def send_email(to_email, subject, body='', *, attachments=None, metadata=None):
     if not to_email:
         return DeliveryResult(ok=False, provider='none', status='failed', error='Destinatario vacio')
 
-    # Freno de emergencia global. Nace de un incidente real: un hilo en
-    # segundo plano mando cientos de correos a clientes reales, firmados con
-    # la cuenta de un negocio y dirigidos a los clientes del otro.
-    #
-    # Es a proposito el ULTIMO punto por el que pasa todo correo, sin importar
-    # quien lo pida (scheduler, boton manual, cuestionario, recordatorio): con
-    # DISABLE_OUTBOUND_EMAIL=1 no sale nada de aca. Apagar solo el scheduler
-    # no alcanzaba porque cualquier otro camino podia seguir enviando.
-    if os.environ.get('DISABLE_OUTBOUND_EMAIL') == '1':
-        logger.warning(
-            'ENVIO BLOQUEADO por DISABLE_OUTBOUND_EMAIL=1 -> "%s" a %s',
-            subject, to_email,
-        )
+    # Freno de emergencia global + default seguro. Nace de un incidente real:
+    # un hilo en segundo plano mando cientos de correos a clientes reales,
+    # firmados con la cuenta de un negocio y dirigidos a los clientes del
+    # otro. Es a proposito el ULTIMO punto por el que pasa todo correo, sin
+    # importar quien lo pida (scheduler, boton manual, cuestionario,
+    # recordatorio, retry): sin OUTBOUND_EMAIL_ENABLED=1 explicito, o con
+    # DISABLE_OUTBOUND_EMAIL=1, no sale nada de aca. Apagar solo el
+    # scheduler no alcanzaba porque cualquier otro camino podia seguir
+    # enviando.
+    if not outbound_email_enabled():
+        motivo = ('DISABLE_OUTBOUND_EMAIL=1' if os.environ.get('DISABLE_OUTBOUND_EMAIL') == '1'
+                   else 'OUTBOUND_EMAIL_ENABLED no esta en 1 (default seguro: deshabilitado)')
+        logger.warning('ENVIO BLOQUEADO por %s -> "%s" a %s', motivo, subject, to_email)
         return DeliveryResult(ok=False, provider='blocked', status='blocked',
-                              error='Envio de correo deshabilitado (DISABLE_OUTBOUND_EMAIL=1)')
+                              error=f'Envio de correo deshabilitado ({motivo})')
 
     # Si la cuenta activa conecto su Gmail, se usa automaticamente sin
     # necesidad de tocar EMAIL_DELIVERY_MODE/EMAIL_PROVIDER. tenant_id

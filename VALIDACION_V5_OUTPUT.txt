@@ -1,0 +1,354 @@
+VALIDACION_V5_OUTPUT.txt
+Generado: 2026-07-10 07:58:53 UTC
+
+================================================================================
+python validate_schema_v5.2.py
+================================================================================
+C:\Users\fotov\.openclaw\workspace\crm_norkevin\validate_schema_v5.2.py:84: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+================================================================================
+VALIDATE_SCHEMA_V5.2.PY � Pruebas aisladas (cada una con su propia conexion)
+================================================================================
+
+Python:  3.14.3 (tags/v3.14.3:323c59a, Feb  3 2026, 16:04:56) [MSC v.1944 64 bit (AMD64)]
+SQLite:  3.50.4
+Schema SHA-256: 1167a15e5edd0818be6e35247f6b2e781243e7770ffe77118338c7561af3f10c
+
+Ejecutando: T01: PRAGMA foreign_key_check + integrity_check...
+  [PASS] fk_errs=0 integrity=ok
+
+Ejecutando: T02: Conteo exacto (35 tablas, 27 indices, 13 triggers)...
+  [PASS] tablas=35 indices=27 triggers=13; esperado=(35, 27, 13)
+
+Ejecutando: T03: quote company distinto al project...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T04 (Sec.1): client otro tenant, FK real (no is_primary)...
+  [PASS] rechazado por FK: FOREIGN KEY constraint failed
+
+Ejecutando: T05 (Sec.2): Workflow Version Astral con Family Norkevin...
+  [PASS] rechazado por FK: FOREIGN KEY constraint failed
+
+Ejecutando: T06: Workflow instance Norkevin + template Astral...
+  [PASS] rechazado por FK: FOREIGN KEY constraint failed
+
+Ejecutando: T07 (Sec.4): payment_transaction invoice de otro project...
+  [PASS] rechazado: payment_tx_project_mismatch_invoice
+
+Ejecutando: T08 (Sec.5): calendar_events con company de otro tenant...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T09 (Sec.5): mail_log.template_id de company distinto...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T10 (Sec.8): doble aceptacion idempotente (con real result)...
+  [PASS] Projects antes=1=True; Projects despues=1=True; Invoices antes=0=True; Invoices despues=1=True; Installments=2=True; Processed events=1=True; Outbox events=1=True; Workflow production=1=True; Result1=
+
+Ejecutando: T11 (Sec.9): idempotency key + hash distinto...
+  [PASS] raised=True, invoices_doble=1
+
+Ejecutando: T12 (Sec.9): retry processed_event failed...
+  [PASS] status=completed attempts=2 inv=1 wi=1 proj=accepted
+
+Ejecutando: T13 (Sec.10): outbox dead_letter a max_attempts...
+  [PASS] dead_letter a attempt 2, max_attempts=2
+
+Ejecutando: T14 (Sec.10): delivered no vuelve a pending...
+  [PASS] trigger: outbox_delivered_cannot_return_to_pending
+
+Ejecutando: T15 (Sec.10): 2 workers concurrentes, solo 1 claim...
+  [PASS] worker-A=1, worker-B=0
+
+Ejecutando: T16 (Sec.7): UPDATE payment reduce amount bajo refunds...
+  [PASS] trigger mensaje: payment_amount_below_existing_refunds
+
+Ejecutando: T17: refund excede original...
+  [PASS] mensaje: refund_exceeds_original_payment
+
+Ejecutando: T18: mail_log sin template (template opcional)...
+  [PASS] OK sin template
+
+Ejecutando: T19: automation_runs sin task_instance...
+  [PASS] OK con task_instance NULL
+
+Ejecutando: T20: allocation excede transaction...
+  [PASS] mensaje: allocation_exceeds_transaction_amount
+
+Ejecutando: T21 (Sec.6): quote_item product de otra company...
+  [PASS] mensaje exacto: quote_item_product_company_mismatch
+
+Ejecutando: T22 (Sec.3): workflow task template de otro workflow...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T23 (Sec.5): automation_run project de otra company...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T24 (Sec.5): automation_run workflow de otra company...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T25 (Sec.6): UPDATE quote_item product de otra company...
+  [PASS] mensaje exacto: quote_item_product_company_mismatch
+
+Ejecutando: T26 (Sec.7): UPDATE payment bajo allocations...
+  [PASS] mensaje exacto: payment_amount_below_existing_allocations
+
+Ejecutando: T27 (Sec.7): payment original con refunds bloqueado...
+  [PASS] mensaje exacto: payment_original_has_refunds_locked
+
+================================================================================
+RESUMEN V5.2
+================================================================================
+  [PASS] T01: PRAGMA foreign_key_check + integrity_check
+  [PASS] T02: Conteo exacto (35 tablas, 27 indices, 13 triggers)
+  [PASS] T03: quote company distinto al project
+  [PASS] T04 (Sec.1): client otro tenant, FK real (no is_primary)
+  [PASS] T05 (Sec.2): Workflow Version Astral con Family Norkevin
+  [PASS] T06: Workflow instance Norkevin + template Astral
+  [PASS] T07 (Sec.4): payment_transaction invoice de otro project
+  [PASS] T08 (Sec.5): calendar_events con company de otro tenant
+  [PASS] T09 (Sec.5): mail_log.template_id de company distinto
+  [PASS] T10 (Sec.8): doble aceptacion idempotente (con real result)
+  [PASS] T11 (Sec.9): idempotency key + hash distinto
+  [PASS] T12 (Sec.9): retry processed_event failed
+  [PASS] T13 (Sec.10): outbox dead_letter a max_attempts
+  [PASS] T14 (Sec.10): delivered no vuelve a pending
+  [PASS] T15 (Sec.10): 2 workers concurrentes, solo 1 claim
+  [PASS] T16 (Sec.7): UPDATE payment reduce amount bajo refunds
+  [PASS] T17: refund excede original
+  [PASS] T18: mail_log sin template (template opcional)
+  [PASS] T19: automation_runs sin task_instance
+  [PASS] T20: allocation excede transaction
+  [PASS] T21 (Sec.6): quote_item product de otra company
+  [PASS] T22 (Sec.3): workflow task template de otro workflow
+  [PASS] T23 (Sec.5): automation_run project de otra company
+  [PASS] T24 (Sec.5): automation_run workflow de otra company
+  [PASS] T25 (Sec.6): UPDATE quote_item product de otra company
+  [PASS] T26 (Sec.7): UPDATE payment bajo allocations
+  [PASS] T27 (Sec.7): payment original con refunds bloqueado
+
+Total: 27 pasaron, 0 fallaron (de 27 pruebas)
+
+Confirmacion de no-modificacion (durante este script):
+  app.py: NO
+  Datos: NO
+  crm.db: NO
+  Alembic: NO
+  JSON: NO
+EXIT_CODE: 0
+
+================================================================================
+python -I validate_schema_v5.2.py
+================================================================================
+C:\Users\fotov\.openclaw\workspace\crm_norkevin\validate_schema_v5.2.py:84: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+================================================================================
+VALIDATE_SCHEMA_V5.2.PY � Pruebas aisladas (cada una con su propia conexion)
+================================================================================
+
+Python:  3.14.3 (tags/v3.14.3:323c59a, Feb  3 2026, 16:04:56) [MSC v.1944 64 bit (AMD64)]
+SQLite:  3.50.4
+Schema SHA-256: 1167a15e5edd0818be6e35247f6b2e781243e7770ffe77118338c7561af3f10c
+
+Ejecutando: T01: PRAGMA foreign_key_check + integrity_check...
+  [PASS] fk_errs=0 integrity=ok
+
+Ejecutando: T02: Conteo exacto (35 tablas, 27 indices, 13 triggers)...
+  [PASS] tablas=35 indices=27 triggers=13; esperado=(35, 27, 13)
+
+Ejecutando: T03: quote company distinto al project...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T04 (Sec.1): client otro tenant, FK real (no is_primary)...
+  [PASS] rechazado por FK: FOREIGN KEY constraint failed
+
+Ejecutando: T05 (Sec.2): Workflow Version Astral con Family Norkevin...
+  [PASS] rechazado por FK: FOREIGN KEY constraint failed
+
+Ejecutando: T06: Workflow instance Norkevin + template Astral...
+  [PASS] rechazado por FK: FOREIGN KEY constraint failed
+
+Ejecutando: T07 (Sec.4): payment_transaction invoice de otro project...
+  [PASS] rechazado: payment_tx_project_mismatch_invoice
+
+Ejecutando: T08 (Sec.5): calendar_events con company de otro tenant...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T09 (Sec.5): mail_log.template_id de company distinto...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T10 (Sec.8): doble aceptacion idempotente (con real result)...
+  [PASS] Projects antes=1=True; Projects despues=1=True; Invoices antes=0=True; Invoices despues=1=True; Installments=2=True; Processed events=1=True; Outbox events=1=True; Workflow production=1=True; Result1=
+
+Ejecutando: T11 (Sec.9): idempotency key + hash distinto...
+  [PASS] raised=True, invoices_doble=1
+
+Ejecutando: T12 (Sec.9): retry processed_event failed...
+  [PASS] status=completed attempts=2 inv=1 wi=1 proj=accepted
+
+Ejecutando: T13 (Sec.10): outbox dead_letter a max_attempts...
+  [PASS] dead_letter a attempt 2, max_attempts=2
+
+Ejecutando: T14 (Sec.10): delivered no vuelve a pending...
+  [PASS] trigger: outbox_delivered_cannot_return_to_pending
+
+Ejecutando: T15 (Sec.10): 2 workers concurrentes, solo 1 claim...
+  [PASS] worker-A=1, worker-B=0
+
+Ejecutando: T16 (Sec.7): UPDATE payment reduce amount bajo refunds...
+  [PASS] trigger mensaje: payment_amount_below_existing_refunds
+
+Ejecutando: T17: refund excede original...
+  [PASS] mensaje: refund_exceeds_original_payment
+
+Ejecutando: T18: mail_log sin template (template opcional)...
+  [PASS] OK sin template
+
+Ejecutando: T19: automation_runs sin task_instance...
+  [PASS] OK con task_instance NULL
+
+Ejecutando: T20: allocation excede transaction...
+  [PASS] mensaje: allocation_exceeds_transaction_amount
+
+Ejecutando: T21 (Sec.6): quote_item product de otra company...
+  [PASS] mensaje exacto: quote_item_product_company_mismatch
+
+Ejecutando: T22 (Sec.3): workflow task template de otro workflow...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T23 (Sec.5): automation_run project de otra company...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T24 (Sec.5): automation_run workflow de otra company...
+  [PASS] rechazado: FOREIGN KEY constraint failed
+
+Ejecutando: T25 (Sec.6): UPDATE quote_item product de otra company...
+  [PASS] mensaje exacto: quote_item_product_company_mismatch
+
+Ejecutando: T26 (Sec.7): UPDATE payment bajo allocations...
+  [PASS] mensaje exacto: payment_amount_below_existing_allocations
+
+Ejecutando: T27 (Sec.7): payment original con refunds bloqueado...
+  [PASS] mensaje exacto: payment_original_has_refunds_locked
+
+================================================================================
+RESUMEN V5.2
+================================================================================
+  [PASS] T01: PRAGMA foreign_key_check + integrity_check
+  [PASS] T02: Conteo exacto (35 tablas, 27 indices, 13 triggers)
+  [PASS] T03: quote company distinto al project
+  [PASS] T04 (Sec.1): client otro tenant, FK real (no is_primary)
+  [PASS] T05 (Sec.2): Workflow Version Astral con Family Norkevin
+  [PASS] T06: Workflow instance Norkevin + template Astral
+  [PASS] T07 (Sec.4): payment_transaction invoice de otro project
+  [PASS] T08 (Sec.5): calendar_events con company de otro tenant
+  [PASS] T09 (Sec.5): mail_log.template_id de company distinto
+  [PASS] T10 (Sec.8): doble aceptacion idempotente (con real result)
+  [PASS] T11 (Sec.9): idempotency key + hash distinto
+  [PASS] T12 (Sec.9): retry processed_event failed
+  [PASS] T13 (Sec.10): outbox dead_letter a max_attempts
+  [PASS] T14 (Sec.10): delivered no vuelve a pending
+  [PASS] T15 (Sec.10): 2 workers concurrentes, solo 1 claim
+  [PASS] T16 (Sec.7): UPDATE payment reduce amount bajo refunds
+  [PASS] T17: refund excede original
+  [PASS] T18: mail_log sin template (template opcional)
+  [PASS] T19: automation_runs sin task_instance
+  [PASS] T20: allocation excede transaction
+  [PASS] T21 (Sec.6): quote_item product de otra company
+  [PASS] T22 (Sec.3): workflow task template de otro workflow
+  [PASS] T23 (Sec.5): automation_run project de otra company
+  [PASS] T24 (Sec.5): automation_run workflow de otra company
+  [PASS] T25 (Sec.6): UPDATE quote_item product de otra company
+  [PASS] T26 (Sec.7): UPDATE payment bajo allocations
+  [PASS] T27 (Sec.7): payment original con refunds bloqueado
+
+Total: 27 pasaron, 0 fallaron (de 27 pruebas)
+
+Confirmacion de no-modificacion (durante este script):
+  app.py: NO
+  Datos: NO
+  crm.db: NO
+  Alembic: NO
+  JSON: NO
+EXIT_CODE: 0
+
+================================================================================
+python verify_v5_consistency.py
+================================================================================
+================================================================================
+VERIFY_V5_CONSISTENCY.PY � Verificador estricto V5.2
+================================================================================
+
+SHA-256 de schema_v5.2.sql: 1167a15e5edd0818be6e35247f6b2e781243e7770ffe77118338c7561af3f10c
+
+=== Inventario REAL ===
+  Tablas:   35 (esperado: 35)
+  Indices:  27 (esperado: 27)
+  Triggers: 13 (esperado: 13)
+
+=== PRAGMA foreign_key_check ===
+  Filas: 0
+
+=== PRAGMA integrity_check ===
+  Resultado: ok
+
+
+[OK] schema_v5.2.sql coincide exactamente con el inventario esperado
+      foreign_key_check=0, integrity_check=ok
+EXIT_CODE: 0
+
+================================================================================
+python -I verify_v5_consistency.py
+================================================================================
+================================================================================
+VERIFY_V5_CONSISTENCY.PY � Verificador estricto V5.2
+================================================================================
+
+SHA-256 de schema_v5.2.sql: 1167a15e5edd0818be6e35247f6b2e781243e7770ffe77118338c7561af3f10c
+
+=== Inventario REAL ===
+  Tablas:   35 (esperado: 35)
+  Indices:  27 (esperado: 27)
+  Triggers: 13 (esperado: 13)
+
+=== PRAGMA foreign_key_check ===
+  Filas: 0
+
+=== PRAGMA integrity_check ===
+  Resultado: ok
+
+
+[OK] schema_v5.2.sql coincide exactamente con el inventario esperado
+      foreign_key_check=0, integrity_check=ok
+EXIT_CODE: 0
+
+================================================================================
+python codex_audit_v5_2.py
+================================================================================
+================================================================================
+CODEX_AUDIT_V5_2.PY - auditoria independiente
+================================================================================
+Python: 3.14.3 (tags/v3.14.3:323c59a, Feb  3 2026, 16:04:56) [MSC v.1944 64 bit (AMD64)]
+SQLite: 3.50.4
+schema_v5.2.sql SHA-256: 1167a15e5edd0818be6e35247f6b2e781243e7770ffe77118338c7561af3f10c
+PID: 13732
+
+[PASS] Inventario + PRAGMAs: counts=(35, 27, 13) fk=0 integrity=ok
+[PASS] Workflow task mismatch: workflow_task_template_mismatch: rechazado (FOREIGN KEY constraint failed)
+[PASS] Automation project mismatch: automation_project_mismatch: rechazado (FOREIGN KEY constraint failed)
+[PASS] Automation workflow mismatch: automation_workflow_mismatch: rechazado (FOREIGN KEY constraint failed)
+[PASS] Quote item UPDATE mismatch: quote_item_update_product_mismatch: rechazado (quote_item_product_company_mismatch)
+[PASS] Payment below allocations: payment_below_allocations: rechazado (payment_amount_below_existing_allocations)
+[PASS] Payment with refund locked: payment_with_refund_locked: rechazado (payment_original_has_refunds_locked)
+[PASS] Payment invoice UPDATE mismatch: payment_invoice_update_mismatch: rechazado (payment_tx_project_mismatch_invoice)
+[PASS] Calendar all_day CHECK: calendar_all_day_check: rechazado (CHECK constraint failed: (all_day = 1 AND start_date IS NOT NULL AND start_at IS NULL
+            AND timezone IS NULL)
+        OR
+        (all_day = 0 AND start_at IS NOT NULL AND timezone IS NOT NULL
+            AND start_date IS NULL))
+[PASS] Rollback atomicity: rollback: before=0 after=0
+[PASS] Verifier mutation catches missing trigger: returncode=1
+
+Resultado: 11 PASS / 0 FAIL
+Confirmacion: app.py NO; crm.db NO; JSON NO; Alembic NO
+EXIT_CODE: 0
+

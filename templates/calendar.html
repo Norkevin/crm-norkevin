@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Calendario · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Calendario · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Calendario{% endblock %}
 {% block subtitle %}Vista mensual de bodas, eventos y leads agendados.{% endblock %}
 {% block topbar_title %}Calendario{% endblock %}
@@ -162,20 +162,20 @@
           <input class="form-input" id="event-date" name="date" type="date" required>
         </div>
         <div class="form-group">
-          <label class="form-label" for="event-type">Type</label>
+          <label class="form-label" for="event-type">Tipo</label>
           <select class="form-input" id="event-type" name="type">
             <option value="event">Event</option>
             <option value="lead">Lead</option>
-            <option value="job">Job</option>
+            <option value="job">Trabajo</option>
           </select>
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label" for="event-notes">Notes</label>
+        <label class="form-label" for="event-notes">Notas</label>
         <textarea class="form-input" id="event-notes" name="notes" rows="4"></textarea>
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
-        <button class="sn-btn" type="button" onclick="closeEventModal()">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeEventModal()">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Create Event</button>
       </div>
     </form>
@@ -379,6 +379,12 @@
 .agenda-events .calendar-event { font-size: 13px; padding: 10px 12px; border-radius: 8px; min-height: 44px; display: flex; align-items: center; gap: 8px; }
 .agenda-events .calendar-event-badge { font-size: 10px; padding: 3px 8px; flex-shrink: 0; }
 @media (max-width: 760px) {
+  /* Estas etiquetas estaban en 9 y 9.5px. En un monitor de 27" se leen;
+     en el telefono, que es donde Kevin mira el calendario entre evento y
+     evento, no. Suben a 11px, que sigue siendo compacto pero legible. */
+  .calendar-event-badge { font-size: 11px; padding: 2px 8px; }
+  .upcoming-event-badge { font-size: 11px; padding: 2px 9px; }
+
   .calendar-shell { display: none; }
   .calendar-agenda { display: block; }
   /* Kevin (feedback de diseño): "demasiados espacios... la parte

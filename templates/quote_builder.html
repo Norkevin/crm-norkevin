@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ quote_kind_label }} · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}{{ quote_kind_label }} · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}{{ quote_kind_label }}{% endblock %}
 {% block subtitle %}Dashboard &gt; Jobs &gt; {{ job.nombre }} &gt; New Quote{% endblock %}
 {% block topbar_title %}Jobs{% endblock %}
@@ -199,7 +199,7 @@
       <div class="sn-page-head" style="margin-bottom:16px;">
         <div>
           <h2 class="sn-page-title" style="font-size:22px;">Packages</h2>
-          <div class="sn-muted">Create a list of packages which your client can choose between. Multiple packages can be chosen.</div>
+          <div class="sn-muted">Arma la lista de paquetes entre los que el cliente puede elegir. Puede elegir mas de uno.</div>
         </div>
         <button class="sn-btn sn-btn-primary" type="button" onclick="openPackageModal()">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/></svg>
@@ -210,7 +210,7 @@
       <div id="quote-empty" class="quote-empty">
         <div>
           <h3 style="font-size:22px;font-weight:500;margin:0 0 12px;">Start Adding Packages to your Quote</h3>
-          <p class="sn-muted" style="max-width:390px;margin:0 auto 24px;">You currently don't have any package added to your quote. Click the button below to start adding them.</p>
+          <p class="sn-muted" style="max-width:390px;margin:0 auto 24px;">Esta cotizacion todavia no tiene ningun paquete. Agrega el primero con el boton de abajo.</p>
           <button class="sn-btn sn-btn-primary" type="button" onclick="openPackageModal()">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/></svg>
             Add Packages
@@ -283,14 +283,14 @@
   <div class="modal-content" style="width:min(760px,100%);">
     <button type="button" class="modal-close" onclick="closePackageModal()" aria-label="Close">x</button>
     <h2 class="modal-title">Add Packages</h2>
-    <p class="sn-muted" style="margin-top:-8px;margin-bottom:18px;">Choose from the configured catalog.</p>
+    <p class="sn-muted" style="margin-top:-8px;margin-bottom:18px;">Elegi del catalogo configurado.</p>
     <div class="sn-actions" style="margin-bottom:14px;justify-content:space-between;gap:10px;align-items:center;">
       <input id="catalog-search" class="form-input" style="max-width:320px;" placeholder="Search packages" oninput="renderCatalog()">
       <span class="sn-muted" id="catalog-count"></span>
     </div>
     <div class="quote-package-picker" id="catalog-list"></div>
     <div class="sn-actions" style="justify-content:flex-end;margin-top:18px;">
-      <button class="sn-btn" type="button" onclick="closePackageModal()">Cancel</button>
+      <button class="sn-btn" type="button" onclick="closePackageModal()">Cancelar</button>
     </div>
   </div>
 </div>
@@ -325,11 +325,11 @@ function renderCatalog() {
   var counter = document.getElementById('catalog-count');
   if (counter) counter.textContent = filteredPackages.length + ' available';
   if (!PACKAGES.length) {
-    list.innerHTML = '<div class="sn-muted" style="padding:28px;text-align:center;">No packages configured.</div>';
+    list.innerHTML = '<div class="sn-muted" style="padding:28px;text-align:center;">No hay paquetes configurados todavia.</div>';
     return;
   }
   if (!filteredPackages.length) {
-    list.innerHTML = '<div class="sn-muted" style="padding:28px;text-align:center;">No packages match your search.</div>';
+    list.innerHTML = '<div class="sn-muted" style="padding:28px;text-align:center;">Ningun paquete coincide con la busqueda.</div>';
     return;
   }
   var groups = {};

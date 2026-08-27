@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Lead Sources · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Lead Sources · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Lead Sources{% endblock %}
 {% block subtitle %}Dashboard &gt; Settings &gt; Lead Sources{% endblock %}
 {% block topbar_title %}Settings{% endblock %}
@@ -40,7 +40,7 @@
             {% if source.active %}<span class="sn-chip green">Activa</span>{% else %}<span class="sn-chip gray">Inactiva</span>{% endif %}
           </td>
           <td class="stack-actions" style="text-align:right;">
-            <button class="sn-btn sn-btn-sm" type="button" onclick='openSourceModal({{ source|tojson }})'>Edit</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick='openSourceModal({{ source|tojson }})'>Editar</button>
             {% if source.active %}
             <button class="sn-btn sn-btn-sm" type="button" onclick="deleteSource('{{ source.id }}')" style="color:#b3263b;">Deactivate</button>
             {% endif %}
@@ -78,7 +78,7 @@
         </div>
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
-        <button class="sn-btn" type="button" onclick="closeModal('source-modal')">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeModal('source-modal')">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
       </div>
     </form>

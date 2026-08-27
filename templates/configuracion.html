@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Configuración · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Configuración · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Configuración General{% endblock %}
 {% block subtitle %}Paquetes, cuentas, reglas, fuentes, datos del estudio — editables sin developer{% endblock %}
 
@@ -34,7 +34,7 @@
     <button onclick="createPaquete()" class="bg-ink hover:bg-ink-soft text-paper px-3 py-1.5 rounded-md text-xs font-medium">+ Nuevo paquete</button>
   </div>
   <div class="bg-paper-pure rounded-lg border border-line overflow-hidden">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm table-responsive">
       <thead class="bg-line-soft border-b border-line">
         <tr>
           <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Nombre</th>
@@ -56,7 +56,7 @@
     <button onclick="createCuenta()" class="bg-ink hover:bg-ink-soft text-paper px-3 py-1.5 rounded-md text-xs font-medium">+ Nueva cuenta</button>
   </div>
   <div class="bg-paper-pure rounded-lg border border-line overflow-hidden">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm table-responsive">
       <thead class="bg-line-soft border-b border-line">
         <tr>
           <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Nombre</th>
@@ -75,7 +75,7 @@
     <div class="label-eyebrow">Reglas de liquidación</div>
   </div>
   <div class="bg-paper-pure rounded-lg border border-line overflow-hidden">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm table-responsive">
       <thead class="bg-line-soft border-b border-line">
         <tr>
           <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Nombre</th>
@@ -95,7 +95,7 @@
     <div class="label-eyebrow">Fuentes de leads</div>
   </div>
   <div class="bg-paper-pure rounded-lg border border-line overflow-hidden">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm table-responsive">
       <thead class="bg-line-soft border-b border-line">
         <tr>
           <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Nombre</th>
@@ -115,7 +115,7 @@
     <button onclick="createDato()" class="bg-ink hover:bg-ink-soft text-paper px-3 py-1.5 rounded-md text-xs font-medium">+ Nuevo dato</button>
   </div>
   <div class="bg-paper-pure rounded-lg border border-line overflow-hidden">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm table-responsive">
       <thead class="bg-line-soft border-b border-line">
         <tr>
           <th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-mute font-medium">Campo</th>
@@ -157,7 +157,7 @@ function fmtQ(v) { return 'Q' + Number(v || 0).toLocaleString(); }
 function renderTable(tbodyId, items, mapper) {
   const tbody = document.getElementById(tbodyId);
   if (!items || !items.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-mute text-sm">Sin items</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="99" class="px-4 py-8 text-center text-mute text-sm">Sin items</td></tr>';
     return;
   }
   tbody.innerHTML = items.map(mapper).join('');
@@ -169,17 +169,17 @@ async function loadPaquetes() {
   const d = await r.json();
   renderTable('paquetes-body', d.paquetes, (p) => `
     <tr data-id="${p.id}">
-      <td class="px-4 py-3 font-medium text-ink">
+      <td data-label="Nombre" class="px-4 py-3 font-medium text-ink">
         <input type="text" value="${escapeHtml(p.Name)}" onchange="updatePaquete('${p.id}', {Name: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm">
       </td>
-      <td class="px-4 py-3 text-xs text-mute">${escapeHtml(p.Marca || '—')}</td>
-      <td class="px-4 py-3 text-right">
+      <td data-label="Marca" class="px-4 py-3 text-xs text-mute">${escapeHtml(p.Marca || '—')}</td>
+      <td data-label="Precio Q" class="px-4 py-3 text-right">
         <input type="number" value="${p['Precio Q'] || 0}" onchange="updatePaquete('${p.id}', {precio_q: parseInt(this.value)})" class="w-24 text-right bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm font-mono font-semibold">
       </td>
-      <td class="px-4 py-3 text-center">
+      <td data-label="Activo" class="px-4 py-3 text-center">
         <input type="checkbox" ${p.Activo ? 'checked' : ''} onchange="updatePaquete('${p.id}', {Activo: this.checked})" class="w-4 h-4 accent-ink">
       </td>
-      <td class="px-4 py-3">
+      <td data-label="Notas" class="px-4 py-3">
         <input type="text" value="${escapeHtml(p.Notas || '')}" onchange="updatePaquete('${p.id}', {Notas: this.value})" placeholder="—" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-xs text-mute">
       </td>
     </tr>
@@ -217,11 +217,11 @@ async function loadCuentas() {
   const d = await r.json();
   renderTable('cuentas-body', d.cuentas, (c) => `
     <tr data-id="${c.id}">
-      <td class="px-4 py-3 font-medium text-ink">
+      <td data-label="Nombre" class="px-4 py-3 font-medium text-ink">
         <input type="text" value="${escapeHtml(c.Name)}" onchange="updateCuenta('${c.id}', {Name: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm">
       </td>
-      <td class="px-4 py-3 text-xs text-mute">${escapeHtml(c.Marca || '—')}</td>
-      <td class="px-4 py-3">
+      <td data-label="Marca" class="px-4 py-3 text-xs text-mute">${escapeHtml(c.Marca || '—')}</td>
+      <td data-label="Notas" class="px-4 py-3">
         <input type="text" value="${escapeHtml(c.Notas || '')}" onchange="updateCuenta('${c.id}', {Notas: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-xs text-mute">
       </td>
     </tr>
@@ -257,15 +257,15 @@ async function loadReglas() {
   const d = await r.json();
   renderTable('reglas-body', d.reglas, (r2) => `
     <tr data-id="${r2.id}">
-      <td class="px-4 py-3 font-medium text-ink">
+      <td data-label="Nombre" class="px-4 py-3 font-medium text-ink">
         <input type="text" value="${escapeHtml(r2.Name)}" onchange="updateRegla('${r2.id}', {Name: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm">
       </td>
-      <td class="px-4 py-3 text-xs text-mute">${escapeHtml(r2.Marca || '—')}</td>
-      <td class="px-4 py-3 text-right">
+      <td data-label="Marca" class="px-4 py-3 text-xs text-mute">${escapeHtml(r2.Marca || '—')}</td>
+      <td data-label="% Partner" class="px-4 py-3 text-right">
         <input type="number" value="${r2.Porcentaje || 0}" onchange="updateRegla('${r2.id}', {porcentaje: parseFloat(this.value), Tipo: 'Regla Liquidación'})" class="w-20 text-right bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm font-mono font-semibold">
         <span class="text-xs text-mute">%</span>
       </td>
-      <td class="px-4 py-3">
+      <td data-label="Notas" class="px-4 py-3">
         <input type="text" value="${escapeHtml(r2.Notas || '')}" onchange="updateRegla('${r2.id}', {Notas: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-xs text-mute">
       </td>
     </tr>
@@ -288,9 +288,9 @@ async function loadFuentes() {
   const d = await r.json();
   renderTable('fuentes-body', d.fuentes, (f) => `
     <tr data-id="${f.id}">
-      <td class="px-4 py-3 font-medium text-ink">${escapeHtml(f.Name)}</td>
-      <td class="px-4 py-3 text-xs text-mute">${escapeHtml(f.Marca || 'Global')}</td>
-      <td class="px-4 py-3 text-center">
+      <td data-label="Nombre" class="px-4 py-3 font-medium text-ink">${escapeHtml(f.Name)}</td>
+      <td data-label="Marca" class="px-4 py-3 text-xs text-mute">${escapeHtml(f.Marca || 'Global')}</td>
+      <td data-label="Activo" class="px-4 py-3 text-center">
         <input type="checkbox" ${f.Activo ? 'checked' : ''} onchange="toggleFuente('${f.id}', this.checked)" class="w-4 h-4 accent-ink">
       </td>
     </tr>
@@ -313,10 +313,10 @@ async function loadDatos() {
   const d = await r.json();
   renderTable('datos-body', d.datos, (x) => `
     <tr data-id="${x.id}">
-      <td class="px-4 py-3 font-medium text-ink">
+      <td data-label="Campo" class="px-4 py-3 font-medium text-ink">
         <input type="text" value="${escapeHtml(x.Name)}" onchange="updateDato('${x.id}', {Name: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm">
       </td>
-      <td class="px-4 py-3">
+      <td data-label="Valor" class="px-4 py-3">
         <input type="text" value="${escapeHtml(x.Notas || '')}" onchange="updateDato('${x.id}', {Notas: this.value})" class="w-full bg-transparent border-b border-transparent hover:border-line focus:border-ink focus:outline-none text-sm text-mute font-mono">
       </td>
     </tr>

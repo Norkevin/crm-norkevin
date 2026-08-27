@@ -2,8 +2,33 @@
 que este vacio'. /api/admin/reset-test-data vacia leads/clientes/jobs/
 cotizaciones/pagos/contratos/cuestionarios/archivos/correos/calendario,
 pero NUNCA debe tocar configuracion (plantillas de correo, paquetes,
-equipo) -- eso tomo tiempo configurar y no es "dato de prueba"."""
+equipo) -- eso tomo tiempo configurar y no es "dato de prueba".
+
+ACTUALIZADO por el hardening de prioridad 6 (agosto 2026). El contrato de
+la ruta cambio y estos tests se ajustaron para reflejarlo, SIN perder lo
+que verificaban:
+  - hace falta ALLOW_DESTRUCTIVE_ADMIN_OPERATIONS=1 en el entorno (por eso
+    el fixture `_permitir_reset` de abajo, que la activa solo dentro de
+    estos tests);
+  - la confirmacion ya no es el string generico 'BORRAR' sino
+    'BORRAR-<tenant_id de la sesion>'.
+El rechazo del string viejo tiene su propio test en
+tests/test_reset_endpoint_hardening.py::test_confirmacion_generica_ya_no_alcanza.
+"""
 import uuid
+
+import pytest
+
+ASTRAL = 'tenant-norkevin'
+CONFIRM_OK = f'BORRAR-{ASTRAL}'
+
+
+@pytest.fixture(autouse=True)
+def _permitir_reset(monkeypatch):
+    """Estos tests existen justamente para ejercitar el borrado real, asi
+    que activan la flag destructiva SOLO para si mismos y solo contra el
+    CRM_DATA_DIR aislado de conftest.py -- nunca contra data/ real."""
+    monkeypatch.setenv('ALLOW_DESTRUCTIVE_ADMIN_OPERATIONS', '1')
 
 
 def _seed_business_data(app_module):
@@ -27,7 +52,13 @@ def test_reset_requires_typed_confirmation(auth_client):
     assert after == before, 'sin confirmacion no debe borrar nada'
 
     resp = auth_client.post('/api/admin/reset-test-data', json={'confirm': 'borrar'})
-    assert resp.status_code == 400, 'debe ser exactamente BORRAR (mayusculas)'
+    assert resp.status_code == 400, 'debe ser exactamente la confirmacion de la cuenta'
+
+    resp = auth_client.post('/api/admin/reset-test-data', json={'confirm': 'BORRAR'})
+    assert resp.status_code == 400, 'el string generico viejo ya no alcanza'
+
+    after = auth_client.get('/api/storage/status').get_json()['counts']
+    assert after == before, 'ninguna confirmacion invalida debe haber borrado nada'
 
 
 def test_reset_wipes_business_tables_but_keeps_config(auth_client):
@@ -53,7 +84,7 @@ def test_reset_wipes_business_tables_but_keeps_config(auth_client):
     team_before = _snapshot('team')
     assert templates_before, 'el entorno de pruebas ya deberia tener plantillas sembradas'
 
-    resp = auth_client.post('/api/admin/reset-test-data', json={'confirm': 'BORRAR'})
+    resp = auth_client.post('/api/admin/reset-test-data', json={'confirm': CONFIRM_OK})
     assert resp.status_code == 200
     data = resp.get_json()
     assert data['ok'] is True
@@ -79,6 +110,6 @@ def test_reset_clears_workflow_engine_instances(auth_client):
     app_module.trigger_workflow_for_lead(lead_id, 'WF Reset')
     assert app_module.workflow_engine.list_instances(subject_id=lead_id, subject_type='lead')
 
-    resp = auth_client.post('/api/admin/reset-test-data', json={'confirm': 'BORRAR'})
+    resp = auth_client.post('/api/admin/reset-test-data', json={'confirm': CONFIRM_OK})
     assert resp.status_code == 200
     assert app_module.workflow_engine.instances == {}

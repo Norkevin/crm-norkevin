@@ -170,10 +170,19 @@ def test_las_de_nivel_empresa_si_responden_a_una_sesion_normal(client):
     login_as_tenant(client, ASTRAL)
 
     # Sin la palabra de confirmacion no hacen nada, pero la ruta EXISTE para
-    # una sesion normal: 400 y no 404.
+    # una sesion normal: NO devuelve 404.
+    #
+    # Actualizado por el hardening de prioridad 6 (agosto 2026): antes esto
+    # daba 400 ('Confirmacion requerida'). Ahora la primera guarda que
+    # dispara es la flag de entorno ALLOW_DESTRUCTIVE_ADMIN_OPERATIONS, que
+    # por diseno esta ausente por defecto -> 403 antes de llegar siquiera a
+    # mirar la confirmacion. Lo que este test verifica sigue siendo lo
+    # mismo: que la ruta es alcanzable por una sesion normal (no es 404) y
+    # que sin autorizacion explicita no hace nada.
     resp = client.post('/api/admin/reset-test-data', json={})
-    assert resp.status_code == 400
-    assert 'Confirmacion requerida' in resp.get_json()['error']
+    assert resp.status_code != 404, 'la ruta debe existir para una sesion normal'
+    assert resp.status_code in (400, 403)
+    assert resp.get_json()['ok'] is False
 
 
 def test_la_capacidad_queda_registrada_al_usarse(client, caplog):

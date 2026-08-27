@@ -189,6 +189,37 @@ def check_same_tenant(tenant_id, *, lead_id=None, job_id=None, template_id=None)
     return None
 
 
+def _find_already_sent_by_idempotency_key(idempotency_key, tenant_id=None):
+    """Busca si ya existe un envio ENVIADO (mail_log) o un pendiente ENVIADO
+    (pending_emails) con esta idempotency_key.
+
+    Regla de la fase de estabilizacion (agosto 2026): un idempotency_key que
+    ya llego a ENVIADO jamas puede volver a salir, sin importar cuantas
+    veces se reciba la misma peticion (doble click, retry duplicado del
+    frontend, workflow que se dispara dos veces por el mismo evento). Esto
+    es lo que le falta al freno global y a check_same_tenant: esos evitan
+    que salga a la cuenta equivocada; esto evita que salga DOS VECES a la
+    cuenta correcta.
+    """
+    if not idempotency_key:
+        return None
+    for entry in store.list('mail_log'):
+        if entry.get('idempotency_key') != idempotency_key:
+            continue
+        if tenant_id and entry.get('tenant_id') and entry.get('tenant_id') != tenant_id:
+            continue
+        if entry.get('status') == MailStatus.SENT.value:
+            return entry
+    for entry in store.list('pending_emails'):
+        if entry.get('idempotency_key') != idempotency_key:
+            continue
+        if tenant_id and entry.get('tenant_id') and entry.get('tenant_id') != tenant_id:
+            continue
+        if entry.get('status') == ENVIADO:
+            return entry
+    return None
+
+
 def _anotar(pendiente, nuevo_estado, *, actor=None, motivo=None):
     """Cambia el estado dejando rastro, sin sobrescribir lo anterior.
 
@@ -224,7 +255,7 @@ class MailTracker:
 
     def queue_email(self, to_email, subject, body='', template_id=None,
                     lead_id=None, job_id=None, client_id=None, attachments=None,
-                    tenant_id=None, source=None):
+                    tenant_id=None, source=None, idempotency_key=None):
         """Genera un correo y lo deja ESPERANDO aprobacion. No envia nada.
 
         Kevin, despues del incidente: "ningun email generado por el CRM debe
@@ -235,8 +266,26 @@ class MailTracker:
         adjuntos, cuenta, destinatario, job, plantilla) a proposito: si
         manana cambia la plantilla, el pendiente debe seguir mostrando
         exactamente lo que se genero hoy, no algo distinto en silencio.
+
+        idempotency_key (fase de estabilizacion, agosto 2026): si ya existe
+        un correo ENVIADO o un pendiente ENVIADO con la misma clave, se
+        devuelve ESE registro sin encolar nada nuevo. El llamador (workflow,
+        recordatorio, boton "reenviar" del frontend) debe pasar una clave
+        estable para la MISMA accion logica (ej. f'{job_id}:{step_id}' para
+        un paso de workflow, o f'{invoice_id}:reminder' para un recordatorio
+        de pago) -- sin eso, esta capa no tiene forma de saber que dos
+        llamadas son "la misma cosa otra vez" en vez de dos correos
+        distintos que legitimamente coinciden en destinatario y asunto.
         """
         tenant_id = tenant_id or store.current_tenant_id()
+
+        if idempotency_key:
+            ya_enviado = _find_already_sent_by_idempotency_key(idempotency_key, tenant_id)
+            if ya_enviado:
+                log_security_event('DUPLICATE_EMAIL_IDEMPOTENCY_KEY_BLOCKED',
+                                   registro=idempotency_key, cuenta_activa=tenant_id)
+                return ya_enviado
+
         motivo = check_same_tenant(tenant_id, lead_id=lead_id, job_id=job_id,
                                    template_id=template_id)
         aviso = None
@@ -260,6 +309,7 @@ class MailTracker:
             'body': body or '',
             'attachments': attachments or [],
             'source': source or 'desconocido',
+            'idempotency_key': idempotency_key,
             'created_at': datetime.now().isoformat(),
             # Si ya al generarlo los datos no cuadran, se guarda igual pero
             # marcado: sirve de evidencia de que algo esta mal armado.
@@ -335,6 +385,7 @@ class MailTracker:
             lead_id=pendiente.get('lead_id'), job_id=pendiente.get('job_id'),
             attachments=pendiente.get('attachments') or [],
             tenant_id=actual,
+            idempotency_key=pendiente.get('idempotency_key'),
         )
         ok = enviado.get('status') == MailStatus.SENT.value
         # Si el correo no salio, distinguir POR QUE: si mail_tracker lo
@@ -359,7 +410,7 @@ class MailTracker:
                 else f'No se pudo entregar: {detalle or "error desconocido"}')
         return respuesta
 
-    def retry_failed(self, pending_id, actor=None):
+    def retry_failed(self, pending_id, actor=None, sender_tenant_id=None):
         """Reintenta un correo que fallo. MANUAL a proposito.
 
         Kevin: "nada de fallo -> enviar automaticamente otra vez". Un
@@ -369,6 +420,22 @@ class MailTracker:
         Solo aplica a FALLO (problema de infraestructura). Un BLOQUEADO no se
         reintenta: la razon por la que se bloqueo sigue ahi, y forzarlo seria
         saltarse la validacion.
+
+        sender_tenant_id (bug encontrado en la validacion real de Windows,
+        agosto 2026): antes esto llamaba a approve_and_send() SIN pasar la
+        cuenta del emisor, asi que approve_and_send caia a
+        store.current_tenant_id(). En una peticion HTTP con sesion eso
+        funciona, pero en cualquier contexto sin sesion -- un hilo en
+        segundo plano, un script de mantenimiento, un test -- devuelve None
+        y el reintento fallaba SIEMPRE con "Sin cuenta activa", sin importar
+        que el correo fuera perfectamente valido. Ahora se puede pasar
+        explicitamente y se propaga.
+
+        NO se toma el tenant_id del propio pendiente como default: eso
+        saltaria la comprobacion cross-tenant de approve_and_send (que exige
+        que la cuenta ACTIVA coincida con la del pendiente) y convertiria el
+        reintento en una puerta para enviar correo de otra empresa. Si no
+        hay cuenta activa ni se pasa una, el reintento debe fallar.
         """
         pendiente = store.get('pending_emails', pending_id)
         if not pendiente:
@@ -380,7 +447,8 @@ class MailTracker:
         # Vuelve a pendiente y pasa otra vez por TODAS las validaciones.
         _anotar(pendiente, PENDIENTE, actor=actor, motivo='reintento manual')
         store.upsert('pending_emails', pendiente)
-        return self.approve_and_send(pending_id, actor=actor)
+        return self.approve_and_send(pending_id, sender_tenant_id=sender_tenant_id,
+                                     actor=actor)
 
     def discard_pending(self, pending_id, actor=None):
         """Descarta un pendiente sin enviarlo. No se borra: queda como
@@ -395,7 +463,8 @@ class MailTracker:
         return {'ok': True, 'pendiente': pendiente}
 
     def log_email(self, to_email, subject, body='', template_id=None,
-                  lead_id=None, job_id=None, attachments=None, tenant_id=None):
+                  lead_id=None, job_id=None, attachments=None, tenant_id=None,
+                  idempotency_key=None):
         """Entrega y registra un email.
 
         tenant_id explicito: mail_log es tenant-scoped, y store.upsert()
@@ -404,7 +473,22 @@ class MailTracker:
         _auto_fire_due_job_steps) no tiene sesion, corre para las 3 cuentas
         a la vez. Sin pasar el tenant_id del job/payment que esta procesando
         en ese momento, el correo quedaria en mail_log sin cuenta asignada
-        (invisible para todos)."""
+        (invisible para todos).
+
+        idempotency_key: la mayoria de las 14 llamadas a log_email() en
+        app.py van directo aca, sin pasar por queue_email() -- por eso esta
+        misma verificacion tiene que repetirse aca, no solo en la cola de
+        aprobacion. Un idempotency_key que ya esta en mail_log con status
+        ENVIADO nunca vuelve a salir."""
+        tenant_id = tenant_id or store.current_tenant_id()
+
+        if idempotency_key:
+            ya_enviado = _find_already_sent_by_idempotency_key(idempotency_key, tenant_id)
+            if ya_enviado:
+                log_security_event('DUPLICATE_EMAIL_IDEMPOTENCY_KEY_BLOCKED',
+                                   registro=idempotency_key, cuenta_activa=tenant_id)
+                return ya_enviado
+
         # Ultima verificacion antes de que salga cualquier cosa: que la
         # cuenta que envia sea la misma del lead/job/plantilla. Va aca porque
         # TODO correo de la app pasa por este metodo -- ponerlo en cada punto
@@ -413,7 +497,6 @@ class MailTracker:
         # el hilo de fondo); en esos casos la cuenta es la de la sesion
         # activa. Sin este fallback la validacion cortaria TODO envio
         # legitimo, no solo los cruzados.
-        tenant_id = tenant_id or store.current_tenant_id()
         motivo = check_same_tenant(tenant_id, lead_id=lead_id, job_id=job_id,
                                    template_id=template_id)
         if motivo:
@@ -427,6 +510,7 @@ class MailTracker:
                 'lead_id': lead_id,
                 'job_id': job_id,
                 'attachments': attachments or [],
+                'idempotency_key': idempotency_key,
                 'status': MailStatus.BLOCKED.value,
                 'blocked_reason': motivo,
                 'sent_at': datetime.now().isoformat(),
@@ -465,6 +549,7 @@ class MailTracker:
             'lead_id': lead_id,
             'job_id': job_id,
             'attachments': attachments or [],
+            'idempotency_key': idempotency_key,
             'status': MailStatus.SENT.value if delivery.ok else MailStatus.FAILED.value,
             'sent_at': datetime.now().isoformat(),
             'opened_at': None,

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Client Portal · {{ client.first_name }}</title>
+<title>Portal del cliente · {{ client.first_name }} · {{ brand.display_name }}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 {% include "_tailwind_config.html" %}
 <style>
@@ -208,6 +208,32 @@
     .portal-content { margin-top: -36px; }
     .portal-nav-pill .label { font-size: 12px; }
   }
+
+  /* El portal del cliente se abre desde el telefono. Mismo criterio que
+     el resto de paginas publicas: sin zoom automatico y con controles
+     que se puedan tocar con el dedo. */
+  @media (max-width: 760px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="date"],
+    select {
+      min-height: 46px;
+    }
+    textarea { min-height: 96px; }
+    input[type="checkbox"],
+    input[type="radio"] { width: 24px; height: 24px; }
+    button,
+    .btn,
+    a.btn { min-height: 48px; }
+    body { overflow-wrap: anywhere; }
+  }
+
 </style>
 </head>
 <body>
@@ -218,11 +244,11 @@
   <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
     <div class="flex items-center gap-3">
       <div class="w-10 h-10 rounded-lg brand font-semibold flex items-center justify-center" style="background:#F0EDFF;">
-        A
+        {{ brand.initial }}
       </div>
       <div>
-        <div class="font-medium text-ink">ASTRAL WEDDINGS</div>
-        <div class="text-[10px] text-ink-soft uppercase tracking-wide">Client Portal</div>
+        <div class="font-medium text-ink">{{ brand.display_name }}</div>
+        <div class="text-[10px] text-ink-soft uppercase tracking-wide">Portal del cliente</div>
       </div>
     </div>
     <a href="/" class="portal-header-exit">Salir</a>
@@ -234,7 +260,7 @@
         <div>
           <div class="portal-hero-greeting">Hola, {{ client.first_name }} &#10024;</div>
           <div class="portal-hero-sub">
-            {% if primary_job %}Este es el estado de tu boda con ASTRAL WEDDINGS{% else %}Tu portal personalizado ASTRAL WEDDINGS{% endif %}
+            {% if primary_job %}Este es el estado de tu boda con {{ brand.display_name }}{% else %}Tu portal personalizado {{ brand.display_name }}{% endif %}
           </div>
         </div>
         {% if days_until_wedding is not none and days_until_wedding >= 0 %}

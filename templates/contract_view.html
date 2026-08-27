@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contrato - {{ client.first_name }} {{ client.last_name }} · ASTRAL WEDDINGS</title>
+<title>Contrato - {{ client.first_name }} {{ client.last_name }} · {{ brand.display_name }}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
@@ -26,9 +26,9 @@
 
     <div class="doc-side">
       <div class="doc-side-brand">
-        <div class="glyph">A</div>
+        <div class="glyph">{{ brand.initial }}</div>
         <div>
-          <div class="name">ASTRAL WEDDINGS</div>
+          <div class="name">{{ brand.display_name }}</div>
           <div class="tag">PHOTOGRAPHY &amp; FILMS</div>
         </div>
       </div>
@@ -48,7 +48,7 @@
         <span class="doc-pill amber">Falta firma del cliente</span>
         {% endif %}
       </div>
-      <div class="doc-side-footer">info@astralweddings.com<br>+502 2222 3333</div>
+      <div class="doc-side-footer">{{ brand.email }}<br>{{ brand.phone }}</div>
     </div>
 
     <div class="doc-main">
@@ -62,9 +62,9 @@
         </div>
         <div class="doc-party-card">
           <div class="doc-eyebrow">De</div>
-          <div class="name">Astral Weddings</div>
-          <div class="line">info@astralweddings.com</div>
-          <div class="line">+502 2222 3333</div>
+          <div class="name">{{ brand.display_name }}</div>
+          <div class="line">{{ brand.email }}</div>
+          <div class="line">{{ brand.phone }}</div>
         </div>
       </div>
 
@@ -84,7 +84,7 @@
         <div class="doc-eyebrow">Firmas</div>
         <div class="doc-parties">
           <div class="doc-party-card" style="text-align:center;">
-            <div class="line" style="margin-bottom:8px;">ASTRAL WEDDINGS (fotografo)</div>
+            <div class="line" style="margin-bottom:8px;">{{ brand.display_name }} (fotografo)</div>
             {% if contract.photographer_signed %}
             {% if contract.photographer_signature_preview %}
             <img src="{{ contract.photographer_signature_preview }}" alt="Firma fotografo" style="max-height:50px;margin:0 auto 8px;display:block;">
@@ -127,7 +127,7 @@
         {% endif %}
       </div>
 
-      <div class="doc-footer">ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333</div>
+      <div class="doc-footer">{{ brand.display_name }} &middot; {{ brand.email }} &middot; {{ brand.phone }}</div>
 
     </div>
 

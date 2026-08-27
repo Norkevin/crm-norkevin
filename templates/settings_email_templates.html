@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Email Templates · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Email Templates · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Email Templates{% endblock %}
 {% block subtitle %}Dashboard &gt; Settings &gt; Email Templates{% endblock %}
 {% block topbar_title %}Settings{% endblock %}
@@ -38,8 +38,8 @@
             {% if t.activo %}<span class="sn-chip green">Activa</span>{% else %}<span class="sn-chip gray">Inactiva</span>{% endif %}
           </td>
           <td class="stack-actions" style="text-align:right;">
-            <button class="sn-btn sn-btn-sm" type="button" onclick='openTemplateModal({{ t|tojson }})'>Edit</button>
-            <button class="sn-btn sn-btn-sm" type="button" onclick="deleteTemplate('{{ t.id }}')" style="color:#b3263b;">Delete</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick='openTemplateModal({{ t|tojson }})'>Editar</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="deleteTemplate('{{ t.id }}')" style="color:#b3263b;">Eliminar</button>
           </td>
         </tr>
         {% else %}
@@ -78,7 +78,7 @@
         <textarea class="form-input" id="tpl-cuerpo" rows="12" required></textarea>
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
-        <button class="sn-btn" type="button" onclick="closeModal('template-modal')">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeModal('template-modal')">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
       </div>
     </form>

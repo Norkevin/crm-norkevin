@@ -121,3 +121,86 @@ def test_invoice_admin_view_requires_login_but_pdf_is_public(client):
     resp = client.get(f'/invoices/{invoice_id}/pdf')
     assert resp.status_code == 200, 'el PDF de la factura debe ser publico'
     assert resp.mimetype == 'application/pdf'
+
+
+# ============================================================
+# El portal respeta el rol de cada cliente en el job (26-ago)
+# ============================================================
+#
+# client_portal() buscaba los jobs de un cliente mirando solo job.client_id
+# (el principal). La pareja -- que SI recibe documentos, segun
+# ROLES_DESTINATARIOS_DOCUMENTOS -- entraba a SU PROPIO link de portal y lo
+# veia completamente vacio: sin su boda, sin su cotizacion, sin su
+# contrato, sin sus cuotas. Ademas, pagos y contrato se crean siempre con
+# el client_id del principal (ver _ensure_payments_for_quote /
+# api_contract_new), asi que ni siquiera alcanzaba con reconocer el job:
+# tambien hacia falta el fallback por job_id en esas dos listas.
+#
+# El wedding planner, en cambio, NO esta en ROLES_DESTINATARIOS_DOCUMENTOS
+# a proposito (la regla de "el planner nunca recibe contratos" tambien
+# aplica aca): su portal debe seguir vacio, y eso no es un bug.
+
+def _boda_con_tres_roles(app_module, sufijo):
+    tenant_id = 'tenant-norkevin'
+    principal = {'id': f'cli-portal-principal-{sufijo}', 'tenant_id': tenant_id,
+                 'first_name': 'Principal', 'last_name': 'Rol'}
+    pareja = {'id': f'cli-portal-pareja-{sufijo}', 'tenant_id': tenant_id,
+              'first_name': 'Pareja', 'last_name': 'Rol'}
+    planner = {'id': f'cli-portal-planner-{sufijo}', 'tenant_id': tenant_id,
+               'first_name': 'Planner', 'last_name': 'Rol'}
+    for c in (principal, pareja, planner):
+        app_module.store.upsert('clients', c)
+
+    job = {'id': f'job-portal-roles-{sufijo}', 'tenant_id': tenant_id,
+           'nombre': 'Boda Portal Roles', 'client_id': principal['id'],
+           'status': 'Confirmado', 'price_total': 8000,
+           'location': f'Salon Portal Roles {sufijo}'}
+    app_module.store.upsert('jobs', job)
+    app_module._set_job_clients(job, [
+        (principal['id'], app_module.ROL_PRINCIPAL),
+        (pareja['id'], app_module.ROL_PAREJA),
+        (planner['id'], app_module.ROL_PLANNER),
+    ], tenant_id=tenant_id)
+
+    contract_id = f'contract-portal-roles-{sufijo}'
+    app_module.store.upsert('contracts', {
+        'id': contract_id, 'job_id': job['id'], 'client_id': principal['id'],
+        'tenant_id': tenant_id, 'status': 'Borrador', 'signed': False,
+        'created': '2026-08-26',
+    })
+    app_module.store.upsert('payments', {
+        'id': f'pay-portal-roles-{sufijo}', 'invoice_id': f'INV-ROLES-{sufijo.upper()}',
+        'client_id': principal['id'], 'job_id': job['id'], 'amount': 8000,
+        'status': 'Pendiente', 'due_date': '2027-01-01', 'concepto': 'Cuota unica',
+        'tenant_id': tenant_id,
+    })
+    return principal, pareja, planner, job, contract_id
+
+
+def test_la_pareja_ve_su_propia_boda_en_su_portal(client):
+    import app as app_module
+    _principal, pareja, _planner, job, contract_id = _boda_con_tres_roles(app_module, 'a')
+
+    resp = client.get(f'/portal/{pareja["id"]}')
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    # client_portal.html no imprime job.nombre en ningun lado (ni para el
+    # principal): muestra location/package/fecha. location si se imprime
+    # cuando primary_job esta seteado, asi que es la señal correcta de que
+    # el job de la pareja se encontro y quedo como primary_job.
+    assert job['location'] in html, 'la pareja no ve su propia boda en su portal'
+    assert 'INV-ROLES-A' in html, 'la pareja no ve la cuota (creada con el client_id del principal)'
+    assert f'/contracts/{contract_id}' in html, 'la pareja no ve el contrato (creado con el client_id del principal)'
+
+
+def test_el_wedding_planner_no_ve_documentos_en_su_portal(client):
+    """No es un bug: el planner no esta en ROLES_DESTINATARIOS_DOCUMENTOS."""
+    import app as app_module
+    _principal, _pareja, planner, job, contract_id = _boda_con_tres_roles(app_module, 'b')
+
+    resp = client.get(f'/portal/{planner["id"]}')
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert job['location'] not in html
+    assert 'INV-ROLES-B' not in html
+    assert f'/contracts/{contract_id}' not in html

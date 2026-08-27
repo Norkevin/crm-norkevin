@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Leads · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Leads · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Leads{% endblock %}
 {% block subtitle %}{{ leads|length }} leads{% endblock %}
 {% block topbar_title %}Leads{% endblock %}
@@ -34,7 +34,7 @@
       </a>
       <button class="sn-btn sn-btn-primary" type="button" onclick="openLeadModal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-        Add New Lead
+        Nuevo lead
       </button>
     </div>
   </div>
@@ -62,7 +62,7 @@
         <tr>
           <th style="width: 170px;">Lead Created</th>
           <th>Lead Name</th>
-          <th style="width: 160px;">Type</th>
+          <th style="width: 160px;">Tipo</th>
           <th style="width: 185px;">Boda Date</th>
           <th style="width: 250px;">Mail Status</th>
           <th style="width: 190px;">Next Task</th>
@@ -75,14 +75,14 @@
             data-status="{{ lead.status or 'Nuevo' }}"
             data-text="{{ (lead.nombre ~ ' ' ~ (lead.email or '') ~ ' ' ~ (lead.tipo_evento or '') ~ ' ' ~ (lead.fuente or ''))|lower }}"
             onclick="goLead(event, '{{ lead.id }}')">
-          <td class="sn-ellipsis" data-label="Created">{{ lead.created_display or lead.created or '—' }}</td>
+          <td class="sn-ellipsis" data-label="Creado">{{ lead.created_display or lead.created or '—' }}</td>
           <td class="sn-ellipsis stack-full" data-label="Lead Name">
             <div class="sn-row-name">
               <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (lead.nombre or '?')[:1]|upper }}</span>
               <span>{{ lead.nombre or 'Sin nombre' }}</span>
             </div>
           </td>
-          <td class="sn-ellipsis" data-label="Type"><span class="sn-dot"></span>{{ lead.tipo_evento or 'BODAS' }}</td>
+          <td class="sn-ellipsis" data-label="Tipo"><span class="sn-dot"></span>{{ lead.tipo_evento or 'BODAS' }}</td>
           <td class="sn-ellipsis" data-label="Boda Date">
             {% if lead.boda_date_display %}
               {{ lead.boda_date_display }}
@@ -140,7 +140,7 @@
               <p class="sn-empty-state-desc">Los leads que entren por tu formulario de contacto van a aparecer aca. Tambien podes crear uno a mano.</p>
               <button type="button" class="sn-btn sn-btn-primary sn-empty-state-cta" onclick="openLeadModal()">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-                Add New Lead
+                Nuevo lead
               </button>
             </div>
           </td>
@@ -154,7 +154,7 @@
 
 <div class="modal-overlay" id="lead-modal">
   <div class="modal-content">
-    <h2 class="modal-title">Add New Lead</h2>
+    <h2 class="modal-title">Nuevo lead</h2>
     <form id="lead-form" onsubmit="createLead(event)">
       <div class="form-group">
         <label class="form-label" for="lead-name">Lead Name *</label>
@@ -166,13 +166,13 @@
           <input class="form-input" id="lead-email" name="email" type="email">
         </div>
         <div class="form-group">
-          <label class="form-label" for="lead-phone">Phone</label>
+          <label class="form-label" for="lead-phone">Telefono</label>
           <input class="form-input" id="lead-phone" name="telefono">
         </div>
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="lead-type">Type</label>
+          <label class="form-label" for="lead-type">Tipo</label>
           <input class="form-input" id="lead-type" name="tipo_evento" value="Boda">
         </div>
         <div class="form-group">
@@ -199,7 +199,7 @@
         <input class="form-input" id="lead-location" name="locacion">
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
-        <button class="sn-btn" type="button" onclick="closeLeadModal()">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeLeadModal()">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Create Lead</button>
       </div>
     </form>
@@ -209,7 +209,7 @@
 <div class="modal-overlay" id="lead-email-modal">
   <div class="modal-content" style="width:min(720px,100%);">
     <button type="button" class="modal-close" onclick="closeLeadEmailModal()" aria-label="Close">x</button>
-    <h2 class="modal-title">Send Email</h2>
+    <h2 class="modal-title">Enviar correo</h2>
     <form onsubmit="submitLeadEmail(event)">
       <input type="hidden" id="lead-email-id">
       <div class="form-group">
@@ -235,7 +235,7 @@
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
         <button class="sn-btn" type="button" onclick="closeLeadEmailModal()">Back</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Send Email</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Enviar correo</button>
       </div>
     </form>
   </div>
@@ -243,6 +243,7 @@
 
 <script>
 var LEAD_EMAIL_TEMPLATES = {{ email_templates|tojson }};
+var COMPANY_NAME = {{ (current_tenant.name or 'CRM')|tojson }};
 var activeLeadForEmail = null;
 
 function goLead(event, id) {
@@ -256,6 +257,22 @@ var leadsPage = 1;
 function filterLeads() {
   leadsPage = 1;
   renderLeadsRows();
+}
+
+function mostrarSinResultados(vacio) {
+  var tbody = document.querySelector('#leads-table tbody');
+  if (!tbody) return;
+  var fila = document.getElementById('sin-resultados');
+  if (!vacio) { if (fila) fila.remove(); return; }
+  if (fila) return;
+  fila = document.createElement('tr');
+  fila.id = 'sin-resultados';
+  fila.innerHTML = '<td colspan="7" style="padding:0;">'
+    + '<div class="sn-empty-state">'
+    + '<h3 class="sn-empty-state-title">Ningun lead coincide</h3>'
+    + '<p class="sn-empty-state-desc">Proba con otras palabras, o limpia el buscador y los filtros para ver todo de nuevo.</p>'
+    + '</div></td>';
+  tbody.appendChild(fila);
 }
 
 function renderLeadsRows() {
@@ -275,6 +292,9 @@ function renderLeadsRows() {
   var pageRows = matched.slice(start, start + LEADS_PAGE_SIZE);
   rows.forEach(function(row) { row.style.display = 'none'; });
   pageRows.forEach(function(row) { row.style.display = ''; });
+  // Sin esto, filtrar algo que no existe dejaba la lista en blanco, sin
+  // ninguna explicacion: parecia que se habian perdido los datos.
+  mostrarSinResultados(matched.length === 0);
   renderLeadsPagination(totalPages, matched.length);
 }
 
@@ -334,7 +354,7 @@ function renderLeadTemplate(text) {
     .replaceAll(OB + ' locacion ' + CB, lead.location || '')
     .replaceAll('%client_name%', lead.name || 'Cliente')
     .replaceAll('%job_date%', lead.date || '')
-    .replaceAll('%company_name%', 'ASTRAL WEDDINGS');
+    .replaceAll('%company_name%', COMPANY_NAME);
 }
 
 function applyLeadEmailTemplate(templateId) {
@@ -357,7 +377,7 @@ function openLeadEmailModal(lead) {
   if (templateId && findLeadTemplate(templateId)) {
     applyLeadEmailTemplate(templateId);
   } else {
-    document.getElementById('lead-email-subject').value = 'Mensaje de ASTRAL WEDDINGS';
+    document.getElementById('lead-email-subject').value = 'Mensaje de ' + COMPANY_NAME;
     document.getElementById('lead-email-body').value = 'Hola ' + (lead.name || 'Cliente') + ',\n\nTe escribo para dar seguimiento a tu boda.\n\nSaludos,\nKevin';
   }
   document.getElementById('lead-email-modal').classList.add('open');

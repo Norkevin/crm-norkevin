@@ -116,14 +116,23 @@ def test_sending_a_job_email_reaches_all_three_linked_clients(auth_client):
     assert 'geraldine.planner@example.com' in data['to']
 
 
-def test_job_page_shows_add_buttons_for_empty_secondary_and_planner_slots(auth_client):
+def test_job_page_ofrece_agregar_mas_clientes(auth_client):
+    """Antes habia dos botones fijos ('+ Agregar segundo cliente' y
+    '+ Agregar wedding planner') porque el modelo tenia exactamente 3 slots.
+    Con `job_clients` (0..N) un cuarto cliente ya cabe, asi que la pagina
+    ofrece UN boton generico y el rol se elige despues. Lo que se sigue
+    exigiendo es lo mismo de siempre: desde el job se puede sumar gente."""
     import app as app_module
     job_id, client_id = _make_job_with_primary_client(app_module, uuid.uuid4().hex[:6])
 
     resp = auth_client.get(f'/jobs/{job_id}')
     html = resp.get_data(as_text=True)
-    assert '+ Agregar segundo cliente' in html
-    assert '+ Agregar wedding planner' in html
+    assert '+ Agregar cliente' in html
+    # Y los roles del modelo canonico tienen que estar disponibles para elegir,
+    # si no el boton agrega gente que despues no se puede clasificar.
+    for rol in app_module.ROLES_JOB_CLIENT:
+        etiqueta = app_module.ETIQUETA_ROL[rol]
+        assert etiqueta in html, f'falta el rol {etiqueta} en el selector'
 
 
 def test_job_page_shows_linked_secondary_and_planner_with_their_info(auth_client):
@@ -142,4 +151,10 @@ def test_job_page_shows_linked_secondary_and_planner_with_their_info(auth_client
     html = resp.get_data(as_text=True)
     assert 'Wendy Morales' in html
     assert 'wendy@example.com' in html
-    assert '(Segundo cliente)' in html
+    assert '4444-5555' in html, 'el telefono es lo que se usa para llamarla el dia del evento'
+    # El rol ya no se imprime como '(Segundo cliente)': es un chip con la
+    # etiqueta canonica del rol `pareja`, que sale del adapter legacy.
+    assert 'Pareja' in html
+    # `pareja` SI recibe contratos y documentos: la advertencia es solo para
+    # los roles que no los reciben (planner, contacto, otro).
+    assert 'no recibe documentos' not in html

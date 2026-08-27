@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Editar cotizacion - {{ display_name }} · ASTRAL WEDDINGS</title>
+<title>Editar cotizacion - {{ display_name }} · {{ brand.display_name }}</title>
 {% include "_document_style.html" %}
 <style>
   .opt-card { border: 1px solid var(--doc-line); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; position: relative; }
@@ -40,9 +40,9 @@
     <div class="doc-hero">
       <div class="doc-hero-row">
         <div class="doc-brand-mark">
-          <div class="glyph">A</div>
+          <div class="glyph">{{ brand.initial }}</div>
           <div>
-            <div class="name">ASTRAL WEDDINGS</div>
+            <div class="name">{{ brand.display_name }}</div>
             <div class="tag">PHOTOGRAPHY &amp; FILMS</div>
           </div>
         </div>
@@ -151,7 +151,7 @@
 
     </div>
 
-    <div class="doc-footer">ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333</div>
+    <div class="doc-footer">{{ brand.display_name }} &middot; {{ brand.email }} &middot; {{ brand.phone }}</div>
 
   </div>
 </div>
@@ -262,12 +262,12 @@ function sendQuote() {
   var opts = document.querySelectorAll('.opt-card');
   if (!opts.length) { alert('Agrega al menos 1 opcion de paquete antes de enviar'); return; }
   document.getElementById('send-quote-to').value = {{ (display_email or '')|tojson }};
-  document.getElementById('send-quote-subject').value = 'Cotizacion ' + QUOTE_ID + ' - ASTRAL WEDDINGS';
+  document.getElementById('send-quote-subject').value = 'Cotizacion ' + QUOTE_ID + ' - ' + {{ brand.display_name|tojson }};
   var quoteUrl = window.location.origin + '/quotes/' + QUOTE_ID;
   document.getElementById('send-quote-body').value =
     'Hola ' + {{ (display_name or 'Cliente')|tojson }} + ',\n\n' +
     'Tu cotizacion esta lista. Puedes verla y aceptarla en este enlace:\n' +
-    quoteUrl + '\n\nSaludos,\nASTRAL WEDDINGS';
+    quoteUrl + '\n\nSaludos,\n' + {{ brand.display_name|tojson }};
   document.getElementById('send-quote-modal').classList.add('open');
 }
 

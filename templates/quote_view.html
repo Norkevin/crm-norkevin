@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cotizacion - {{ lead.nombre }} · ASTRAL WEDDINGS</title>
+<title>Cotizacion - {{ lead.nombre }} · {{ brand.display_name }}</title>
 {% include "_document_style.html" %}
 <style>
   .pkg-card {
@@ -41,9 +41,9 @@
 
     <div class="doc-side">
       <div class="doc-side-brand">
-        <div class="glyph">A</div>
+        <div class="glyph">{{ brand.initial }}</div>
         <div>
-          <div class="name">ASTRAL WEDDINGS</div>
+          <div class="name">{{ brand.display_name }}</div>
           <div class="tag">PHOTOGRAPHY &amp; FILMS</div>
         </div>
       </div>
@@ -67,7 +67,7 @@
         <span class="doc-pill amber">Pendiente de respuesta</span>
         {% endif %}
       </div>
-      <div class="doc-side-footer">info@astralweddings.com<br>+502 2222 3333</div>
+      <div class="doc-side-footer">{{ brand.email }}<br>{{ brand.phone }}</div>
     </div>
 
     <div class="doc-main">
@@ -81,9 +81,9 @@
         </div>
         <div class="doc-party-card">
           <div class="doc-eyebrow">De</div>
-          <div class="name">Astral Weddings</div>
-          <div class="line">info@astralweddings.com</div>
-          <div class="line">+502 2222 3333</div>
+          <div class="name">{{ brand.display_name }}</div>
+          <div class="line">{{ brand.email }}</div>
+          <div class="line">{{ brand.phone }}</div>
         </div>
       </div>
 
@@ -116,18 +116,25 @@
             {% if payment_schedule %}
               {% for p in payment_schedule %}
               <tr>
-                <td>Pago {{ p.cuota }}</td>
-                <td>{{ p.due_date }}</td>
-                <td style="text-align:right;font-weight:600;color:var(--doc-ink);">Q{{ '{:,.2f}'.format(p.amount or 0) }}</td>
-                <td style="text-align:right;">
+                <td data-label="Cuota">Pago {{ p.cuota }}</td>
+                <td data-label="Fecha">{{ p.due_date }}</td>
+                <td data-label="Monto" style="text-align:right;font-weight:600;color:var(--doc-ink);">
+                  Q{{ '{:,.2f}'.format(p.amount or 0) }}
+                  {% if p.status != 'Pagado' and p.original_amount and p.amount is not none and p.amount|float < p.original_amount|float %}
+                  <div style="font-weight:400;font-size:11px;color:var(--doc-mute);">de Q{{ '{:,.2f}'.format(p.original_amount|float) }}</div>
+                  {% endif %}
+                </td>
+                <td data-label="Estado" style="text-align:right;">
                   {% if p.status == 'Pagado' %}<span class="doc-pill green" style="padding:3px 10px;font-size:11px;">Pagado</span>
+                  {% elif p.status == 'Late' %}<span class="doc-pill" style="padding:3px 10px;font-size:11px;background:#FCE8E8;color:#B4232A;">Vencida</span>
+                  {% elif p.original_amount and p.amount is not none and p.amount|float < p.original_amount|float %}<span class="doc-pill" style="padding:3px 10px;font-size:11px;background:#E4EEFC;color:#1D4ED8;">Parcial</span>
                   {% else %}<span class="doc-pill amber" style="padding:3px 10px;font-size:11px;">Pendiente</span>{% endif %}
                 </td>
               </tr>
               {% endfor %}
             {% else %}
               {% for i in range(quote.plan_pago) %}
-              <tr><td>Pago {{ i + 1 }} de {{ quote.plan_pago }}</td><td style="text-align:right;font-weight:600;color:var(--doc-ink);">Q{{ '{:,.2f}'.format(quote.cuota_monto) }}</td></tr>
+              <tr><td data-label="Cuota">Pago {{ i + 1 }} de {{ quote.plan_pago }}</td><td data-label="Monto" style="text-align:right;font-weight:600;color:var(--doc-ink);">Q{{ '{:,.2f}'.format(quote.cuota_monto) }}</td></tr>
               {% endfor %}
             {% endif %}
           </tbody>
@@ -217,7 +224,7 @@
         {% endif %}
       </div>
 
-      <div class="doc-footer">ASTRAL WEDDINGS &middot; info@astralweddings.com &middot; +502 2222 3333</div>
+      <div class="doc-footer">{{ brand.display_name }} &middot; {{ brand.email }} &middot; {{ brand.phone }}</div>
 
     </div>
 

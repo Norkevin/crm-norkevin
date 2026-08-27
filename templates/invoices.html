@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Invoices Overview · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Invoices Overview · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Facturas{% endblock %}
 {% block subtitle %}{{ invoices|length }} facturas{% endblock %}
 
@@ -91,7 +91,18 @@
           <td class="sn-ellipsis" data-label="Proximo pago">{{ inv.next_due_display }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="6"><div class="sn-muted" style="padding:14px 0;">Todavia no hay facturas.</div></td></tr>
+        <tr>
+          <td colspan="7" style="padding:0;">
+            <div class="sn-empty-state">
+              <div class="sn-empty-state-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 3h10v18H7zM9 7h6M9 11h6M9 15h4"/></svg>
+              </div>
+              <h3 class="sn-empty-state-title">Todavia no hay facturas</h3>
+              <p class="sn-empty-state-desc">Las facturas salen del plan de pago de cada boda. Al aceptarse una cotizacion se generan sus cuotas y aparecen aca.</p>
+              <a class="sn-btn sn-btn-primary sn-empty-state-cta" href="/jobs">Ver trabajos</a>
+            </div>
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>

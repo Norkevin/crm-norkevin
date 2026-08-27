@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>{% block title %}ASTRAL WEDDINGS · Flow CRM{% endblock %}</title>
+<title>{% block title %}{{ current_tenant.name }} · Flow CRM{% endblock %}</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#7357F6">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
@@ -2188,14 +2188,14 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   .brand-mark { width: 30px; height: 30px; }
   .brand-copy { max-width: 70px; }
   .brand-name {
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: .02em;
   }
   .main-content { padding-left: 10px; padding-right: 10px; }
   .sn-page-title { font-size: 21px; }
   .sn-card { padding: 12px; }
   .sn-field-grid { grid-template-columns: 1fr; gap: 3px; }
-  .bottom-nav-item { font-size: 9px; }
+  .bottom-nav-item { font-size: 10px; }
   .bottom-nav-item svg { width: 19px; height: 19px; }
 }
 
@@ -2452,18 +2452,18 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       "main menu"
       "tel  menu";
   }
-  body[data-page="/clients"] .stack-mobile td[data-label="Client"] { grid-area: main; }
+  body[data-page="/clients"] .stack-mobile td[data-label="Cliente"] { grid-area: main; }
   /* Lleva el #id a proposito: el reset de padding de arriba tambien usa id
      y si no, gana el y el telefono pierde la sangria bajo el nombre. */
-  body[data-page="/clients"] #clients-table td[data-label="Phone"] {
+  body[data-page="/clients"] #clients-table td[data-label="Telefono"] {
     grid-area: tel;
     padding-left: 44px;
     color: var(--sn-muted);
     font-size: var(--m-meta);
     line-height: 1.3;
   }
-  body[data-page="/clients"] .stack-mobile td[data-label="Company"],
-  body[data-page="/clients"] .stack-mobile td[data-label="Created"] { display: none; }
+  body[data-page="/clients"] .stack-mobile td[data-label="Empresa"],
+  body[data-page="/clients"] .stack-mobile td[data-label="Creado"] { display: none; }
   body[data-page="/clients"] .stack-mobile td.stack-actions { grid-area: menu; }
 
   /* Leads: nombre + tipo + fecha, con el estado como pastilla a la derecha */
@@ -2476,7 +2476,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       "next  next";
   }
   body[data-page="/leads"] .stack-mobile td[data-label="Lead Name"] { grid-area: name; }
-  body[data-page="/leads"] #leads-table td[data-label="Type"] {
+  body[data-page="/leads"] #leads-table td[data-label="Tipo"] {
     grid-area: type;
     padding-left: 42px;
     color: var(--sn-muted);
@@ -2510,7 +2510,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     display: inline !important;
     color: var(--sn-muted);
   }
-  body[data-page="/leads"] .stack-mobile td[data-label="Created"],
+  body[data-page="/leads"] .stack-mobile td[data-label="Creado"],
   body[data-page="/leads"] .stack-mobile td[data-label="Mail Status"] { display: none; }
   body[data-page="/leads"] .stack-mobile td.stack-actions { grid-area: badge; }
   /* El estado vive en el <tr data-status>, no en una celda: se pinta como
@@ -2543,7 +2543,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     align-items: start;
     column-gap: 10px;
   }
-  body[data-page="/jobs"] .stack-mobile td[data-label="Job"] { grid-area: job; }
+  body[data-page="/jobs"] .stack-mobile td[data-label="Trabajo"] { grid-area: job; }
   body[data-page="/jobs"] #jobs-table td[data-label="Date"] {
     grid-area: date;
     align-self: start;
@@ -2556,9 +2556,9 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   body[data-page="/jobs"] #jobs-table td[data-label="Date"] .sn-chip,
   body[data-page="/jobs"] #jobs-table td[data-label="Date"] .date-status-badge { display: none; }
   /* El avatar sale sobrando: el date badge ya es el ancla de la fila. */
-  body[data-page="/jobs"] #jobs-table td[data-label="Job"] .sn-row-avatar-lg { display: none; }
+  body[data-page="/jobs"] #jobs-table td[data-label="Trabajo"] .sn-row-avatar-lg { display: none; }
   body[data-page="/jobs"] #jobs-table .job-state-row { grid-area: state; }
-  body[data-page="/jobs"] #jobs-table td[data-label="Progress"] {
+  body[data-page="/jobs"] #jobs-table td[data-label="Avance"] {
     grid-area: prog;
     padding-left: 42px;
   }
@@ -2585,13 +2585,13 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       "due    amount";
   }
   body[data-page="/payments"] .stack-mobile td[data-label="Client & Job"] { grid-area: who; }
-  body[data-page="/payments"] .stack-mobile td[data-label="Status"] { grid-area: status; margin-top: 4px; }
+  body[data-page="/payments"] .stack-mobile td[data-label="Estado"] { grid-area: status; margin-top: 4px; }
   body[data-page="/payments"] .stack-mobile td[data-label="Due"] {
     grid-area: due;
     color: var(--sn-muted);
     font-size: 12.5px;
   }
-  body[data-page="/payments"] .stack-mobile td[data-label="Amount"] {
+  body[data-page="/payments"] .stack-mobile td[data-label="Monto"] {
     grid-area: amount;
     align-self: center;
     text-align: right;
@@ -2704,7 +2704,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   .date-badge em {
     margin-top: 1px;
     font-style: normal;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
     letter-spacing: .04em;
     text-transform: uppercase;
@@ -2819,7 +2819,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   .bottom-nav-item {
     min-height: 46px;
     gap: 2px;
-    font-size: 9.5px;
+    font-size: 10px;
   }
   .bottom-nav-item svg { width: 19px; height: 19px; }
   /* El contenido tiene que despejar la barra fija; si no, la ultima fila de
@@ -3029,6 +3029,182 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+
+/* ============================================================
+   ERGONOMIA MOVIL -- se toca con el dedo, no con un mouse
+   ------------------------------------------------------------
+   Va al FINAL del <style> a proposito: tiene que ganarle por cascada
+   a las medidas de escritorio de mas arriba.
+
+   Tres problemas reales que arregla, todos sistemicos (estaban en los
+   componentes compartidos, no en una pantalla suelta):
+
+   1. AUTO-ZOOM DE iOS. Safari en iPhone hace zoom automatico al enfocar
+      cualquier input con font-size menor a 16px. Los inputs del CRM
+      estaban en 13px, asi que TODOS los formularios y el buscador daban
+      el salto de zoom, y despues habia que volver a alejar con los dedos.
+      16px lo elimina. No es cosmetico: es la friccion mas repetida del
+      CRM en telefono.
+
+   2. AREAS TACTILES. La guia de Apple y WCAG 2.5.5 piden 44px. En movil
+      el CRM tenia .sn-btn-sm en 25px, .sn-btn-icon en 30px y la
+      paginacion en 32px. .sn-btn-sm es justo lo que usa la ficha del job
+      (rol del cliente, Quitar, Editar, + Agregar): los botones que Kevin
+      toca durante un evento, con el telefono en una mano.
+
+   3. TEXTO QUE NO SE PODIA CORTAR. Un correo largo o un telefono con
+      formato empujaban la tarjeta y sacaban la fila del viewport.
+   ============================================================ */
+@media (max-width: 760px) {
+
+  /* --- 1. Nada de auto-zoom al enfocar --- */
+  .sn-select,
+  .sn-search,
+  .sn-input,
+  .form-input,
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="search"],
+  input[type="date"],
+  input[type="password"],
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* --- 2. Areas tactiles --- */
+  .sn-select,
+  .sn-search,
+  .sn-input,
+  .form-input,
+  select,
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="search"],
+  input[type="date"] {
+    height: auto;
+    min-height: 44px;
+  }
+  textarea { min-height: 88px; }
+
+  .sn-btn,
+  .btn {
+    min-height: 44px;
+    padding: 0 18px;
+  }
+
+  /* Los "sm" no suben a 44: aparecen de a tres o cuatro en la misma fila
+     y la ficha del job quedaria kilometrica. 40px ya es tocable de sobra
+     comparado con los 25px que tenian. */
+  .sn-btn-sm,
+  .btn-sm {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+
+  .sn-btn-icon {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+  }
+
+  .sn-pagination-btn {
+    min-width: 40px;
+    height: 40px;
+  }
+
+  .sn-tab,
+  .mail-tab {
+    min-height: 44px;
+  }
+
+  /* Botones que quedaron en tamano de icono de escritorio. */
+  .wfe-move-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  /* Checkbox y radio: el input nativo mide ~13px. Se agranda el control
+     real, no solo el area alrededor. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* --- 3. Que el texto largo se corte en vez de empujar --- */
+  .sn-list-meta,
+  .sn-list-title,
+  .client-email-text,
+  .sn-table td,
+  .sn-card-body {
+    overflow-wrap: anywhere;
+  }
+
+  /* --- 4. Tablas .table-responsive: apilar en vez de scroll lateral ---
+     Equipo y Pagos a equipo tienen 7 columnas cada una y nunca recibieron
+     tratamiento movil: en el telefono quedaban con scroll horizontal y
+     las columnas aplastadas. Se convierten en fichas etiqueta/valor,
+     igual que las tablas .sn-table con .stack-mobile. Las etiquetas salen
+     de data-label, asi que el encabezado se puede ocultar. */
+  .table-responsive thead { display: none; }
+  .table-responsive,
+  .table-responsive tbody,
+  .table-responsive tr,
+  .table-responsive td { display: block; width: 100%; }
+  .table-responsive tr {
+    border: 1px solid var(--sn-line);
+    border-radius: var(--m-radius, 14px);
+    padding: 4px 14px;
+    margin-bottom: 10px;
+    background: var(--sn-surface);
+  }
+  .table-responsive tr:last-child { margin-bottom: 0; }
+  .table-responsive td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: right;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--sn-line);
+    overflow-wrap: anywhere;
+  }
+  .table-responsive td:last-child { border-bottom: none; }
+  .table-responsive td[data-label]::before {
+    content: attr(data-label);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--sn-muted);
+    font-weight: 600;
+    text-align: left;
+    flex: 0 0 auto;
+  }
+  /* Una fila de "no hay nada" no debe verse como una ficha vacia. */
+  .table-responsive td[colspan] {
+    display: block;
+    text-align: center;
+    border-bottom: none;
+  }
+
+  /* Red de seguridad contra scroll horizontal: nada mas ancho que la
+     pantalla. Es una correccion de contencion, no un overflow:hidden en
+     body -- eso esconderia el problema en vez de arreglarlo. */
+  img,
+  video,
+  canvas,
+  pre {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
 </style>
 </head>
 <body data-page="{{ request.path }}">
@@ -3084,13 +3260,13 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     </a>
   </div>
   <div class="sidebar-bottom">
-    <div class="sidebar-account" title="{{ current_tenant.name|default('ASTRAL WEDDINGS') }}">
+    <div class="sidebar-account" title="{{ current_tenant.name|default('Flow CRM') }}">
       <span class="sidebar-account-avatar">
         {% if session.user_picture %}<img src="{{ session.user_picture }}" alt="" style="width:100%;height:100%;border-radius:999px;object-fit:cover;">
         {% else %}{{ (session.user_name or session.user_email or 'K')[:1]|upper }}{% endif %}
       </span>
       <span class="sidebar-account-copy">
-        <span class="sidebar-account-tenant">{{ current_tenant.name|default('ASTRAL WEDDINGS') }}</span>
+        <span class="sidebar-account-tenant">{{ current_tenant.name|default('Flow CRM') }}</span>
         <span class="sidebar-account-email">{{ session.user_name or session.user_email or '' }}</span>
       </span>
     </div>
@@ -3201,7 +3377,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
           <div class="sn-notification-item">
             <svg class="sn-notification-icon mail" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
             <div>
-              <div class="sn-notification-title">No new activity yet.</div>
+              <div class="sn-notification-title">Sin actividad nueva.</div>
               <div class="sn-notification-meta">Today</div>
             </div>
           </div>
@@ -3213,7 +3389,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       </div>
     </div>
     <div class="tenant-switcher tenant-switcher-static">
-      <span class="tenant-name">{{ current_tenant.name|default('ASTRAL WEDDINGS') }}</span>
+      <span class="tenant-name">{{ current_tenant.name|default('Flow CRM') }}</span>
     </div>
     <div class="header-popover-wrap">
       <button class="sn-icon-button" type="button" title="Cuenta" onclick="toggleAccountMenu(event)" style="padding:0;overflow:hidden;">
@@ -3228,7 +3404,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
           </div>
           <div>
             <div class="sn-account-name">{{ session.user_name or 'Kevin Lemus' }}</div>
-            <div class="sn-account-email">{{ session.user_email or 'info@astralweddings.com' }}</div>
+            <div class="sn-account-email">{{ session.user_email or '' }}</div>
           </div>
         </div>
         <a class="sn-account-row" href="/settings">Settings</a>
@@ -3281,7 +3457,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       </div>
       <div>
         <div class="more-sheet-name">{{ session.user_name or 'Kevin Lemus' }}</div>
-        <div class="more-sheet-email">{{ session.user_email or 'info@astralweddings.com' }}</div>
+        <div class="more-sheet-email">{{ session.user_email or '' }}</div>
       </div>
     </div>
     <button type="button" class="more-sheet-close" onclick="closeMoreSheet()" aria-label="Cerrar">&times;</button>
@@ -3451,7 +3627,7 @@ function refreshNotifications() {
       if (!list) return;
       if (!data.notifications.length) {
         list.innerHTML = '<div class="sn-notification-item">' + MAIL_ICON_SVG
-          + '<div><div class="sn-notification-title">No new activity yet.</div><div class="sn-notification-meta">Today</div></div></div>';
+          + '<div><div class="sn-notification-title">Sin actividad nueva.</div><div class="sn-notification-meta">Today</div></div></div>';
         applyReadState();
         return;
       }

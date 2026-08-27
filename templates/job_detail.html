@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ job.nombre }} · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}{{ job.nombre }} · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}{{ job.nombre }}{% endblock %}
 
 {% block content %}
@@ -18,17 +18,17 @@
       {% endif %}
       <button class="sn-btn sn-btn-primary" type="button" onclick="toggleAddMenu(event)">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-        Add New
+        Nuevo
       </button>
       <div id="add-menu" class="tenant-menu" style="right:0;top:38px;">
-        <button class="tenant-menu-item" type="button" onclick="createMultiOptionQuote()">Quote</button>
-        <button class="tenant-menu-item" type="button" onclick="openModal('invoice-modal')">Invoice</button>
+        <button class="tenant-menu-item" type="button" onclick="createMultiOptionQuote()">Cotizacion</button>
+        <button class="tenant-menu-item" type="button" onclick="openModal('invoice-modal')">Factura</button>
         {% if not contracts %}
-        <button class="tenant-menu-item" type="button" onclick="createContract()">Contract</button>
+        <button class="tenant-menu-item" type="button" onclick="createContract()">Contrato</button>
         {% endif %}
-        <button class="tenant-menu-item" type="button" onclick="openQuestionnaireModal()">Questionnaire</button>
-        <button class="tenant-menu-item" type="button" onclick="openModal('file-modal')">File</button>
-        <button class="tenant-menu-item" type="button" onclick="openModal('notes-modal')">Note</button>
+        <button class="tenant-menu-item" type="button" onclick="openQuestionnaireModal()">Cuestionario</button>
+        <button class="tenant-menu-item" type="button" onclick="openModal('file-modal')">Archivo</button>
+        <button class="tenant-menu-item" type="button" onclick="openModal('notes-modal')">Nota</button>
       </div>
     </div>
   </div>
@@ -170,7 +170,7 @@
               <div class="workflow-step-name">{{ job.nombre }}</div>
               {% if job.boda_date %}<span class="sn-chip green">Boda</span><span class="sn-chip gray">{{ job.boda_date }}</span>{% endif %}
             </div>
-            <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('job-edit-modal')">Edit</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('job-edit-modal')">Editar</button>
           </div>
         </div>
       </div>
@@ -249,7 +249,7 @@
                 </td>
               </tr>
             {% else %}
-              <tr><td colspan="4" class="sn-muted">No mail registered for this job.</td></tr>
+              <tr><td colspan="4" class="sn-muted">Todavia no hay correos de esta boda.</td></tr>
             {% endfor %}
             </tbody>
           </table>
@@ -275,7 +275,7 @@
             <div class="sn-field-label">Lead Source</div><div class="sn-field-value">{{ lead.fuente if lead else '-' }}</div>
           </div>
           <div class="sn-list-actions">
-            <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('job-edit-modal')">Edit</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('job-edit-modal')">Editar</button>
             <button class="sn-btn sn-btn-sm" type="button" onclick="archiveJob()">Archive</button>
             {% if payments %}
             <button class="sn-btn sn-btn-sm" type="button" style="color:#B4232A;" onclick="openModal('delete-payments-modal')" title="Para bodas canceladas">Eliminar pagos</button>
@@ -288,50 +288,144 @@
         <div class="sn-card-head">
           <div class="sn-card-title">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20c0-2.2-2.7-4-6-4s-6 1.8-6 4M11 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8"/></svg>
-            {% if secondary_client or planner_client %}Clientes{% else %}Cliente{% endif %}
+            {% if job_clientes|length > 1 %}Clientes ({{ job_clientes|length }}){% else %}Cliente{% endif %}
           </div>
         </div>
-        {% if client %}
         <div class="sn-card-body">
-          <div class="entity-primary">
-            <div>
-              <div class="sn-list-title">{{ client.first_name }} {{ client.last_name }}</div>
-              <div class="sn-list-meta">(Principal)</div>
-              <div class="sn-list-meta" style="margin-top:12px;">{{ client.phone or '-' }}</div>
-              <div class="sn-list-meta">{{ client.email or '-' }}</div>
-            </div>
-            <div class="entity-avatar">{{ (client.first_name or 'C')[:1] }}{{ (client.last_name or '')[:1] }}</div>
-          </div>
-          <div class="sn-list-meta">{{ client.address or 'GT' }}</div>
-          <div class="sn-list-actions">
-            <a class="sn-btn sn-btn-sm" href="/clients/{{ client.id }}">Editar cliente</a>
-            <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Enviar correo</button>
-          </div>
-
-          {% for role, person, label in [('secondary', secondary_client, 'Segundo cliente'), ('planner', planner_client, 'Wedding planner')] %}
+          {# Modelo N-clientes (job_clients). Ya no hay 3 slots fijos: se
+             recorre la lista completa, cada uno con su rol editable. #}
+          {% for c in job_clientes %}
+          {% if not loop.first %}
           <hr style="margin:14px 0;border:none;border-top:1px solid var(--sn-line);">
-          {% if person %}
+          {% endif %}
           <div class="entity-primary">
             <div>
-              <div class="sn-list-title">{{ person.first_name }} {{ person.last_name }}</div>
-              <div class="sn-list-meta">({{ label }})</div>
-              <div class="sn-list-meta" style="margin-top:12px;">{{ person.phone or '-' }}</div>
-              <div class="sn-list-meta">{{ person.email or '-' }}</div>
+              <div class="sn-list-title">{{ c.nombre }}</div>
+              <div class="sn-list-meta">
+                <span class="sn-chip {{ 'violet' if c.role == 'principal' else 'muted' }}">{{ c.rol }}</span>
+                {% if c.role not in ('principal', 'pareja') %}
+                <span class="sn-list-meta" style="font-size:11px;">no recibe documentos</span>
+                {% endif %}
+              </div>
+              <div class="sn-list-meta" style="margin-top:12px;">{{ c.cliente.phone or '-' }}</div>
+              <div class="sn-list-meta">{{ c.cliente.email or '-' }}</div>
             </div>
-            <div class="entity-avatar">{{ (person.first_name or 'C')[:1] }}{{ (person.last_name or '')[:1] }}</div>
+            <div class="entity-avatar">{{ (c.cliente.first_name or 'C')[:1] }}{{ (c.cliente.last_name or '')[:1] }}</div>
           </div>
-          <div class="sn-list-actions">
-            <a class="sn-btn sn-btn-sm" href="/clients/{{ person.id }}">Edit</a>
-            <button class="sn-btn sn-btn-sm" type="button" onclick="unlinkJobClient('{{ role }}')">Remove</button>
+          <div class="sn-list-actions" style="flex-wrap:wrap;gap:6px;">
+            <a class="sn-btn sn-btn-sm" href="/clients/{{ c.id }}">Editar cliente</a>
+            <select class="sn-select sn-btn-sm" style="max-width:170px;"
+                    onchange='cambiarRolCliente({{ c.id|tojson }}, this.value)'
+                    aria-label="Rol de {{ c.nombre }}">
+              {% for valor, etiqueta in roles_disponibles %}
+              <option value="{{ valor }}" {% if valor == c.role %}selected{% endif %}>{{ etiqueta }}</option>
+              {% endfor %}
+            </select>
+            <button class="sn-btn sn-btn-sm" type="button"
+                    onclick='quitarClienteDelJob({{ c.id|tojson }}, {{ c.nombre|tojson }})'>Quitar</button>
+            {% if loop.first %}
+            <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Enviar correo</button>
+            {% endif %}
           </div>
           {% else %}
-          <button class="sn-btn sn-btn-sm" type="button" onclick='openLinkClientModal({{ role|tojson }}, {{ label|tojson }})'>+ Agregar {{ label|lower }}</button>
-          {% endif %}
+          <div class="sn-muted">Este job todavia no tiene clientes asociados.</div>
           {% endfor %}
+
+          <hr style="margin:14px 0;border:none;border-top:1px solid var(--sn-line);">
+          <button class="sn-btn sn-btn-sm" type="button"
+                  onclick='openLinkClientModal("contacto", "cliente")'>+ Agregar cliente</button>
+          <div class="sn-list-meta" style="margin-top:8px;font-size:11px;">
+            Un job puede tener los clientes que haga falta. Solo
+            <strong>principal</strong> y <strong>pareja</strong> reciben
+            contratos y documentos.
+          </div>
         </div>
-        {% else %}
-        <div class="sn-card-body sn-muted">No client attached.</div>
-        {% endif %}
+      </div>
+
+      {# El resumen financiero vive FUERA de las pestanas a proposito.
+         Antes era el primer bloque del panel "Facturas": al cambiar a
+         Cotizaciones o Contratos, el saldo pendiente desaparecia de la
+         pantalla. Es el dato que se mira primero al abrir una boda, asi
+         que se queda visible con cualquier pestana activa. #}
+      {# ------------------------------------------------------------
+         RESUMEN FINANCIERO -- fuente unica (_job_payment_summary).
+         Los mismos numeros que muestran el dashboard y la lista de
+         jobs: total, pagado, pendiente, proximo pago y vencidas.
+         ------------------------------------------------------------ #}
+      <div class="sn-card wide">
+        <div class="sn-card-head">
+          <div class="sn-card-title">Resumen de pagos</div>
+          {% if job.estado_label %}
+          <span class="sn-chip {{ job.estado_tone }}">{{ job.estado_label }}</span>
+          {% endif %}
+        </div>
+        <div class="sn-card-body">
+          <div style="display:flex;flex-wrap:wrap;gap:18px;">
+            <div style="min-width:120px;">
+              <div class="sn-list-meta">Total</div>
+              <div class="sn-list-title">Q{{ '{:,.2f}'.format(pagos_resumen.total) }}</div>
+            </div>
+            <div style="min-width:120px;">
+              <div class="sn-list-meta">Pagado</div>
+              <div class="sn-list-title" style="color:var(--sn-green,#2F7D73);">Q{{ '{:,.2f}'.format(pagos_resumen.pagado) }}</div>
+            </div>
+            <div style="min-width:120px;">
+              <div class="sn-list-meta">Pendiente</div>
+              <div class="sn-list-title">Q{{ '{:,.2f}'.format(pagos_resumen.pendiente) }}</div>
+            </div>
+            <div style="min-width:150px;">
+              <div class="sn-list-meta">Proximo pago</div>
+              <div class="sn-list-title">
+                {% if pagos_resumen.proximo_pago_fecha %}
+                  Q{{ '{:,.2f}'.format(pagos_resumen.proximo_pago_monto) }}
+                  <span class="sn-list-meta">{{ pagos_resumen.proximo_pago_fecha }}</span>
+                {% elif pagos_resumen.esta_pagado %}Pagado por completo{% else %}-{% endif %}
+              </div>
+            </div>
+            <div style="min-width:110px;">
+              <div class="sn-list-meta">Cuotas</div>
+              <div class="sn-list-title">
+                {{ pagos_resumen.cuotas_pagadas }}/{{ pagos_resumen.cuotas }}
+                {% if pagos_resumen.vencidas %}
+                <span class="sn-chip red">{{ pagos_resumen.vencidas }} vencida{{ 's' if pagos_resumen.vencidas > 1 }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          {% if pagos_resumen.descuadre_cotizado_vs_cuotas %}
+          {# Se MUESTRA, no se corrige: puede ser un descuento legitimo. #}
+          <div class="sn-chip orange" style="margin-top:14px;display:inline-block;">
+            Descuadre: lo cotizado y la suma de cuotas difieren en
+            Q{{ '{:,.2f}'.format(pagos_resumen.descuadre_cotizado_vs_cuotas|abs) }}
+          </div>
+          <div class="sn-list-meta" style="margin-top:4px;font-size:11px;">
+            No se corrige solo. Puede ser un descuento acordado o un error de captura: revisalo tu.
+          </div>
+          {% endif %}
+
+          {% if schedule_activo %}
+          <hr style="margin:14px 0;border:none;border-top:1px solid var(--sn-line);">
+          <div class="sn-list-meta">
+            Calendario activo: <strong>{{ schedule_activo.cuotas }} cuota{{ 's' if schedule_activo.cuotas > 1 }}</strong>
+            por Q{{ '{:,.2f}'.format(schedule_activo.total_plan) }}
+            {% if schedule_activo.origin %}<span style="opacity:.7;">(cotizacion {{ schedule_activo.origin }})</span>{% endif %}
+          </div>
+          {% if schedule_activo.avisos %}
+          {% for aviso in schedule_activo.avisos %}
+          <div class="sn-chip orange" style="margin-top:6px;display:inline-block;">{{ aviso }}</div>
+          {% endfor %}
+          {% endif %}
+          {% endif %}
+
+          {% set reemplazados = schedules_job | selectattr('status', 'ne', 'active') | list %}
+          {% if reemplazados %}
+          <div class="sn-list-meta" style="margin-top:10px;font-size:11px;">
+            Historial: {{ reemplazados|length }} calendario{{ 's' if reemplazados|length > 1 }} anterior{{ 'es' if reemplazados|length > 1 }}
+            ({{ reemplazados | map(attribute='status') | join(', ') }}) - se conservan, no suman al total activo.
+          </div>
+          {% endif %}
+        </div>
       </div>
 
       <div class="sn-tabs" id="job-detail-tabs-nav">
@@ -344,6 +438,8 @@
       </div>
 
       <div class="sn-tab-panel active" data-tab-panel="invoices" data-tab-group="job-detail-tabs">
+
+
       <div class="sn-card wide">
         <div class="sn-card-head">
           <div class="sn-card-title">
@@ -379,14 +475,20 @@
                 </div>
                 <div style="text-align:right;">
                   <span class="sn-money">Q{{ '{:,.2f}'.format(p.get('amount') or 0) }}</span>
+                  {% if p.status != 'Pagado' and p.original_amount and p.amount is not none and p.amount|float < p.original_amount|float %}
+                  <div class="sn-list-meta" style="margin-top:2px;">
+                    de Q{{ '{:,.2f}'.format(p.original_amount|float) }}
+                    {% if p.paid_amount %}(abonado Q{{ '{:,.2f}'.format(p.paid_amount|float) }}){% endif %}
+                  </div>
+                  {% endif %}
                   {% if p.status == 'Pagado' %}
                   <span class="sn-chip green">Pagado</span>
                   {% elif p.status == 'Late' %}
-                  <span class="sn-chip red">Late</span>
+                  <span class="sn-chip red">Vencida</span>
                   {% elif p.original_amount and p.amount is not none and p.amount|float < p.original_amount|float %}
                   <span class="sn-chip blue">Parcial</span>
                   {% else %}
-                  <span class="sn-chip gray">{{ p.status or 'Unpaid' }}</span>
+                  <span class="sn-chip gray">{{ p.status or 'Pendiente' }}</span>
                   {% endif %}
                 </div>
               </div>
@@ -394,12 +496,12 @@
             </div>
             <div class="sn-list-actions">
               <a class="sn-btn sn-btn-sm" href="/invoices/{{ g.invoice_id }}">View</a>
-              <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ g.payments[0].id }}')">Send</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ g.payments[0].id }}')">Enviar</button>
               {% if g.balance > 0 %}<button class="sn-btn sn-btn-sm" type="button" onclick="openRecordPayment('{{ g.payments[0].id }}', '{{ g.payments[0].amount or 0 }}')">Record Payment</button>{% endif %}
             </div>
           </div>
           {% else %}
-          <div class="sn-list-item sn-muted">No invoices yet.</div>
+          <div class="sn-list-item sn-muted">Sin facturas.</div>
           {% endfor %}
         </div>
       </div>
@@ -430,11 +532,11 @@
             </div>
             <div class="sn-list-actions">
               <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}" target="_blank">View</a>
-              <button class="sn-btn sn-btn-sm" type="button" onclick="sendQuote('{{ q.id }}')">Send</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="sendQuote('{{ q.id }}')">Enviar</button>
             </div>
           </div>
           {% else %}
-          <div class="sn-list-item sn-muted">No quotes yet.</div>
+          <div class="sn-list-item sn-muted">Sin cotizaciones.</div>
           {% endfor %}
         </div>
       </div>
@@ -458,10 +560,10 @@
           <div class="sn-list-item">
             <div class="sn-list-row">
               <div>
-                <div class="sn-list-title">CONTRATO DE BODAS ASTRAL WEDDINGS</div>
-                <div class="sn-list-meta">Sent on {{ c.sent_at or c.created or '-' }}</div>
+                <div class="sn-list-title">CONTRATO DE BODAS {{ (current_tenant.name or 'CRM')|upper }}</div>
+                <div class="sn-list-meta">Enviado el {{ c.sent_at or c.created or '-' }}</div>
                 <div class="sn-list-meta">
-                  {{ c.status or 'Draft' }}
+                  {{ c.status or 'Borrador' }}
                   {% if c.signed %} &middot; Cliente firmo{% endif %}
                   {% if c.photographer_signed %} &middot; Fotografo firmo{% endif %}
                 </div>
@@ -470,7 +572,7 @@
             <div class="sn-list-actions">
               <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}" target="_blank">View</a>
               <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf" target="_blank">PDF</a>
-              <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Send</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Enviar</button>
               {% if not c.photographer_signed %}
               <button class="sn-btn sn-btn-sm sn-btn-primary" type="button" onclick="openPhotographerSignature('{{ c.id }}')">Firmar (fotografo)</button>
               {% endif %}
@@ -480,7 +582,7 @@
             </div>
           </div>
           {% else %}
-          <div class="sn-list-item sn-muted">No contracts yet.</div>
+          <div class="sn-list-item sn-muted">Sin contratos.</div>
           {% endfor %}
         </div>
       </div>
@@ -489,7 +591,7 @@
       <div class="sn-tab-panel" data-tab-panel="questionnaires" data-tab-group="job-detail-tabs">
       <div class="sn-card wide">
         <div class="sn-card-head">
-          <div class="sn-card-title">Questionnaires</div>
+          <div class="sn-card-title">Cuestionarios</div>
           <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="openQuestionnaireModal()">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
           </button>
@@ -509,11 +611,11 @@
             </div>
             <div class="sn-list-actions">
               <a class="sn-btn sn-btn-sm" href="/questionnaires/{{ q.id }}" target="_blank" rel="noopener">View</a>
-              <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnaireModal({{ (q.name or "Cuestionario de Bodas Generico")|tojson }}, null, {{ q.id|tojson }})'>Send</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnaireModal({{ (q.name or "Cuestionario de Bodas Generico")|tojson }}, null, {{ q.id|tojson }})'>Enviar</button>
             </div>
           </div>
           {% else %}
-          <div class="sn-list-item sn-muted">No questionnaires yet.</div>
+          <div class="sn-list-item sn-muted">Sin cuestionarios.</div>
           {% endfor %}
         </div>
       </div>
@@ -522,7 +624,7 @@
       <div class="sn-tab-panel" data-tab-panel="files" data-tab-group="job-detail-tabs">
       <div class="sn-card wide">
         <div class="sn-card-head">
-          <div class="sn-card-title">Files <span class="sn-chip gray">UP TO 50MB</span></div>
+          <div class="sn-card-title">Archivos <span class="sn-chip gray">UP TO 50MB</span></div>
           <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="openModal('file-modal')">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
           </button>
@@ -546,7 +648,7 @@
             </div>
           </div>
           {% else %}
-          <div class="sn-list-item sn-muted">No files uploaded.</div>
+          <div class="sn-list-item sn-muted">Sin archivos.</div>
           {% endfor %}
         </div>
       </div>
@@ -555,7 +657,7 @@
       <div class="sn-tab-panel" data-tab-panel="notes" data-tab-group="job-detail-tabs">
       <div class="sn-card wide">
         <div class="sn-card-head">
-          <div class="sn-card-title">Notes</div>
+          <div class="sn-card-title">Notas</div>
           <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="openModal('notes-modal')">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
           </button>
@@ -641,8 +743,8 @@
         <label class="form-label" for="schedule-task-portal" style="margin:0;">Show in Client Portal</label>
       </div>
       <div class="sn-actions" style="justify-content:flex-start;margin-top:6px;">
-        <button class="sn-btn sn-btn-primary" type="submit" id="schedule-task-submit">Save</button>
-        <button class="sn-btn" type="button" onclick="closeModal('schedule-task-modal')">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit" id="schedule-task-submit">Guardar</button>
+        <button class="sn-btn" type="button" onclick="closeModal('schedule-task-modal')">Cancelar</button>
       </div>
     </form>
   </div>
@@ -655,14 +757,14 @@
       <div class="form-group"><label class="form-label">Job name</label><input class="form-input" name="nombre" value="{{ job.nombre }}"></div>
       <div class="grid-2">
         <div class="form-group"><label class="form-label">Boda date</label><input class="form-input" name="boda_date" type="date" value="{{ job.boda_date or '' }}"></div>
-        <div class="form-group"><label class="form-label">Status</label><select class="form-input" name="status"><option>{{ job.status }}</option><option>Cotizando</option><option>Confirmado</option><option>En produccion</option><option>Listo</option><option>Archivado</option></select></div>
+        <div class="form-group"><label class="form-label">Estado</label><select class="form-input" name="status"><option>{{ job.status }}</option><option>Cotizando</option><option>Confirmado</option><option>En produccion</option><option>Listo</option><option>Archivado</option></select></div>
       </div>
       <div class="form-group"><label class="form-label">Location</label><input class="form-input" name="location" value="{{ job.location or '' }}"></div>
       <div class="grid-2">
         <div class="form-group"><label class="form-label">Package</label><input class="form-input" name="package" value="{{ job.package or '' }}"></div>
         <div class="form-group"><label class="form-label">Total</label><input class="form-input" name="price_total" type="number" step="0.01" value="{{ job.price_total or 0 }}"></div>
       </div>
-      <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('job-edit-modal')">Cancel</button><button class="sn-btn sn-btn-primary" type="submit">Save</button></div>
+      <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('job-edit-modal')">Cancelar</button><button class="sn-btn sn-btn-primary" type="submit">Guardar</button></div>
     </form>
   </div>
 </div>
@@ -673,20 +775,20 @@
     <form onsubmit="createInvoice(event)">
       <div class="form-group"><label class="form-label">Concept</label><input class="form-input" name="concepto" required value="Invoice - {{ job.nombre }}"></div>
       <div class="grid-2">
-        <div class="form-group"><label class="form-label">Amount</label><input class="form-input" name="monto" type="number" step="0.01" required></div>
+        <div class="form-group"><label class="form-label">Monto</label><input class="form-input" name="monto" type="number" step="0.01" required></div>
         <div class="form-group"><label class="form-label">Due date</label><input class="form-input" name="due_date" type="date"></div>
       </div>
-      <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('invoice-modal')">Cancel</button><button class="sn-btn sn-btn-primary" type="submit">Create</button></div>
+      <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('invoice-modal')">Cancelar</button><button class="sn-btn sn-btn-primary" type="submit">Create</button></div>
     </form>
   </div>
 </div>
 
 <div class="modal-overlay" id="notes-modal">
   <div class="modal-content">
-    <h2 class="modal-title">Notes</h2>
+    <h2 class="modal-title">Notas</h2>
     <form onsubmit="saveNotes(event)">
       <div class="form-group"><textarea class="form-input" name="notas">{{ job.notas or job.notes or '' }}</textarea></div>
-      <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('notes-modal')">Cancel</button><button class="sn-btn sn-btn-primary" type="submit">Save</button></div>
+      <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('notes-modal')">Cancelar</button><button class="sn-btn sn-btn-primary" type="submit">Guardar</button></div>
     </form>
   </div>
 </div>
@@ -749,8 +851,8 @@
         </div>
       </div>
       <div class="sn-actions" style="justify-content:flex-start;">
-        <button class="sn-btn sn-btn-primary" type="submit">Save</button>
-        <button class="sn-btn" type="button" onclick="closeModal('link-client-modal')">Cancel</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
+        <button class="sn-btn" type="button" onclick="closeModal('link-client-modal')">Cancelar</button>
       </div>
     </form>
   </div>
@@ -759,7 +861,7 @@
 <div class="modal-overlay" id="email-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
     <button type="button" class="modal-close" onclick="closeModal('email-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title">Send Email</h2>
+    <h2 class="modal-title">Enviar correo</h2>
     <form onsubmit="submitJobEmail(event)">
       <input type="hidden" id="email-step-id">
       <div class="grid-2">
@@ -855,7 +957,7 @@
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label">Questionnaire</label>
+          <label class="form-label">Cuestionario</label>
           <input class="form-input" id="questionnaire-name" value="Cuestionario de Bodas Generico" required>
         </div>
         <div class="form-group">
@@ -930,7 +1032,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
         <input class="form-input" id="file-input" type="file" required style="padding-top:6px;">
       </div>
       <div class="sn-actions" style="justify-content:flex-end;">
-        <button class="sn-btn" type="button" onclick="closeModal('file-modal')">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeModal('file-modal')">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Upload File</button>
       </div>
     </form>
@@ -953,7 +1055,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
       </div>
       <div class="sn-actions" style="justify-content:flex-start;">
         <button class="sn-btn sn-btn-primary" type="submit">Save Payment</button>
-        <button class="sn-btn" type="button" onclick="closeModal('payment-modal')">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeModal('payment-modal')">Cancelar</button>
       </div>
     </form>
   </div>
@@ -972,7 +1074,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
       <div id="mail-detail-body" style="white-space:pre-wrap;line-height:1.6;"></div>
     </div>
     <div class="sn-actions" style="margin-top:16px;">
-      <button class="sn-btn" type="button" onclick="closeModal('mail-detail-modal')">Cancel</button>
+      <button class="sn-btn" type="button" onclick="closeModal('mail-detail-modal')">Cancelar</button>
     </div>
   </div>
 </div>
@@ -994,6 +1096,7 @@ var CLIENT_EMAIL = {{ ((client.email if client else (lead.email if lead else '')
 var CLIENT_NAME = {{ (((client.first_name ~ ' ' ~ client.last_name) if client else (lead.nombre if lead else job.nombre)) or 'Cliente')|trim|tojson }};
 var JOB_DATE = {{ (job.boda_date or (lead.fecha_tentativa if lead else '') or '')|tojson }};
 var JOB_LOCATION = {{ (job.location or (lead.locacion if lead else '') or '')|tojson }};
+var COMPANY_NAME = {{ (current_tenant.name or 'CRM')|tojson }};
 
 function openModal(id) {
   var add = document.getElementById('add-menu');
@@ -1052,7 +1155,7 @@ function renderTemplate(text) {
     .replaceAll(OB + ' locacion ' + CB, JOB_LOCATION)
     .replaceAll('%client_name%', CLIENT_NAME)
     .replaceAll('%job_date%', JOB_DATE)
-    .replaceAll('%company_name%', 'ASTRAL WEDDINGS');
+    .replaceAll('%company_name%', COMPANY_NAME);
 }
 
 function findTemplate(id) {
@@ -1090,8 +1193,8 @@ function openEmailModal(options) {
   if (options.templateId) {
     applyEmailTemplate(options.templateId);
   } else {
-    document.getElementById('email-subject').value = options.subject || 'Mensaje de ASTRAL WEDDINGS';
-    document.getElementById('email-body').value = options.body || ('Hola ' + CLIENT_NAME + ',\n\nTe escribo de ASTRAL WEDDINGS.\n\nSaludos,\nKevin');
+    document.getElementById('email-subject').value = options.subject || ('Mensaje de ' + COMPANY_NAME);
+    document.getElementById('email-body').value = options.body || ('Hola ' + CLIENT_NAME + ',\n\nTe escribo de ' + COMPANY_NAME + '.\n\nSaludos,\nKevin');
   }
   openModal('email-modal');
 }
@@ -1308,13 +1411,13 @@ function contractDefaultBody(contractUrl) {
   return 'Hola ' + CLIENT_NAME + ',\n\n' +
     'Aqui esta el contrato de servicios. Puedes leerlo y firmarlo electronicamente desde este link:\n' +
     contractUrl + '\n\n' +
-    'Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\nASTRAL WEDDINGS';
+    'Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\n' + COMPANY_NAME;
 }
 
 function applyContractTemplate(templateId) {
   var contractUrl = window.location.origin + '/contracts/' + document.getElementById('contract-send-id').value;
   if (!templateId) {
-    document.getElementById('contract-send-subject').value = 'Tu contrato de servicios fotograficos - ASTRAL WEDDINGS';
+    document.getElementById('contract-send-subject').value = 'Tu contrato de servicios fotograficos - ' + COMPANY_NAME;
     document.getElementById('contract-send-body').value = contractDefaultBody(contractUrl);
     return;
   }
@@ -1517,6 +1620,23 @@ function submitLinkClient(event) {
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
+// Modelo N-clientes: se quita por client_id, no por rol. Con varios
+// contactos compartiendo rol, quitar "por rol" era ambiguo.
+function quitarClienteDelJob(clientId, nombre) {
+  if (!confirm('Quitar a ' + nombre + ' de este job?\n\nEl cliente NO se elimina: solo deja de estar asociado a este trabajo.')) return;
+  apiPost('/api/jobs/' + JOB_ID + '/unlink-client', { client_id: clientId })
+    .then(function() { flashToast('Cliente quitado del job', 'success'); setTimeout(function() { location.reload(); }, 400); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+// Cambiar el rol reutiliza link-client: si el cliente ya esta asociado,
+// la ruta actualiza su rol en vez de duplicar la relacion.
+function cambiarRolCliente(clientId, nuevoRol) {
+  apiPost('/api/jobs/' + JOB_ID + '/link-client', { client_id: clientId, role: nuevoRol })
+    .then(function() { flashToast('Rol actualizado', 'success'); setTimeout(function() { location.reload(); }, 400); })
+    .catch(function(err) { flashToast(err.message, 'error'); setTimeout(function() { location.reload(); }, 800); });
+}
+
 function unlinkJobClient(role) {
   if (!confirm('Quitar este contacto del job? (no se elimina el cliente)')) return;
   apiPost('/api/jobs/' + JOB_ID + '/unlink-client', { role: role })

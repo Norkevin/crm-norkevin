@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Equipo · ASTRAL WEDDINGS CRM{% endblock %}
+{% block title %}Equipo · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Equipo{% endblock %}
 {% block subtitle %}{{ team|length }} miembros{% endblock %}
 
@@ -24,11 +24,11 @@
   <table class="table-responsive">
     <thead class="bg-line/30 text-xs uppercase tracking-wide text-ink-soft">
       <tr>
-        <th class="text-left px-4 py-3 font-semibold">Date Created</th>
-        <th class="text-left px-4 py-3 font-semibold">First Name</th>
-        <th class="text-left px-4 py-3 font-semibold">Last Name</th>
+        <th class="text-left px-4 py-3 font-semibold">Creado</th>
+        <th class="text-left px-4 py-3 font-semibold">Nombre</th>
+        <th class="text-left px-4 py-3 font-semibold">Apellido</th>
         <th class="text-left px-4 py-3 font-semibold">Rol</th>
-        <th class="text-left px-4 py-3 font-semibold">Phone</th>
+        <th class="text-left px-4 py-3 font-semibold">Telefono</th>
         <th class="text-left px-4 py-3 font-semibold">Email</th>
         <th class="text-right px-4 py-3 font-semibold">Tarifa Boda</th>
       </tr>
@@ -36,13 +36,13 @@
     <tbody>
       {% for m in team %}
       <tr class="border-b border-line/50 hover:bg-line/20 cursor-pointer" onclick="window.location='/equipo/{{ m.id }}'">
-        <td class="px-4 py-3 text-xs text-ink-soft">{{ m.created[:10] }}</td>
-        <td class="px-4 py-3 text-sm font-medium text-ink">{{ m.first_name }}</td>
-        <td class="px-4 py-3 text-sm font-medium text-ink">{{ m.last_name }}</td>
-        <td class="px-4 py-3 text-sm text-ink">{{ m.rol }}</td>
-        <td class="px-4 py-3 text-sm text-ink">{{ m.phone }}</td>
-        <td class="px-4 py-3 text-sm text-ink">{{ m.email }}</td>
-        <td class="px-4 py-3 text-sm font-semibold text-ink text-right">Q{{ '{:,.0f}'.format(m.tarifa_boda) }}</td>
+        <td data-label="Creado" class="px-4 py-3 text-xs text-ink-soft">{{ m.created[:10] }}</td>
+        <td data-label="Nombre" class="px-4 py-3 text-sm font-medium text-ink">{{ m.first_name }}</td>
+        <td data-label="Apellido" class="px-4 py-3 text-sm font-medium text-ink">{{ m.last_name }}</td>
+        <td data-label="Rol" class="px-4 py-3 text-sm text-ink">{{ m.rol }}</td>
+        <td data-label="Telefono" class="px-4 py-3 text-sm text-ink">{{ m.phone }}</td>
+        <td data-label="Email" class="px-4 py-3 text-sm text-ink">{{ m.email }}</td>
+        <td data-label="Tarifa boda" class="px-4 py-3 text-sm font-semibold text-ink text-right">Q{{ '{:,.0f}'.format(m.tarifa_boda) }}</td>
       </tr>
       {% endfor %}
     </tbody>

@@ -20,7 +20,7 @@
       {% endif %}
       <button class="sn-btn sn-btn-primary" type="button" onclick="openAddMenu()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-        Add New
+        Nuevo
       </button>
     </div>
   </div>
@@ -91,7 +91,7 @@
             Lead
           </div>
           <div class="sn-actions">
-            <button class="sn-btn sn-btn-sm" type="button" onclick="openLeadEdit()">Edit</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="openLeadEdit()">Editar</button>
             <button class="sn-btn sn-btn-sm" type="button" onclick="archiveLead()">Archive</button>
           </div>
         </div>
@@ -117,7 +117,7 @@
             <button class="sn-btn sn-btn-sm" type="button" onclick="openAcceptJobModal('accept')">Accept / Create Job</button>
             {% endif %}
             {% if job_vinculado %}
-            <a class="sn-btn sn-btn-sm" href="/jobs/{{ job_vinculado.id }}">View Job</a>
+            <a class="sn-btn sn-btn-sm" href="/jobs/{{ job_vinculado.id }}">Abrir boda</a>
             {% endif %}
           </div>
         </div>
@@ -144,14 +144,14 @@
                   <div class="sn-money">Q{{ '{:,.2f}'.format(p.amount or 0) }}</div>
                 </div>
                 <div class="sn-list-actions">
-                  <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ p.id }}')">Send</button>
+                  <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ p.id }}')">Enviar</button>
                   {% if p.status != 'Pagado' %}<button class="sn-btn sn-btn-sm" type="button" onclick="markPaymentPaid('{{ p.id }}')">Record Payment</button>{% endif %}
                 </div>
               </div>
               {% endfor %}
             </div>
             {% else %}
-            <div class="sn-muted">No invoices yet.</div>
+            <div class="sn-muted">Sin facturas.</div>
             {% endif %}
           </div>
         </div>
@@ -186,7 +186,7 @@
               {% endfor %}
             </div>
             {% else %}
-            <div class="sn-muted">Quotes will appear here.</div>
+            <div class="sn-muted">Las cotizaciones de este lead van a aparecer aca.</div>
             {% endif %}
           </div>
         </div>
@@ -214,13 +214,13 @@
                 </div>
                 <div class="sn-list-actions">
                   <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf">View</a>
-                  <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Send</button>
+                  <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Enviar</button>
                 </div>
               </div>
               {% endfor %}
             </div>
             {% else %}
-            <div class="sn-muted">No contracts yet.</div>
+            <div class="sn-muted">Sin contratos.</div>
             {% endif %}
           </div>
         </div>
@@ -249,7 +249,7 @@
               {% endfor %}
             </div>
             {% else %}
-            <div class="sn-muted">Questionnaires will appear here.</div>
+            <div class="sn-muted">Los cuestionarios de este lead van a aparecer aca.</div>
             {% endif %}
           </div>
         </div>
@@ -280,7 +280,7 @@
               {% endfor %}
             </div>
             {% else %}
-            <div class="sn-muted">No files uploaded.</div>
+            <div class="sn-muted">Sin archivos.</div>
             {% endif %}
           </div>
         </div>
@@ -311,14 +311,14 @@
           {% if mail_log %}
           <div class="sn-table-shell stack-mobile" style="border-radius:0;border:0;">
             <table class="sn-table">
-              <thead><tr><th>Date</th><th>To</th><th>Subject</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th>Date</th><th>To</th><th>Subject</th><th>Estado</th><th></th></tr></thead>
               <tbody>
                 {% for m in mail_log %}
                 <tr>
                   <td data-label="Date">{{ m.sent_at[:10] if m.sent_at else '' }}</td>
                   <td class="sn-ellipsis" data-label="To">{{ m.to }}</td>
                   <td class="sn-ellipsis" data-label="Subject">{{ m.subject }}</td>
-                  <td data-label="Status">
+                  <td data-label="Estado">
                     {% if m.status == 'opened' %}<span class="sn-chip cyan">EMAIL OPENED</span>
                     {% elif m.status == 'clicked' %}<span class="sn-chip green">LINK CLICKED</span>
                     {% else %}<span class="sn-chip yellow">EMAIL SENT</span>{% endif %}
@@ -330,7 +330,7 @@
             </table>
           </div>
           {% else %}
-          <div class="sn-muted">No mail yet.</div>
+          <div class="sn-muted">Sin correos.</div>
           {% endif %}
         </div>
       </section>
@@ -359,7 +359,7 @@
           </div>
           <div class="sn-list-actions">
             {% if client %}<a class="sn-btn sn-btn-sm" href="/clients/{{ client.id }}">Edit Client</a>{% endif %}
-            <button class="sn-btn sn-btn-sm" type="button" onclick="sendEmailToLead()">Send Email</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick="sendEmailToLead()">Enviar correo</button>
           </div>
         </div>
       </section>
@@ -373,7 +373,7 @@
             <button class="sn-btn sn-btn-primary" type="button" onclick="createMultiOptionQuote()">Create Quote</button>
             {% if lead.status != 'Convertido' %}<button class="sn-btn" type="button" onclick="openAcceptJobModal('accept')">Accept / Create Job</button>{% endif %}
             <button class="sn-btn" type="button" onclick="checkDate()">Check Date</button>
-            <button class="sn-btn" type="button" onclick="sendEmailToLead()">Send Email</button>
+            <button class="sn-btn" type="button" onclick="sendEmailToLead()">Enviar correo</button>
           </div>
         </div>
       </section>
@@ -388,7 +388,7 @@
     <form onsubmit="submitLeadQuestionnaire(event)">
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label">Questionnaire</label>
+          <label class="form-label">Cuestionario</label>
           <input class="form-input" id="lead-questionnaire-name" value="Cuestionario de Bodas Generico" required>
         </div>
         <div class="form-group">
@@ -423,7 +423,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 <div class="modal-overlay" id="lead-email-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
     <button type="button" class="modal-close" onclick="closeModal('lead-email-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title">Send Email</h2>
+    <h2 class="modal-title">Enviar correo</h2>
     <form onsubmit="submitLeadEmail(event)">
       <input type="hidden" id="lead-email-step-id">
       <div class="grid-2">
@@ -451,7 +451,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
         <button class="sn-btn" type="button" onclick="closeModal('lead-email-modal')">Back</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Send Email</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Enviar correo</button>
       </div>
     </form>
   </div>
@@ -493,13 +493,13 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
           <input class="form-input" id="lead-email" name="email" type="email" value="{{ lead.email or '' }}">
         </div>
         <div class="form-group">
-          <label class="form-label" for="lead-phone">Phone</label>
+          <label class="form-label" for="lead-phone">Telefono</label>
           <input class="form-input" id="lead-phone" name="telefono" value="{{ lead.telefono or '' }}">
         </div>
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="lead-event-type">Type</label>
+          <label class="form-label" for="lead-event-type">Tipo</label>
           <input class="form-input" id="lead-event-type" name="tipo_evento" value="{{ lead.tipo_evento or '' }}">
         </div>
         <div class="form-group">
@@ -522,7 +522,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
         </div>
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
-        <button class="sn-btn" type="button" onclick="closeLeadEdit()">Cancel</button>
+        <button class="sn-btn" type="button" onclick="closeLeadEdit()">Cancelar</button>
         <button class="sn-btn sn-btn-primary" type="submit">Save Lead</button>
       </div>
     </form>
@@ -531,12 +531,12 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 
 <div class="modal-overlay" id="add-menu-modal">
   <div class="modal-content">
-    <h2 class="modal-title">Add New</h2>
+    <h2 class="modal-title">Nuevo</h2>
     <div class="grid-1">
-      <button class="sn-btn" type="button" onclick="closeAddMenu(); createMultiOptionQuote();">Quote</button>
+      <button class="sn-btn" type="button" onclick="closeAddMenu(); createMultiOptionQuote();">Cotizacion</button>
       <button class="sn-btn" type="button" onclick="closeAddMenu(); sendEmailToLead();">Email</button>
-      <button class="sn-btn" type="button" onclick="closeAddMenu(); createQuestionnaire();">Questionnaire</button>
-      <button class="sn-btn" type="button" onclick="closeAddMenu(); uploadFile();">File</button>
+      <button class="sn-btn" type="button" onclick="closeAddMenu(); createQuestionnaire();">Cuestionario</button>
+      <button class="sn-btn" type="button" onclick="closeAddMenu(); uploadFile();">Archivo</button>
     </div>
   </div>
 </div>
@@ -548,7 +548,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
     <p class="accept-job-copy">This will convert the lead into a job and move it to Jobs.</p>
     <div class="sn-actions accept-job-actions">
       <button class="sn-btn sn-btn-primary" id="accept-job-confirm" type="button" onclick="confirmAcceptJob()">Mark as “Job Accepted”</button>
-      <button class="sn-btn" type="button" onclick="closeAcceptJobModal()">Cancel</button>
+      <button class="sn-btn" type="button" onclick="closeAcceptJobModal()">Cancelar</button>
     </div>
   </div>
 </div>
@@ -595,6 +595,7 @@ const LEAD_EMAIL = {{ (lead.email or '')|tojson }};
 const LEAD_NAME = {{ (lead.nombre or 'Cliente')|tojson }};
 const LEAD_DATE = {{ (lead.fecha_tentativa or '')|tojson }};
 const LEAD_LOCATION = {{ (lead.locacion or '')|tojson }};
+const COMPANY_NAME = {{ (current_tenant.name or 'CRM')|tojson }};
 const JOB_LINKED_ID = {{ (job_vinculado.id if job_vinculado else '')|tojson }};
 const LEAD_WORKFLOW_STEP_IDS = new Set(['envio_paquetes', 'seguimiento_cliente', 'levanta_muertos', 'seguimiento_final']);
 var EMAIL_TEMPLATES = {{ email_templates|tojson }};
@@ -736,7 +737,7 @@ function renderLeadTemplate(text) {
     .replaceAll(OB + 'nombre' + CB, LEAD_NAME).replaceAll(OB + ' nombre ' + CB, LEAD_NAME)
     .replaceAll(OB + 'fecha_boda' + CB, LEAD_DATE).replaceAll(OB + ' fecha_boda ' + CB, LEAD_DATE)
     .replaceAll(OB + 'locacion' + CB, LEAD_LOCATION).replaceAll(OB + ' locacion ' + CB, LEAD_LOCATION)
-    .replaceAll('%client_name%', LEAD_NAME).replaceAll('%company_name%', 'ASTRAL WEDDINGS');
+    .replaceAll('%client_name%', LEAD_NAME).replaceAll('%company_name%', COMPANY_NAME);
 }
 
 function findEmailTemplate(id) {
@@ -758,8 +759,8 @@ function openEmailModal(options) {
   if (options.templateId) {
     applyLeadEmailTemplate(options.templateId);
   } else {
-    document.getElementById('lead-email-subject').value = options.subject || 'Mensaje de ASTRAL WEDDINGS';
-    document.getElementById('lead-email-body').value = options.body || ('Hola ' + LEAD_NAME + ',\n\nTe escribo de ASTRAL WEDDINGS.\n\nSaludos,\nKevin');
+    document.getElementById('lead-email-subject').value = options.subject || ('Mensaje de ' + COMPANY_NAME);
+    document.getElementById('lead-email-body').value = options.body || ('Hola ' + LEAD_NAME + ',\n\nTe escribo de ' + COMPANY_NAME + '.\n\nSaludos,\nKevin');
   }
   openModal('lead-email-modal');
 }
@@ -801,7 +802,7 @@ function sendPayment(paymentId) {
 
 function markPaymentPaid(paymentId) {
   apiPost('/api/payments/' + paymentId + '/pay', {})
-    .then(function() { flashToast('Payment recorded', 'success'); setTimeout(function() { location.reload(); }, 500); })
+    .then(function() { flashToast('Pago registrado', 'success'); setTimeout(function() { location.reload(); }, 500); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
@@ -812,13 +813,13 @@ function sendContract(contractId) {
   }
   document.getElementById('contract-send-id').value = contractId;
   document.getElementById('contract-send-to').value = LEAD_EMAIL;
-  document.getElementById('contract-send-subject').value = 'Tu contrato de servicios fotograficos - ASTRAL WEDDINGS';
+  document.getElementById('contract-send-subject').value = 'Tu contrato de servicios fotograficos - ' + COMPANY_NAME;
   var contractUrl = window.location.origin + '/contracts/' + contractId;
   document.getElementById('contract-send-body').value =
     'Hola ' + LEAD_NAME + ',\n\n' +
     'Aqui esta el contrato de servicios. Puedes leerlo y firmarlo electronicamente desde este link:\n' +
     contractUrl + '\n\n' +
-    'Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\nASTRAL WEDDINGS';
+    'Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\n' + COMPANY_NAME;
   openModal('contract-send-modal');
 }
 

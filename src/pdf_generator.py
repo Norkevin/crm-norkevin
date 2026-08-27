@@ -3,7 +3,23 @@ pdf_generator.py - Genera PDFs de cotizaciones, contratos y facturas.
 
 Usa reportlab (puro Python, sin dependencias externas).
 Look & feel: Studio Ninja con banda verde, tipografia fina, layout A4.
-"""
+
+Identidad de marca (estabilizacion agosto 2026): este modulo generaba TODO
+el contenido (header del PDF, "De", firma del fotografo, footer, e incluso
+el texto legal de contract_terms()) con "Astral Weddings" /
+"info@astralweddings.com" escritos a mano, sin importar de que tenant era
+el contrato/cotizacion/factura -- exactamente el mismo tipo de bug que
+causo el incidente de correo del 16 de agosto de 2026, pero en documentos
+legales/facturacion en vez de en el cuerpo de un email. Un contrato de un
+cliente de Norkevin Photography decia "Astral Weddings" en la firma del
+fotografo y en cada pagina del footer.
+
+Todas las funciones de este modulo ahora reciben un `brand` (dict) opcional
+-- resuelto por el llamador via `resolve_pdf_brand(tenant_id)` (abajo),
+que a su vez usa la capa canonica `src.tenant_brand_map`, nunca un string
+fijo. Si no se pasa `brand`, se usa un placeholder neutro explicito
+("Estudio no identificado") en vez de asumir silenciosamente una marca --
+eso habria sido el mismo bug con otro nombre."""
 import io
 import os
 from datetime import datetime
@@ -15,8 +31,61 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 
-# Colores Astral -- sobrios y planos (sin degradado), acorde a una marca de
+# Placeholder neutro -- NUNCA una marca real. Si esto aparece en un PDF real,
+# significa que el llamador no resolvio brand=resolve_pdf_brand(tenant_id)
+# antes de invocar esta funcion; es preferible que se note (texto raro) a
+# que se filtre silenciosamente el nombre de la otra empresa.
+_UNRESOLVED_BRAND = {
+    'display_name': 'Estudio no identificado',
+    'tagline': '',
+    'phone': '',
+    'email': '',
+    'initial': '?',
+}
+
+
+def resolve_pdf_brand(tenant_id):
+    """Resuelve la identidad de marca para un tenant_id via la capa
+    canonica (src.tenant_brand_map), completando telefono/email de negocio
+    desde la config guardada por-tenant (settings_<tenant_id>.json) cuando
+    existe. Nunca decide por el nombre del tenant_id ni por un default fijo.
+    Si el tenant_id no resuelve (None, o no esta en el mapa canonico),
+    devuelve el placeholder neutro _UNRESOLVED_BRAND -- no "Astral Weddings"
+    ni ninguna otra marca real."""
+    if not tenant_id:
+        return dict(_UNRESOLVED_BRAND)
+    try:
+        from src.tenant_brand_map import resolve_brand, UnresolvedBrandError
+    except ImportError:
+        return dict(_UNRESOLVED_BRAND)
+    try:
+        identity = resolve_brand(tenant_id)
+    except UnresolvedBrandError:
+        return dict(_UNRESOLVED_BRAND)
+
+    phone = ''
+    email = identity.sender_email or ''
+    try:
+        from src.storage import store
+        company = (store.get_tenant_dict('settings', tenant_id=tenant_id) or {}).get('company') or {}
+        phone = company.get('phone') or ''
+        email = company.get('email') or email
+    except Exception:
+        pass  # sin settings guardados todavia -- se usa lo que ya resolvio tenant_brand_map
+
+    return {
+        'display_name': identity.display_name,
+        'tagline': 'PHOTOGRAPHY',
+        'phone': phone,
+        'email': email,
+        'initial': (identity.display_name or '?')[:1].upper(),
+    }
+
+
+# Colores -- sobrios y planos (sin degradado), acorde a una marca de
 # fotografia de bodas: navy oscuro + acento dorado, no azul corporativo.
+# (Paleta compartida entre marcas por ahora -- ninguna tiene colores propios
+# guardados en settings; si eso cambia, se resuelve igual que display_name.)
 BRAND = HexColor('#232B3A')
 INK = HexColor('#0A0E1A')
 INK_SOFT = HexColor('#4B5563')
@@ -29,10 +98,11 @@ ROSE = HexColor('#DC2626')
 AMBER = HexColor('#D97706')
 
 
-def _draw_hero(c, width, height, doc_type, doc_id, total=None):
+def _draw_hero(c, width, height, doc_type, doc_id, total=None, brand=None):
     """Dibuja el hero (plano, sin degradado) con logo, tipo de doc, ID y total.
     Navy solido + una linea dorada delgada al pie -- sobrio en vez del banner
     con degradado y circulo decorativo que se veia generico."""
+    brand = brand or _UNRESOLVED_BRAND
     hero_h = 62*mm
 
     # Fondo plano
@@ -49,16 +119,17 @@ def _draw_hero(c, width, height, doc_type, doc_id, total=None):
     c.roundRect(15*mm, height - 26*mm, 11*mm, 11*mm, 2.5*mm, fill=False, stroke=True)
     c.setFillColor(GOLD)
     c.setFont("Helvetica", 12)
-    c.drawCentredString(20.5*mm, height - 22.3*mm, "A")
+    c.drawCentredString(20.5*mm, height - 22.3*mm, brand['initial'])
 
     c.setFillColor(HexColor('#FFFFFF'))
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(30*mm, height - 18.5*mm, "ASTRAL WEDDINGS")
-    c.setFillColor(HexColor('#FFFFFF'))
-    c.setFillAlpha(0.75)
-    c.setFont("Helvetica", 6.5)
-    c.drawString(30*mm, height - 23.5*mm, "PHOTOGRAPHY & FILMS")
-    c.setFillAlpha(1)
+    c.drawString(30*mm, height - 18.5*mm, brand['display_name'].upper())
+    if brand.get('tagline'):
+        c.setFillColor(HexColor('#FFFFFF'))
+        c.setFillAlpha(0.75)
+        c.setFont("Helvetica", 6.5)
+        c.drawString(30*mm, height - 23.5*mm, brand['tagline'])
+        c.setFillAlpha(1)
 
     # Cuadro ID/tipo (esquina superior derecha)
     c.setFillColor(HexColor('#FFFFFF'))
@@ -102,8 +173,9 @@ def _draw_client_block(c, y, label, name, info_lines, width):
         line_y -= 4*mm
 
 
-def _draw_footer(c, width, doc_id):
+def _draw_footer(c, width, doc_id, brand=None):
     """Dibuja el footer."""
+    brand = brand or _UNRESOLVED_BRAND
     c.setFillColor(LINE)
     c.setStrokeColor(LINE)
     c.setLineWidth(0.3)
@@ -111,7 +183,12 @@ def _draw_footer(c, width, doc_id):
 
     c.setFillColor(MUTE)
     c.setFont("Helvetica", 7)
-    c.drawCentredString(width/2, 22*mm, "Astral Weddings  *  info@astralweddings.com  *  +502 2222 3333")
+    footer_parts = [brand['display_name']]
+    if brand.get('email'):
+        footer_parts.append(brand['email'])
+    if brand.get('phone'):
+        footer_parts.append(brand['phone'])
+    c.drawCentredString(width/2, 22*mm, '  *  '.join(footer_parts))
     c.drawCentredString(width/2, 17*mm, f"Documento generado el {datetime.now().strftime('%d %b %Y')}")
 
 
@@ -207,15 +284,18 @@ def _draw_totals(c, y, subtotal, total, width):
     return y - 10*mm
 
 
-def generate_quote_pdf(quote, lead):
-    """Genera PDF de cotizacion. Retorna bytes."""
+def generate_quote_pdf(quote, lead, brand=None):
+    """Genera PDF de cotizacion. Retorna bytes. `brand`: dict de
+    resolve_pdf_brand(tenant_id) -- si no se pasa, usa el placeholder
+    neutro (nunca asume una marca real)."""
+    brand = brand or _UNRESOLVED_BRAND
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
     # Hero
     _draw_hero(c, width, height, 'cotizacion', quote.get('id', 'Q-XXXX'),
-               total=quote.get('precio_total', 0))
+               total=quote.get('precio_total', 0), brand=brand)
 
     # Cliente (Para)
     y = height - 78*mm
@@ -282,7 +362,7 @@ def generate_quote_pdf(quote, lead):
         c.drawString(15*mm, y - 15*mm, quote['notas'][:100])
 
     # Footer
-    _draw_footer(c, width, quote.get('id', ''))
+    _draw_footer(c, width, quote.get('id', ''), brand=brand)
 
     c.save()
     pdf_bytes = buffer.getvalue()
@@ -290,11 +370,16 @@ def generate_quote_pdf(quote, lead):
     return pdf_bytes
 
 
-def contract_terms(job):
-    """Terminos del contrato, parametrizados por job. Usado por el PDF y la vista web."""
+def contract_terms(job, brand=None):
+    """Terminos del contrato, parametrizados por job. Usado por el PDF y la
+    vista web. `brand` (dict de resolve_pdf_brand) determina el nombre del
+    estudio en el texto legal -- antes decia "Astral Weddings" sin importar
+    el tenant real del job."""
+    brand = brand or _UNRESOLVED_BRAND
+    name = brand['display_name']
     return [
         ('1. Compromiso del Fotografo',
-         'Astral Weddings se compromete a capturar, editar y entregar el material fotografico contratado en las fechas y plazos acordados. La calidad del trabajo se ajustara a los estandares profesionales de la industria.'),
+         f'{name} se compromete a capturar, editar y entregar el material fotografico contratado en las fechas y plazos acordados. La calidad del trabajo se ajustara a los estandares profesionales de la industria.'),
         ('2. Tarifas y Deposito',
          f'La tarifa total es de Q{job.get("price_total", 0):,.2f}. '
          + (f'Pago en {job.get("plan_pago", 1)} cuotas de Q{job.get("cuota_monto", 0):,.2f}.' if job.get('plan_pago', 1) > 1 else 'Pago en una sola exhibicion.')
@@ -306,18 +391,19 @@ def contract_terms(job):
         ('5. Cancelacion y Reembolso',
          'En caso de cancelacion por parte del cliente con menos de 60 dias de anticipacion, el deposito no sera reembolsable. Cancelaciones con mas de 60 dias tendran un reembolso del 50% del deposito.'),
         ('6. Propiedad Intelectual',
-         'Astral Weddings retendra los derechos de autor sobre todas las imagenes. El cliente recibira una licencia personal no comercial para uso privado.'),
+         f'{name} retendra los derechos de autor sobre todas las imagenes. El cliente recibira una licencia personal no comercial para uso privado.'),
     ]
 
 
-def generate_contract_pdf(contract, job, client):
-    """Genera PDF de contrato."""
+def generate_contract_pdf(contract, job, client, brand=None):
+    """Genera PDF de contrato. `brand`: dict de resolve_pdf_brand(tenant_id)."""
+    brand = brand or _UNRESOLVED_BRAND
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
     # Hero
-    _draw_hero(c, width, height, 'contrato', contract.get('id', 'C-XXXX'))
+    _draw_hero(c, width, height, 'contrato', contract.get('id', 'C-XXXX'), brand=brand)
 
     # Cliente
     y = height - 78*mm
@@ -330,8 +416,8 @@ def generate_contract_pdf(contract, job, client):
 
     # De
     y -= 30*mm
-    _draw_client_block(c, y, 'DE', 'Astral Weddings',
-                       ['+502 2222 3333', 'info@astralweddings.com', 'Guatemala'], width)
+    _draw_client_block(c, y, 'DE', brand['display_name'],
+                       [brand.get('phone', '') or '', brand.get('email', '') or '', 'Guatemala'], width)
 
     # Bloque titulo contrato
     y -= 25*mm
@@ -339,11 +425,11 @@ def generate_contract_pdf(contract, job, client):
     c.rect(15*mm, y - 8*mm, width - 30*mm, 8*mm, fill=True, stroke=False)
     c.setFillColor(INK)
     c.setFont("Helvetica-Bold", 11)
-    c.drawString(20*mm, y - 5*mm, "CONTRATO DE BODAS ASTRAL WEDDINGS")
+    c.drawString(20*mm, y - 5*mm, f"CONTRATO DE BODAS {brand['display_name'].upper()}")
     y -= 15*mm
 
     # Terminos
-    terminos = contract_terms(job)
+    terminos = contract_terms(job, brand=brand)
 
     for title, body in terminos:
         if y < 60*mm:
@@ -380,7 +466,7 @@ def generate_contract_pdf(contract, job, client):
     c.drawString(15*mm, y - 4*mm, "FIRMA DEL FOTOGRAFO")
     c.setFillColor(INK)
     c.setFont("Helvetica", 9)
-    c.drawString(15*mm, y - 9*mm, "Astral Weddings")
+    c.drawString(15*mm, y - 9*mm, brand['display_name'])
 
     # Linea firma 2
     c.line(15*mm + sig_width + 10*mm, y, width - 15*mm, y)
@@ -393,7 +479,7 @@ def generate_contract_pdf(contract, job, client):
                 f"{client.get('first_name', '')} {client.get('last_name', '')}")
 
     # Footer
-    _draw_footer(c, width, contract.get('id', ''))
+    _draw_footer(c, width, contract.get('id', ''), brand=brand)
 
     c.save()
     pdf_bytes = buffer.getvalue()
@@ -401,15 +487,17 @@ def generate_contract_pdf(contract, job, client):
     return pdf_bytes
 
 
-def generate_invoice_pdf(invoice, job, client, schedule=None, package_name=None, package_incluye=None):
+def generate_invoice_pdf(invoice, job, client, schedule=None, package_name=None, package_incluye=None, brand=None):
     """Genera PDF de factura. Si se pasa `schedule` (lista de cuotas del mismo
     job/cotizacion), se genera UNA sola factura con el desglose de todos los
     pagos internamente, en vez de un documento separado por cuota.
 
     `package_name`/`package_incluye` (opcionales): paquete contratado y su
-    descripcion, para que el cliente vea que incluye ademas del monto."""
+    descripcion, para que el cliente vea que incluye ademas del monto.
+    `brand`: dict de resolve_pdf_brand(tenant_id)."""
     import textwrap
 
+    brand = brand or _UNRESOLVED_BRAND
     rows = schedule if schedule else [invoice]
     total_amount = sum(float(r.get('amount') or 0) for r in rows)
     paid_amount = sum(float(r.get('amount') or 0) for r in rows if r.get('status') == 'Pagado')
@@ -419,7 +507,7 @@ def generate_invoice_pdf(invoice, job, client, schedule=None, package_name=None,
     width, height = A4
 
     # Hero (usa el ID de la factura representativa, pero el TOTAL es la suma de todas las cuotas)
-    _draw_hero(c, width, height, 'factura', invoice.get('invoice_id', 'F-XXXX'), total=total_amount)
+    _draw_hero(c, width, height, 'factura', invoice.get('invoice_id', 'F-XXXX'), total=total_amount, brand=brand)
 
     # Cliente
     y = height - 78*mm
@@ -509,7 +597,7 @@ def generate_invoice_pdf(invoice, job, client, schedule=None, package_name=None,
     c.drawString(15*mm, y, overall_status)
 
     # Footer
-    _draw_footer(c, width, invoice.get('invoice_id', ''))
+    _draw_footer(c, width, invoice.get('invoice_id', ''), brand=brand)
 
     c.save()
     pdf_bytes = buffer.getvalue()
