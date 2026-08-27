@@ -273,3 +273,70 @@ def test_la_vista_de_jobs_ordena_y_muestra_todos_los_clientes(auth_client, tenan
     assert a['first_name'] in html
     assert b['first_name'] in html, 'el segundo cliente no aparece en la lista'
     assert 'value="relevancia"' in html, 'falta el orden por defecto en el selector'
+
+
+# ============================================================
+# PUNTO 6 -- filtro de rango de fechas en /jobs (Backlog A, 27-ago-2026)
+# ============================================================
+# El filtro en si es 100% client-side (ver jobs.html: toggleJobDateFilter,
+# renderJobsRows) -- compara data-date (boda_date en ISO) contra los dos
+# <input type=date>, sin volver a pedirle nada al servidor. Lo que se
+# prueba desde el backend es el CONTRATO del que depende esa JS: que los
+# ids existan, que data-date traiga la fecha real (o vacio si no hay
+# fecha), y que la lista siga aislada por cuenta -- el filtro nunca ve
+# filas que el servidor no le haya mandado primero.
+
+@pytest.mark.parametrize('tenant_id', AMBAS)
+def test_la_vista_de_jobs_expone_el_filtro_de_rango_de_fechas(auth_client, tenant_id):
+    import app as app_module
+    from conftest import login_as_tenant
+
+    login_as_tenant(auth_client, tenant_id, email=EMAIL[tenant_id])
+    app_module.store.upsert('jobs', {
+        'id': f'job-filtro-fecha-{tenant_id}', 'tenant_id': tenant_id,
+        'nombre': 'Boda Filtro Fecha', 'boda_date': '2027-03-15',
+        'status': 'Confirmado',
+    })
+
+    resp = auth_client.get('/jobs')
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+
+    for gancho in ('id="job-date-toggle"', 'id="job-date-range"',
+                   'id="job-date-from"', 'id="job-date-to"',
+                   'onclick="clearJobDateFilter()"', 'onclick="toggleJobDateFilter()"'):
+        assert gancho in html, f'falta {gancho} -- el filtro de fecha no esta conectado'
+
+    # La fila de ESTE job trae la fecha real en data-date, en ISO -- el
+    # mismo formato que devuelve un <input type="date">, para poder
+    # compararlas como string sin parsear nada en la JS.
+    assert 'data-date="2027-03-15"' in html
+
+
+@pytest.mark.parametrize('tenant_id', AMBAS)
+def test_job_sin_fecha_de_evento_tiene_data_date_vacio(auth_client, tenant_id):
+    """Un job sin boda_date debe traer data-date="" -- es el valor que
+    renderJobsRows() usa para EXCLUIRLO cuando el filtro esta activo, en
+    vez de dejarlo pasar por un atributo ausente o con otro valor."""
+    import app as app_module
+    from conftest import login_as_tenant
+
+    login_as_tenant(auth_client, tenant_id, email=EMAIL[tenant_id])
+    app_module.store.upsert('jobs', {
+        'id': f'job-sin-fecha-evento-{tenant_id}', 'tenant_id': tenant_id,
+        'nombre': 'Zzz Job Sin Fecha De Evento Marker', 'status': 'Confirmado',
+    })
+
+    resp = auth_client.get('/jobs')
+    html = resp.get_data(as_text=True)
+    idx = html.find('Zzz Job Sin Fecha De Evento Marker')
+    assert idx != -1, 'no se encontro la fila del job de prueba'
+    fila = html[max(0, idx - 1500):idx]
+    assert 'data-date=""' in fila
+
+# El filtro de fecha es JS puro sobre filas que el servidor ya mando: no
+# puede ser una via nueva para que se cuele un job de otra cuenta, pero esa
+# garantia (_canonical_jobs() sigue aislando por tenant) ya la cubre
+# test_tenant_isolation.py::test_listing_pages_never_show_the_other_tenants_records,
+# que recorre /jobs junto con el resto de las listas -- no hace falta
+# duplicarla aca con el tenant_id de Ramiro.

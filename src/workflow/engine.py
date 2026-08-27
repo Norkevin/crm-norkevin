@@ -52,6 +52,7 @@ class WorkflowEngine:
         trigger_event: str = '',
         trigger_at: Optional[datetime] = None,
         auto_execute_first: bool = False,
+        tenant_id: Optional[str] = None,
     ) -> WorkflowInstance:
         if trigger_at is None:
             trigger_at = datetime.now()
@@ -65,6 +66,7 @@ class WorkflowEngine:
             subject_name=subject_name,
             trigger_event=trigger_event,
             trigger_at=trigger_at,
+            tenant_id=tenant_id,
         )
 
         for step in workflow.steps:
@@ -307,6 +309,11 @@ class WorkflowEngine:
                     step_states={k: StepStatus(v) for k, v in idata.get('step_states', {}).items()},
                     step_results=idata.get('step_results', {}),
                     notes=idata.get('notes', ''),
+                    # .get() a proposito: instancias guardadas antes del
+                    # 27-ago-2026 no tienen esta clave. Quedan en None, que
+                    # es exactamente el valor que _workflow_instances_seguras
+                    # (app.py) espera para aplicarles el heuristico legacy.
+                    tenant_id=idata.get('tenant_id'),
                 )
                 self.instances[iid] = inst
             except Exception as e:

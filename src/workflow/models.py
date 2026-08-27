@@ -203,6 +203,19 @@ class WorkflowInstance:
     step_states: Dict[str, StepStatus] = field(default_factory=dict)
     step_results: Dict[str, str] = field(default_factory=dict)
     notes: str = ""
+    # Aislamiento entre cuentas (27-ago-2026): el engine guarda TODAS las
+    # instancias de las 3 cuentas en un solo diccionario global, indexado
+    # SOLO por subject_id (el job_id o lead_id). Los jobs importados de
+    # Studio Ninja usan un id deterministico por nombre de pareja
+    # ('boda-sn-<slug>'), asi que dos cuentas distintas pueden terminar con
+    # el MISMO subject_id. Sin este campo, esa colision hace que la cuenta B
+    # encuentre y mute el progreso -- y en algunos call sites, dispare
+    # emails -- de la instancia de la cuenta A. None = instancia creada
+    # antes de este campo (no se migra retroactivamente: ver
+    # app.py::_workflow_instances_seguras, que cae al heuristico viejo
+    # -basado en si el subject_id aparece en los jobs/leads ya filtrados
+    # por tenant- solo para estas instancias legacy).
+    tenant_id: Optional[str] = None
 
     def progress(self) -> Dict[str, Any]:
         total = len(self.step_states)
@@ -224,4 +237,5 @@ class WorkflowInstance:
             'step_results': self.step_results,
             'notes': self.notes,
             'progress': self.progress(),
+            'tenant_id': self.tenant_id,
         }

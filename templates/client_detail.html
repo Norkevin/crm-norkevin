@@ -293,7 +293,11 @@
                 {% if c.signed %}<span class="sn-chip green">Signed</span>{% else %}<span class="sn-chip gray">Not signed</span>{% endif %}
               </div>
               <div class="sn-list-actions">
-                <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf">View</a>
+                {# Backlog B (27-ago-2026): igual que en lead_detail.html --
+                   "View" llevaba al PDF, nunca a la vista del contrato en si.
+                   Mismo patron de dos botones que ya usa job_detail.html. #}
+                <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}" target="_blank">View</a>
+                <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf" target="_blank">PDF</a>
                 <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Enviar</button>
               </div>
             </div>

@@ -55,6 +55,19 @@
         <div class="label">Para</div>
         <div class="amount" style="font-size:22px;font-weight:500;">{{ display_name }}</div>
       </div>
+      {% if quote.job_id or quote.client_id or quote.lead_id %}
+      {# Backlog B (27-ago-2026): pagina interna (ver app.py, quote_edit() --
+         "pagina interna con sesion"), a diferencia de quote_view.html que es
+         la que ve el cliente. Antes no habia forma de volver al job/cliente/
+         lead sin usar el boton Atras del navegador o buscarlo de nuevo en una
+         lista. Usa los ids que ya trae el propio quote -- no hace falta que
+         la ruta pase job/client/lead por separado. #}
+      <div class="doc-hero-row" style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.25);gap:16px;">
+        {% if quote.job_id %}<a href="/jobs/{{ quote.job_id }}" style="color:inherit;font-weight:600;font-size:13px;">&larr; Volver al job</a>{% endif %}
+        {% if quote.client_id %}<a href="/clients/{{ quote.client_id }}" style="color:inherit;font-weight:600;font-size:13px;">Ver cliente</a>{% endif %}
+        {% if quote.lead_id %}<a href="/leads/{{ quote.lead_id }}" style="color:inherit;font-weight:600;font-size:13px;">Ver lead</a>{% endif %}
+      </div>
+      {% endif %}
     </div>
 
     <div class="doc-body">

@@ -10,6 +10,15 @@
       <div class="sn-breadcrumbs">Dashboard &gt; Jobs &gt; {{ job.nombre }}</div>
     </div>
     <div class="sn-actions" style="position:relative;">
+      {% if lead %}
+      {# Backlog B (27-ago-2026): antes no habia ninguna forma de volver del
+         job al lead que le dio origen, aunque `lead` ya viene calculado en
+         el contexto de job_detail() -- ver app.py, job_detail(). #}
+      <a class="sn-btn" href="/leads/{{ lead.id }}" title="Lead original de este job">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/></svg>
+        Ver lead original
+      </a>
+      {% endif %}
       {% if client %}
       <a class="sn-btn" href="/portal/{{ client.id }}" target="_blank">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>

@@ -48,6 +48,11 @@ def pytest_configure(config):
     os.environ['RECURRENTE_SECRET_KEY_TEST'] = ''
     os.environ.pop('RECURRENTE_MODE', None)
     os.environ.setdefault('FLASK_SECRET', 'test-secret-not-for-production')
+    # Fail-closed real en produccion (ver app.py::_ADMIN_ONE_TIME_TOKEN):
+    # sin esto, los tests de tests/test_admin_capabilities.py y afines que
+    # pasan app_module._ADMIN_ONE_TIME_TOKEN de vuelta en la URL fallarian
+    # con 404 (string vacio nunca matchea a proposito).
+    os.environ.setdefault('ADMIN_ONE_TIME_TOKEN', 'test-admin-token-not-for-production')
     os.environ.setdefault('ALLOWED_LOGIN_EMAILS', 'norkevinfoto@gmail.com,astralweddingsgt@gmail.com')
 
     _TMP_DATA_DIR = tmp_dir

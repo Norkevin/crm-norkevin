@@ -213,3 +213,82 @@ def test_un_job_sin_fecha_no_rompe_el_calendario(auth_client, tenant_id):
         'nombre': 'Boda Sin Fecha', 'status': 'Confirmado', 'boda_date': None,
     })
     assert auth_client.get('/calendar').status_code == 200
+
+
+# ============================================================
+# Colision de subject_id entre marcas (27-ago-2026)
+#
+# El id de un job importado de Studio Ninja se arma como
+# 'boda-sn-<slug-del-nombre-de-la-pareja>' (ver api_reconcile_studio_ninja_jobs).
+# El JOB en si nunca puede colisionar entre marcas -- store.upsert()
+# matchea por id sin mirar tenant_id, asi que la segunda escritura
+# pisaria a la primera en vez de coexistir -- pero las INSTANCIAS DE
+# WORKFLOW si pueden: viven en workflow_instances.json, indexadas por un
+# instance_id propio y aleatorio, sin ninguna restriccion de unicidad
+# sobre subject_id. Si Astral y Norkevin tuvieron cada una una boda de
+# una pareja con el mismo nombre, sus dos instancias de workflow
+# terminan con el MISMO subject_id. Antes de agregar tenant_id a
+# WorkflowInstance (ver src/workflow/models.py), el heuristico por
+# job_ids/lead_ids no tenia forma de distinguirlas en ese caso.
+# ============================================================
+
+def test_colision_de_subject_id_con_tenant_id_no_cruza_instancias(auth_client):
+    """Simula el escenario real de arriba y prueba las dos mitades del
+    riesgo: LECTURA (cada marca tiene que encontrar solo la suya) y
+    ESCRITURA (completar un step en una marca no puede mutar la
+    instancia de la otra), pese a que ambas comparten subject_id."""
+    import uuid
+    import app as app_module
+
+    subject_id_colisionado = 'boda-sn-juan-y-maria-' + uuid.uuid4().hex[:6]
+    instancias = {}
+    for tenant_id in AMBAS:
+        login_as_tenant(auth_client, tenant_id, email=f'{tenant_id}@example.invalid')
+        instancias[tenant_id] = app_module.workflow_engine.start_workflow(
+            workflow=app_module.PRODUCTION_WORKFLOW(),
+            subject_type='job',
+            subject_id=subject_id_colisionado,
+            subject_name=f'Juan y Maria ({tenant_id})',
+            trigger_event='test.setup',
+            tenant_id=tenant_id,
+        )
+    assert instancias[ASTRAL].id != instancias[NORKEVIN].id, \
+        'el fixture no genero dos instancias distintas'
+    assert instancias[ASTRAL].subject_id == instancias[NORKEVIN].subject_id, \
+        'el fixture no reprodujo la colision de subject_id'
+
+    # LECTURA: cada marca encuentra solo la suya, por los dos caminos que
+    # usa el resto de la app (el helper de mas bajo nivel y el de mas alto).
+    for tenant_id in AMBAS:
+        otro = NORKEVIN if tenant_id == ASTRAL else ASTRAL
+        login_as_tenant(auth_client, tenant_id, email=f'{tenant_id}@example.invalid')
+
+        seguras = app_module._workflow_instances_seguras(
+            subject_type='job', subject_id=subject_id_colisionado)
+        assert len(seguras) == 1, f'{tenant_id} deberia ver exactamente 1 instancia, no {len(seguras)}'
+        assert seguras[0].id == instancias[tenant_id].id
+
+        encontrada = app_module._workflow_instance_for('job', subject_id_colisionado)
+        assert encontrada is not None and encontrada.id == instancias[tenant_id].id
+        assert encontrada.id != instancias[otro].id, \
+            f'{tenant_id} encontro la instancia de {otro} -- fuga entre marcas'
+
+    # ESCRITURA: completar un step ('job_accepted', sin efectos de dinero)
+    # en la sesion de Astral no puede tocar la instancia de Norkevin.
+    login_as_tenant(auth_client, ASTRAL, email=f'{ASTRAL}@example.invalid')
+    job_astral = {'id': subject_id_colisionado, 'tenant_id': ASTRAL, 'nombre': 'Juan y Maria (Astral)'}
+    resultado = app_module._complete_job_workflow_step(job_astral, 'job_accepted')
+    assert resultado['completed'] is True
+
+    assert instancias[ASTRAL].step_states.get('job_accepted') == app_module.StepStatus.DONE
+    assert instancias[NORKEVIN].step_states.get('job_accepted') != app_module.StepStatus.DONE, \
+        'completar un step en Astral muto la instancia de Norkevin'
+
+    # Y desde la lectura estandar que usan las vistas: Norkevin sigue
+    # viendo ese step como pending, no como done.
+    login_as_tenant(auth_client, NORKEVIN, email=f'{NORKEVIN}@example.invalid')
+    job_norkevin = {'id': subject_id_colisionado, 'tenant_id': NORKEVIN, 'nombre': 'Juan y Maria (Norkevin)'}
+    steps, _, _ = app_module.compute_workflow_steps_for_job(job_norkevin)
+    step_job_accepted = next(s for s in steps if s['id'] == 'job_accepted')
+    assert step_job_accepted['status'] != 'done', \
+        'Norkevin ve el step de Astral como completado -- fuga entre marcas'

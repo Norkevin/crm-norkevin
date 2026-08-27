@@ -105,6 +105,55 @@
     font-size: 13px;
   }
 }
+
+/* --- Filtro de rango de fechas (Backlog A, cerrado 27-ago-2026) ---
+   Colapsado por defecto en escritorio y en mobile: el toolbar ya tiene 2
+   selects + buscador, y agregar 2 inputs de fecha siempre visibles lo
+   aplastaba (ver nota de "buscador colapsable" en base.html sobre el mismo
+   problema). Vive FUERA de .sn-toolbar (que es flex con
+   justify-content:space-between) para no pelear con ese layout: es su
+   propia fila de ancho completo que aparece/desaparece debajo. */
+.job-date-range {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  margin: -6px 0 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--sn-line);
+}
+.job-date-range[hidden] { display: none; }
+.job-date-range label {
+  font-size: 12px;
+  color: var(--sn-muted);
+}
+.job-date-range input[type="date"] {
+  width: 155px;
+}
+.job-date-toggle.active {
+  border-color: var(--sn-green);
+  color: var(--sn-green);
+}
+@media (max-width: 760px) {
+  .job-date-range input[type="date"] {
+    width: auto;
+    flex: 1 1 120px;
+  }
+  /* El boton no participa del flex:1 1 auto que este breakpoint ya le da a
+     .sn-select (base.html linea ~2359), asi que con status+orden+este boton
+     los tres compitiendo por la misma fila angosta el texto podia
+     aplastarse. Se achica a icono solo -- mismo criterio que ya usa
+     .m-search-toggle (la lupa) en base.html para el mismo problema. */
+  #job-date-toggle {
+    padding: 0 10px;
+    min-width: 38px;
+    flex: 0 0 auto;
+  }
+  #job-date-toggle-label {
+    display: none;
+  }
+}
 </style>
 <section class="sn-page-wide jobs-page">
   <div class="sn-page-head">
@@ -141,10 +190,22 @@
         <option value="date_asc">Fecha del evento (mas proxima primero)</option>
         <option value="date_desc">Fecha del evento (mas lejana primero)</option>
       </select>
+      <button type="button" id="job-date-toggle" class="sn-btn job-date-toggle" aria-expanded="false" aria-controls="job-date-range" onclick="toggleJobDateFilter()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 2v4m8-4v4M3 10h18M5 6h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/></svg>
+        <span id="job-date-toggle-label">Fecha</span>
+      </button>
     </div>
     <div class="sn-toolbar-right">
       <input id="job-search" class="sn-search" type="search" placeholder="Buscar trabajos..." oninput="filterJobs()">
     </div>
+  </div>
+
+  <div id="job-date-range" class="job-date-range" hidden>
+    <label for="job-date-from">Evento desde</label>
+    <input type="date" id="job-date-from" class="sn-input" onchange="filterJobs()">
+    <label for="job-date-to">hasta</label>
+    <input type="date" id="job-date-to" class="sn-input" onchange="filterJobs()">
+    <button type="button" class="sn-btn" onclick="clearJobDateFilter()">Limpiar fechas</button>
   </div>
 
   <div class="sn-table-shell stack-mobile">
@@ -330,6 +391,42 @@ function filterJobs() {
   renderJobsRows();
 }
 
+// --- Filtro de rango de fechas (Backlog A, cerrado 27-ago-2026) ---
+// Filtra por boda_date (data-date), la misma fecha que ya se muestra en la
+// columna "Fecha" y que ya se usa para ordenar -- no un campo nuevo.
+function toggleJobDateFilter() {
+  var el = document.getElementById('job-date-range');
+  var btn = document.getElementById('job-date-toggle');
+  var abrir = el.hasAttribute('hidden');
+  if (abrir) { el.removeAttribute('hidden'); } else { el.setAttribute('hidden', ''); }
+  btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+}
+
+function clearJobDateFilter() {
+  document.getElementById('job-date-from').value = '';
+  document.getElementById('job-date-to').value = '';
+  filterJobs();
+}
+
+function formatoCortoDDMM(iso) {
+  var partes = (iso || '').split('-');
+  return partes.length === 3 ? (partes[2] + '/' + partes[1]) : iso;
+}
+
+function updateJobDateToggleLabel(from, to) {
+  var label = document.getElementById('job-date-toggle-label');
+  var btn = document.getElementById('job-date-toggle');
+  if (!from && !to) {
+    label.textContent = 'Fecha';
+    btn.classList.remove('active');
+    return;
+  }
+  btn.classList.add('active');
+  if (from && to) label.textContent = formatoCortoDDMM(from) + '–' + formatoCortoDDMM(to);
+  else if (from) label.textContent = 'Desde ' + formatoCortoDDMM(from);
+  else label.textContent = 'Hasta ' + formatoCortoDDMM(to);
+}
+
 function mostrarSinResultados(vacio) {
   var tbody = document.querySelector('#jobs-table tbody');
   if (!tbody) return;
@@ -350,6 +447,9 @@ function renderJobsRows() {
   var q = (document.getElementById('job-search').value || '').trim().toLowerCase();
   var status = document.getElementById('job-status-filter').value;
   var sortBy = document.getElementById('job-sort').value;
+  var dateFrom = document.getElementById('job-date-from').value || '';
+  var dateTo = document.getElementById('job-date-to').value || '';
+  updateJobDateToggleLabel(dateFrom, dateTo);
   var today = new Date().toISOString().slice(0, 10);
   var rows = Array.prototype.slice.call(document.querySelectorAll('#jobs-table tbody tr[data-name]'));
   var matched = rows.filter(function(row) {
@@ -376,7 +476,20 @@ function renderJobsRows() {
       (status === 'por_cobrar' && porCobrar) ||
       (status === 'archived' && archived);
     var searchOk = !q || name.indexOf(q) !== -1;
-    return statusOk && searchOk;
+    // Rango de fechas sobre boda_date (data-date, YYYY-MM-DD -- compara bien
+    // como string). Con el filtro activo, un job sin fecha no puede estar
+    // "dentro" de un rango que Kevin eligio a proposito, asi que se excluye
+    // en vez de mostrarlo ambiguamente.
+    var rowDate = row.getAttribute('data-date') || '';
+    var dateOk = true;
+    if (dateFrom || dateTo) {
+      if (!rowDate) { dateOk = false; }
+      else {
+        if (dateFrom && rowDate < dateFrom) dateOk = false;
+        if (dateTo && rowDate > dateTo) dateOk = false;
+      }
+    }
+    return statusOk && searchOk && dateOk;
   });
 
   // Kevin: "actualmente los Jobs aparecen ordenados del mas antiguo al mas

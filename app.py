@@ -230,19 +230,28 @@ for _tid, _tdata in store.get_dict('workflow_templates').items():
 # ============================================================
 # TRIGGERS AUTOMATICOS
 # ============================================================
-def trigger_workflow_for_lead(lead_id, lead_name):
-    """Dispara LEAD_WORKFLOW cuando se crea un lead."""
+def trigger_workflow_for_lead(lead_id, lead_name, tenant_id=None):
+    """Dispara LEAD_WORKFLOW cuando se crea un lead.
+
+    tenant_id (27-ago-2026): quien llama deberia pasar el tenant_id del
+    propio lead (ya conocido en el call site). Si no se pasa, cae a la
+    sesion activa -- pensado para no romper algun caller que todavia no
+    se actualizo, no como el camino preferido."""
     return workflow_engine.start_workflow(
         workflow=LEAD_WORKFLOW(),
         subject_type='lead',
         subject_id=lead_id,
         subject_name=lead_name,
         trigger_event='lead.created',
+        tenant_id=tenant_id or get_current_tenant_id(),
     )
 
 
-def trigger_workflow_for_quote_accepted(lead_id, lead_name, job_id=None):
-    """Dispara PRODUCTION_WORKFLOW cuando un lead acepta el quote."""
+def trigger_workflow_for_quote_accepted(lead_id, lead_name, job_id=None, tenant_id=None):
+    """Dispara PRODUCTION_WORKFLOW cuando un lead acepta el quote.
+
+    tenant_id (27-ago-2026): idem trigger_workflow_for_lead -- preferi
+    pasar el tenant_id del job/lead ya conocido en el call site."""
     job_id = job_id or ('job-' + lead_id)
     return workflow_engine.start_workflow(
         workflow=PRODUCTION_WORKFLOW(),
@@ -250,6 +259,7 @@ def trigger_workflow_for_quote_accepted(lead_id, lead_name, job_id=None):
         subject_id=job_id,
         subject_name=lead_name,
         trigger_event='quote.accepted',
+        tenant_id=tenant_id or get_current_tenant_id(),
     )
 
 # ============================================================
@@ -510,7 +520,7 @@ def _complete_job_workflow_step(job, step_id, result_message=None):
     if not step:
         return {'completed': False, 'warning': 'Step no encontrado'}
 
-    instances = [i for i in workflow_engine.list_instances(subject_id=job.get('id'), subject_type='job')]
+    instances = _workflow_instances_seguras(subject_type='job', subject_id=job.get('id'))
     if not instances:
         instance = workflow_engine.start_workflow(
             workflow=PRODUCTION_WORKFLOW(),
@@ -519,6 +529,7 @@ def _complete_job_workflow_step(job, step_id, result_message=None):
             subject_name=job.get('nombre', 'Job'),
             trigger_event='job.created',
             auto_execute_first=False,
+            tenant_id=job.get('tenant_id'),
         )
         instances = [instance]
 
@@ -586,7 +597,7 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
     if not step:
         return {'completed': False, 'warning': 'Step no encontrado'}
 
-    instances = [i for i in workflow_engine.list_instances(subject_id=lead.get('id'), subject_type='lead')]
+    instances = _workflow_instances_seguras(subject_type='lead', subject_id=lead.get('id'))
     if not instances:
         return {'completed': False, 'warning': 'No hay workflow activo para este lead'}
 
@@ -1089,10 +1100,13 @@ def _accept_quote_for_existing_job(quote):
 
 
 def _ensure_production_workflow_for_job(lead, job):
-    existing = workflow_engine.list_instances(subject_id=job['id'], subject_type='job')
+    existing = _workflow_instances_seguras(subject_type='job', subject_id=job['id'])
     if existing:
         return existing[0].id, False
-    instance = trigger_workflow_for_quote_accepted(lead.get('id'), job.get('nombre') or lead.get('nombre', 'Job'), job['id'])
+    instance = trigger_workflow_for_quote_accepted(
+        lead.get('id'), job.get('nombre') or lead.get('nombre', 'Job'), job['id'],
+        tenant_id=job.get('tenant_id') or lead.get('tenant_id'),
+    )
     return instance.id, True
 
 
@@ -1530,12 +1544,14 @@ def _workflow_state_value(value):
     return text.lower()
 
 
-def _workflow_instance_for(subject_type, subject_id):
-    instances = list(workflow_engine.list_instances(subject_id=subject_id, subject_type=subject_type))
+def _workflow_instance_for(subject_type, subject_id, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
+    instances = _workflow_instances_seguras(subject_type=subject_type, subject_id=subject_id,
+                                             job_ids_cache=job_ids_cache, lead_ids_cache=lead_ids_cache,
+                                             tenant_id=tenant_id)
     return instances[0] if instances else None
 
 
-def compute_workflow_steps_for_lead(lead, jobs_cache=None):
+def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
     from datetime import datetime, timedelta
     tmpl = LEAD_WORKFLOW()
     try:
@@ -1543,7 +1559,7 @@ def compute_workflow_steps_for_lead(lead, jobs_cache=None):
     except Exception:
         trigger_at = datetime.now()
     now = datetime.now()
-    instance = _workflow_instance_for('lead', lead.get('id', ''))
+    instance = _workflow_instance_for('lead', lead.get('id', ''), job_ids_cache=job_ids_cache, lead_ids_cache=lead_ids_cache, tenant_id=tenant_id)
     state_map = getattr(instance, 'step_states', {}) if instance else {}
     result_map = getattr(instance, 'step_results', {}) if instance else {}
     force_done = _lead_is_converted(lead, jobs_cache)
@@ -1601,7 +1617,7 @@ def _step_scheduled_for_job(step, trigger_at, boda_date):
     return trigger_at + timedelta(minutes=step.offset_minutes)
 
 
-def compute_workflow_steps_for_job(job):
+def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
     from datetime import datetime, timedelta
     tmpl = PRODUCTION_WORKFLOW()
     try:
@@ -1614,7 +1630,7 @@ def compute_workflow_steps_for_job(job):
             boda_date = datetime.strptime(job['boda_date'], '%Y-%m-%d')
         except ValueError:
             boda_date = None
-    instance = _workflow_instance_for('job', job.get('id', ''))
+    instance = _workflow_instance_for('job', job.get('id', ''), job_ids_cache=job_ids_cache, lead_ids_cache=lead_ids_cache, tenant_id=tenant_id)
     state_map = getattr(instance, 'step_states', {}) if instance else {}
     result_map = getattr(instance, 'step_results', {}) if instance else {}
     steps = []
@@ -2039,14 +2055,21 @@ def _resolve_public_tenant(path):
     return None
 
 
-# Kevin no tiene forma de "prestarme" su sesion de Google para que yo
-# corra herramientas de mantenimiento de un solo uso (ni deberia -- pedirle
-# la contraseña esta prohibido). Estas 2 rutas de /api/admin aceptan este
-# token como alternativa al login normal SOLO para poder correrlas yo mismo
-# por curl despues de que el deploy quede Live; no protegen nada sensible
-# (solo cuentan/reordenan cuestionarios), pero igual conviene rotarlo o
-# borrar las rutas una vez resuelto esto.
-_ADMIN_ONE_TIME_TOKEN = 'ZT4lh-lMvQm7yiF1vuLIvY1oJHV2te-g'
+# Estas 12 rutas de /api/admin (ver _ADMIN_CAPABILITIES) cruzan las dos
+# empresas y algunas mutan datos (workflow-cleanup, migrate-to-multi-tenant,
+# reconcile-studio-ninja-jobs, fix-secondary-clients, import-astral-leads),
+# asi que este token es una llave real, no un detalle cosmetico.
+#
+# 27-ago-2026: vivia hardcodeado aca mismo como string literal. El repo de
+# GitHub es publico (github.com/Norkevin/crm-norkevin) y la app ya esta
+# desplegada en internet (Render) -- ese valor quedaba leible por cualquiera
+# y usable YA contra datos reales de las dos empresas, sin login. Se movio a
+# variable de entorno con fail-closed real: sin ADMIN_ONE_TIME_TOKEN seteado
+# en el entorno, NINGUN valor de `token` (ni uno vacio) matchea nunca -- ver
+# el chequeo en _require_login(). El valor viejo queda en el historial de
+# git para siempre (es publico igual), pero como el codigo ya no confia en
+# ningun valor hardcodeado, queda inerte.
+_ADMIN_ONE_TIME_TOKEN = os.environ.get('ADMIN_ONE_TIME_TOKEN', '')
 
 
 def _dev_login_enabled():
@@ -2168,7 +2191,12 @@ def _require_login():
     if _is_public_path(request.path):
         return None
     if request.path in _ADMIN_PATHS:
-        if request.args.get('token') != _ADMIN_ONE_TIME_TOKEN:
+        # `not _ADMIN_ONE_TIME_TOKEN` primero y a proposito: si la variable
+        # de entorno no esta seteada, _ADMIN_ONE_TIME_TOKEN es '' y un
+        # ?token= vacio (o ausente, que tambien resuelve a None) NUNCA debe
+        # poder "matchear" un secreto vacio. Sin esto, un entorno sin la
+        # variable configurada quedaria con estas 12 rutas abiertas.
+        if not _ADMIN_ONE_TIME_TOKEN or request.args.get('token') != _ADMIN_ONE_TIME_TOKEN:
             # Estar logueado NO alcanza: estas rutas cruzan las dos empresas,
             # asi que sin el token no existen. 404 y no 403 a proposito, para
             # no confirmarle a nadie que la ruta esta ahi.
@@ -2554,12 +2582,15 @@ def dashboard():
     # de trabajos -- y la novia no aparecia en la pantalla de inicio.
     _dash_clients_by_id = {c['id']: c for c in _canonical_clients()}
     _dash_rel = _relaciones_por_job(upcoming_jobs[:5])
+    _dash_job_ids_cache = {jj.get('id') for jj in list_jobs()}
+    _dash_lead_ids_cache = {ll.get('id') for ll in list_leads()}
     _month_abbrs_es = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC']
     for j in upcoming_jobs[:5]:
         j['client_name'] = _job_clients_display(
             j, _dash_clients_by_id, _dash_rel.get(j.get('id'), []))
         try:
-            _, prog, _ = compute_workflow_steps_for_job(j)
+            _, prog, _ = compute_workflow_steps_for_job(
+                j, job_ids_cache=_dash_job_ids_cache, lead_ids_cache=_dash_lead_ids_cache)
             j['workflow_progress'] = prog
         except Exception:
             j['workflow_progress'] = 0
@@ -2875,13 +2906,20 @@ def leads_list():
     tracker = get_tracker()
 
     # Una sola lectura de jobs para toda la pantalla (ver jobs_cache en
-    # _converted_job_for_lead).
+    # _converted_job_for_lead). Los sets de ids de abajo son para
+    # compute_workflow_steps_for_lead: sin pasarlos, el heuristico legacy de
+    # _instancia_es_de_la_cuenta() releeria list_jobs()/list_leads() del
+    # disco una vez por lead abierto (N+1 -- ver dashboard()/jobs_list()).
     _jobs_cache = list_jobs()
+    _leads_job_ids_cache = {j.get('id') for j in _jobs_cache}
+    _leads_lead_ids_cache = {l.get('id') for l in leads}
 
     for lead in leads:
         if lead.get('status') not in ('Convertido', 'Perdido'):
             try:
-                steps, progress, _ = compute_workflow_steps_for_lead(lead, _jobs_cache)
+                steps, progress, _ = compute_workflow_steps_for_lead(
+                    lead, _jobs_cache,
+                    job_ids_cache=_leads_job_ids_cache, lead_ids_cache=_leads_lead_ids_cache)
                 pending = next((s for s in steps if s.get('status') != 'done'), None)
                 lead['workflow_progress'] = progress
                 lead['next_task'] = pending.get('name') if pending else (lead.get('next_task') or 'Trabajo aceptado')
@@ -4205,6 +4243,12 @@ def jobs_list():
     # entera: con 300 bodas eran 300 lecturas de disco por pagina.
     _rel_por_job = _relaciones_por_job(jobs)
 
+    # Idem para compute_workflow_steps_for_job: sin esto, el heuristico
+    # legacy de _instancia_es_de_la_cuenta() releeria list_jobs()/list_leads()
+    # una vez por fila para las instancias sin tenant_id (ver dashboard()).
+    _jobs_job_ids_cache = {j.get('id') for j in list_jobs()}
+    _jobs_lead_ids_cache = {l.get('id') for l in list_leads()}
+
     for j in jobs:
         try:
             d = datetime.strptime(j['boda_date'], '%Y-%m-%d').date()
@@ -4218,7 +4262,8 @@ def jobs_list():
         j['date_conflict'] = bool(other_jobs_same_date)
         j['lead_interest_conflict'] = bool(fecha) and not j['date_conflict'] and bool(open_leads_by_date.get(fecha))
         try:
-            steps, prog, _ = compute_workflow_steps_for_job(j)
+            steps, prog, _ = compute_workflow_steps_for_job(
+                j, job_ids_cache=_jobs_job_ids_cache, lead_ids_cache=_jobs_lead_ids_cache)
             pending = [s for s in steps if s['status'] == 'pending']
             j['next_task'] = pending[0]['name'] if pending else 'Completado'
             j['workflow_progress'] = prog
@@ -5526,7 +5571,7 @@ def api_captacion_submit():
     upsert_lead(lead)
 
     try:
-        instance = trigger_workflow_for_lead(lead_id, lead['nombre'])
+        instance = trigger_workflow_for_lead(lead_id, lead['nombre'], tenant_id=lead.get('tenant_id'))
         workflow_id = instance.id
     except Exception:
         workflow_id = None
@@ -7406,7 +7451,11 @@ def api_admin_workflow_cleanup():
 
         for job in activos:
             try:
-                steps, _, _ = compute_workflow_steps_for_job(job)
+                # tenant_id=tid explicito: sin esto, la instancia se busca
+                # contra la sesion activa del admin, no contra la cuenta que
+                # este loop esta recorriendo -- ver docstring de
+                # _instancia_es_de_la_cuenta.
+                steps, _, _ = compute_workflow_steps_for_job(job, tenant_id=tid)
             except Exception:
                 continue
             pendientes = [s for s in steps if s['status'] == 'pending']
@@ -7443,7 +7492,9 @@ def api_admin_workflow_cleanup():
                 if j.get('id') == cambio['job_id']), None)
             if not job:
                 continue
-            instancia = _workflow_instance_for('job', job['id'])
+            # tenant_id=cambio['tenant_id'] explicito por la misma razon que
+            # arriba: 'cambios' mezcla filas de varias cuentas.
+            instancia = _workflow_instance_for('job', job['id'], tenant_id=cambio['tenant_id'])
             if not instancia:
                 continue
             tmpl = PRODUCTION_WORKFLOW()
@@ -7982,13 +8033,16 @@ def api_job_history(job_id):
     job = get_job(job_id)
     if not job:
         return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
-    subject_ids = {job_id}
+    # 27-ago-2026: antes escaneaba TODAS las instancias globales (de las 3
+    # cuentas) por subject_id, sin ningun filtro de tenant -- un job
+    # importado de Studio Ninja con id colisionado (mismo slug de pareja en
+    # dos cuentas) exponia el historial completo -- nombres reales incluidos
+    # -- de la otra cuenta en este modal.
+    instancias_seguras = _workflow_instances_seguras(subject_type='job', subject_id=job_id)
     if job.get('lead_id'):
-        subject_ids.add(job['lead_id'])
-    instance_ids = {
-        i.id for i in workflow_engine.list_instances()
-        if i.subject_id in subject_ids
-    }
+        instancias_seguras = instancias_seguras + _workflow_instances_seguras(
+            subject_type='lead', subject_id=job['lead_id'])
+    instance_ids = {i.id for i in instancias_seguras}
     history = [h for h in workflow_engine.history if h.get('instance_id') in instance_ids]
     return jsonify({'ok': True, 'history': history[-100:]})
 
@@ -8196,7 +8250,7 @@ def api_job_workflow_task_toggle_portal(job_id, task_id):
 
 
 def _get_or_create_job_workflow_instance(job):
-    instances = [i for i in workflow_engine.list_instances(subject_id=job.get('id'), subject_type='job')]
+    instances = _workflow_instances_seguras(subject_type='job', subject_id=job.get('id'))
     if instances:
         return instances[0]
     return workflow_engine.start_workflow(
@@ -8206,6 +8260,7 @@ def _get_or_create_job_workflow_instance(job):
         subject_name=job.get('nombre', 'Job'),
         trigger_event='job.created',
         auto_execute_first=False,
+        tenant_id=job.get('tenant_id'),
     )
 
 
@@ -9453,7 +9508,7 @@ def crear_lead_publico():
     lead['client_id'] = client['id']
     upsert_lead(lead)
     try:
-        instance = trigger_workflow_for_lead(lead_id, lead['nombre'])
+        instance = trigger_workflow_for_lead(lead_id, lead['nombre'], tenant_id=lead.get('tenant_id'))
         workflow_id = instance.id
     except Exception:
         workflow_id = None
@@ -9731,46 +9786,96 @@ def api_workflow_test(template_id):
         subject_id=f"test_{int(datetime.now().timestamp())}",
         subject_name=fake_name,
         trigger_event='test.created',
+        tenant_id=get_current_tenant_id(),
     )
     return jsonify({'ok': True, 'instance_id': instance.id, 'subject': fake_name})
 
 
-def _instancia_es_de_la_cuenta(inst, job_ids=None, lead_ids=None):
-    """True si el job/lead de la instancia es visible en la cuenta activa.
+def _instancia_es_de_la_cuenta(inst, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
+    """True si la instancia es de la cuenta activa (o de `tenant_id`, para
+    el unico caso que recorre varias cuentas en una sola llamada: el admin
+    tool /api/admin/workflow-cleanup, que ya usa store.list_privileged(
+    tenant_id=tid, ...) para leer los jobs de cada cuenta por turno -- sin
+    este parametro, la comparacion de la capa 1 usaria get_current_tenant_id()
+    -la sesion activa del admin, no la cuenta que se esta recorriendo- y
+    podria: (a) no encontrar nunca instancias etiquetadas de otras cuentas
+    (falla cerrado, solo se vuelve inefectivo), o (b) peor, en una colision
+    real de subject_id, devolver la instancia de la cuenta EQUIVOCADA. Todo
+    call site normal (request-scoped, una sola cuenta activa) deja esto en
+    None y el comportamiento no cambia.
 
-    El WorkflowEngine guarda TODAS las instancias en un solo diccionario en
-    memoria y en un `workflow_instances.json` global (sin sufijo de
-    cuenta). La nota de _persist_workflow_template dice que el AVANCE si
-    esta aislado "ligado al job que ya paso por el filtro de tenant al
-    buscarlo" -- y eso es cierto en job_detail, que lo busca por job. Pero
-    /api/workflow/instances listaba el diccionario entero sin pasar por
-    ningun job, asi que Astral veia los nombres de las bodas de Norkevin.
+    El WorkflowEngine guarda TODAS las instancias de las 3 cuentas en un
+    solo diccionario en memoria y en un `workflow_instances.json` global
+    (sin sufijo de cuenta). /api/workflow/instances listaba el diccionario
+    entero sin pasar por ningun job, asi que Astral veia los nombres de las
+    bodas de Norkevin -- ese fue el bug original que esta funcion cerro.
 
-    El dueno se resuelve por los datos, no por un campo nuevo: si el
-    job/lead no aparece en las listas ya filtradas por cuenta, la instancia
-    no es de esta cuenta. No hay migracion ni cambio de formato.
+    Dos capas (27-ago-2026):
+      1. Si la instancia tiene `tenant_id` (todas las creadas desde que se
+         agrego ese campo -- ver WorkflowInstance en src/workflow/models.py),
+         es una comparacion directa e inequivoca contra `tenant_id` (o la
+         cuenta activa si no se paso ninguna). No hace falta mirar
+         jobs/leads para nada.
+      2. Si no lo tiene (instancias guardadas ANTES de ese campo -- no se
+         migran retroactivamente), se cae al heuristico original: el dueno
+         se resuelve por los datos, no por un campo. Si el job/lead no
+         aparece en las listas ya filtradas por cuenta, la instancia no es
+         de esta cuenta.
 
-    Efecto lateral buscado: las instancias cuyo subject ya no existe (las
-    143 filas huerfanas de los datos demo) dejan de aparecer. Una instancia
-    que apunta a un job borrado no es accionable por nadie.
+    La capa 1 tambien cierra un agujero que la capa 2 sola no podia cerrar:
+    los jobs importados de Studio Ninja usan un id deterministico por
+    nombre de pareja ('boda-sn-<slug>'), asi que dos cuentas pueden terminar
+    con el MISMO subject_id. En ese caso el heuristico de la capa 2 le dice
+    "si" a CUALQUIER instancia con ese subject_id, sin importar de que
+    cuenta sea -- exactamente el escenario que motivo agregar `tenant_id`.
+
+    job_ids_cache/lead_ids_cache (batch, ver test_rendimiento_vistas.py):
+    quien ya los calculo (por ejemplo una vista que llama esto una vez por
+    fila) los pasa para no releer jobs/leads en cada llamada -- solo se
+    usan para la capa 2 (instancias legacy sin tenant_id).
+
+    Efecto lateral buscado (capa 2, sin cambios): las instancias cuyo
+    subject ya no existe (las 143 filas huerfanas de los datos demo) dejan
+    de aparecer. Una instancia que apunta a un job borrado no es accionable
+    por nadie.
     """
-    if job_ids is None:
-        job_ids = {j.get('id') for j in list_jobs()}
-    if lead_ids is None:
-        lead_ids = {l.get('id') for l in list_leads()}
+    if inst.tenant_id:
+        return inst.tenant_id == (tenant_id or get_current_tenant_id())
+    if job_ids_cache is None:
+        job_ids_cache = {j.get('id') for j in list_jobs()}
+    if lead_ids_cache is None:
+        lead_ids_cache = {l.get('id') for l in list_leads()}
     if inst.subject_type == 'job':
-        return inst.subject_id in job_ids
+        return inst.subject_id in job_ids_cache
     if inst.subject_type == 'lead':
-        return inst.subject_id in lead_ids
+        return inst.subject_id in lead_ids_cache
     return False
 
 
 def _workflow_instances_del_tenant():
     """Instancias de workflow de la cuenta activa, en una sola pasada."""
-    job_ids = {j.get('id') for j in list_jobs()}
-    lead_ids = {l.get('id') for l in list_leads()}
+    job_ids_cache = {j.get('id') for j in list_jobs()}
+    lead_ids_cache = {l.get('id') for l in list_leads()}
     return [i for i in workflow_engine.list_instances()
-            if _instancia_es_de_la_cuenta(i, job_ids, lead_ids)]
+            if _instancia_es_de_la_cuenta(i, job_ids_cache, lead_ids_cache)]
+
+
+def _workflow_instances_seguras(subject_type=None, subject_id=None, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
+    """Envoltorio seguro sobre el motor de workflows: aplica
+    _instancia_es_de_la_cuenta() para que ningun call site pueda quedarse
+    con la instancia de OTRA cuenta ante una colision de subject_id (ver
+    docstring de esa funcion). Usar esto en vez de ir directo al motor en
+    cualquier codigo nuevo que busque "la instancia de este job/lead".
+
+    job_ids_cache/lead_ids_cache: idem _instancia_es_de_la_cuenta -- pasarlos
+    cuando quien llama ya los tiene (una vista que recorre muchos jobs/leads),
+    para no releer la tabla completa una vez por fila.
+
+    tenant_id: idem _instancia_es_de_la_cuenta -- solo hace falta cuando
+    quien llama no esta en el contexto de una sola cuenta activa (el admin
+    tool que recorre varias cuentas por turno)."""
+    candidatas = workflow_engine.list_instances(subject_type=subject_type, subject_id=subject_id)
+    return [i for i in candidatas if _instancia_es_de_la_cuenta(i, job_ids_cache, lead_ids_cache, tenant_id)]
 
 
 @app.route('/api/workflow/instances')
@@ -9821,6 +9926,7 @@ def api_workflow_trigger_lead_created():
         subject_id=data.get('lead_id', ''),
         subject_name=data.get('nombre', 'Lead'),
         trigger_event='lead.created',
+        tenant_id=get_current_tenant_id(),
     )
     return jsonify({'ok': True, 'instance_id': instance.id})
 
@@ -9874,7 +9980,7 @@ def api_lead_create():
         upsert_lead(lead)
 
     # AUTO-DISPARAR workflow
-    instance = trigger_workflow_for_lead(lead_id, data['nombre'])
+    instance = trigger_workflow_for_lead(lead_id, data['nombre'], tenant_id=lead.get('tenant_id'))
 
     return jsonify({'ok': True, 'lead': lead, 'workflow_instance_id': instance.id})
 
@@ -9911,6 +10017,7 @@ def api_workflow_trigger_quote_accepted():
         subject_id=data.get('job_id', ''),
         subject_name=data.get('nombre', 'Job'),
         trigger_event='quote.accepted',
+        tenant_id=get_current_tenant_id(),
     )
     return jsonify({'ok': True, 'instance_id': instance.id})
 
@@ -11274,7 +11381,7 @@ def api_workflow_step():
         return jsonify({'ok': False, 'error': 'Este step no tiene email template configurado'}), 400
 
     # Disparar workflow engine
-    instances = workflow_engine.list_instances(subject_id=lead_id, subject_type='lead')
+    instances = _workflow_instances_seguras(subject_type='lead', subject_id=lead_id)
     if not instances:
         return jsonify({'ok': False, 'error': 'No hay workflow activo'}), 400
     instance = instances[0]
@@ -11336,7 +11443,7 @@ def api_job_production_step(job_id):
     template_id = template_map.get(step_id)
 
     # Buscar el workflow instance del job
-    instances = workflow_engine.list_instances(subject_id=job_id, subject_type='job')
+    instances = _workflow_instances_seguras(subject_type='job', subject_id=job_id)
     if not instances:
         return jsonify({'ok': False, 'error': 'No hay workflow activo'}), 400
     instance = instances[0]
@@ -11393,7 +11500,13 @@ def _auto_fire_due_job_steps():
         if job.get('status') in ('Cancelado', 'Archivado'):
             continue
         try:
-            steps, _, _ = compute_workflow_steps_for_job(job)
+            # tenant_id=job.get('tenant_id') explicito: este loop corre sin
+            # peticion web (hilo en segundo plano), asi que get_current_tenant_id()
+            # -que usa la sesion activa- daria None aca. Sin esto, cualquier
+            # instancia YA etiquetada con tenant_id (inst.tenant_id == None
+            # nunca es igual) dejaria de encontrarse y su step jamas se
+            # auto-dispararia. Ver docstring de _instancia_es_de_la_cuenta.
+            steps, _, _ = compute_workflow_steps_for_job(job, tenant_id=job.get('tenant_id'))
         except Exception as e:
             logger.error(f'Error calculando steps del job {job.get("id")}: {e}')
             continue
@@ -11563,6 +11676,11 @@ def error_interno(e):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8765))
-    debug = os.environ.get('FLASK_DEBUG', '1') == '1'
+    # Opt-IN, no opt-OUT (mismo criterio que OUTBOUND_EMAIL_ENABLED,
+    # ALLOW_DESTRUCTIVE_ADMIN_OPERATIONS, etc.): el debugger interactivo de
+    # Werkzeug no deberia quedar prendido solo porque alguien se olvido de
+    # la variable. Esto solo corre al lanzar `python app.py` (abrir_crm.bat);
+    # Render usa gunicorn via wsgi.py y nunca pasa por aca.
+    debug = os.environ.get('FLASK_DEBUG', '0') == '1'
     logger.info(f'CRM Astral Weddings arrancando en puerto {port} (debug={debug})')
     app.run(debug=debug, port=port, host='0.0.0.0')
