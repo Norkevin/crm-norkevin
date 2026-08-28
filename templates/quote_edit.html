@@ -19,7 +19,10 @@
   .opt-field label { display: block; font-size: 12px; font-weight: 600; color: var(--doc-ink-soft); margin-bottom: 5px; }
   .opt-field input, .opt-field textarea {
     width: 100%; border: 1px solid var(--doc-line); border-radius: 10px; padding: 11px 13px;
-    font-size: 14px; font-family: inherit; color: var(--doc-ink); background: #fff;
+    /* 16px, no 14: Kevin arma cotizaciones desde el telefono durante eventos
+       (ver test_responsive_movil.py) -- menos de 16px hace zoom automatico
+       en iOS al enfocar el campo. */
+    font-size: 16px; font-family: inherit; color: var(--doc-ink); background: #fff;
   }
   .opt-field textarea { resize: vertical; min-height: 70px; }
   .status-banner { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #FDF1DC; color: #97620C; }

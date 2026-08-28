@@ -77,6 +77,17 @@ def test_las_paginas_del_cliente_tampoco_hacen_zoom(pagina):
         f'{pagina} deja los inputs abajo de 16px en movil (zoom automatico)'
 
 
+def test_el_editor_de_cotizaciones_tampoco_hace_zoom():
+    """quote_edit.html no es una pagina de cliente (no esta en
+    PAGINAS_CLIENTE), pero Kevin arma/edita cotizaciones desde el telefono
+    durante los eventos igual que el resto del CRM -- sus campos de opcion
+    (nombre, subtitulo, precio, horas, grupos...) tenian font-size: 14px
+    fijo, sin condicionar a movil, hasta la revision de BLOQUE H."""
+    css = _css('quote_edit.html')
+    assert re.search(r'\.opt-field input,\s*\.opt-field textarea\s*\{[^}]*font-size:\s*16px', css, re.S), \
+        'los inputs del editor de opciones siguen abajo de 16px (zoom automatico en iOS)'
+
+
 # ============================================================
 # 2. Areas tactiles
 # ============================================================
