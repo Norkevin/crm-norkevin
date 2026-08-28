@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from src.workflow import WorkflowEngine, LEAD_WORKFLOW, PRODUCTION_WORKFLOW
 from src.workflow.models import StepStatus, WorkflowStatus, TriggerType
 from src.storage import store, log_security_event, TenantMismatchError
-from src import public_links, public_tokens
+from src import public_links, public_tokens, quote_numbering
 from src.tenant_brand_map import display_name_for_tenant as _brand_display_name_for_tenant
 
 logging.basicConfig(level=logging.INFO)
@@ -1954,6 +1954,14 @@ PUBLIC_PATTERNS = [
     _re_auth.compile(r'^/quotes/[^/]+/accept$'),
     _re_auth.compile(r'^/quotes/[^/]+/decline$'),
     _re_auth.compile(r'^/quotes/[^/]+/pdf$'),
+    # Public Quote Experience (28-ago-2026): /q/<token> es el enlace nuevo
+    # que se manda al cliente (token seguro, ver src/public_tokens.py).
+    # /quotes/<id> NO se quita de esta lista: sigue siendo el alias interno
+    # que ya circula en PDFs y correos enviados antes de este cambio.
+    _re_auth.compile(r'^/q/[^/]+$'),
+    _re_auth.compile(r'^/q/[^/]+/accept$'),
+    _re_auth.compile(r'^/q/[^/]+/decline$'),
+    _re_auth.compile(r'^/q/[^/]+/pdf$'),
     _re_auth.compile(r'^/contracts/[^/]+$'),
     _re_auth.compile(r'^/contracts/[^/]+/pdf$'),
     _re_auth.compile(r'^/api/contracts/[^/]+/sign$'),
@@ -2037,6 +2045,16 @@ def _resolve_public_tenant(path):
             slug = path[len(prefix):].strip('/').split('/', 1)[0]
             tenant = _tenant_by_slug(slug) if slug else _tenant_by_slug('astral-weddings')
             return (tenant or {}).get('id')
+
+    # Public Quote Experience (28-ago-2026): el segmento en /q/<token> no es
+    # un id, es un secreto (src/public_tokens.py) -- la cuenta se busca por
+    # el HASH del token, nunca por igualdad directa contra un id, asi que
+    # no encaja en el loop generico de abajo (que compara por igualdad).
+    if path.startswith('/q/'):
+        token = path[len('/q/'):].split('/', 1)[0]
+        if not token:
+            return None
+        return store.owner_tenant_of_public_token('quotes', token)
 
     for prefix, table, field in _PUBLIC_TENANT_LOOKUP:
         if not path.startswith(prefix):
@@ -3341,7 +3359,9 @@ def api_lead_create_quote(lead_id):
         'status': status,
         'created': _dt.now().isoformat()[:10],
         'aceptada_en': None,
+        'tenant_id': lead.get('tenant_id') or get_current_tenant_id(),
     }
+    _assign_quote_number(quote)
     store.upsert('quotes', quote)
 
     if status != 'Borrador':
@@ -8662,6 +8682,7 @@ def api_job_create_quote(job_id):
             'sent_at': date.today().isoformat(),
             'tenant_id': job_local.get('tenant_id') or get_current_tenant_id(),
         }
+        _assign_quote_number(quote)
         store.upsert('quotes', quote)
         return jsonify({
             'ok': True,
@@ -10268,6 +10289,134 @@ def _quote_plan_choices(quote):
     return [1, 2, 3, 4]
 
 
+# ============================================================
+# PUBLIC QUOTE EXPERIENCE -- BLOQUE B (28-ago-2026)
+# ============================================================
+# Extensiones de modelo para la nueva experiencia publica de cotizaciones.
+# Regla de todo este bloque: aditivo. Ningun campo nuevo reemplaza uno
+# existente, y toda cotizacion vieja (sin estos campos) sigue funcionando
+# exactamente igual via .get(clave, default). NO se toca accept_quote(),
+# _convert_lead_to_job(), conversion_registry, _ensure_payments_for_quote,
+# _crear_schedule/_active_schedule_for, ni tenant_brand_map/resolve_pdf_brand.
+
+def _assign_quote_number(quote, tenant_id=None):
+    """Asigna quote['number'] (NORK-2026-0041) una sola vez, via el contador
+    atomico por cuenta+anio (JsonStore.next_sequence_number). Idempotente:
+    si el quote ya tiene numero, no hace nada -- evita "quemar" un numero
+    de la secuencia en un resave.
+
+    tenant_id explicito porque el dict `quote` que arma cada endpoint de
+    creacion no siempre tiene 'tenant_id' todavia en el momento en que esto
+    se llama (varios lo agregan recien dentro de store.upsert()) -- ver
+    _upsert_locked en storage.py. Si no se puede resolver ninguna cuenta ni
+    ningun prefijo de marca (tenant_brand_map.py, sin tocar), el quote
+    queda sin numero: mejor visible y corregible a mano que numerado con el
+    prefijo de la empresa equivocada."""
+    if quote.get('number'):
+        return quote
+    tenant_id = tenant_id or quote.get('tenant_id') or get_current_tenant_id()
+    prefix = quote_numbering.prefix_for_tenant(tenant_id)
+    if not tenant_id or not prefix:
+        return quote
+    year = date.today().year
+    seq = store.next_sequence_number('quotes', tenant_id=tenant_id, year=year)
+    quote['number'] = quote_numbering.format_quote_number(prefix, year, seq)
+    return quote
+
+
+def _flatten_option_groups(groups):
+    """Aplana grupos estructurados ({'title', 'items': [...]}) a una lista
+    plana de strings ('Titulo: item'), para seguir poblando quote['incluye']
+    / option['incluye'] -- el campo que YA leen el PDF (pdf_generator.py) y
+    las vistas viejas. Asi una opcion armada con grupos nuevos sigue
+    mostrandose bien en todo lo que todavia no sabe de 'groups', sin tener
+    que tocar ese codigo."""
+    flat = []
+    for g in (groups or []):
+        title = (g.get('title') or '').strip()
+        for item in (g.get('items') or []):
+            item = str(item).strip()
+            if not item:
+                continue
+            flat.append(f'{title}: {item}' if title else item)
+    return flat
+
+
+def _load_portfolio(tenant_id=None, *, only_active=True):
+    """Portfolio de la cuenta activa (o tenant_id explicito, para el caso de
+    una ruta publica que ya resolvio la cuenta del enlace pero no tiene
+    sesion). list_privileged ya filtra por tenant_id internamente -- no
+    hace falta filtrar de nuevo."""
+    items = store.list('portfolio_items') if tenant_id is None else store.list_privileged(
+        'portfolio_items', tenant_id=tenant_id, reason='resolver portfolio de la cuenta')
+    if only_active:
+        items = [i for i in items if i.get('active', True)]
+    return sorted(items, key=lambda i: (i.get('order') if i.get('order') is not None else 999))
+
+
+def _load_terms_templates(tenant_id=None):
+    items = store.list('quote_terms_templates') if tenant_id is None else store.list_privileged(
+        'quote_terms_templates', tenant_id=tenant_id, reason='resolver condiciones de la cuenta')
+    return sorted(items, key=lambda i: (i.get('order') if i.get('order') is not None else 999))
+
+
+def _load_quote_templates(tenant_id=None):
+    items = store.list('quote_templates') if tenant_id is None else store.list_privileged(
+        'quote_templates', tenant_id=tenant_id, reason='resolver templates de la cuenta')
+    return sorted([i for i in items if i.get('active', True)],
+                  key=lambda i: (i.get('order') if i.get('order') is not None else 999))
+
+
+def _quote_theme_for_tenant(tenant_id):
+    """Theme visual (colores/logo/footer/CTA) de la Public Quote Experience
+    para una cuenta. Envuelve resolve_pdf_brand (sin tocarlo ni duplicar su
+    logica) y agrega SOLO lo cosmetico, leido de settings_<tenant>.json,
+    bloque 'quote_theme'. Mismo fail-hard que el resto: sin marca resuelta,
+    placeholder neutro -- nunca la marca de otra cuenta."""
+    brand = resolve_pdf_brand(tenant_id)
+    theme_saved = {}
+    if tenant_id:
+        try:
+            theme_saved = (store.get_tenant_dict('settings', tenant_id=tenant_id) or {}).get('quote_theme') or {}
+        except Exception:
+            theme_saved = {}
+    defaults = {
+        'bg_dark': '#0a0a0a', 'cream': '#f4ede4', 'bone': '#faf8f3',
+        'ink': '#1a1a1a', 'ink_soft': '#5a5a5a', 'line': '#d4cfc5',
+        'accent': '#c9a961', 'logo_url': '', 'footer_text': '',
+        'cta_text': 'ACEPTAR COTIZACIÓN', 'whatsapp': '',
+    }
+    theme = {**defaults, **theme_saved}
+    theme['display_name'] = brand['display_name']
+    theme['tagline'] = brand.get('tagline', '')
+    theme['email'] = brand.get('email', '')
+    theme['phone'] = brand.get('phone', '')
+    return theme
+
+
+def _snapshot_public_quote_extras(quote, tenant_id):
+    """Congela portfolio/condiciones/theme dentro del quote en el momento de
+    enviarlo (mismo instante en que ya se marca sent_at/status='Enviada').
+    Kevin: 'si modifico la plantilla mañana, una cotizacion enviada ayer NO
+    debe cambiar silenciosamente'. Si el quote ya tenia un snapshot (reenvio),
+    no lo pisa -- el snapshot se toma UNA vez, la primera vez que se envia."""
+    if quote.get('portfolio_snapshot') is None:
+        portfolio_ids = quote.get('portfolio_ids')
+        portfolio = _load_portfolio(tenant_id)
+        if portfolio_ids:
+            portfolio = [p for p in portfolio if p.get('id') in portfolio_ids]
+        quote['portfolio_snapshot'] = portfolio
+    if quote.get('terms_snapshot') is None:
+        terms_template_id = quote.get('terms_template_id')
+        templates = _load_terms_templates(tenant_id)
+        chosen = next((t for t in templates if t.get('id') == terms_template_id), None) \
+            if terms_template_id else (templates[0] if templates else None)
+        quote['terms_snapshot'] = (chosen or {}).get('blocks', [])
+    if quote.get('theme_snapshot') is None:
+        quote['theme_snapshot'] = _quote_theme_for_tenant(tenant_id)
+    return quote
+
+
 @app.route('/quotes')
 def quotes_list():
     """Quotes Overview: todas las cotizaciones del tenant, sin importar
@@ -10403,6 +10552,7 @@ def api_quote_create_draft():
         'created': date.today().isoformat(),
         'tenant_id': tenant_id,
     }
+    _assign_quote_number(quote, tenant_id)
     store.upsert('quotes', quote)
     return jsonify({'ok': True, 'quote_id': quote_id, 'edit_url': f'/quotes/{quote_id}/edit'})
 
@@ -10410,7 +10560,17 @@ def api_quote_create_draft():
 @app.route('/api/quotes/<quote_id>/options', methods=['POST'])
 def api_quote_option_save(quote_id):
     """Agrega o actualiza una opcion de paquete (maximo 3) en una cotizacion
-    en estado Borrador."""
+    en estado Borrador.
+
+    Extendido (BLOQUE B, Public Quote Experience, 28-ago-2026) con campos
+    opcionales para la vista publica premium: subtitle, description,
+    precio_anterior, descuento, horas, label, order, photos, groups
+    (secciones de incluidos, ej. 'Boda principal · Fotografia'). Todos
+    opcionales y con default seguro -- una opcion vieja (o guardada sin
+    estos campos) sigue funcionando identico. 'incluye' (plano) se sigue
+    poblando siempre, ahora tambien a partir de 'groups' si se manda, para
+    no romper el PDF ni ninguna vista que todavia solo sepa leer esa
+    clave."""
     import uuid
     quote = store.get('quotes', quote_id)
     if not quote:
@@ -10429,17 +10589,68 @@ def api_quote_option_save(quote_id):
     if precio_total <= 0:
         return jsonify({'ok': False, 'error': 'El precio debe ser mayor a 0'}), 400
 
+    precio_anterior = data.get('precio_anterior')
+    try:
+        precio_anterior = float(precio_anterior) if precio_anterior not in (None, '') else None
+    except (TypeError, ValueError):
+        precio_anterior = None
+
+    descuento = data.get('descuento')
+    try:
+        descuento = float(descuento) if descuento not in (None, '') else None
+    except (TypeError, ValueError):
+        descuento = None
+
+    horas = data.get('horas')
+    try:
+        horas = float(horas) if horas not in (None, '') else None
+    except (TypeError, ValueError):
+        horas = None
+
+    groups = data.get('groups')
+    if not isinstance(groups, list):
+        groups = []
+    groups = [{
+        'title': (g.get('title') or '').strip(),
+        'items': [str(x).strip() for x in (g.get('items') or []) if str(x).strip()],
+    } for g in groups if isinstance(g, dict)]
+
     incluye = data.get('incluye')
     if isinstance(incluye, str):
         incluye = [line.strip() for line in incluye.split('\n') if line.strip()]
+    incluye = incluye or []
+    if groups:
+        # Groups es la fuente estructurada nueva; si se manda, 'incluye'
+        # (plano) se deriva de ahi para que PDF/vistas viejas sigan
+        # mostrando lo mismo sin tener que saber que existen los grupos.
+        incluye = _flatten_option_groups(groups)
+
+    photos = data.get('photos')
+    if not isinstance(photos, list):
+        photos = []
+    photos = [str(p).strip() for p in photos if str(p).strip()]
+
+    products = data.get('products')
+    if not isinstance(products, list):
+        products = []
 
     options = quote.get('options') or []
     option_id = data.get('id')
     option = {
         'id': option_id or ('opt-' + uuid.uuid4().hex[:6]),
         'name': name,
+        'subtitle': (data.get('subtitle') or '').strip(),
+        'description': (data.get('description') or '').strip(),
         'precio_total': precio_total,
-        'incluye': incluye or [],
+        'precio_anterior': precio_anterior,
+        'descuento': descuento,
+        'horas': horas,
+        'label': (data.get('label') or '').strip(),
+        'order': data.get('order') if isinstance(data.get('order'), int) else len(options),
+        'incluye': incluye,
+        'groups': groups,
+        'products': products,
+        'photos': photos,
         'notas': data.get('notas') or '',
     }
     existing_idx = next((i for i, o in enumerate(options) if o.get('id') == option_id), None) if option_id else None
@@ -10491,6 +10702,224 @@ def api_quote_payment_options(quote_id):
     quote['plan_pago_opciones'] = opciones
     store.upsert('quotes', quote)
     return jsonify({'ok': True, 'plan_pago_opciones': opciones})
+
+
+@app.route('/api/quotes/<quote_id>/extras', methods=['POST'])
+def api_quote_extras_save(quote_id):
+    """Guarda el catalogo de extras ofrecidos en esta cotizacion (BLOQUE B,
+    Public Quote Experience). Solo el catalogo -- que el cliente elige y
+    cuanto suma al total se resuelve y valida en BLOQUE E, siempre en
+    backend, nunca confiando en lo que mande el navegador (mismo principio
+    que ya usa quote_accept con cuota_monto)."""
+    quote = store.get('quotes', quote_id)
+    if not quote:
+        return jsonify({'ok': False, 'error': 'Cotizacion no encontrada'}), 404
+    if quote.get('status') and quote.get('status') != 'Borrador':
+        return jsonify({'ok': False, 'error': 'Esta cotizacion ya fue enviada, no se puede editar'}), 400
+
+    data = request.get_json() or {}
+    raw = data.get('extras')
+    if not isinstance(raw, list):
+        return jsonify({'ok': False, 'error': 'Se espera {"extras": [...]}'}), 400
+
+    import uuid
+    catalog = []
+    for e in raw:
+        if not isinstance(e, dict):
+            continue
+        name = (e.get('name') or '').strip()
+        if not name:
+            continue
+        try:
+            price = float(e.get('price') or 0)
+        except (TypeError, ValueError):
+            price = 0.0
+        if price < 0:
+            price = 0.0
+        catalog.append({
+            'id': e.get('id') or ('extra-' + uuid.uuid4().hex[:6]),
+            'name': name,
+            'description': (e.get('description') or '').strip(),
+            'price': price,
+        })
+
+    quote['extras_catalog'] = catalog
+    store.upsert('quotes', quote)
+    return jsonify({'ok': True, 'extras_catalog': catalog})
+
+
+# ============================================================
+# PUBLIC QUOTE EXPERIENCE -- catalogos por cuenta (portfolio, condiciones,
+# templates). CRUD simple, tenant-scoped por la sesion activa como
+# cualquier otra tabla (store.upsert/list/delete ya aislan). Sin token de
+# admin: son datos de configuracion de la propia cuenta logueada, mismo
+# nivel de confianza que api_quote_option_save. La UI que los administra
+# (Settings > Quotes) es BLOQUE D/F -- esto deja el contrato de datos listo.
+# ============================================================
+
+@app.route('/api/portfolio', methods=['GET'])
+def api_portfolio_list():
+    return jsonify({'ok': True, 'items': _load_portfolio(only_active=False)})
+
+
+@app.route('/api/portfolio', methods=['POST'])
+def api_portfolio_save():
+    import uuid
+    data = request.get_json() or {}
+    title = (data.get('title') or '').strip()
+    if not title:
+        return jsonify({'ok': False, 'error': 'Titulo requerido'}), 400
+    item_id = data.get('id') or ('pf-' + uuid.uuid4().hex[:8])
+    existing = store.get('portfolio_items', item_id) if data.get('id') else None
+    item = {
+        'id': item_id,
+        'title': title,
+        'couple_names': (data.get('couple_names') or '').strip(),
+        'location': (data.get('location') or '').strip(),
+        'image_url': (data.get('image_url') or '').strip(),
+        'external_url': (data.get('external_url') or '').strip(),
+        'password': (data.get('password') or '').strip(),
+        'blurb': (data.get('blurb') or '').strip(),
+        'order': data.get('order') if isinstance(data.get('order'), int) else (existing or {}).get('order', 0),
+        'active': data.get('active') if isinstance(data.get('active'), bool) else True,
+    }
+    store.upsert('portfolio_items', item)
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/portfolio/<item_id>', methods=['DELETE'])
+def api_portfolio_delete(item_id):
+    ok = store.delete('portfolio_items', item_id)
+    return jsonify({'ok': ok})
+
+
+@app.route('/api/quote-terms-templates', methods=['GET'])
+def api_quote_terms_list():
+    return jsonify({'ok': True, 'items': _load_terms_templates()})
+
+
+@app.route('/api/quote-terms-templates', methods=['POST'])
+def api_quote_terms_save():
+    """Guarda un template de condiciones: {title, blocks: [{title, body}]}.
+    'blocks' es la lista de secciones (Cobertura, Entrega, Hora adicional,
+    Disponibilidad...) que Kevin pidio poder reutilizar y editar libremente."""
+    import uuid
+    data = request.get_json() or {}
+    title = (data.get('title') or '').strip()
+    if not title:
+        return jsonify({'ok': False, 'error': 'Titulo requerido'}), 400
+    blocks = data.get('blocks')
+    if not isinstance(blocks, list):
+        blocks = []
+    blocks = [{
+        'title': (b.get('title') or '').strip(),
+        'body': (b.get('body') or '').strip(),
+    } for b in blocks if isinstance(b, dict) and (b.get('title') or b.get('body'))]
+
+    item_id = data.get('id') or ('terms-' + uuid.uuid4().hex[:8])
+    existing = store.get('quote_terms_templates', item_id) if data.get('id') else None
+    item = {
+        'id': item_id,
+        'title': title,
+        'blocks': blocks,
+        'order': data.get('order') if isinstance(data.get('order'), int) else (existing or {}).get('order', 0),
+        'active': data.get('active') if isinstance(data.get('active'), bool) else True,
+    }
+    store.upsert('quote_terms_templates', item)
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/quote-terms-templates/<item_id>', methods=['DELETE'])
+def api_quote_terms_delete(item_id):
+    ok = store.delete('quote_terms_templates', item_id)
+    return jsonify({'ok': ok})
+
+
+@app.route('/api/quote-templates', methods=['GET'])
+def api_quote_templates_list():
+    return jsonify({'ok': True, 'items': _load_quote_templates()})
+
+
+@app.route('/api/quote-templates', methods=['POST'])
+def api_quote_templates_save():
+    """Template de cotizacion (Boda, Boda foto+video, Civil, XV anios...):
+    pre-arma opciones + plan de pago + condiciones default. Al usarlo desde
+    el builder (BLOQUE D) se copian como snapshot editable dentro del quote
+    nuevo -- modificar el template despues no altera cotizaciones ya
+    creadas con el (mismo patron que _snapshot_public_quote_extras)."""
+    import uuid
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'ok': False, 'error': 'Nombre requerido'}), 400
+    options = data.get('options')
+    if not isinstance(options, list):
+        options = []
+
+    item_id = data.get('id') or ('qt-' + uuid.uuid4().hex[:8])
+    existing = store.get('quote_templates', item_id) if data.get('id') else None
+    item = {
+        'id': item_id,
+        'name': name,
+        'description': (data.get('description') or '').strip(),
+        'options': options,
+        'plan_pago_opciones': data.get('plan_pago_opciones') or [1, 2, 3, 4],
+        'terms_template_id': data.get('terms_template_id') or '',
+        'order': data.get('order') if isinstance(data.get('order'), int) else (existing or {}).get('order', 0),
+        'active': data.get('active') if isinstance(data.get('active'), bool) else True,
+    }
+    store.upsert('quote_templates', item)
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/quote-templates/<item_id>', methods=['DELETE'])
+def api_quote_templates_delete(item_id):
+    ok = store.delete('quote_templates', item_id)
+    return jsonify({'ok': ok})
+
+
+@app.route('/api/quotes/draft-from-template', methods=['POST'])
+def api_quote_create_from_template():
+    """Crea un Borrador multi-opcion a partir de un quote_template: copia
+    options/plan_pago_opciones/terms_template_id como snapshot editable
+    (dict independiente, no una referencia) para que editar el template
+    despues no cambie este quote ya creado."""
+    import copy
+    import uuid
+    data = request.get_json() or {}
+    lead_id = data.get('lead_id')
+    job_id = data.get('job_id')
+    template_id = data.get('template_id')
+    if not lead_id and not job_id:
+        return jsonify({'ok': False, 'error': 'lead_id o job_id requerido'}), 400
+    if not template_id:
+        return jsonify({'ok': False, 'error': 'template_id requerido'}), 400
+
+    template = store.get('quote_templates', template_id)
+    if not template:
+        return jsonify({'ok': False, 'error': 'Template no encontrado'}), 404
+
+    lead = get_lead(lead_id) if lead_id else None
+    job = get_job(job_id) if job_id else None
+    tenant_id = (lead or job or {}).get('tenant_id') or get_current_tenant_id()
+
+    quote_id = 'quote-' + uuid.uuid4().hex[:8]
+    quote = {
+        'id': quote_id,
+        'lead_id': lead_id or (job.get('lead_id') if job else ''),
+        'job_id': job_id or '',
+        'client_id': (job.get('client_id') if job else '') or (lead.get('client_id') if lead else ''),
+        'status': 'Borrador',
+        'options': copy.deepcopy(template.get('options') or []),
+        'plan_pago_opciones': list(template.get('plan_pago_opciones') or [1, 2, 3, 4]),
+        'terms_template_id': template.get('terms_template_id') or '',
+        'quote_template_id': template_id,
+        'created': date.today().isoformat(),
+        'tenant_id': tenant_id,
+    }
+    _assign_quote_number(quote, tenant_id)
+    store.upsert('quotes', quote)
+    return jsonify({'ok': True, 'quote_id': quote_id, 'edit_url': f'/quotes/{quote_id}/edit'})
 
 
 @app.route('/quotes/<quote_id>/accept', methods=['POST'])
@@ -10605,12 +11034,26 @@ def api_quote_send(quote_id):
     if not to_email:
         return jsonify({'ok': False, 'error': 'Esta cotizacion no tiene email de cliente'}), 400
 
-    # Generar el link publico
+    tenant_id_for_send = quote.get('tenant_id') or (job or {}).get('tenant_id')
+
+    # Public Quote Experience (28-ago-2026): el link que se manda ahora usa
+    # un token seguro (src/public_tokens.py) en vez del id interno -- se
+    # emite uno NUEVO en cada envio (rotando el anterior, si habia), porque
+    # el token en claro solo existe en el momento de emitirlo y no se puede
+    # recuperar despues para reusarlo en un reenvio. /quotes/<id> se deja
+    # intacto como alias interno: enlaces ya enviados antes de este cambio
+    # siguen funcionando exactamente igual.
     host = request.host_url.rstrip('/')
-    quote_url = host + f'/quotes/{quote_id}'
+    token_claro, quote = public_tokens.emitir_para(quote)
+    quote_url = host + f'/q/{token_claro}'
+
+    # Congela portfolio/condiciones/theme en el mismo instante en que la
+    # cotizacion pasa a ser "la version que ve el cliente" -- editar el
+    # catalogo/template/branding despues no debe cambiarla silenciosamente.
+    _snapshot_public_quote_extras(quote, tenant_id_for_send)
 
     data = request.json or request.form or {}
-    empresa = _brand_display_name_for_tenant(quote.get('tenant_id') or (job or {}).get('tenant_id'))
+    empresa = _brand_display_name_for_tenant(tenant_id_for_send)
     subject = (data.get('subject') or '').strip() or f'Cotizacion {quote.get("number") or quote_id} - {empresa}'
     body = (data.get('body') or '').strip() or (
         f"Hola {lead.get('nombre') or 'Cliente'},\n\n"
@@ -10644,6 +11087,52 @@ def api_quote_send(quote_id):
         'message': f'Cotizacion enviada a {to_email}'
     })
 
+
+# ============================================================
+# PUBLIC QUOTE EXPERIENCE -- /q/<token> (28-ago-2026)
+# ============================================================
+# El token se resuelve UNA vez aca (via public_tokens.buscar_por_token,
+# sobre store.list('quotes'), que para este momento de la peticion YA esta
+# aislado a la cuenta duena del token -- _resolve_public_tenant() lo fijo
+# en @app.before_request antes de que este codigo corra). Con el quote_id
+# resuelto, cada ruta llama DIRECTO a la funcion de siempre (quote_view,
+# quote_accept, quote_decline, quote_pdf) -- no se reimplementa nada de
+# accept_quote ni de las vistas: esto solo cambia COMO se llega al mismo
+# codigo, nunca que hace ese codigo.
+def _resolve_quote_by_token(token):
+    return public_tokens.buscar_por_token(store.list('quotes'), token)
+
+
+@app.route('/q/<token>')
+def public_quote_view(token):
+    quote = _resolve_quote_by_token(token)
+    if not quote:
+        abort(404)
+    return quote_view(quote['id'])
+
+
+@app.route('/q/<token>/accept', methods=['POST'])
+def public_quote_accept(token):
+    quote = _resolve_quote_by_token(token)
+    if not quote:
+        abort(404)
+    return quote_accept(quote['id'])
+
+
+@app.route('/q/<token>/decline', methods=['POST'])
+def public_quote_decline(token):
+    quote = _resolve_quote_by_token(token)
+    if not quote:
+        abort(404)
+    return quote_decline(quote['id'])
+
+
+@app.route('/q/<token>/pdf')
+def public_quote_pdf(token):
+    quote = _resolve_quote_by_token(token)
+    if not quote:
+        abort(404)
+    return quote_pdf(quote['id'])
 
 
 # ============================================================

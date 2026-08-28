@@ -95,7 +95,19 @@ TENANT_SCOPED_TABLES = {
     # lo demas: un pendiente de Astral no debe verse ni aprobarse desde
     # Norkevin.
     'pending_emails',
+    # Public Quote Experience (28-ago-2026): portfolio, condiciones y
+    # templates de cotizacion son datos de UNA empresa -- un trabajo de
+    # Norkevin jamas debe poder aparecer en una cotizacion de Astral ni
+    # viceversa. Van scoped exactamente igual que 'packages'.
+    'portfolio_items', 'quote_terms_templates', 'quote_templates',
 }
+
+# 'sequence_counters' (numeracion NORK-2026-0001) NO esta en
+# TENANT_SCOPED_TABLES a proposito: no se lee/escribe nunca via
+# list()/get()/upsert() genericos, solo via next_sequence_number(), que
+# exige tenant_id explicito y hace su propio aislamiento por clave
+# compuesta (tenant_id::scope::anio). Meterla en el set generico solo
+# agregaria una ruta de acceso sin control adicional, no proteccion real.
 
 
 logger = logging.getLogger(__name__)
@@ -626,6 +638,65 @@ class JsonStore:
         if os.path.getsize(backup_path) != os.path.getsize(path):
             raise RuntimeError(f"Backup de '{table}' no se pudo verificar (tamano distinto al original).")
         return backup_path
+
+    def next_sequence_number(self, scope, *, tenant_id=None, year=None):
+        """Numero secuencial atomico, por cuenta y por 'scope' (ej. 'quotes'),
+        reiniciado cada anio (NORK-2026-0001, NORK-2027-0001...). Reemplaza a
+        MAX(id)+1 -- que dos escrituras concurrentes pueden leer igual y
+        devolver el mismo numero dos veces -- con el mismo patron de
+        exclusion mutua por archivo que ya usa upsert(): todo el ciclo
+        leer -> incrementar -> escribir bajo el MISMO RLock del archivo de
+        contadores (ver _FILE_LOCKS arriba). Guarda en 'sequence_counters',
+        una tabla nueva, sin tocar ninguna tabla ni logica existente.
+
+        A proposito NO pasa por _tenant_scope(): quien llama debe conocer
+        el tenant_id (normalmente ya lo tiene: es el mismo que va en el
+        registro que esta creando) en vez de depender de la sesion activa.
+        Asi este metodo tambien sirve desde scripts/migraciones sin
+        request, y nunca puede devolver un numero "sin dueno" por perder el
+        contexto -- revienta en vez de adivinar."""
+        tenant_id = tenant_id or self._current_tenant_id()
+        if not tenant_id:
+            raise MissingTenantContextError(
+                f"next_sequence_number('{scope}') sin tenant_id: un numero "
+                'de secuencia sin cuenta quedaria compartido entre negocios.'
+            )
+        year = year or datetime.now().year
+        key = f'{tenant_id}::{scope}::{year}'
+        path = self._path('sequence_counters')
+        with _lock_for_path(path):
+            counters = self._read_raw('sequence_counters')
+            row = next((c for c in counters if c.get('id') == key), None)
+            nuevo = (row.get('next') if row else 0) + 1
+            if row:
+                row['next'] = nuevo
+            else:
+                counters.append({
+                    'id': key, 'tenant_id': tenant_id, 'scope': scope,
+                    'year': year, 'next': nuevo,
+                })
+            self._save('sequence_counters', counters)
+        return nuevo
+
+    def owner_tenant_of_public_token(self, table, token, *, hash_field='public_token_hash'):
+        """Como owner_tenant_of (arriba), pero para enlaces con token seguro
+        (ver src/public_tokens.py) en vez de un id: el valor guardado es un
+        HASH, no el token en claro, asi que la comparacion no puede ser una
+        igualdad directa -- hay que hashear lo recibido y comparar en tiempo
+        constante, que es exactamente lo que ya hace
+        public_tokens.token_coincide().
+
+        Devuelve solo el tenant_id, nunca el registro completo: misma regla
+        que owner_tenant_of, este es el UNICO tipo de lectura entre cuentas
+        que se permite antes de que el aislamiento se pueda aplicar."""
+        from src import public_tokens
+        if not token:
+            return None
+        for record in self._read_raw(table):
+            guardado = record.get(hash_field)
+            if guardado and public_tokens.token_coincide(token, guardado):
+                return record.get('tenant_id')
+        return None
 
     def _save(self, table, records):
         """Escribe la tabla completa de forma atomica.
