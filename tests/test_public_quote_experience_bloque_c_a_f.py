@@ -85,6 +85,32 @@ def test_public_view_muestra_numero_grupos_y_extras(auth_client):
     assert f'/q/{token}/decline' in html
 
 
+def test_send_reemplaza_el_marcador_de_link_por_la_url_real(auth_client):
+    """quote_edit.html no puede mostrar el link real en la vista previa del
+    mensaje (el token recien se emite al enviar) -- manda un marcador
+    [[QUOTE_LINK]] en su lugar. Antes de esto, un envio sin tocar el
+    mensaje salia con el link interno viejo (/quotes/<id>) en vez de
+    /q/<token> en el correo real."""
+    import app as app_module
+    quote_id = _crear_borrador_con_opcion(auth_client, app_module, ASTRAL, precio_total=5000)
+    quote_antes = app_module.store.get('quotes', quote_id)
+    lead_id = quote_antes['lead_id']
+
+    r = auth_client.post(f'/api/quotes/{quote_id}/send', json={
+        'subject': 'x',
+        'body': 'Hola,\n\nTu link: [[QUOTE_LINK]]\n\nSaludos',
+    })
+    assert r.status_code == 200
+    quote_url = r.get_json()['quote_url']
+    token = quote_url.rsplit('/q/', 1)[1]
+
+    enviados = [m for m in app_module.store.list('mail_log') if m.get('lead_id') == lead_id]
+    assert enviados, 'no se encontro en mail_log el correo enviado para este lead'
+    correo = enviados[-1]
+    assert '[[QUOTE_LINK]]' not in correo['body'], 'el marcador no debe llegar tal cual al correo real'
+    assert f'/q/{token}' in correo['body'], 'el correo real debe tener la URL del token, no el marcador'
+
+
 def test_public_view_legacy_quote_sin_options_sigue_renderizando(auth_client):
     """Cotizacion vieja: un solo paquete plano, sin 'options', sin
     extras_catalog, sin portfolio/condiciones asignadas. No debe romperse

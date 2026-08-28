@@ -11258,6 +11258,14 @@ def api_quote_send(quote_id):
         f"{quote_url}\n\n"
         f"Saludos,\n{empresa}"
     )
+    # quote_edit.html (BLOQUE D) no puede mostrar el link real en la vista
+    # previa del mensaje -- el token recien se emite arriba, en este mismo
+    # request. Manda el mensaje con un marcador [[QUOTE_LINK]] en su lugar;
+    # se reemplaza aca por la URL real de ESTE envio, tanto si el admin
+    # dejo la plantilla tal cual como si la edito y el marcador sigue en
+    # el texto. Antes de este reemplazo, un envio sin editar el mensaje
+    # salia con el link interno viejo (/quotes/<id>) en vez de /q/<token>.
+    body = body.replace('[[QUOTE_LINK]]', quote_url)
     mail = get_tracker().log_email(
         to_email=to_email,
         subject=subject,

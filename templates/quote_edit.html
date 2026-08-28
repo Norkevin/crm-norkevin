@@ -420,11 +420,16 @@ function sendQuote() {
   if (!opts.length) { alert('Agrega al menos 1 opcion de paquete antes de enviar'); return; }
   document.getElementById('send-quote-to').value = {{ (display_email or '')|tojson }};
   document.getElementById('send-quote-subject').value = 'Cotizacion ' + QUOTE_ID + ' - ' + {{ brand.display_name|tojson }};
-  var quoteUrl = window.location.origin + '/quotes/' + QUOTE_ID;
+  // El link real (/q/<token>) recien se genera al enviar -- por seguridad
+  // el token no existe hasta ese momento (public_tokens.emitir_para), asi
+  // que aca no se puede mostrar la URL final, solo un marcador. El
+  // backend (api_quote_send) reemplaza ese marcador por el link real
+  // en CUALQUIER body que llegue (editado o no) antes de mandar el
+  // correo -- nunca sale un correo real con una URL adivinada o vieja.
   document.getElementById('send-quote-body').value =
     'Hola ' + {{ (display_name or 'Cliente')|tojson }} + ',\n\n' +
     'Tu cotizacion esta lista. Puedes verla y aceptarla en este enlace:\n' +
-    quoteUrl + '\n\nSaludos,\n' + {{ brand.display_name|tojson }};
+    '[[QUOTE_LINK]]' + '\n\nSaludos,\n' + {{ brand.display_name|tojson }};
   document.getElementById('send-quote-modal').classList.add('open');
 }
 
