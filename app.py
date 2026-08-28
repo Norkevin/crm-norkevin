@@ -10799,8 +10799,10 @@ def api_quote_extras_save(quote_id):
     if not isinstance(raw, list):
         return jsonify({'ok': False, 'error': 'Se espera {"extras": [...]}'}), 400
 
+    import math
     import uuid
     catalog = []
+    ids_usados = set()
     for e in raw:
         if not isinstance(e, dict):
             continue
@@ -10811,10 +10813,20 @@ def api_quote_extras_save(quote_id):
             price = float(e.get('price') or 0)
         except (TypeError, ValueError):
             price = 0.0
-        if price < 0:
+        # price < 0 no atrapa inf/-inf/nan (las comparaciones con nan
+        # siempre dan False) -- si no es un numero finito y normal, se
+        # descarta al mismo default seguro que un precio invalido.
+        if not math.isfinite(price) or price < 0:
             price = 0.0
+        item_id = e.get('id') or ('extra-' + uuid.uuid4().hex[:6])
+        if item_id in ids_usados:
+            # Un id repetido en el mismo guardado sumaria dos veces al
+            # aceptar (quote_accept suma por cada match de id) -- se
+            # descarta el duplicado en vez de dejarlo persistir.
+            continue
+        ids_usados.add(item_id)
         catalog.append({
-            'id': e.get('id') or ('extra-' + uuid.uuid4().hex[:6]),
+            'id': item_id,
             'name': name,
             'description': (e.get('description') or '').strip(),
             'price': price,
@@ -11078,6 +11090,24 @@ def quote_accept(quote_id):
         if not selected_plan:
             selected_plan = int(quote.get('plan_pago') or 1)
 
+        # Hardening (revision BLOQUE G, no cambia ninguna decision de
+        # negocio): plan_pago viene de un form PUBLICO sin login. Antes de
+        # esto, un plan_pago negativo o gigante (ej. 5000000) llegaba tal
+        # cual hasta _ensure_payments_for_quote, que SI limita el minimo
+        # (max(..., 1)) pero no el maximo -- un valor absurdo intentaria
+        # generar esa cantidad de filas de pago en un solo request, sin
+        # autenticacion. Se valida contra las cuotas que el admin
+        # realmente ofrecio (quote.plan_pago_opciones, armadas en el
+        # builder); si no hay lista (cotizacion vieja) o el valor no esta
+        # en ella, se descarta en silencio y se usa el default de siempre
+        # -- mismo criterio no-error-solo-ignora que ya usa extra_ids.
+        opciones_de_plan_validas = quote.get('plan_pago_opciones') or []
+        if opciones_de_plan_validas:
+            if selected_plan not in opciones_de_plan_validas:
+                selected_plan = int(quote.get('plan_pago') or opciones_de_plan_validas[0])
+        elif not (1 <= selected_plan <= 24):
+            selected_plan = int(quote.get('plan_pago') or 1)
+
         # BLOQUE E: agregados opcionales que el cliente marco (BLOQUE C ya
         # los manda como extra_ids, coma-separado, en el mismo form que
         # option_id/plan_pago). El precio SIEMPRE sale del catalogo server
@@ -11092,8 +11122,18 @@ def quote_accept(quote_id):
             requested_extra_ids = [str(x).strip() for x in raw_extra_ids if str(x).strip()]
         else:
             requested_extra_ids = []
+        # dict.fromkeys en vez de un set: descarta ids repetidos (un
+        # checkbox marcado dos veces en el mismo POST no debe sumar dos
+        # veces) preservando el orden en que se recibieron.
+        requested_extra_ids = list(dict.fromkeys(requested_extra_ids))
         extras_catalog = quote.get('extras_catalog') or []
-        selected_extras = [e for e in extras_catalog if e.get('id') in requested_extra_ids]
+        # dict por id, no una lista filtrada: api_quote_extras_save ya
+        # rechaza ids repetidos al guardar, pero un catalogo viejo
+        # (guardado antes de esa validacion) no se vuelve a limpiar solo
+        # -- de esta forma un id duplicado no puede sumarse dos veces aca
+        # tampoco, sin importar cuantas veces aparezca en la lista.
+        extras_por_id = {e.get('id'): e for e in extras_catalog if e.get('id')}
+        selected_extras = [extras_por_id[eid] for eid in requested_extra_ids if eid in extras_por_id]
         extras_total = sum(float(e.get('price') or 0) for e in selected_extras)
 
         base_price = float(chosen.get('precio_total') or 0)
