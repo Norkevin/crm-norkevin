@@ -17,6 +17,14 @@ def _local_outbox_fallback(to_email, subject, body='', **kwargs):
 
 
 def test_job_questionnaire_surfaces_warning_when_gmail_disconnected(auth_client):
+    """STAGE 2 (agosto 2026): el correo ya no llega hasta send_email() al
+    momento de crear el cuestionario -- queda encolado en pending_emails
+    esperando aprobacion en /emails, sin importar si Gmail esta conectado o
+    no. El patch de send_email (el caso original de este test, 'Gmail
+    desconectado cae a outbox local en silencio') ya no se alcanza desde
+    aca; ese escenario lo sigue cubriendo approve_and_send() y los tests de
+    mail_tracker. Lo que este test verifica ahora es que la API avisa
+    igual de claro que antes: nunca 'ok:true' fingiendo que ya salio."""
     import app as app_module
     import uuid
 
@@ -31,20 +39,25 @@ def test_job_questionnaire_surfaces_warning_when_gmail_disconnected(auth_client)
         'tenant_id': 'tenant-norkevin',
     })
 
-    with patch('src.mail_tracker.send_email', side_effect=_local_outbox_fallback):
-        resp = auth_client.post(f'/api/jobs/{job_id}/questionnaires', json={
-            'name': 'Cuestionario', 'send_email': True,
-        })
+    resp = auth_client.post(f'/api/jobs/{job_id}/questionnaires', json={
+        'name': 'Cuestionario', 'send_email': True,
+    })
 
     assert resp.status_code == 200
     data = resp.get_json()
     assert data['ok'] is True
-    assert data['mail_id'], 'el mail_log si debe tener una entrada (se registro, aunque no se entrego)'
+    assert data['mail_id'], 'pending_emails si debe tener una entrada (se encolo, aunque no se entrego)'
     assert data['mail_warning'], 'debe avisar que NO se entrego de verdad'
-    assert 'Gmail' in data['mail_warning']
+    assert 'cola de aprobacion' in data['mail_warning']
+
+    pendiente = app_module.store.get('pending_emails', data['mail_id'])
+    assert pendiente['status'] == 'pending'
 
 
 def test_job_send_email_surfaces_warning_when_gmail_disconnected(auth_client):
+    """Ver docstring del test anterior: STAGE 2 encola siempre, asi que
+    mail_warning avisa 'en cola' en vez de reflejar el estado real de
+    Gmail -- el patch de send_email ya no aplica aca."""
     import app as app_module
     import uuid
 
@@ -59,10 +72,9 @@ def test_job_send_email_surfaces_warning_when_gmail_disconnected(auth_client):
         'tenant_id': 'tenant-norkevin',
     })
 
-    with patch('src.mail_tracker.send_email', side_effect=_local_outbox_fallback):
-        resp = auth_client.post(f'/api/jobs/{job_id}/send-email', json={
-            'subject': 'Hola', 'body': 'Mensaje',
-        })
+    resp = auth_client.post(f'/api/jobs/{job_id}/send-email', json={
+        'subject': 'Hola', 'body': 'Mensaje',
+    })
 
     assert resp.status_code == 200
     data = resp.get_json()

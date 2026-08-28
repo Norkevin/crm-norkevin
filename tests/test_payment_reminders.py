@@ -45,23 +45,19 @@ def test_reminder_preview_returns_404_for_unknown_payment(auth_client):
 
 def test_send_reminder_respects_edited_text_instead_of_regenerating(auth_client, monkeypatch):
     """Si Kevin edito el mensaje en la vista previa antes de enviarlo, el
-    backend debe mandar EXACTAMENTE ese texto, no regenerarlo."""
+    correo que queda esperando aprobacion debe llevar EXACTAMENTE ese
+    texto, no uno regenerado.
+
+    STAGE 2 (agosto 2026): api_payment_send_reminder ya no llega a
+    send_email() en este paso -- el mensaje editado se congela en
+    pending_emails y espera aprobacion en /emails. El monkeypatch de
+    send_email (para capturar el envio real) ya no aplica aca; lo que
+    hay que revisar es el pendiente que quedo encolado."""
     import app as app_module
-    from src.email_delivery import DeliveryResult
 
     payments = app_module.store.list('payments')
     pending = next((p for p in payments if p.get('status') in ('Pendiente', 'Late') and p.get('client_id')), None)
     assert pending, 'necesita al menos un payment pendiente con client_id en los datos de prueba'
-
-    sent = {}
-
-    def _capturing_send_email(to_email, subject, body='', **kwargs):
-        sent['to_email'] = to_email
-        sent['subject'] = subject
-        sent['body'] = body
-        return DeliveryResult(ok=True, provider='test', message_id='test-msg', mode='test')
-
-    monkeypatch.setattr('src.mail_tracker.send_email', _capturing_send_email)
 
     resp = auth_client.post(f'/api/payments/{pending["id"]}/send-reminder', json={
         'to_email': 'override@example.com',
@@ -71,6 +67,9 @@ def test_send_reminder_respects_edited_text_instead_of_regenerating(auth_client,
     assert resp.status_code == 200
     data = resp.get_json()
     assert data['ok'] is True
-    assert sent['to_email'] == 'override@example.com'
-    assert sent['subject'] == '[EDITADO] Asunto de prueba'
-    assert sent['body'] == 'Cuerpo editado a mano por Kevin, no debe regenerarse.'
+
+    encolado = app_module.store.get('pending_emails', data['mail_id'])
+    assert encolado['status'] == 'pending'
+    assert encolado['to'] == 'override@example.com'
+    assert encolado['subject'] == '[EDITADO] Asunto de prueba'
+    assert encolado['body'] == 'Cuerpo editado a mano por Kevin, no debe regenerarse.'

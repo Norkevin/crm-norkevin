@@ -37,6 +37,14 @@ def _seed_business_data(app_module):
     app_module.store.upsert('clients', {'id': f'client-reset-{suffix}', 'first_name': 'Reset', 'tenant_id': 'tenant-norkevin'})
     app_module.store.upsert('jobs', {'id': f'job-reset-{suffix}', 'nombre': 'Reset Job', 'tenant_id': 'tenant-norkevin'})
     app_module.store.upsert('payments', {'id': f'pay-reset-{suffix}', 'amount': 100, 'tenant_id': 'tenant-norkevin'})
+    # STAGE 2 (agosto 2026): un correo esperando aprobacion tambien es dato
+    # de prueba -- si el reset no lo vacia, sobrevive apuntando a un lead
+    # que ya no existe.
+    app_module.store.upsert('pending_emails', {
+        'id': f'pend-reset-{suffix}', 'tenant_id': 'tenant-norkevin',
+        'to': 'reset-test@example.com', 'subject': 'Pendiente de prueba',
+        'status': 'pending',
+    })
     return suffix
 
 
@@ -90,7 +98,8 @@ def test_reset_wipes_business_tables_but_keeps_config(auth_client):
     assert data['ok'] is True
 
     for table in ('leads', 'clients', 'jobs', 'quotes', 'payments', 'contracts',
-                  'questionnaires', 'files', 'mail_log', 'mail_outbox', 'calendar'):
+                  'questionnaires', 'files', 'mail_log', 'mail_outbox', 'calendar',
+                  'pending_emails'):
         assert app_module.store.list(table) == [], f'{table} deberia quedar vacio'
 
     assert _snapshot('email_templates') == templates_before

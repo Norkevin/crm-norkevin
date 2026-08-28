@@ -131,11 +131,20 @@ def check_recipient_identity(tenant_id, to_email, client_id):
 
     # El cliente es de esta empresa. Falta ver si la direccion a la que se va
     # a escribir es de verdad la suya.
+    #
+    # to_email puede traer VARIOS destinatarios separados por ", " -- los
+    # jobs mandan a cliente principal + secundario + wedding planner juntos
+    # en un solo header To (ver _job_all_recipient_emails/", ".join(...) en
+    # app.py). Comparar el string completo contra una sola direccion del
+    # cliente casi nunca calzaba y generaba un aviso falso ("la direccion no
+    # es la que tiene registrada el cliente") en casi todo correo de Job con
+    # mas de un destinatario. Se parte en direcciones individuales y basta
+    # con que UNA coincida.
     cliente = store.get('clients', client_id) or {}
     suyas = {(cliente.get(c) or '').strip().lower()
              for c in ('email', 'secondary_email')} - {''}
-    destino = (to_email or '').strip().lower()
-    if destino and suyas and destino not in suyas:
+    destinos = {d.strip().lower() for d in (to_email or '').split(',')} - {''}
+    if destinos and suyas and not (destinos & suyas):
         # No se bloquea: un cliente puede pedir que le escriban a otra
         # direccion, y cortar eso seria over-blocking. Pero queda registrado
         # y visible en la pantalla de revision.
@@ -143,10 +152,13 @@ def check_recipient_identity(tenant_id, to_email, client_id):
                            registro=client_id, cuenta_activa=tenant_id)
         return None, 'la direccion no es la que tiene registrada el cliente'
 
-    if destino and store.tenants_owning('clients', destino, field='email') - {tenant_id}:
-        # La direccion tambien existe en la otra empresa. El envio es
-        # correcto (manda el client_id, no el correo), pero es exactamente el
-        # tipo de caso que hay que mirar dos veces antes de aprobar.
+    ambiguos = {d for d in destinos
+                if store.tenants_owning('clients', d, field='email') - {tenant_id}}
+    if ambiguos:
+        # Alguna de las direcciones tambien existe en la otra empresa. El
+        # envio es correcto (manda el client_id, no el correo), pero es
+        # exactamente el tipo de caso que hay que mirar dos veces antes de
+        # aprobar.
         log_security_event('DESTINATARIO_AMBIGUO', registro=client_id,
                            cuenta_activa=tenant_id)
         return None, ('esta direccion tambien existe como cliente en la otra '
@@ -285,6 +297,76 @@ class MailTracker:
                 log_security_event('DUPLICATE_EMAIL_IDEMPOTENCY_KEY_BLOCKED',
                                    registro=idempotency_key, cuenta_activa=tenant_id)
                 return ya_enviado
+            # STAGE 2 (agosto 2026): ademas de "ya se envio", hay que evitar
+            # apilar un pendiente NUEVO con la MISMA clave mientras el
+            # anterior sigue sin resolver.
+            #
+            # Nota de concurrencia (revision adversarial, agosto 2026): el
+            # "leer la lista + decidir + escribir" de aca abajo no es
+            # atomico -- dos requests que caigan en esta funcion al mismo
+            # tiempo con la misma idempotency_key podrian, en teoria, leer
+            # "no existe todavia" las dos y terminar creando dos pendientes
+            # duplicados (TOCTOU). Hoy eso NO es explotable en produccion
+            # porque el deploy corre gunicorn de un solo worker sin hilos
+            # (ver Procfile/render.yaml: sin --workers ni --threads; wsgi.py
+            # no pasa threaded=True), asi que Flask procesa las requests una
+            # por una y esta seccion nunca se ejecuta en paralelo consigo
+            # misma. Si en el futuro el deploy pasa a multiples
+            # workers/hilos, ESTE comentario deja de ser cierto y hace falta
+            # una seccion critica de verdad (lock o upsert atomico) antes de
+            # confiar en este dedup bajo carga concurrente real.
+            #
+            # Sin este dedup, un disparador que se reintenta solo (el
+            # auto-fire de steps de job cada 6h, por ejemplo) crearia una
+            # copia identica en cada pasada mientras
+            # nadie revisa la primera -- la bandeja de aprobacion se
+            # llenaria de duplicados del mismo correo antes de que alguien
+            # llegue a mirarla. Un BLOQUEADO no cuenta aca a proposito: si
+            # se bloqueo, un intento nuevo con datos ya corregidos debe
+            # poder generar un pendiente nuevo, igual que approve_and_send
+            # ya revalida todo de cero sin confiar en el bloqueo anterior.
+            ya_en_cola = next(
+                (e for e in store.list('pending_emails')
+                 if e.get('idempotency_key') == idempotency_key
+                 and e.get('tenant_id') == tenant_id
+                 and e.get('status') in (PENDIENTE, ENVIANDO)),
+                None,
+            )
+            if ya_en_cola:
+                # Revision de STAGE 2 (agosto 2026, hallazgo de revision
+                # adversarial): si el contenido pedido AHORA (to/subject/
+                # body) es distinto al que ya tiene este pendiente sin
+                # resolver -- el caso real es Kevin editando un recordatorio
+                # despues de que el disparo automatico ya lo habia encolado
+                # con el texto por defecto, y ambos comparten
+                # idempotency_key a proposito (ver comentario mas arriba)
+                # -- NO se sobreescribe el pendiente en silencio ni se
+                # vuelve a correr la validacion de seguridad sobre el: se
+                # deja exactamente como estaba (mismo comportamiento de
+                # siempre, cero riesgo nuevo en la ruta que existe por el
+                # incidente de seguridad original) pero se le agrega un
+                # aviso visible en /emails, para que quien aprueba sepa que
+                # el texto mostrado puede no ser el ultimo que se pidio.
+                if ((ya_en_cola.get('to') or '') != (to_email or '')
+                        or (ya_en_cola.get('subject') or '') != (subject or '')
+                        or (ya_en_cola.get('body') or '') != (body or '')):
+                    aviso_extra = ('el contenido pedido para este correo '
+                                   'cambio (ej. edicion manual) despues de '
+                                   'quedar en cola sin revisar -- lo de '
+                                   'arriba es el texto ORIGINAL; si el '
+                                   'nuevo es el correcto, descarta este '
+                                   'pendiente y volve a generarlo')
+                    existente = ya_en_cola.get('aviso_identidad') or ''
+                    if aviso_extra not in existente:
+                        ya_en_cola['aviso_identidad'] = (
+                            f'{existente} | {aviso_extra}' if existente else aviso_extra)
+                        try:
+                            store.upsert('pending_emails', ya_en_cola)
+                        except Exception:
+                            pass
+                    log_security_event('PENDING_EMAIL_CONTENT_MISMATCH_ON_DEDUP',
+                                       registro=idempotency_key, cuenta_activa=tenant_id)
+                return ya_en_cola
 
         motivo = check_same_tenant(tenant_id, lead_id=lead_id, job_id=job_id,
                                    template_id=template_id)

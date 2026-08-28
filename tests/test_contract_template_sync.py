@@ -58,27 +58,29 @@ def test_contract_send_keeps_signing_link_even_with_a_template_missing_it(auth_c
     data = resp.get_json()
     assert data['ok'] is True
 
-    mail = next(m for m in app_module.store.list('mail_log') if m.get('id') == data['mail_id'])
+    # STAGE 2 (agosto 2026): encola en vez de entregar de inmediato.
+    mail = next(m for m in app_module.store.list('pending_emails') if m.get('id') == data['mail_id'])
     assert f'/contracts/{contract_id}' in mail['body'], (
         'el link de firma debe estar presente aunque la plantilla elegida no lo traiga'
     )
 
 
 def test_contract_send_surfaces_mail_delivery_warning(auth_client):
-    from unittest.mock import patch
-    from src.email_delivery import DeliveryResult
+    """STAGE 2 (agosto 2026): api_contract_send ya no entrega de inmediato
+    -- todo envio queda esperando aprobacion en /emails, sin importar si
+    Gmail esta conectado o no. El mail_warning ahora avisa siempre eso
+    (antes, avisaba solo si el proveedor caia al outbox local); el
+    patch de send_email que probaba ese caso especifico ya no aplica
+    porque queue_email() no llega a llamar a send_email()."""
     import app as app_module
 
     client_id, job_id = _make_job_with_client(app_module, 'c')
     resp = auth_client.post('/api/contracts/new', json={'job_id': job_id})
     contract_id = resp.get_json()['contract_id']
 
-    def _local_outbox_fallback(to_email, subject, body='', **kwargs):
-        return DeliveryResult(ok=True, provider='local_outbox', message_id='outbox-fake', mode='test')
-
-    with patch('src.mail_tracker.send_email', side_effect=_local_outbox_fallback):
-        resp = auth_client.post(f'/api/contracts/{contract_id}/send', json={})
+    resp = auth_client.post(f'/api/contracts/{contract_id}/send', json={})
 
     assert resp.status_code == 200
     data = resp.get_json()
-    assert data['mail_warning'], 'debe avisar que no se entrego de verdad, igual que cuestionarios/emails'
+    assert data['mail_warning'], 'debe avisar que el correo quedo en la cola, no se entrego solo'
+    assert 'cola de aprobacion' in data['mail_warning']

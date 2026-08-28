@@ -90,7 +90,9 @@ def test_submitting_with_questionnaire_id_sends_that_exact_prepared_record(auth_
     assert len(all_q) == 1
     assert all_q[0]['status'] == 'Sent'
 
-    mail = next(m for m in app_module.store.list('mail_log') if m.get('id') == data['mail_id'])
+    # STAGE 2 (agosto 2026): encola en vez de entregar de inmediato.
+    mail = next(m for m in app_module.store.list('pending_emails') if m.get('id') == data['mail_id'])
+    assert mail['status'] == 'pending'
     assert real_url in mail['body']
 
 

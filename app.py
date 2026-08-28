@@ -453,14 +453,69 @@ def _mail_delivery_warning(entry):
     desconectado y el correo solo se guardaba en data/mail_outbox.json
     (local_outbox), sin llegar nunca al cliente. send_email() cae ahi en
     silencio -- este helper convierte ese caso en un aviso explicito que el
-    frontend puede mostrar en vez de un exito falso."""
+    frontend puede mostrar en vez de un exito falso.
+
+    STAGE 2 (agosto 2026): ahora tambien recibe registros de pending_emails
+    (lo que devuelve MailTracker.queue_email()), no solo de mail_log -- los
+    14 puntos de envio de produccion pasaron de log_email() (entrega
+    inmediata) a queue_email() (espera aprobacion humana en /emails), asi
+    que el caso mas comun en la practica ya no es 'se entrego' sino 'quedo
+    en la cola'. Sin este aviso, la pantalla seguiria diciendo 'enviado'
+    para algo que en realidad nadie reviso todavia."""
     if not entry:
         return None
-    if entry.get('status') == 'failed':
-        return f"El correo NO se pudo entregar: {entry.get('delivery_error') or 'error desconocido'}."
+    estado = entry.get('status')
+    if estado == 'pending':
+        return ('El correo quedo en la cola de aprobacion (STAGE 2): no sale '
+                'hasta que alguien lo apruebe en /emails.')
+    if estado == 'blocked':
+        motivo = entry.get('blocked_reason') or entry.get('delivery_error') or 'motivo no especificado'
+        return f'El correo quedo BLOQUEADO y no se puso en la cola: {motivo}. Revisalo en /emails.'
+    if estado == 'failed':
+        return f"El correo NO se pudo entregar: {entry.get('delivery_error') or entry.get('error') or 'error desconocido'}."
     if entry.get('delivery_provider') == 'local_outbox':
         return 'El correo se registro pero NO se entrego de verdad porque Gmail no esta conectado. Conecta Gmail en Configuracion y vuelve a enviarlo.'
     return None
+
+
+def _lead_mail_status_chip(mail_entry):
+    """Traduce el resultado de queue_email() al chip que ve Kevin en el
+    lead (dashboard.html, l.mail_status). Antes de STAGE 2 esto se pisaba
+    con 'ENVIADO' sin condicion -- ahora refleja lo que de verdad paso:
+    'EN COLA' mientras espera aprobacion en /emails, 'ENVIADO' solo si el
+    idempotency_key ya encontro un envio real anterior, 'BLOQUEADO' solo si
+    una regla de seguridad de verdad impidio encolarlo.
+
+    Revision de STAGE 2 (agosto 2026): el else final devolvia 'BLOQUEADO'
+    para CUALQUIER estado que no fuera 'sent'/'pending' -- incluyendo
+    'sending', 'failed', 'discarded' o un mail_entry vacio/None, ninguno de
+    los cuales es una decision de seguridad. Eso le mostraria a Kevin un
+    chip de bloqueo por algo que nunca fue bloqueado. Cada estado real de
+    MailStatus (src/mail_tracker.py) tiene ahora su propio chip; solo lo
+    desconocido cae en 'EN COLA', que es el neutral honesto (revisar
+    /emails para saber que paso de verdad) en vez de alarmar de mas."""
+    estado = (mail_entry or {}).get('status')
+    if estado in ('sent', 'ENVIADO'):
+        return 'ENVIADO'
+    if estado in ('pending', 'PENDIENTE', 'sending', 'ENVIANDO'):
+        return 'EN COLA'
+    if estado in ('blocked', 'BLOQUEADO'):
+        return 'BLOQUEADO'
+    if estado in ('failed', 'FALLO'):
+        return 'FALLO'
+    if estado in ('discarded', 'CANCELADO'):
+        return 'DESCARTADO'
+    return 'EN COLA'
+
+
+def _idempotency_minute_bucket():
+    """Ventana de 1 minuto para las claves de idempotencia de los correos
+    disparados manualmente (boton de un admin): suficiente para no encolar
+    dos veces un doble-click o un doble-submit del formulario, sin bloquear
+    un reenvio deliberado unos minutos despues -- a diferencia de un paso de
+    workflow o un recordatorio automatico, un reenvio manual intencional es
+    un caso legitimo que no hay que confundir con un duplicado accidental."""
+    return datetime.now().strftime('%Y%m%d%H%M')
 
 
 def _get_email_template(template_id):
@@ -616,14 +671,21 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
         body = _render_message_template(
             body_override or (template or {}).get('cuerpo') or '', lead=lead)
         from src.mail_tracker import get_tracker
-        mail_entry = get_tracker().log_email(
+        # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
+        # inmediata. Clave estable: la logica de arriba (linea 605-606) ya
+        # impide re-disparar un step DONE, asi que esto es un respaldo, no
+        # la guarda principal.
+        mail_entry = get_tracker().queue_email(
             to_email=to_email,
             subject=subject,
             body=body,
             template_id=step.email_template_id,
             lead_id=lead.get('id'),
+            client_id=lead.get('client_id') or None,
+            source=f'workflow:lead-step:{step_id}',
+            idempotency_key=f"leadstep:{lead.get('id')}:{step_id}",
         )
-        lead['mail_status'] = 'ENVIADO'
+        lead['mail_status'] = _lead_mail_status_chip(mail_entry)
 
     instance.step_states[step_id] = StepStatus.DONE
     instance.step_results[step_id] = result_message or (
@@ -3399,15 +3461,21 @@ def api_lead_send_email(lead_id):
     if not lead.get('email'):
         return jsonify({'ok': False, 'error': 'Este lead no tiene email'}), 400
 
+    # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega inmediata.
+    # Clave por minuto: es un mensaje libre escrito a mano, un reenvio
+    # deliberado unos minutos despues es legitimo y no debe bloquearse.
     tracker = get_tracker()
-    entry = tracker.log_email(
+    entry = tracker.queue_email(
         to_email=lead.get('email', ''),
         subject=subject,
         body=body,
         template_id=data.get('template_id'),
         lead_id=lead_id,
+        client_id=lead.get('client_id') or None,
+        source='manual:lead-send-email',
+        idempotency_key=f'leadmail:{lead_id}:{_idempotency_minute_bucket()}',
     )
-    lead['mail_status'] = 'ENVIADO'
+    lead['mail_status'] = _lead_mail_status_chip(entry)
     upsert_lead(lead)
     if data.get('complete_step') and data.get('step_id'):
         _complete_lead_workflow_step(
@@ -3422,10 +3490,9 @@ def api_lead_send_email(lead_id):
         'mail_id': entry['id'],
         'to': lead.get('email'),
         'subject': subject,
-        'delivery_provider': entry.get('delivery_provider'),
-        'delivery_mode': entry.get('delivery_mode'),
         'delivery_status': entry.get('status'),
-        'delivery_error': entry.get('delivery_error'),
+        'blocked_reason': entry.get('blocked_reason'),
+        'mail_warning': _mail_delivery_warning(entry),
     })
 
 
@@ -3489,14 +3556,20 @@ def api_lead_create_questionnaire(lead_id):
                                 placeholders=['[LINK AL CUESTIONARIO]',
                                               'Please view the questionnaire online by clicking here'],
                                 fallback_label='Completa el cuestionario aqui')
-            entry = get_tracker().log_email(
+            # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
+            # inmediata. Clave por dia: un reenvio deliberado manana debe
+            # poder salir, pero dos clicks seguidos hoy no deben duplicar.
+            entry = get_tracker().queue_email(
                 to_email=to_email,
                 subject=subject,
                 body=body,
                 template_id=data.get('template_id') or 'tpl-cuestionario-prod',
                 lead_id=lead_id,
                 job_id=lead.get('lead_id_job'),
+                client_id=lead.get('client_id') or None,
                 attachments=[questionnaire['name']],
+                source='manual:questionnaire-lead',
+                idempotency_key=f"questionnaire:{questionnaire['id']}:notify:{date.today().isoformat()}",
             )
             mail_id = entry['id']
             mail_warning = _mail_delivery_warning(entry)
@@ -3571,38 +3644,6 @@ def api_mail_recent():
     tracker = get_tracker()
     return jsonify({'emails': tracker.list_recent(limit), 'stats': tracker.stats()})
 
-
-# Cuando un step del workflow se dispara, automaticamente registrar el email
-def log_workflow_email(lead_id, job_id, step_id, step_name, template_id):
-    """Helper: registra un email cuando se dispara un step del workflow."""
-    from src.mail_tracker import get_tracker
-    from src.workflow import LEAD_WORKFLOW, PRODUCTION_WORKFLOW
-
-    tracker = get_tracker()
-
-    # Buscar template
-    templates = store.list('email_templates')
-    template = next((t for t in templates if t.get('id') == template_id), None)
-    if not template:
-        return None
-
-    subject = template.get('asunto', f'Step: {step_name}').replace('{{nombre}}', 'cliente')
-    body = template.get('cuerpo', '').replace('{{nombre}}', 'cliente')
-
-    to_email = ''
-    if lead_id:
-        lead = get_lead(lead_id)
-        if lead:
-            to_email = lead.get('email', '')
-
-    return tracker.log_email(
-        to_email=to_email,
-        subject=subject,
-        body=body,
-        template_id=template_id,
-        lead_id=lead_id,
-        job_id=job_id,
-    )
 
 @app.route('/api/leads/<lead_id>/accept-quote', methods=['POST'])
 def api_lead_accept_quote(lead_id):
@@ -4932,6 +4973,16 @@ def api_admin_reset_test_data():
     tables_to_wipe = [
         'leads', 'clients', 'jobs', 'quotes', 'payments', 'contracts',
         'questionnaires', 'files', 'mail_log', 'mail_outbox', 'calendar',
+        # pending_emails (STAGE 2, agosto 2026): antes de la cola de
+        # aprobacion esta tabla practicamente no se usaba en operacion real,
+        # asi que faltar aca no se notaba. Ahora que los 13 puntos de envio
+        # de produccion encolan ahi, un reset de datos de prueba que no la
+        # vacie dejaria correos de prueba pendientes de aprobar mezclados
+        # con datos reales -- o, peor, un pendiente que sobrevive al reset
+        # referenciando un lead/job ya borrado (check_same_tenant no
+        # bloquea por un registro inexistente, asi que ese pendiente
+        # todavia se podria aprobar y enviar de verdad despues).
+        'pending_emails',
     ]
 
     # Snapshot de jobs/leads de ESTA cuenta antes de vaciar nada. Hace
@@ -6583,10 +6634,19 @@ def api_job_notes(job_id):
     return jsonify(res)
 
 
-def _send_job_template_email(job, *, template_id=None, subject=None, body=None, attachments=None):
-    """Compone y manda un correo a partir de una plantilla para un job.
-    Extraido de la ruta para que el modal manual y el disparador automatico
-    por fecha (_auto_fire_due_job_steps) compartan la misma logica."""
+def _send_job_template_email(job, *, template_id=None, subject=None, body=None, attachments=None,
+                              step_id=None, auto_fire=False):
+    """Compone y pone en cola (STAGE 2, agosto 2026) un correo a partir de
+    una plantilla para un job. Extraido de la ruta para que el modal manual
+    y el disparador automatico por fecha (_auto_fire_due_job_steps)
+    compartan la misma logica.
+
+    step_id/auto_fire deciden la clave de idempotencia: el disparador
+    automatico pasa auto_fire=True + el step['id'] real, para una clave
+    ESTABLE que no vuelva a encolar el mismo aviso en cada pasada de 6h
+    mientras el pendiente anterior siga sin revisar. El modal manual no
+    pasa step_id (no siempre esta ligado a un step) y usa una clave por
+    minuto, que solo protege contra doble-click."""
     from src.mail_tracker import get_tracker
 
     lead = get_lead(job.get('lead_id', '')) if job.get('lead_id') else None
@@ -6602,24 +6662,29 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
     rendered_subject = _render_message_template(rendered_subject, client=client, lead=lead, job=job)
     rendered_body = _render_message_template(rendered_body, client=client, lead=lead, job=job)
 
-    entry = get_tracker().log_email(
+    idempotency_key = (
+        f"jobstep:{job.get('id')}:{step_id}" if (auto_fire and step_id)
+        else f"jobtemplate:{job.get('id')}:{_idempotency_minute_bucket()}"
+    )
+    entry = get_tracker().queue_email(
         to_email=to_email,
         subject=rendered_subject,
         body=rendered_body,
         template_id=template_id,
         lead_id=job.get('lead_id'),
         job_id=job.get('id'),
+        client_id=job.get('client_id') or None,
         attachments=attachments or [],
         tenant_id=job.get('tenant_id'),
+        source='auto:job-template' if auto_fire else 'manual:job-template',
+        idempotency_key=idempotency_key,
     )
     return {
         'mail_id': entry['id'],
         'to': to_email,
         'subject': rendered_subject,
-        'delivery_provider': entry.get('delivery_provider'),
-        'delivery_mode': entry.get('delivery_mode'),
         'delivery_status': entry.get('status'),
-        'delivery_error': entry.get('delivery_error'),
+        'blocked_reason': entry.get('blocked_reason'),
         'mail_warning': _mail_delivery_warning(entry),
     }
 
@@ -7907,7 +7972,7 @@ def api_questionnaire_submit(questionnaire_id):
 
 def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questions=None,
                                status=None, template_id=None, send_email=True, host_url=None,
-                               reuse_draft=False, questionnaire_id=None):
+                               reuse_draft=False, questionnaire_id=None, auto_fire=False):
     """Crea (o reutiliza) el cuestionario de un job y opcionalmente lo manda.
     Extraido de la ruta para que tanto el modal manual (api_job_create_questionnaire)
     como el disparador automatico por fecha (_auto_fire_due_job_steps) compartan
@@ -7922,7 +7987,14 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
     /api/jobs/<job_id>/questionnaires/prepare) -- el modal 'Send
     Questionnaire' lo usa para que el link real que Kevin ve en el preview
     sea EXACTAMENTE el mismo registro que se termina enviando, en vez de
-    crear un cuestionario nuevo con otro id al momento de enviar."""
+    crear un cuestionario nuevo con otro id al momento de enviar.
+
+    auto_fire=True (STAGE 2, agosto 2026): distingue al disparador
+    automatico del modal manual para la clave de idempotencia del correo --
+    el automatico necesita una clave ESTABLE (nunca debe reenviarse solo
+    porque el scheduler paso de nuevo 6h despues mientras el pendiente
+    anterior sigue sin revisar), el manual necesita una clave por dia (un
+    reenvio deliberado manana es legitimo, dos clicks seguidos hoy no)."""
     import uuid
     lead = get_lead(job.get('lead_id', '')) if job.get('lead_id') else None
     client = get_client(job.get('client_id', '')) if job.get('client_id') else None
@@ -7983,15 +8055,26 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
                                 placeholders=['[LINK AL CUESTIONARIO]',
                                               'Please view the questionnaire online by clicking here'],
                                 fallback_label='Completa el cuestionario aqui')
-            entry = get_tracker().log_email(
+            # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
+            # inmediata. Ver docstring de auto_fire mas arriba para la
+            # eleccion de clave.
+            idempotency_key = (
+                f"jobquestionnaire:{questionnaire['id']}:notify"
+                if auto_fire else
+                f"jobquestionnaire:{questionnaire['id']}:notify:{date.today().isoformat()}"
+            )
+            entry = get_tracker().queue_email(
                 to_email=to_email,
                 subject=rendered_subject,
                 body=rendered_body,
                 template_id=template_id or 'tpl-cuestionario-prod',
                 lead_id=job.get('lead_id'),
                 job_id=job.get('id'),
-                attachments=[questionnaire['name']],
+                client_id=job.get('client_id') or None,
                 tenant_id=job.get('tenant_id'),
+                source='auto:job-questionnaire' if auto_fire else 'manual:job-questionnaire',
+                idempotency_key=idempotency_key,
+                attachments=[questionnaire['name']],
             )
             mail_id = entry['id']
             mail_warning = _mail_delivery_warning(entry)
@@ -8937,12 +9020,17 @@ def api_pago_send(pago_id):
     subject = (data.get('subject') or '').strip() or default_subject
     body = (data.get('body') or '').strip() or default_body
 
-    mail = get_tracker().log_email(
+    # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega inmediata.
+    mail = get_tracker().queue_email(
         to_email=to_email,
         subject=subject,
         body=body,
         lead_id=job.get('lead_id') if job else None,
         job_id=pay.get('job_id'),
+        client_id=pay.get('client_id') or None,
+        tenant_id=pay.get('tenant_id') or (job or {}).get('tenant_id'),
+        source='manual:invoice-send',
+        idempotency_key=f"pago:{pay['id']}:invoice:{_idempotency_minute_bucket()}",
     )
 
     pay['sent_at'] = datetime.now().isoformat()
@@ -8954,12 +9042,13 @@ def api_pago_send(pago_id):
         'payment_id': pay['id'],
         'sent_at': pay['sent_at'],
         'mail_id': mail.get('id'),
-        'delivery_provider': mail.get('delivery_provider'),
-        'delivery_mode': mail.get('delivery_mode'),
+        'delivery_status': mail.get('status'),
         'email': to_email,
         'invoice_url': invoice_url,
         'mail_warning': _mail_delivery_warning(mail),
-        'message': f'Factura enviada a {to_email}',
+        'message': (f'Factura puesta en cola de aprobacion para {to_email} (revisa /emails)'
+                    if mail.get('status') == 'pending'
+                    else f'Factura NO se pudo poner en cola: {mail.get("blocked_reason") or "motivo no especificado"}'),
     })
 
 
@@ -9108,18 +9197,35 @@ def api_payment_send_reminder(pago_id):
     subject = (data.get('subject') or '').strip() or default_subject
     body = (data.get('body') or '').strip() or default_body
 
-    mail = get_tracker().log_email(
+    # STAGE 2 (agosto 2026): misma familia de clave que el recordatorio
+    # automatico (check_and_send_payment_reminders) -- si el scheduler ya
+    # encolo el recordatorio de hoy para este pago, este boton manual no
+    # debe crear un segundo pendiente identico, solo mostrar el que ya
+    # existe.
+    mail = get_tracker().queue_email(
         to_email=to_email,
         subject=subject,
         body=body,
         lead_id=job.get('lead_id') if job else None,
         job_id=pay.get('job_id'),
+        client_id=pay.get('client_id') or None,
+        tenant_id=pay.get('tenant_id') or (job or {}).get('tenant_id'),
+        source='manual:payment-reminder',
+        idempotency_key=f"pago:{pay['id']}:reminder:{date.today().isoformat()}",
     )
     pay['reminder_sent_at'] = datetime.now().isoformat()
     pay['last_action'] = 'sent'
     store.upsert('payments', pay)
 
-    return jsonify({'ok': True, 'message': f'Recordatorio enviado a {to_email}', 'mail_id': mail.get('id')})
+    return jsonify({
+        'ok': True,
+        'mail_id': mail.get('id'),
+        'delivery_status': mail.get('status'),
+        'mail_warning': _mail_delivery_warning(mail),
+        'message': (f'Recordatorio puesto en cola de aprobacion para {to_email} (revisa /emails)'
+                    if mail.get('status') == 'pending'
+                    else f'Recordatorio NO se pudo poner en cola: {mail.get("blocked_reason") or "motivo no especificado"}'),
+    })
 
 
 def check_and_send_payment_reminders(host_url=None):
@@ -9186,13 +9292,20 @@ def check_and_send_payment_reminders(host_url=None):
 
         subject, body = _payment_reminder_email_text(pay, client, job, payment_link)
 
-        get_tracker().log_email(
+        # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
+        # inmediata. Clave estable por pago+dia: comparte familia con el
+        # boton manual "enviar recordatorio ahora" para no duplicar el
+        # mismo aviso si ambos caminos se disparan el mismo dia.
+        get_tracker().queue_email(
             to_email=to_email,
             subject=subject,
             body=body,
             lead_id=job.get('lead_id') if job else None,
             job_id=pay.get('job_id'),
+            client_id=pay.get('client_id') or None,
             tenant_id=pay.get('tenant_id'),
+            source='auto:payment-reminder',
+            idempotency_key=f"pago:{pay['id']}:reminder:{today.isoformat()}",
         )
         pay['reminder_sent_at'] = datetime.now().isoformat()
         store.upsert('payments', pay)
@@ -9503,9 +9616,16 @@ def _notify_new_lead(lead, source_label):
         body_lines += ['', 'Notas:', lead['notes']]
     body_lines += ['', f'Ver lead: /leads/{lead.get("id")}']
     try:
-        get_tracker().log_email(
+        # STAGE 2 (agosto 2026): tambien pasa por la cola, igual que el
+        # resto -- es una notificacion interna (al dueno de la cuenta, no a
+        # un cliente), pero "cada correo se mira antes de salir" es la
+        # regla pareja que pidio Kevin despues del incidente. Clave estable
+        # por lead: un aviso de "lead nuevo" solo tiene sentido una vez.
+        get_tracker().queue_email(
             to_email=to_email, subject=subject, body='\n'.join(body_lines),
             lead_id=lead.get('id'), tenant_id=tenant_id,
+            source='auto:new-lead-notify',
+            idempotency_key=f"leadnotify:{lead.get('id')}",
         )
     except Exception as exc:
         logger.error(f'No se pudo notificar el lead nuevo por correo: {exc}')
@@ -11266,13 +11386,22 @@ def api_quote_send(quote_id):
     # el texto. Antes de este reemplazo, un envio sin editar el mensaje
     # salia con el link interno viejo (/quotes/<id>) en vez de /q/<token>.
     body = body.replace('[[QUOTE_LINK]]', quote_url)
-    mail = get_tracker().log_email(
+    # STAGE 2 (agosto 2026): ya no se entrega de inmediato -- se pone en la
+    # cola de aprobacion (mail_tracker.queue_email) y espera a que alguien
+    # la revise y apruebe en /emails. El status de la cotizacion se sigue
+    # marcando 'Enviada' aca abajo (Kevin ya tomo la accion de mandarla), la
+    # verdad de si el correo salio de verdad vive en /emails.
+    mail = get_tracker().queue_email(
         to_email=to_email,
         subject=subject,
         body=body,
         lead_id=lead.get('id'),
         job_id=quote.get('job_id'),
+        client_id=(client or {}).get('id'),
         attachments=[],
+        tenant_id=tenant_id_for_send,
+        source='manual:quote-send',
+        idempotency_key=f'quote:{quote_id}:send:{_idempotency_minute_bucket()}',
     )
 
     # Marcar como enviada
@@ -11284,12 +11413,13 @@ def api_quote_send(quote_id):
         'ok': True,
         'quote_id': quote_id,
         'mail_id': mail.get('id'),
-        'delivery_provider': mail.get('delivery_provider'),
-        'delivery_mode': mail.get('delivery_mode'),
         'delivery_status': mail.get('status'),
+        'mail_warning': _mail_delivery_warning(mail),
         'email': to_email,
         'quote_url': quote_url,
-        'message': f'Cotizacion enviada a {to_email}'
+        'message': (f'Cotizacion puesta en cola de aprobacion para {to_email} (revisa /emails)'
+                    if mail.get('status') == 'pending'
+                    else f'Cotizacion NO se pudo poner en cola: {mail.get("blocked_reason") or "motivo no especificado"}')
     })
 
 
@@ -11869,13 +11999,18 @@ def api_contract_send(contract_id):
     body = _inject_link(body, contract_url,
                         placeholders=['[LINK AL CONTRATO]', '[LINK DEL CONTRATO]'],
                         fallback_label='Firma tu contrato aqui')
-    mail = get_tracker().log_email(
+    # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega inmediata.
+    mail = get_tracker().queue_email(
         to_email=to_email,
         subject=subject,
         body=body,
         template_id=data.get('template_id'),
         lead_id=contract.get('lead_id'),
         job_id=contract.get('job_id'),
+        client_id=contract.get('client_id'),
+        tenant_id=(job or {}).get('tenant_id') or contract.get('tenant_id'),
+        source='manual:contract-send',
+        idempotency_key=f'contract:{contract_id}:send:{_idempotency_minute_bucket()}',
     )
 
     contract['status'] = 'Enviado'
@@ -11887,13 +12022,13 @@ def api_contract_send(contract_id):
         'contract_id': contract_id,
         'status': contract['status'],
         'mail_id': mail.get('id'),
-        'delivery_provider': mail.get('delivery_provider'),
-        'delivery_mode': mail.get('delivery_mode'),
         'delivery_status': mail.get('status'),
         'mail_warning': _mail_delivery_warning(mail),
         'email': to_email,
         'contract_url': contract_url,
-        'message': f'Contrato enviado a {to_email}',
+        'message': (f'Contrato puesto en cola de aprobacion para {to_email} (revisa /emails)'
+                    if mail.get('status') == 'pending'
+                    else f'Contrato NO se pudo poner en cola: {mail.get("blocked_reason") or "motivo no especificado"}'),
     })
 
 
@@ -12126,12 +12261,26 @@ def api_workflow_step():
     tpl = next((t for t in templates_list if t.get('id') == template_id), None)
     subject = tpl.get('asunto', step_id) if tpl else step_id
 
-    mail = tracker.log_email(
+    # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega inmediata.
+    # Clave estable: el step ya se marco DONE arriba (linea 12120-12121),
+    # asi que este es un respaldo contra un reintento del mismo request, no
+    # la guarda principal.
+    mail = tracker.queue_email(
         to_email=lead.get('email', ''),
         subject=subject,
         body=tpl.get('cuerpo', '') if tpl else '',
         template_id=template_id,
         lead_id=lead_id,
+        client_id=lead.get('client_id') or None,
+        source=f'workflow:lead-step:{step_id}',
+        # Misma familia de clave que _complete_lead_workflow_step
+        # (leadstep:) -- revision adversarial (agosto 2026): ambos
+        # endpoints derivan asunto/cuerpo del mismo LEAD_WORKFLOW().steps
+        # por step_id, o sea producen el mismo correo para el mismo step.
+        # Con prefijos distintos, disparar el mismo step por las dos vias
+        # crearia dos pendientes aprobables por separado -- aprobar ambos
+        # seria un envio real duplicado al mismo cliente.
+        idempotency_key=f'leadstep:{lead_id}:{step_id}',
     )
 
     workflow_engine._log(instance, 'step.manual', f'{step_id}: enviado')
@@ -12143,7 +12292,11 @@ def api_workflow_step():
         'template': template_id,
         'mail_id': mail.get('id'),
         'email': lead.get('email', ''),
-        'message': f'Email "{subject}" enviado a {lead.get("email", "")}'
+        'delivery_status': mail.get('status'),
+        'mail_warning': _mail_delivery_warning(mail),
+        'message': (f'Email "{subject}" puesto en cola de aprobacion para {lead.get("email", "")} (revisa /emails)'
+                    if mail.get('status') == 'pending'
+                    else f'Email NO se pudo poner en cola: {mail.get("blocked_reason") or "motivo no especificado"}'),
     })
 
 
@@ -12193,13 +12346,27 @@ def api_job_production_step(job_id):
         lead = get_lead(job.get('lead_id', ''))
         to_email = lead.get('email', '') if lead else ''
 
-        mail = tracker.log_email(
+        # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
+        # inmediata. Clave estable: el step ya se marco DONE arriba, este
+        # es un respaldo contra un reintento del mismo request.
+        mail = tracker.queue_email(
             to_email=to_email,
             subject=subject,
             body=tpl.get('cuerpo', '') if tpl else '',
             template_id=template_id,
             job_id=job_id,
             lead_id=job.get('lead_id', ''),
+            client_id=job.get('client_id') or None,
+            tenant_id=job.get('tenant_id'),
+            source=f'workflow:job-production:{step_id}',
+            # Misma familia de clave que el auto-fire de
+            # _send_job_template_email (jobstep:) -- revision adversarial
+            # (agosto 2026): confirmado que 'reserva_confirmada',
+            # 'firma_contrato', 'cuestionario_cliente', 'envio_galeria' y
+            # 'pedir_review' son EXACTAMENTE los mismos ids que produce
+            # compute_workflow_steps_for_job() (ver src/workflow/templates.py),
+            # asi que es el mismo step logico visto por dos rutas distintas.
+            idempotency_key=f'jobstep:{job_id}:{step_id}',
         )
         mail_id = mail.get('id')
 
@@ -12259,7 +12426,7 @@ def _auto_fire_due_job_steps():
                 if step['action_type'] == 'send_questionnaire':
                     result = _create_job_questionnaire(
                         job, template_id=step.get('email_template_id'), send_email=True,
-                        reuse_draft=True,
+                        reuse_draft=True, auto_fire=True,
                     )
                     ok = bool(result.get('mail_id')) and not result.get('mail_warning')
                     result_message = f"Cuestionario auto-enviado: {result['questionnaire']['name']}"
@@ -12270,6 +12437,8 @@ def _auto_fire_due_job_steps():
                         template_id=step.get('email_template_id'),
                         subject=(template or {}).get('asunto'),
                         body=(template or {}).get('cuerpo'),
+                        step_id=step['id'],
+                        auto_fire=True,
                     )
                     ok = bool(result.get('mail_id')) and not result.get('mail_warning') and not result.get('error')
                     result_message = f"Email auto-enviado: {step['name']}"

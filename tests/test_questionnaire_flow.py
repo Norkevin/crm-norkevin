@@ -57,7 +57,8 @@ def test_email_always_carries_link_even_if_placeholder_deleted(auth_client):
     data = resp.get_json()
     qid = data['questionnaire']['id']
 
-    mail = next(m for m in app_module.store.list('mail_log') if m.get('id') == data['mail_id'])
+    # STAGE 2 (agosto 2026): encola en vez de entregar de inmediato.
+    mail = next(m for m in app_module.store.list('pending_emails') if m.get('id') == data['mail_id'])
     assert f'/questionnaires/{qid}' in (mail.get('body') or ''), \
         'el correo debe llevar el link al cuestionario aunque el usuario haya borrado el placeholder'
 
@@ -74,7 +75,8 @@ def test_spanish_placeholder_is_replaced(auth_client):
     assert resp.status_code == 200
     data = resp.get_json()
 
-    mail = next(m for m in app_module.store.list('mail_log') if m.get('id') == data['mail_id'])
+    # STAGE 2 (agosto 2026): encola en vez de entregar de inmediato.
+    mail = next(m for m in app_module.store.list('pending_emails') if m.get('id') == data['mail_id'])
     body = mail.get('body') or ''
     assert '[LINK AL CUESTIONARIO]' not in body
     assert f"/questionnaires/{data['questionnaire']['id']}" in body

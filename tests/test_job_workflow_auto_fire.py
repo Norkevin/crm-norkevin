@@ -54,7 +54,16 @@ def test_before_boda_step_schedules_relative_to_wedding_not_job_creation(auth_cl
     )
 
 
-def test_auto_fire_sends_due_questionnaire_step_for_real(auth_client):
+def test_auto_fire_queues_due_questionnaire_step_and_waits_for_approval(auth_client):
+    """STAGE 2 (agosto 2026): el disparador automatico ya no entrega de
+    inmediato -- ahora pasa por queue_email() como cualquier otro correo de
+    produccion, asi que 'disparar' un step ya solo significa 'encolarlo
+    para revision humana en /emails', no 'mandarlo de verdad'. Por eso el
+    step NO se marca 'done' ni entra en `fired` todavia (ok=False dentro de
+    _auto_fire_due_job_steps porque mail_warning siempre esta presente para
+    un encolado fresco) -- se marcara done recien cuando alguien apruebe el
+    pendiente. Antes de STAGE 2 este mismo test esperaba entrega real
+    inmediata; el nombre se actualizo para reflejar la nueva garantia."""
     import app as app_module
     import uuid
 
@@ -78,24 +87,46 @@ def test_auto_fire_sends_due_questionnaire_step_for_real(auth_client):
         'tenant_id': 'tenant-norkevin',
     })
 
-    with patch('src.mail_tracker.send_email', side_effect=_ok_send):
-        fired = app_module._auto_fire_due_job_steps()
+    fired = app_module._auto_fire_due_job_steps()
 
+    # Todavia NO cuenta como disparado de verdad -- solo quedo encolado.
     fired_step_ids = [step_id for (jid, step_id) in fired if jid == job_id]
-    assert 'cuestionario_cliente' in fired_step_ids
+    assert 'cuestionario_cliente' not in fired_step_ids
 
     # No debe haber creado un SEGUNDO cuestionario -- reutiliza el draft.
     questionnaires = [q for q in app_module.store.list('questionnaires') if q.get('job_id') == job_id]
     assert len(questionnaires) == 1
-    assert questionnaires[0]['status'] == 'Sent'
+    qid = questionnaires[0]['id']
 
-    mail = [m for m in app_module.store.list('mail_log') if m.get('job_id') == job_id]
-    assert mail, 'debe haber quedado un correo real registrado en mail_log'
+    pendientes = [p for p in app_module.store.list('pending_emails') if p.get('job_id') == job_id]
+    assert pendientes, 'debe haber quedado un correo esperando aprobacion en pending_emails'
+    assert pendientes[0]['status'] == 'pending'
+    assert pendientes[0]['idempotency_key'] == f'jobquestionnaire:{qid}:notify'
+
+    # El step NO se marca done solo por haberse encolado.
+    instances = app_module.workflow_engine.list_instances(subject_id=job_id, subject_type='job')
+    assert instances
+    assert instances[0].step_states.get('cuestionario_cliente') != app_module.StepStatus.DONE
+
+    # Una segunda pasada del scheduler (6h despues, pendiente sin revisar
+    # todavia) no debe apilar un segundo pendiente identico -- es
+    # exactamente el escenario que motivo el dedup de queue_email() por
+    # idempotency_key en estado 'pending'/'sending'.
+    app_module._auto_fire_due_job_steps()
+    pendientes_2 = [p for p in app_module.store.list('pending_emails') if p.get('job_id') == job_id]
+    assert len(pendientes_2) == 1, 'una segunda pasada no debe duplicar el pendiente sin revisar'
 
 
 def test_auto_fire_does_not_mark_done_when_delivery_fails(auth_client):
     """Si Gmail esta desconectado (fallback a local_outbox), el step NO debe
-    marcarse 'done' -- debe reintentarse en el proximo ciclo."""
+    marcarse 'done' -- debe reintentarse en el proximo ciclo.
+
+    STAGE 2 (agosto 2026): esto ahora es ademas siempre cierto por otra
+    razon mas fuerte -- el auto-fire ya no entrega nada de inmediato en
+    absoluto (encola y espera aprobacion humana), asi que el patch de
+    send_email de aca abajo ya ni se alcanza a llamar. Se deja tal cual
+    porque la aseveracion en si sigue siendo exactamente lo que hay que
+    proteger (nunca marcar done sin entrega real)."""
     import app as app_module
     import uuid
 

@@ -84,6 +84,9 @@ def test_send_invoice_preview_does_not_send(auth_client):
 
 
 def test_send_invoice_respects_edited_subject_and_body(auth_client):
+    """STAGE 2 (agosto 2026): api_pago_send ya no entrega de inmediato --
+    encola con queue_email(), asi que el mensaje editado a mano vive en
+    pending_emails (esperando aprobacion) en vez de mail_log."""
     import app as app_module
     job_id, pay1_id, pay2_id, invoice_id = _make_job_with_two_installments(app_module, 'd')
 
@@ -95,7 +98,8 @@ def test_send_invoice_respects_edited_subject_and_body(auth_client):
     data = resp.get_json()
     assert data['ok'] is True
 
-    mail = next(m for m in app_module.store.list('mail_log') if m.get('id') == data['mail_id'])
+    mail = next(m for m in app_module.store.list('pending_emails') if m.get('id') == data['mail_id'])
+    assert mail['status'] == 'pending'
     assert mail['subject'] == 'Asunto editado por Kevin'
     assert mail['body'] == 'Mensaje editado a mano.'
 

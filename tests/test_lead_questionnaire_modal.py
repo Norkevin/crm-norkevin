@@ -39,5 +39,6 @@ def test_lead_questionnaire_creation_sends_email_with_link(auth_client):
     data = resp.get_json()
     assert data['mail_id']
 
-    mail = next(m for m in app_module.store.list('mail_log') if m.get('id') == data['mail_id'])
+    # STAGE 2 (agosto 2026): encola en vez de entregar de inmediato.
+    mail = next(m for m in app_module.store.list('pending_emails') if m.get('id') == data['mail_id'])
     assert f"/questionnaires/{data['questionnaire']['id']}" in (mail.get('body') or '')

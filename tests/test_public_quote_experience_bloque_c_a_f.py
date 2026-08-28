@@ -90,7 +90,14 @@ def test_send_reemplaza_el_marcador_de_link_por_la_url_real(auth_client):
     mensaje (el token recien se emite al enviar) -- manda un marcador
     [[QUOTE_LINK]] en su lugar. Antes de esto, un envio sin tocar el
     mensaje salia con el link interno viejo (/quotes/<id>) en vez de
-    /q/<token> en el correo real."""
+    /q/<token> en el correo real.
+
+    STAGE 2 (agosto 2026): api_quote_send ya no entrega de inmediato --
+    encola con MailTracker.queue_email(), asi que el correo compuesto vive
+    en pending_emails (esperando aprobacion en /emails) y no en mail_log
+    hasta que alguien lo apruebe. La correccion del marcador debe seguir
+    viendose en el pendiente, que es la copia congelada de lo que se
+    mandaria si se aprueba."""
     import app as app_module
     quote_id = _crear_borrador_con_opcion(auth_client, app_module, ASTRAL, precio_total=5000)
     quote_antes = app_module.store.get('quotes', quote_id)
@@ -104,11 +111,12 @@ def test_send_reemplaza_el_marcador_de_link_por_la_url_real(auth_client):
     quote_url = r.get_json()['quote_url']
     token = quote_url.rsplit('/q/', 1)[1]
 
-    enviados = [m for m in app_module.store.list('mail_log') if m.get('lead_id') == lead_id]
-    assert enviados, 'no se encontro en mail_log el correo enviado para este lead'
-    correo = enviados[-1]
-    assert '[[QUOTE_LINK]]' not in correo['body'], 'el marcador no debe llegar tal cual al correo real'
-    assert f'/q/{token}' in correo['body'], 'el correo real debe tener la URL del token, no el marcador'
+    pendientes = [p for p in app_module.store.list('pending_emails') if p.get('lead_id') == lead_id]
+    assert pendientes, 'no se encontro en pending_emails el correo encolado para este lead'
+    correo = pendientes[-1]
+    assert correo['status'] == 'pending', 'debe quedar esperando aprobacion, no enviarse solo'
+    assert '[[QUOTE_LINK]]' not in correo['body'], 'el marcador no debe llegar tal cual al correo encolado'
+    assert f'/q/{token}' in correo['body'], 'el correo encolado debe tener la URL del token, no el marcador'
 
 
 def test_public_view_legacy_quote_sin_options_sigue_renderizando(auth_client):
