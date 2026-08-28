@@ -99,6 +99,15 @@ def test_reset_wipes_business_tables_but_keeps_config(auth_client):
 
 
 def test_reset_clears_workflow_engine_instances(auth_client):
+    """Ademas de comprobar que la instancia de la cuenta reseteada
+    desaparece, esto es el regression test del bug real encontrado el
+    27-ago-2026: workflow_engine.instances/history son un diccionario y una
+    lista GLOBALES de todo el proceso (no pasan por store.clear() ni por
+    tenant_id), asi que un 'workflow_engine.instances = {}' liso y llano en
+    el reset de UNA cuenta borraba tambien el progreso de las OTRAS -- la
+    aseveracion vieja (`workflow_engine.instances == {}`) solo pasaba
+    porque el bug vaciaba todo sin importar la cuenta; con el fix, debe
+    seguir habiendo instancias de otras cuentas si las hay."""
     import app as app_module
     import uuid as _uuid
 
@@ -107,9 +116,24 @@ def test_reset_clears_workflow_engine_instances(auth_client):
         'id': lead_id, 'nombre': 'WF Reset', 'email': 'wfreset@example.com',
         'status': 'Nuevo', 'tenant_id': 'tenant-norkevin',
     })
-    app_module.trigger_workflow_for_lead(lead_id, 'WF Reset')
+    app_module.trigger_workflow_for_lead(lead_id, 'WF Reset', tenant_id='tenant-norkevin')
     assert app_module.workflow_engine.list_instances(subject_id=lead_id, subject_type='lead')
+
+    # Instancia de OTRA cuenta -- no debe tocarse al resetear tenant-norkevin.
+    otro_tenant = 'tenant-norkevin-photography'
+    otro_lead_id = 'lead-wf-otra-cuenta-' + _uuid.uuid4().hex[:6]
+    app_module.upsert_lead({
+        'id': otro_lead_id, 'nombre': 'WF Otra Cuenta', 'email': 'otra@example.com',
+        'status': 'Nuevo', 'tenant_id': otro_tenant,
+    })
+    otra_instancia = app_module.trigger_workflow_for_lead(
+        otro_lead_id, 'WF Otra Cuenta', tenant_id=otro_tenant)
 
     resp = auth_client.post('/api/admin/reset-test-data', json={'confirm': CONFIRM_OK})
     assert resp.status_code == 200
-    assert app_module.workflow_engine.instances == {}
+    assert resp.get_json()['workflow_instances_wiped'] >= 1
+
+    assert not app_module.workflow_engine.list_instances(subject_id=lead_id, subject_type='lead'), \
+        'la instancia de tenant-norkevin (la cuenta reseteada) debe desaparecer'
+    assert app_module.workflow_engine.get_instance(otra_instancia.id) is not None, \
+        'la instancia de la OTRA cuenta no debe borrarse por resetear tenant-norkevin'

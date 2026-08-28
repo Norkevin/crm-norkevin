@@ -4914,6 +4914,15 @@ def api_admin_reset_test_data():
         'questionnaires', 'files', 'mail_log', 'mail_outbox', 'calendar',
     ]
 
+    # Snapshot de jobs/leads de ESTA cuenta antes de vaciar nada. Hace
+    # falta para poder identificar mas abajo que workflow_instances son
+    # de esta cuenta (instancias legacy sin tenant_id, ver
+    # _instancia_es_de_la_cuenta) -- para cuando se llega a ese paso, la
+    # tabla 'jobs'/'leads' de esta cuenta ya esta vacia, asi que no se
+    # puede recalcular despues.
+    _reset_job_ids_cache = {j.get('id') for j in list_jobs()}
+    _reset_lead_ids_cache = {l.get('id') for l in list_leads()}
+
     # Paso 1: backup VERIFICADO de cada tabla antes de tocar nada. Si
     # cualquiera falla, abortar -- 0 tablas vaciadas.
     backup_paths = {}
@@ -4931,12 +4940,37 @@ def api_admin_reset_test_data():
 
     # Paso 2: recien con TODOS los backups verificados, vaciar.
     wiped = {}
+    workflow_instances_wiped = 0
     try:
         for table in tables_to_wipe:
             wiped[table] = len(store.list(table))
             store.clear(table)
-        workflow_engine.instances = {}
-        workflow_engine.history = []
+
+        # OJO: workflow_engine.instances/history son un diccionario y una
+        # lista GLOBALES de todo el proceso -- guardan las instancias de
+        # las 3 cuentas juntas (workflow_instances.json no tiene sufijo de
+        # cuenta) y no pasan por store.clear() ni por su aislamiento por
+        # tenant_id. Un 'workflow_engine.instances = {}' liso y llano aca
+        # borraba el progreso de TODAS las cuentas -- incluida Ramiro, que
+        # ni siquiera se esta reseteando -- de un plumazo, cada vez que se
+        # vaciaba UNA sola cuenta. Se reusa _instancia_es_de_la_cuenta (el
+        # mismo helper que ya cierra esta clase de fuga en las vistas y en
+        # workflow-cleanup) con el snapshot tomado ANTES del wipe de
+        # arriba, para que las instancias legacy sin tenant_id tambien se
+        # identifiquen bien aunque sus jobs/leads ya no existan mas.
+        ids_a_borrar = {
+            iid for iid, inst in workflow_engine.instances.items()
+            if _instancia_es_de_la_cuenta(
+                inst, job_ids_cache=_reset_job_ids_cache,
+                lead_ids_cache=_reset_lead_ids_cache, tenant_id=tenant_id)
+        }
+        for iid in ids_a_borrar:
+            del workflow_engine.instances[iid]
+        workflow_engine.history = [
+            e for e in workflow_engine.history
+            if e.get('instance_id') not in ids_a_borrar
+        ]
+        workflow_instances_wiped = len(ids_a_borrar)
         workflow_engine._save_to_storage()
     except Exception as exc:
         # Interrupcion a mitad de camino: no es atomico entre tablas (cada
@@ -4954,9 +4988,11 @@ def api_admin_reset_test_data():
         }), 500
 
     log_security_event('RESET_TEST_DATA_EJECUTADO', actor=actor, tenant_id=tenant_id,
-                       ip=ip, tablas=wiped, backups=backup_paths)
-    logger.info(f"Datos de prueba reiniciados por {actor} (tenant={tenant_id}): {wiped}")
-    return jsonify({'ok': True, 'wiped': wiped})
+                       ip=ip, tablas=wiped, backups=backup_paths,
+                       workflow_instances_wiped=workflow_instances_wiped)
+    logger.info(f"Datos de prueba reiniciados por {actor} (tenant={tenant_id}): {wiped}, "
+                f"workflow_instances_wiped={workflow_instances_wiped}")
+    return jsonify({'ok': True, 'wiped': wiped, 'workflow_instances_wiped': workflow_instances_wiped})
 
 
 @app.route('/api/admin/import-studio-ninja', methods=['POST'])

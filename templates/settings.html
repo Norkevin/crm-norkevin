@@ -320,12 +320,13 @@
     <h2 class="modal-title">Vaciar datos de prueba</h2>
     <p class="sn-muted" style="font-size:13px;margin-top:-6px;margin-bottom:14px;">
       Esto borra TODOS los leads, clientes, jobs, cotizaciones, pagos, contratos,
-      cuestionarios, archivos, correos y eventos de calendario. No se puede
+      cuestionarios, archivos, correos y eventos de calendario de esta cuenta
+      ({{ current_tenant.name }}). Las otras cuentas no se tocan. No se puede
       deshacer desde la interfaz (aunque queda un respaldo automatico en el
-      servidor). Escribe <strong>BORRAR</strong> para confirmar.
+      servidor). Escribe <strong>BORRAR-{{ current_tenant.id }}</strong> para confirmar.
     </p>
     <div class="form-group">
-      <input class="form-input" id="reset-data-confirm" placeholder="Escribe BORRAR" autocomplete="off">
+      <input class="form-input" id="reset-data-confirm" placeholder="Escribe BORRAR-{{ current_tenant.id }}" autocomplete="off">
     </div>
     <div class="sn-actions" style="justify-content:space-between;">
       <button class="sn-btn" type="button" onclick="closeModal('reset-data-modal')">Cancelar</button>
@@ -503,9 +504,10 @@ function confirmMultiTenantMigration() {
 }
 
 function confirmResetTestData() {
+  var expected = 'BORRAR-{{ current_tenant.id }}';
   var typed = document.getElementById('reset-data-confirm').value.trim();
-  if (typed !== 'BORRAR') {
-    flashToast('Escribe BORRAR (en mayusculas) para confirmar', 'error');
+  if (typed !== expected) {
+    flashToast('Escribe ' + expected + ' (exacto, en mayusculas) para confirmar', 'error');
     return;
   }
   apiPost('/api/admin/reset-test-data', { confirm: typed })
