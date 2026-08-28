@@ -30,6 +30,25 @@
   .send-modal-overlay.open { display: flex; }
   .send-modal-content { background: #fff; border-radius: 16px; width: min(640px, 94vw); max-height: 88vh; overflow: auto; padding: 24px; }
   .send-modal-content h2 { font-size: 17px; font-weight: 600; margin-bottom: 16px; }
+  .opt-badge { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; background: #FDF1DC; color: #97620C; padding: 2px 8px; border-radius: 999px; margin-bottom: 4px; }
+  .opt-subtitle { font-size: 12.5px; color: var(--doc-ink-soft); margin-top: 1px; }
+  .opt-price-old { font-size: 12.5px; color: var(--doc-ink-soft); text-decoration: line-through; margin-right: 6px; }
+  .quote-number-badge { font-size: 12px; font-weight: 600; color: var(--doc-ink-soft); letter-spacing: .5px; margin-bottom: 6px; }
+  .group-card { border: 1px solid var(--doc-line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; background: #fafafa; }
+  .group-card .group-head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .group-card .group-head input { flex: 1; }
+  .group-remove-btn { border: none; background: none; color: #B4232A; font-size: 12px; font-weight: 600; cursor: pointer; padding: 4px 6px; flex-shrink: 0; }
+  .add-group-btn { font-size: 12.5px; font-weight: 600; color: var(--doc-ink); background: none; border: 1px dashed var(--doc-line); border-radius: 8px; padding: 8px 12px; cursor: pointer; width: 100%; }
+  .lib-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--doc-line); }
+  .lib-row:last-child { border-bottom: none; }
+  .lib-row input[type=checkbox] { margin-top: 3px; }
+  .lib-row .lib-name { font-size: 13.5px; font-weight: 600; }
+  .lib-row .lib-sub { font-size: 12px; color: var(--doc-ink-soft); }
+  .lib-empty { font-size: 12.5px; color: var(--doc-mute); padding: 10px 0; }
+  .extras-table-row { display: grid; grid-template-columns: 1fr 1fr 110px 32px; gap: 8px; margin-bottom: 8px; align-items: center; }
+  @media (max-width: 640px) { .extras-table-row { grid-template-columns: 1fr; } }
+  .extras-table-row input { border: 1px solid var(--doc-line); border-radius: 8px; padding: 9px 11px; font-size: 13px; font-family: inherit; width: 100%; }
+  .extras-remove-btn { border: none; background: none; color: #B4232A; font-size: 16px; cursor: pointer; line-height: 1; }
 </style>
 </head>
 <body>
@@ -48,7 +67,7 @@
         </div>
         <div class="doc-meta">
           <div class="type">Editor de cotizacion</div>
-          <div class="id">{{ quote.id }}</div>
+          <div class="id">{{ quote.number or quote.id }}</div>
         </div>
       </div>
       <div class="doc-hero-total">
@@ -86,9 +105,16 @@
           <div class="opt-card" data-option-id="{{ opt.id }}">
             <div class="opt-head">
               <div>
+                {% if opt.label %}<div class="opt-badge">{{ opt.label }}</div>{% endif %}
                 <div class="opt-name">{{ opt.name }}</div>
-                <div class="opt-price">Q{{ '{:,.2f}'.format(opt.precio_total or 0) }}</div>
-                {% if opt.incluye %}<div class="opt-includes">{{ opt.incluye|join('\n') }}</div>{% endif %}
+                {% if opt.subtitle %}<div class="opt-subtitle">{{ opt.subtitle }}</div>{% endif %}
+                <div class="opt-price">
+                  {% if opt.precio_anterior and opt.precio_anterior|float > (opt.precio_total or 0)|float %}<span class="opt-price-old">Q{{ '{:,.0f}'.format(opt.precio_anterior|float) }}</span>{% endif %}
+                  Q{{ '{:,.2f}'.format(opt.precio_total or 0) }}
+                </div>
+                {% if opt.groups %}
+                <div class="opt-includes">{% for g in opt.groups %}{% if g.title %}{{ g.title }}: {% endif %}{{ g['items']|join(', ') }}{% if not loop.last %}<br>{% endif %}{% endfor %}</div>
+                {% elif opt.incluye %}<div class="opt-includes">{{ opt.incluye|join('\n') }}</div>{% endif %}
               </div>
               <div class="opt-actions">
                 <button type="button" class="doc-btn outline" style="padding:8px 14px;" onclick='openOptionForm({{ opt|tojson }})'>Editar</button>
@@ -128,8 +154,41 @@
             </div>
           </div>
           <div class="opt-field">
-            <label>Incluye (una linea por item)</label>
+            <label>Subtitulo (opcional)</label>
+            <input id="opt-subtitle-input" placeholder="Ej: Cobertura completa del dia">
+          </div>
+          <div class="opt-form-row">
+            <div class="opt-field">
+              <label>Etiqueta (opcional, ej: "Mas elegido")</label>
+              <input id="opt-label-input" placeholder="Mas elegido">
+            </div>
+            <div class="opt-field">
+              <label>Horas de cobertura (opcional)</label>
+              <input id="opt-hours-input" type="number" min="0" step="0.5">
+            </div>
+          </div>
+          <div class="opt-form-row">
+            <div class="opt-field">
+              <label>Precio anterior (opcional, para mostrar tachado)</label>
+              <input id="opt-old-price-input" type="number" min="0" step="0.01">
+            </div>
+            <div class="opt-field">
+              <label>Descuento (opcional, referencia interna)</label>
+              <input id="opt-discount-input" type="number" min="0" step="0.01">
+            </div>
+          </div>
+          <div class="opt-field">
+            <label>Descripcion breve (opcional)</label>
+            <textarea id="opt-description-input" style="min-height:50px;" placeholder="Una o dos frases sobre este paquete"></textarea>
+          </div>
+          <div class="opt-field">
+            <label>Incluye (una linea por item) &mdash; se usa si no armas grupos abajo</label>
             <textarea id="opt-includes-input" placeholder="8 horas de cobertura&#10;300 fotografias editadas&#10;Galeria online privada"></textarea>
+          </div>
+          <div class="opt-field">
+            <label>Grupos organizados (opcional &mdash; si los usas, reemplazan lo de arriba en la vista del cliente)</label>
+            <div id="opt-groups-list"></div>
+            <button type="button" class="add-group-btn" onclick="addGroupRow()">+ Agregar grupo (ej: "Boda principal", "Entrega")</button>
           </div>
           <div style="display:flex;gap:10px;">
             <button type="button" class="doc-btn primary" onclick="saveOption()">Guardar opcion</button>
@@ -154,6 +213,45 @@
           {% endfor %}
         </div>
         <p class="doc-hint" id="plan-save-hint" style="margin-top:8px;"></p>
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-eyebrow">Agregados opcionales (el cliente los suma a su paquete)</div>
+        <div id="extras-list"></div>
+        <button type="button" class="add-group-btn" onclick="addExtraRow()">+ Agregar extra</button>
+        <div style="margin-top:10px;">
+          <button type="button" class="doc-btn outline" style="padding:8px 14px;" onclick="saveExtras()">Guardar agregados</button>
+          <span class="doc-hint" id="extras-save-hint" style="margin-left:8px;"></span>
+        </div>
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-eyebrow">Portafolio a mostrar en esta cotizacion</div>
+        <div id="portfolio-picker">
+          {% for p in portfolio_items %}
+          <label class="lib-row">
+            <input type="checkbox" value="{{ p.id }}" {% if p.id in selected_portfolio_ids %}checked{% endif %}>
+            <span>
+              <div class="lib-name">{{ p.couple_names or p.title }}</div>
+              {% if p.location %}<div class="lib-sub">{{ p.location }}</div>{% endif %}
+            </span>
+          </label>
+          {% else %}
+          <div class="lib-empty">Todavia no hay elementos de portfolio guardados para esta cuenta.</div>
+          {% endfor %}
+        </div>
+        <div class="doc-eyebrow" style="margin-top:18px;">Condiciones a incluir</div>
+        <select id="terms-picker" style="width:100%;border:1px solid var(--doc-line);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit;color:var(--doc-ink);background:#fff;">
+          <option value="">Sin condiciones especiales</option>
+          {% for t in terms_templates %}
+          <option value="{{ t.id }}" {% if t.id == selected_terms_template_id %}selected{% endif %}>{{ t.title }}</option>
+          {% endfor %}
+        </select>
+        {% if not terms_templates %}<p class="lib-empty">Todavia no hay plantillas de condiciones guardadas para esta cuenta.</p>{% endif %}
+        <div style="margin-top:10px;">
+          <button type="button" class="doc-btn outline" style="padding:8px 14px;" onclick="savePresentation()">Guardar portafolio y condiciones</button>
+          <span class="doc-hint" id="presentation-save-hint" style="margin-left:8px;"></span>
+        </div>
       </div>
 
       <div class="doc-actions">
@@ -212,13 +310,47 @@ function openOptionForm(opt) {
   document.getElementById('opt-id-input').value = opt ? opt.id : '';
   document.getElementById('opt-name-input').value = opt ? opt.name : '';
   document.getElementById('opt-price-input').value = opt ? opt.precio_total : '';
+  document.getElementById('opt-subtitle-input').value = opt && opt.subtitle ? opt.subtitle : '';
+  document.getElementById('opt-label-input').value = opt && opt.label ? opt.label : '';
+  document.getElementById('opt-hours-input').value = opt && opt.horas != null ? opt.horas : '';
+  document.getElementById('opt-old-price-input').value = opt && opt.precio_anterior != null ? opt.precio_anterior : '';
+  document.getElementById('opt-discount-input').value = opt && opt.descuento != null ? opt.descuento : '';
+  document.getElementById('opt-description-input').value = opt && opt.description ? opt.description : '';
   document.getElementById('opt-includes-input').value = opt && opt.incluye ? opt.incluye.join('\n') : '';
+  document.getElementById('opt-groups-list').innerHTML = '';
+  if (opt && opt.groups && opt.groups.length) {
+    opt.groups.forEach(function(g) { addGroupRow(g.title, (g.items || []).join('\n')); });
+  }
   document.getElementById('opt-package-picker').value = '';
   document.getElementById('option-form').style.display = 'block';
   document.getElementById('opt-name-input').focus();
 }
 function closeOptionForm() {
   document.getElementById('option-form').style.display = 'none';
+}
+
+function _escHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function addGroupRow(title, itemsText) {
+  var wrap = document.createElement('div');
+  wrap.className = 'group-card';
+  wrap.innerHTML =
+    '<div class="group-head">' +
+      '<input class="group-title-input" placeholder="Titulo del grupo (ej: Boda principal)" value="' + _escHtml(title) + '">' +
+      '<button type="button" class="group-remove-btn" onclick="this.closest(\'.group-card\').remove()">Quitar</button>' +
+    '</div>' +
+    '<textarea class="group-items-input" style="min-height:60px;width:100%;border:1px solid var(--doc-line);border-radius:8px;padding:9px 11px;font-size:13px;font-family:inherit;" placeholder="Un item por linea">' + _escHtml(itemsText) + '</textarea>';
+  document.getElementById('opt-groups-list').appendChild(wrap);
+}
+
+function collectGroups() {
+  return Array.prototype.slice.call(document.querySelectorAll('#opt-groups-list .group-card')).map(function(card) {
+    var title = card.querySelector('.group-title-input').value.trim();
+    var items = card.querySelector('.group-items-input').value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+    return { title: title, items: items };
+  }).filter(function(g) { return g.title || g.items.length; });
 }
 
 function saveOption() {
@@ -232,7 +364,14 @@ function saveOption() {
       id: document.getElementById('opt-id-input').value || undefined,
       name: name,
       precio_total: price,
-      incluye: document.getElementById('opt-includes-input').value
+      subtitle: document.getElementById('opt-subtitle-input').value,
+      label: document.getElementById('opt-label-input').value,
+      horas: document.getElementById('opt-hours-input').value || null,
+      precio_anterior: document.getElementById('opt-old-price-input').value || null,
+      descuento: document.getElementById('opt-discount-input').value || null,
+      description: document.getElementById('opt-description-input').value,
+      incluye: document.getElementById('opt-includes-input').value,
+      groups: collectGroups()
     })
   })
     .then(function(r) { return r.json(); })
@@ -304,6 +443,64 @@ function submitSendQuote(event) {
       else { alert('Error: ' + data.error); }
     })
     .catch(function() { alert('Error de red'); });
+}
+
+// ---------- Agregados opcionales (extras) ----------
+var EXTRAS_CATALOG = {{ extras_catalog|tojson }};
+
+function addExtraRow(extra) {
+  var row = document.createElement('div');
+  row.className = 'extras-table-row';
+  row.innerHTML =
+    '<input class="extra-name-input" placeholder="Nombre (ej: Dron)" value="' + _escHtml(extra && extra.name) + '">' +
+    '<input class="extra-desc-input" placeholder="Descripcion (opcional)" value="' + _escHtml(extra && extra.description) + '">' +
+    '<input class="extra-price-input" type="number" min="0" step="0.01" placeholder="Precio Q" value="' + _escHtml(extra && extra.price != null ? extra.price : '') + '">' +
+    '<button type="button" class="extras-remove-btn" onclick="this.closest(\'.extras-table-row\').remove()" title="Quitar">&times;</button>';
+  document.getElementById('extras-list').appendChild(row);
+}
+
+(function initExtras() {
+  EXTRAS_CATALOG.forEach(function(ex) { addExtraRow(ex); });
+})();
+
+function saveExtras() {
+  var extras = Array.prototype.slice.call(document.querySelectorAll('#extras-list .extras-table-row')).map(function(row) {
+    return {
+      name: row.querySelector('.extra-name-input').value.trim(),
+      description: row.querySelector('.extra-desc-input').value.trim(),
+      price: row.querySelector('.extra-price-input').value || 0
+    };
+  }).filter(function(e) { return e.name; });
+  var hint = document.getElementById('extras-save-hint');
+  fetch('/api/quotes/' + QUOTE_ID + '/extras', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ extras: extras })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { hint.textContent = 'Guardado.'; hint.style.color = 'var(--doc-mute)'; }
+      else { hint.textContent = 'Error: ' + data.error; hint.style.color = '#B4232A'; }
+    })
+    .catch(function() { hint.textContent = 'Error de red'; hint.style.color = '#B4232A'; });
+}
+
+// ---------- Portafolio y condiciones ----------
+function savePresentation() {
+  var portfolioIds = Array.prototype.slice.call(document.querySelectorAll('#portfolio-picker input:checked')).map(function(el) { return el.value; });
+  var termsId = document.getElementById('terms-picker') ? document.getElementById('terms-picker').value : '';
+  var hint = document.getElementById('presentation-save-hint');
+  fetch('/api/quotes/' + QUOTE_ID + '/presentation', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ portfolio_ids: portfolioIds, terms_template_id: termsId })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { hint.textContent = 'Guardado.'; hint.style.color = 'var(--doc-mute)'; }
+      else { hint.textContent = 'Error: ' + data.error; hint.style.color = '#B4232A'; }
+    })
+    .catch(function() { hint.textContent = 'Error de red'; hint.style.color = '#B4232A'; });
 }
 </script>
 

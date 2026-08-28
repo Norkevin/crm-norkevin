@@ -10551,6 +10551,13 @@ def quote_edit(quote_id):
         plan_pago_opciones=quote.get('plan_pago_opciones') or [1, 2, 3, 4],
         saved_packages=_load_packages(),
         brand=brand,
+        # BLOQUE D: el builder deja ELEGIR de estas librerias (armarlas es
+        # Settings > Cotizaciones, BLOQUE F); pueden venir vacias todavia.
+        portfolio_items=_load_portfolio(get_current_tenant_id(), only_active=False),
+        terms_templates=_load_terms_templates(get_current_tenant_id()),
+        extras_catalog=quote.get('extras_catalog') or [],
+        selected_portfolio_ids=quote.get('portfolio_ids') or [],
+        selected_terms_template_id=quote.get('terms_template_id') or '',
     )
 
 
@@ -10774,6 +10781,45 @@ def api_quote_extras_save(quote_id):
     quote['extras_catalog'] = catalog
     store.upsert('quotes', quote)
     return jsonify({'ok': True, 'extras_catalog': catalog})
+
+
+@app.route('/api/quotes/<quote_id>/presentation', methods=['POST'])
+def api_quote_presentation_save(quote_id):
+    """Guarda que portfolio_items y que quote_terms_template usa ESTA
+    cotizacion (BLOQUE D, Quote Builder). No crea ni edita los items de la
+    libreria -- eso es Settings > Cotizaciones (BLOQUE F); esto solo
+    selecciona cuales de los que ya existen se muestran aca. Mismo momento
+    en que se congelan (quote_view/_snapshot_public_quote_extras ya sabe
+    leer portfolio_ids/terms_template_id, ver BLOQUE B) -- por eso no hace
+    falta tocar esas funciones para que esta seleccion tenga efecto."""
+    quote = store.get('quotes', quote_id)
+    if not quote:
+        return jsonify({'ok': False, 'error': 'Cotizacion no encontrada'}), 404
+    if quote.get('status') and quote.get('status') != 'Borrador':
+        return jsonify({'ok': False, 'error': 'Esta cotizacion ya fue enviada, no se puede editar'}), 400
+
+    data = request.get_json() or {}
+    portfolio_ids = data.get('portfolio_ids')
+    if not isinstance(portfolio_ids, list):
+        portfolio_ids = []
+    portfolio_ids = [str(x) for x in portfolio_ids if str(x).strip()]
+
+    # Solo se guardan ids que de verdad existen en el portfolio de esta
+    # cuenta -- si el navegador manda basura (o un id de otra cuenta) se
+    # descarta en vez de guardarse tal cual.
+    valid_ids = {p['id'] for p in _load_portfolio(get_current_tenant_id(), only_active=False)}
+    portfolio_ids = [pid for pid in portfolio_ids if pid in valid_ids]
+
+    terms_template_id = (data.get('terms_template_id') or '').strip()
+    if terms_template_id:
+        valid_terms_ids = {t['id'] for t in _load_terms_templates(get_current_tenant_id())}
+        if terms_template_id not in valid_terms_ids:
+            terms_template_id = ''
+
+    quote['portfolio_ids'] = portfolio_ids
+    quote['terms_template_id'] = terms_template_id
+    store.upsert('quotes', quote)
+    return jsonify({'ok': True, 'portfolio_ids': portfolio_ids, 'terms_template_id': terms_template_id})
 
 
 # ============================================================
