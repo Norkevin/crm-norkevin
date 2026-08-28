@@ -11036,9 +11036,31 @@ def quote_accept(quote_id):
         if not selected_plan:
             selected_plan = int(quote.get('plan_pago') or 1)
 
+        # BLOQUE E: agregados opcionales que el cliente marco (BLOQUE C ya
+        # los manda como extra_ids, coma-separado, en el mismo form que
+        # option_id/plan_pago). El precio SIEMPRE sale del catalogo server
+        # side (quote.extras_catalog, congelado desde BLOQUE B) -- lo unico
+        # que se confia del cliente es CUALES eligio, nunca cuanto cuestan;
+        # cualquier id que no exista en el catalogo de esta cotizacion se
+        # ignora en silencio en vez de aceptarse tal cual.
+        raw_extra_ids = data.get('extra_ids') or ''
+        if isinstance(raw_extra_ids, str):
+            requested_extra_ids = [x.strip() for x in raw_extra_ids.split(',') if x.strip()]
+        elif isinstance(raw_extra_ids, list):
+            requested_extra_ids = [str(x).strip() for x in raw_extra_ids if str(x).strip()]
+        else:
+            requested_extra_ids = []
+        extras_catalog = quote.get('extras_catalog') or []
+        selected_extras = [e for e in extras_catalog if e.get('id') in requested_extra_ids]
+        extras_total = sum(float(e.get('price') or 0) for e in selected_extras)
+
+        base_price = float(chosen.get('precio_total') or 0)
         quote['selected_option_id'] = chosen.get('id')
         quote['paquete_nombre'] = chosen.get('name')
-        quote['precio_total'] = chosen.get('precio_total')
+        quote['paquete_precio_base'] = base_price
+        quote['selected_extras'] = selected_extras
+        quote['extras_total'] = extras_total
+        quote['precio_total'] = base_price + extras_total
         quote['incluye'] = chosen.get('incluye')
         quote['items'] = chosen.get('items', [])
         quote['selected_plan_pago'] = selected_plan

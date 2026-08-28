@@ -198,7 +198,21 @@ footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
 {% if quote.status == 'Aceptada' %}
 <div class="wrap section">
   <div class="section-head"><div class="eyebrow">Paquete contratado</div><h2 class="section-title">{{ quote.paquete_nombre }}</h2></div>
+  {% if quote.selected_extras %}
+  <div class="extra-row" style="cursor:default;padding-top:0;">
+    <div class="extra-left"><div class="extra-name">{{ quote.paquete_nombre }}</div></div>
+    <div class="extra-price">Q{{ '{:,.2f}'.format(quote.paquete_precio_base or 0) }}</div>
+  </div>
+  {% for ex in quote.selected_extras %}
+  <div class="extra-row" style="cursor:default;">
+    <div class="extra-left"><div class="extra-name">{{ ex.name }}</div></div>
+    <div class="extra-price">+Q{{ '{:,.2f}'.format(ex.price or 0) }}</div>
+  </div>
+  {% endfor %}
+  <div class="opt-price" style="margin-top:14px;">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
+  {% else %}
   <div class="opt-price">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
+  {% endif %}
   {% if quote.incluye %}
   <ul class="opt-list" style="margin-top:18px;">
     {% for item in quote.incluye %}
