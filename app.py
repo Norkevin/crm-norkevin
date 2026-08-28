@@ -10478,10 +10478,34 @@ def quote_view(quote_id):
     # contract_view. Sin ninguno de los dos, resolve_pdf_brand devuelve el
     # placeholder neutro -- nunca "Astral Weddings" por default.
     _job_para_marca = get_job(quote.get('job_id', '')) if quote.get('job_id') else None
-    brand = resolve_pdf_brand(
+    _tenant_para_marca = (
         (_job_para_marca.get('tenant_id') if _job_para_marca else None)
         or quote.get('tenant_id') or lead.get('tenant_id')
     )
+    brand = resolve_pdf_brand(_tenant_para_marca)
+
+    # Public Quote Experience (28-ago-2026): theme/portfolio/condiciones
+    # vienen del snapshot congelado al enviar si existe (quote ya enviado/
+    # aceptado); para un Borrador que un admin esta previsualizando todavia
+    # no hay snapshot, asi que se resuelve en vivo -- asi el live preview
+    # (BLOQUE D) siempre refleja el catalogo actual hasta que se envia.
+    theme = quote.get('theme_snapshot') or _quote_theme_for_tenant(_tenant_para_marca)
+    portfolio = quote.get('portfolio_snapshot')
+    if portfolio is None:
+        portfolio = _load_portfolio(_tenant_para_marca)
+    terms_blocks = quote.get('terms_snapshot')
+    if terms_blocks is None:
+        _templates_disponibles = _load_terms_templates(_tenant_para_marca)
+        terms_blocks = (_templates_disponibles[0].get('blocks') if _templates_disponibles else []) or []
+
+    # Base de las URLs publicas (accept/decline/pdf) segun por donde entro
+    # el visitante: /q/<token>/... si vino por el link nuevo, /quotes/<id>/...
+    # si vino por el alias interno viejo. Se deduce de request.path (no hace
+    # falta el token en claro aca, ya se uso para resolver `quote`).
+    if request.path.startswith('/q/'):
+        public_base = '/q/' + request.path.split('/')[2]
+    else:
+        public_base = f'/quotes/{quote_id}'
 
     return render_template(
         'quote_view.html',
@@ -10491,6 +10515,10 @@ def quote_view(quote_id):
         plan_choices=_quote_plan_choices(quote),
         payment_schedule=payment_schedule,
         brand=brand,
+        theme=theme,
+        portfolio=portfolio,
+        terms_blocks=terms_blocks,
+        public_base=public_base,
     )
 
 
@@ -10934,6 +10962,16 @@ def quote_accept(quote_id):
     if not quote:
         abort(404)
     brand = resolve_pdf_brand(quote.get('tenant_id'))
+    # Mismo tema/URL-base que quote_view (BLOQUE C) para que la confirmacion
+    # se vea igual de premium que la cotizacion que el cliente acaba de
+    # aceptar, y para que "Ver cotizacion" seguido apunte a /q/<token> si
+    # entro por ahi. Puramente de presentacion: no toca ninguna rama de
+    # decision de aca abajo (idempotencia, conversion, pagos).
+    theme = quote.get('theme_snapshot') or _quote_theme_for_tenant(quote.get('tenant_id'))
+    if request.path.startswith('/q/'):
+        public_base = '/q/' + request.path.split('/')[2]
+    else:
+        public_base = f'/quotes/{quote_id}'
 
     if quote.get('status') != 'Aceptada':
         data = request.get_json(silent=True) or request.form or {}
@@ -10967,19 +11005,22 @@ def quote_accept(quote_id):
             _accept_quote_for_existing_job(quote)
         quote = store.get('quotes', quote_id) or quote
         return render_template('quote_accepted.html', quote=quote, already=True, brand=brand,
+                                theme=theme, public_base=public_base,
                                 portal_url=(f"/portal/{quote['client_id']}" if quote.get('client_id') else None))
 
     if quote.get('job_id'):
         _accept_quote_for_existing_job(quote)
         quote = store.get('quotes', quote_id) or quote
         return render_template('quote_accepted.html', quote=quote, already=False, brand=brand,
+                                theme=theme, public_base=public_base,
                                 portal_url=(f"/portal/{quote['client_id']}" if quote.get('client_id') else None))
 
     if not quote.get('lead_id'):
         quote['status'] = 'Aceptada'
         quote['aceptada_en'] = date.today().isoformat()
         store.upsert('quotes', quote)
-        return render_template('quote_accepted.html', quote=quote, already=False, brand=brand, portal_url=None)
+        return render_template('quote_accepted.html', quote=quote, already=False, brand=brand,
+                                theme=theme, public_base=public_base, portal_url=None)
 
     lead = get_lead(quote.get('lead_id', ''))
     if not lead:
@@ -10988,6 +11029,7 @@ def quote_accept(quote_id):
     _convert_lead_to_job(lead, quote=quote, status='Confirmado', create_payments=True)
     quote = store.get('quotes', quote_id) or quote
     return render_template('quote_accepted.html', quote=quote, already=False, brand=brand,
+                            theme=theme, public_base=public_base,
                             portal_url=(f"/portal/{quote['client_id']}" if quote.get('client_id') else None))
 
 
@@ -11004,6 +11046,11 @@ def quote_decline(quote_id):
         quote['rechazada_en'] = date.today().isoformat()
         store.upsert('quotes', quote)
 
+    # Si el cliente entro por el link nuevo (/q/<token>), que el rechazo lo
+    # deje ahi -- no en el alias interno /quotes/<id>. Solo cambia el
+    # destino del redirect, no la logica de arriba.
+    if request.path.startswith('/q/'):
+        return redirect('/q/' + request.path.split('/')[2])
     return redirect(url_for('quote_view', quote_id=quote_id))
 
 

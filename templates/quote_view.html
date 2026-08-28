@@ -2,288 +2,477 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cotizacion - {{ lead.nombre }} · {{ brand.display_name }}</title>
-{% include "_document_style.html" %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Cotizacion {{ quote.number or '' }} · {{ lead.nombre }} · {{ theme.display_name }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  .pkg-card {
-    border: 2px solid var(--doc-line); border-radius: 14px; padding: 18px 20px; margin-bottom: 12px;
-    cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease;
-  }
-  .pkg-card:hover { border-color: #c7ccd6; }
-  .pkg-card.selected { border-color: var(--doc-accent); box-shadow: 0 0 0 3px rgba(115,87,246,.16); }
-  .pkg-card .pkg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-  .pkg-card .pkg-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-  .pkg-card .pkg-radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--doc-line); flex-shrink: 0; position: relative; }
-  .pkg-card.selected .pkg-radio { border-color: var(--doc-accent); }
-  .pkg-card.selected .pkg-radio::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--doc-accent); }
-  .pkg-card .pkg-price { font-size: 22px; font-weight: 300; margin-top: 2px; }
-  .pkg-card .pkg-includes { margin-top: 10px; }
-  .plan-options { display: flex; flex-wrap: wrap; gap: 10px; }
-  .plan-btn {
-    flex: 1 1 100px; min-width: 90px; border: 2px solid var(--doc-line); border-radius: 12px;
-    padding: 12px 10px; text-align: center; cursor: pointer; background: #fff;
-    transition: border-color .12s ease, box-shadow .12s ease;
-  }
-  .plan-btn:hover { border-color: #c7ccd6; }
-  .plan-btn.selected { border-color: var(--doc-accent); box-shadow: 0 0 0 3px rgba(115,87,246,.16); }
-  .plan-btn .plan-n { font-size: 18px; font-weight: 600; color: var(--doc-ink); }
-  .plan-btn .plan-label { font-size: 11px; color: var(--doc-mute); margin-top: 2px; }
-  .live-summary { background: var(--doc-paper); border-radius: 14px; padding: 18px 20px; }
-  .live-summary .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13.5px; color: var(--doc-ink-soft); }
-  .live-summary .row.total { border-top: 1px solid var(--doc-line); margin-top: 6px; padding-top: 12px; font-size: 16px; font-weight: 600; color: var(--doc-ink); }
+:root {
+  --bg: {{ theme.bone }};
+  --dark: {{ theme.bg_dark }};
+  --cream: {{ theme.cream }};
+  --ink: {{ theme.ink }};
+  --ink-soft: {{ theme.ink_soft }};
+  --line: {{ theme.line }};
+  --accent: {{ theme.accent }};
+  --serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --sans: 'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans);
+  -webkit-font-smoothing: antialiased; line-height: 1.5;
+  padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);
+}
+img { max-width: 100%; display: block; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 clamp(18px, 5vw, 48px); }
+.eyebrow {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* ---------- HERO ---------- */
+.hero { padding: clamp(36px, 8vw, 72px) 0 clamp(28px, 6vw, 48px); }
+.hero-brand { display: flex; align-items: center; gap: 10px; margin-bottom: clamp(28px, 7vw, 56px); }
+.hero-brand .mark {
+  width: 34px; height: 34px; border-radius: 50%; background: var(--dark); color: var(--cream);
+  display: flex; align-items: center; justify-content: center; font-family: var(--serif);
+  font-size: 15px; flex-shrink: 0;
+}
+.hero-brand .brand-name { font-size: 13px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; }
+.hero-brand .brand-tag { font-size: 10.5px; color: var(--ink-soft); letter-spacing: 1px; margin-top: 1px; }
+.hero-quotenum { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+.hero-names {
+  font-family: var(--serif); font-weight: 300; letter-spacing: -0.5px; line-height: 1.08;
+  font-size: clamp(38px, 9vw, 68px); margin: 0 0 clamp(20px, 5vw, 36px);
+  word-break: break-word;
+}
+.hero-meta { display: flex; flex-wrap: wrap; gap: clamp(24px, 6vw, 56px); }
+.hero-stat .v { font-size: 15px; font-weight: 500; }
+.hero-stat .l { font-size: 10.5px; color: var(--ink-soft); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 3px; }
+
+/* ---------- SECTIONS ---------- */
+.section { padding: clamp(28px, 7vw, 56px) 0; border-top: 1px solid var(--line); }
+.section-head { margin-bottom: clamp(20px, 5vw, 32px); }
+.section-title { font-family: var(--serif); font-weight: 400; font-size: clamp(22px, 4vw, 30px); margin: 6px 0 0; }
+
+/* ---------- STATUS BANNER ---------- */
+.status-banner { border-radius: 2px; padding: 16px 18px; font-size: 14px; margin-bottom: 8px; }
+.status-banner.ok { background: #EEF6EF; color: #2C5F35; }
+.status-banner.no { background: #FBEEEE; color: #7A2A2A; }
+
+/* ---------- OPTIONS ---------- */
+.opt {
+  border: 1px solid var(--line); padding: clamp(20px, 5vw, 36px); margin-bottom: 18px;
+  cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; position: relative;
+  background: rgba(255,255,255,.4);
+}
+.opt.selected { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); background: #fff; }
+.opt-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.opt-num { font-family: var(--serif); font-size: 13px; color: var(--ink-soft); margin-bottom: 6px; }
+.opt-label {
+  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+  background: var(--dark); color: var(--cream); padding: 4px 10px; margin-bottom: 10px;
+}
+.opt-name { font-family: var(--serif); font-weight: 400; font-size: clamp(20px, 4vw, 26px); margin: 0; }
+.opt-subtitle { font-size: 13px; color: var(--ink-soft); margin-top: 3px; }
+.opt-price-wrap { text-align: right; flex-shrink: 0; }
+.opt-price { font-family: var(--serif); font-weight: 300; font-size: clamp(26px, 5vw, 34px); letter-spacing: -0.5px; }
+.opt-price-old { font-size: 14px; color: var(--ink-soft); text-decoration: line-through; }
+.opt-price-currency { font-size: 10px; color: var(--ink-soft); letter-spacing: 1.5px; text-transform: uppercase; }
+.opt-desc { font-size: 14px; color: var(--ink-soft); margin: 14px 0 0; max-width: 60ch; }
+.opt-hours { font-size: 12px; color: var(--accent); font-weight: 600; margin-top: 8px; }
+.opt-groups { margin-top: 18px; display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.opt-group-title { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-soft); padding-bottom: 8px; }
+.opt-list { list-style: none; margin: 0; padding: 0; }
+.opt-list li { display: flex; gap: 8px; font-size: 13.5px; padding: 3px 0; align-items: flex-start; }
+.opt-list li svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; color: var(--accent); }
+.opt-note { font-size: 12px; color: var(--ink-soft); font-style: italic; margin-top: 14px; }
+.opt-cta {
+  margin-top: 20px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--ink);
+  background: transparent; color: var(--ink); font-family: var(--sans); font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase; padding: 13px 22px; cursor: pointer; transition: background .12s, color .12s;
+}
+.opt.selected .opt-cta, .opt-cta:hover { background: var(--ink); color: var(--cream); }
+.opt-radio { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--ink); flex-shrink: 0; }
+.opt.selected .opt-radio { background: var(--ink); }
+
+/* ---------- EXTRAS ---------- */
+.extra-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0;
+  border-bottom: 1px solid var(--line); cursor: pointer;
+}
+.extra-row:last-child { border-bottom: none; }
+.extra-left { display: flex; align-items: center; gap: 12px; }
+.extra-check { width: 18px; height: 18px; border: 1px solid var(--ink-soft); flex-shrink: 0; position: relative; }
+.extra-row.checked .extra-check { background: var(--ink); border-color: var(--ink); }
+.extra-row.checked .extra-check::after { content: ''; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid var(--cream); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.extra-name { font-size: 14px; font-weight: 500; }
+.extra-desc { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.extra-price { font-size: 14px; font-family: var(--serif); flex-shrink: 0; }
+
+/* ---------- PLAN DE PAGO ---------- */
+.plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
+.plan-opt { border: 1px solid var(--line); padding: 16px 10px; text-align: center; cursor: pointer; transition: border-color .12s; }
+.plan-opt.selected { border-color: var(--ink); background: #fff; }
+.plan-opt .n { font-family: var(--serif); font-size: 22px; }
+.plan-opt .l { font-size: 10px; color: var(--ink-soft); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+/* ---------- SUMMARY ---------- */
+.summary { background: var(--dark); color: var(--cream); padding: clamp(24px, 6vw, 40px); }
+.summary .row { display: flex; justify-content: space-between; font-size: 13.5px; padding: 7px 0; color: #d8d5cd; }
+.summary .row.total { border-top: 1px solid rgba(255,255,255,.2); margin-top: 8px; padding-top: 16px; font-family: var(--serif); font-size: 24px; color: var(--cream); }
+.cta-row { margin-top: clamp(20px, 5vw, 32px); display: flex; flex-wrap: wrap; gap: 12px; }
+.btn-accept {
+  flex: 1 1 220px; background: var(--accent); color: var(--dark); border: none; font-family: var(--sans);
+  font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 18px 24px;
+  cursor: pointer; transition: opacity .12s;
+}
+.btn-accept:disabled { opacity: .35; cursor: not-allowed; }
+.btn-decline {
+  background: transparent; color: var(--cream); border: 1px solid rgba(255,255,255,.35); font-family: var(--sans);
+  font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; padding: 18px 24px; cursor: pointer;
+}
+.summary-hint { font-size: 11.5px; color: #a9a49a; margin-top: 14px; }
+
+/* ---------- PORTFOLIO ---------- */
+.pf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 22px; }
+.pf-card { border: 1px solid var(--line); overflow: hidden; }
+.pf-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; background: var(--line); }
+.pf-body { padding: 16px 18px; }
+.pf-names { font-family: var(--serif); font-size: 19px; }
+.pf-loc { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.pf-blurb { font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; }
+.pf-link { display: inline-block; margin-top: 12px; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--ink); }
+.pf-pass { margin-top: 12px; display: flex; align-items: center; gap: 10px; font-size: 11px; }
+.pf-pass .pf-pass-label { color: var(--ink-soft); letter-spacing: 1px; text-transform: uppercase; }
+.pf-pass-value { font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 1px; }
+.pf-copy { border: none; background: var(--ink); color: var(--cream); font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 5px 9px; cursor: pointer; }
+
+/* ---------- CONDICIONES ---------- */
+.terms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
+.term-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.term-body { font-size: 13px; color: var(--ink-soft); line-height: 1.55; }
+
+/* ---------- FOOTER ---------- */
+footer.pq { background: var(--dark); color: var(--cream); text-align: center; padding: 48px 24px; margin-top: 0; }
+footer.pq .fname { font-size: 13px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; }
+footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
+
+@media (max-width: 640px) {
+  .opt-top { flex-direction: column; }
+  .opt-price-wrap { text-align: left; }
+  .cta-row { flex-direction: column; }
+}
 </style>
 </head>
 <body>
 
-<div class="doc-wrap">
-  <div class="doc-shell">
-
-    <div class="doc-side">
-      <div class="doc-side-brand">
-        <div class="glyph">{{ brand.initial }}</div>
-        <div>
-          <div class="name">{{ brand.display_name }}</div>
-          <div class="tag">PHOTOGRAPHY &amp; FILMS</div>
-        </div>
-      </div>
-      <div class="doc-side-meta">
-        <div class="type">Cotizacion</div>
-        <div class="id">{{ quote.id }}</div>
-        <div class="date">{{ quote.created }}</div>
-      </div>
-      <div class="doc-side-total">
-        <div class="label">{{ 'Total' if quote.status == 'Aceptada' else 'Cuota estimada' }}</div>
-        <div class="amount" id="hero-amount">
-          {% if quote.status == 'Aceptada' %}Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}{% else %}&mdash;{% endif %}
-        </div>
-      </div>
-      <div class="doc-side-status">
-        {% if quote.status == 'Aceptada' %}
-        <span class="doc-pill green"><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>Aceptada</span>
-        {% elif quote.status == 'Rechazada' %}
-        <span class="doc-pill rose">Rechazada</span>
-        {% else %}
-        <span class="doc-pill amber">Pendiente de respuesta</span>
-        {% endif %}
-      </div>
-      <div class="doc-side-footer">{{ brand.email }}<br>{{ brand.phone }}</div>
+<div class="wrap hero">
+  <div class="hero-brand">
+    <div class="mark">{{ theme.display_name[:1] }}</div>
+    <div>
+      <div class="brand-name">{{ theme.display_name }}</div>
+      {% if theme.tagline %}<div class="brand-tag">{{ theme.tagline }}</div>{% endif %}
     </div>
-
-    <div class="doc-main">
-
-      <div class="doc-section doc-parties">
-        <div class="doc-party-card">
-          <div class="doc-eyebrow">Para</div>
-          <div class="name">{{ lead.nombre }}</div>
-          <div class="line">{{ lead.email }}</div>
-          {% if lead.telefono %}<div class="line">{{ lead.telefono }}</div>{% endif %}
-        </div>
-        <div class="doc-party-card">
-          <div class="doc-eyebrow">De</div>
-          <div class="name">{{ brand.display_name }}</div>
-          <div class="line">{{ brand.email }}</div>
-          <div class="line">{{ brand.phone }}</div>
-        </div>
-      </div>
-
-      {% if quote.status == 'Aceptada' %}
-      <div class="doc-section">
-        <div class="doc-eyebrow">Paquete contratado</div>
-        <div class="doc-items">
-          <div class="doc-item-row">
-            <div><div class="name">{{ quote.paquete_nombre }}</div></div>
-            <div class="price">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
-          </div>
-        </div>
-      </div>
-      {% if quote.incluye %}
-      <div class="doc-section">
-        <div class="doc-eyebrow">Incluye</div>
-        <ul class="doc-list">
-          {% for item in quote.incluye %}
-          <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>{{ item }}</span></li>
-          {% endfor %}
-        </ul>
-      </div>
-      {% endif %}
-      {% if quote.plan_pago and quote.plan_pago > 1 %}
-      <div class="doc-section">
-        <div class="doc-eyebrow">Plan de pago</div>
-        <table class="doc-table">
-          <thead><tr><th>Cuota</th>{% if payment_schedule %}<th>Fecha</th>{% endif %}<th style="text-align:right;">Monto</th>{% if payment_schedule %}<th style="text-align:right;">Estado</th>{% endif %}</tr></thead>
-          <tbody>
-            {% if payment_schedule %}
-              {% for p in payment_schedule %}
-              <tr>
-                <td data-label="Cuota">Pago {{ p.cuota }}</td>
-                <td data-label="Fecha">{{ p.due_date }}</td>
-                <td data-label="Monto" style="text-align:right;font-weight:600;color:var(--doc-ink);">
-                  Q{{ '{:,.2f}'.format(p.amount or 0) }}
-                  {% if p.status != 'Pagado' and p.original_amount and p.amount is not none and p.amount|float < p.original_amount|float %}
-                  <div style="font-weight:400;font-size:11px;color:var(--doc-mute);">de Q{{ '{:,.2f}'.format(p.original_amount|float) }}</div>
-                  {% endif %}
-                </td>
-                <td data-label="Estado" style="text-align:right;">
-                  {% if p.status == 'Pagado' %}<span class="doc-pill green" style="padding:3px 10px;font-size:11px;">Pagado</span>
-                  {% elif p.status == 'Late' %}<span class="doc-pill" style="padding:3px 10px;font-size:11px;background:#FCE8E8;color:#B4232A;">Vencida</span>
-                  {% elif p.original_amount and p.amount is not none and p.amount|float < p.original_amount|float %}<span class="doc-pill" style="padding:3px 10px;font-size:11px;background:#E4EEFC;color:#1D4ED8;">Parcial</span>
-                  {% else %}<span class="doc-pill amber" style="padding:3px 10px;font-size:11px;">Pendiente</span>{% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            {% else %}
-              {% for i in range(quote.plan_pago) %}
-              <tr><td data-label="Cuota">Pago {{ i + 1 }} de {{ quote.plan_pago }}</td><td data-label="Monto" style="text-align:right;font-weight:600;color:var(--doc-ink);">Q{{ '{:,.2f}'.format(quote.cuota_monto) }}</td></tr>
-              {% endfor %}
-            {% endif %}
-          </tbody>
-        </table>
-        <p class="doc-hint" style="text-align:left;margin-top:8px;">Estas fechas son una propuesta automática. Si necesitás ajustarlas, escribinos.</p>
-      </div>
-      {% endif %}
-
-      {% elif quote.status == 'Rechazada' %}
-      <div class="doc-section">
-        <div class="doc-eyebrow">Paquete</div>
-        <div class="doc-items">
-          <div class="doc-item-row"><div><div class="name">{{ quote.paquete_nombre }}</div></div><div class="price">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div></div>
-        </div>
-      </div>
-
-      {% else %}
-      <div class="doc-section">
-        <div class="doc-eyebrow">{{ 'Elegi tu paquete' if options|length > 1 else 'Tu paquete' }}</div>
-        <div id="pkg-options">
-          {% for opt in options %}
-          <div class="pkg-card" data-option-id="{{ opt.id }}" data-price="{{ opt.precio_total or 0 }}" onclick="selectPackage('{{ opt.id }}')">
-            <div class="pkg-head">
-              <div>
-                <div class="pkg-name">{% if options|length > 1 %}<span class="pkg-radio"></span>{% endif %}{{ opt.name }}</div>
-                <div class="pkg-price">Q{{ '{:,.2f}'.format(opt.precio_total or 0) }}</div>
-              </div>
-            </div>
-            {% if opt.incluye %}
-            <ul class="doc-list pkg-includes">
-              {% for item in opt.incluye %}
-              <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>{{ item }}</span></li>
-              {% endfor %}
-            </ul>
-            {% endif %}
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-
-      <div class="doc-section">
-        <div class="doc-eyebrow">En cuantos pagos queres liquidarlo?</div>
-        <div class="plan-options" id="plan-options">
-          {% for n in plan_choices %}
-          <div class="plan-btn" data-plan="{{ n }}" onclick="selectPlan({{ n }})">
-            <div class="plan-n">{{ n }}</div>
-            <div class="plan-label">{{ 'pago unico' if n == 1 else 'cuotas' }}</div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-
-      <div class="doc-section">
-        <div class="live-summary">
-          <div class="row"><span>Paquete</span><span id="sum-package">Elegi una opcion arriba</span></div>
-          <div class="row"><span>Plan de pago</span><span id="sum-plan">&mdash;</span></div>
-          <div class="row total"><span>Monto por cuota</span><span id="sum-cuota">Q0.00</span></div>
-        </div>
-      </div>
-
-      {% if quote.notas %}
-      <div class="doc-section">
-        <div class="doc-eyebrow">Notas</div>
-        <div class="doc-note">{{ quote.notas }}</div>
-      </div>
-      {% endif %}
-      {% endif %}
-
-      <div class="doc-actions">
-        {% if quote.status == 'Aceptada' %}
-        <p class="doc-hint full">Aceptada el {{ quote.aceptada_en or '' }}</p>
-        {% elif quote.status == 'Rechazada' %}
-        <p class="doc-hint full">Rechazada el {{ quote.rechazada_en or '' }}. Contactanos si quieres revisar otras opciones.</p>
-        {% else %}
-        <form method="POST" action="/quotes/{{ quote.id }}/accept" style="display:contents;" id="accept-form">
-          <input type="hidden" name="option_id" id="accept-option-id">
-          <input type="hidden" name="plan_pago" id="accept-plan-pago">
-          <button type="submit" class="doc-btn primary" id="accept-btn" disabled>
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 6 9 17l-5-5"/></svg>
-            Aceptar Cotizacion
-          </button>
-        </form>
-        <form method="POST" action="/quotes/{{ quote.id }}/decline" onsubmit="return confirm('Rechazar esta cotizacion?');" style="display:contents;">
-          <button type="submit" class="doc-btn outline">Rechazar</button>
-        </form>
-        <p class="doc-hint">Elegi tu paquete y plan de pago arriba. Al aceptar, se genera la factura correspondiente en tu portal.</p>
-        {% endif %}
-      </div>
-
-      <div class="doc-footer">{{ brand.display_name }} &middot; {{ brand.email }} &middot; {{ brand.phone }}</div>
-
-    </div>
-
+  </div>
+  <div class="hero-quotenum">Cotización {{ quote.number or ('N.º ' + quote.id[-6:]|upper) }}</div>
+  <h1 class="hero-names">{{ lead.nombre }}</h1>
+  <div class="hero-meta">
+    {% if lead.fecha_tentativa %}<div class="hero-stat"><div class="v">{{ lead.fecha_tentativa }}</div><div class="l">Fecha</div></div>{% endif %}
+    {% if lead.locacion %}<div class="hero-stat"><div class="v">{{ lead.locacion }}</div><div class="l">Ubicación</div></div>{% endif %}
+    {% if options|length > 1 and quote.status not in ('Aceptada', 'Rechazada') %}
+    <div class="hero-stat"><div class="v">{{ options|length }} opciones</div><div class="l">Modalidades disponibles</div></div>
+    {% endif %}
   </div>
 </div>
 
+{% if quote.status == 'Aceptada' %}
+<div class="wrap"><div class="status-banner ok">Cotización aceptada el {{ quote.aceptada_en or '' }}.</div></div>
+{% elif quote.status == 'Rechazada' %}
+<div class="wrap"><div class="status-banner no">Cotización rechazada el {{ quote.rechazada_en or '' }}. Escribinos si querés revisar otras opciones.</div></div>
+{% endif %}
+
+{% if quote.status == 'Aceptada' %}
+<div class="wrap section">
+  <div class="section-head"><div class="eyebrow">Paquete contratado</div><h2 class="section-title">{{ quote.paquete_nombre }}</h2></div>
+  <div class="opt-price">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
+  {% if quote.incluye %}
+  <ul class="opt-list" style="margin-top:18px;">
+    {% for item in quote.incluye %}
+    <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>{{ item }}</span></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% if quote.plan_pago and quote.plan_pago > 1 %}
+<div class="wrap section">
+  <div class="section-head"><div class="eyebrow">Plan de pago</div><h2 class="section-title">{{ quote.plan_pago }} pagos</h2></div>
+  {% for p in payment_schedule %}
+  <div class="extra-row" style="cursor:default;">
+    <div class="extra-left"><div><div class="extra-name">Pago {{ p.cuota }} &middot; {{ p.due_date }}</div></div></div>
+    <div class="extra-price">Q{{ '{:,.2f}'.format(p.amount or 0) }} {% if p.status == 'Pagado' %}&middot; pagado{% endif %}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% elif quote.status == 'Rechazada' %}
+<div class="wrap section">
+  <div class="section-head"><div class="eyebrow">Paquete</div><h2 class="section-title">{{ quote.paquete_nombre }}</h2></div>
+  <div class="opt-price">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
+</div>
+
+{% else %}
+<div class="wrap section">
+  <div class="section-head">
+    <div class="eyebrow">{{ 'Elegí tu modalidad' if options|length > 1 else 'Tu propuesta' }}</div>
+    <h2 class="section-title">Opciones</h2>
+  </div>
+  <div id="pkg-options">
+    {% for opt in options %}
+    <div class="opt" data-option-id="{{ opt.id }}" data-price="{{ opt.precio_total or 0 }}" onclick="selectPackage('{{ opt.id }}')">
+      <div class="opt-top">
+        <div>
+          {% if options|length > 1 %}<div class="opt-num">{{ '%02d'|format(loop.index) }} / {{ '%02d'|format(options|length) }}</div>{% endif %}
+          {% if opt.label %}<div class="opt-label">{{ opt.label }}</div>{% endif %}
+          <h3 class="opt-name">{{ opt.name }}</h3>
+          {% if opt.subtitle %}<div class="opt-subtitle">{{ opt.subtitle }}</div>{% endif %}
+        </div>
+        <div class="opt-price-wrap">
+          {% if opt.precio_anterior and opt.precio_anterior|float > (opt.precio_total or 0)|float %}
+          <div class="opt-price-old">Q{{ '{:,.0f}'.format(opt.precio_anterior|float) }}</div>
+          {% endif %}
+          <div class="opt-price">Q{{ '{:,.2f}'.format(opt.precio_total or 0) }}</div>
+          <div class="opt-price-currency">Quetzales</div>
+        </div>
+      </div>
+      {% if opt.description %}<p class="opt-desc">{{ opt.description }}</p>{% endif %}
+      {% if opt.horas %}<div class="opt-hours">{{ opt.horas|int }} horas de cobertura</div>{% endif %}
+      {% if opt.groups %}
+      <div class="opt-groups">
+        {% for g in opt.groups %}
+        <div>
+          {% if g.title %}<div class="opt-group-title">{{ g.title }}</div>{% endif %}
+          <ul class="opt-list">
+            {% for item in g['items'] %}
+            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>{{ item }}</span></li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </div>
+      {% elif opt.incluye %}
+      <ul class="opt-list" style="margin-top:16px;">
+        {% for item in opt.incluye %}
+        <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>{{ item }}</span></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if opt.notas %}<div class="opt-note">{{ opt.notas }}</div>{% endif %}
+      <button type="button" class="opt-cta" onclick="event.stopPropagation(); selectPackage('{{ opt.id }}');">
+        <span class="opt-radio"></span> Elegir esta opción
+      </button>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% if quote.extras_catalog %}
+<div class="wrap section" id="extras-section" style="display:none;">
+  <div class="section-head"><div class="eyebrow">Personalizá tu experiencia</div><h2 class="section-title">Agregá a tu propuesta</h2></div>
+  <div id="extras-list">
+    {% for ex in quote.extras_catalog %}
+    <div class="extra-row" data-extra-id="{{ ex.id }}" data-price="{{ ex.price or 0 }}" onclick="toggleExtra('{{ ex.id }}')">
+      <div class="extra-left">
+        <div class="extra-check"></div>
+        <div>
+          <div class="extra-name">{{ ex.name }}</div>
+          {% if ex.description %}<div class="extra-desc">{{ ex.description }}</div>{% endif %}
+        </div>
+      </div>
+      <div class="extra-price">+Q{{ '{:,.0f}'.format(ex.price or 0) }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="wrap section">
+  <div class="section-head"><div class="eyebrow">Forma de pago</div><h2 class="section-title">¿En cuántos pagos?</h2></div>
+  <div class="plan-grid" id="plan-options">
+    {% for n in plan_choices %}
+    <div class="plan-opt" data-plan="{{ n }}" onclick="selectPlan({{ n }})">
+      <div class="n">{{ n }}</div>
+      <div class="l">{{ 'pago único' if n == 1 else 'cuotas' }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="wrap section" style="border-top:none;">
+  <div class="summary">
+    <div class="row"><span>Modalidad</span><span id="sum-package">Elegí una opción arriba</span></div>
+    <div class="row" id="sum-extras-row" style="display:none;"><span>Extras</span><span id="sum-extras">Q0</span></div>
+    <div class="row"><span>Plan de pago</span><span id="sum-plan">&mdash;</span></div>
+    <div class="row total"><span>{{ 'Monto por cuota' }}</span><span id="sum-cuota">Q0.00</span></div>
+    <div class="cta-row">
+      <form method="POST" action="{{ public_base }}/accept" id="accept-form" style="flex:1 1 220px;">
+        <input type="hidden" name="option_id" id="accept-option-id">
+        <input type="hidden" name="plan_pago" id="accept-plan-pago">
+        <input type="hidden" name="extra_ids" id="accept-extra-ids">
+        <button type="submit" class="btn-accept" id="accept-btn" disabled style="width:100%;">{{ theme.cta_text }}</button>
+      </form>
+      <form method="POST" action="{{ public_base }}/decline" onsubmit="return confirm('¿Rechazar esta cotización?');">
+        <button type="submit" class="btn-decline">Rechazar</button>
+      </form>
+    </div>
+    <div class="summary-hint">Elegí tu opción y plan de pago. Al aceptar, generamos automáticamente tu calendario de pagos.</div>
+  </div>
+</div>
+{% if quote.notas %}
+<div class="wrap section"><div class="section-head"><div class="eyebrow">Notas</div></div><p class="opt-desc">{{ quote.notas }}</p></div>
+{% endif %}
+{% endif %}
+
+{% if portfolio %}
+<div class="wrap section">
+  <div class="section-head"><div class="eyebrow">Portafolio</div><h2 class="section-title">Bodas completas</h2></div>
+  <div class="pf-grid">
+    {% for p in portfolio %}
+    <div class="pf-card">
+      {% if p.image_url %}<img class="pf-img" src="{{ p.image_url }}" alt="{{ p.couple_names or p.title }}" loading="lazy">{% endif %}
+      <div class="pf-body">
+        <div class="pf-names">{{ p.couple_names or p.title }}</div>
+        {% if p.couple_names and p.title and p.title != p.couple_names %}<div class="pf-loc">{{ p.title }}</div>{% endif %}
+        {% if p.location %}<div class="pf-loc">{{ p.location }}</div>{% endif %}
+        {% if p.blurb %}<div class="pf-blurb">{{ p.blurb }}</div>{% endif %}
+        {% if p.external_url %}<a class="pf-link" href="{{ p.external_url }}" target="_blank" rel="noopener">Ver boda completa →</a>{% endif %}
+        {% if p.password %}
+        <div class="pf-pass">
+          <span class="pf-pass-label">Contraseña</span>
+          <span class="pf-pass-value" id="pf-pass-{{ loop.index }}">{{ p.password }}</span>
+          <button type="button" class="pf-copy" onclick="copyText('pf-pass-{{ loop.index }}', this)">Copiar</button>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if terms_blocks %}
+<div class="wrap section">
+  <div class="section-head"><div class="eyebrow">Información general</div><h2 class="section-title">Detalles a tener en cuenta</h2></div>
+  <div class="terms-grid">
+    {% for b in terms_blocks %}
+    <div>
+      {% if b.title %}<div class="term-title">{{ b.title }}</div>{% endif %}
+      {% if b.body %}<div class="term-body">{{ b.body }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<footer class="pq">
+  <div class="fname">{{ theme.display_name }}</div>
+  <div class="fmeta">{% if theme.phone %}Tel: {{ theme.phone }}{% endif %}{% if theme.phone and theme.email %} &middot; {% endif %}{% if theme.email %}Email: {{ theme.email }}{% endif %}</div>
+</footer>
+
 <script>
+var OPTIONS = {{ options|tojson }};
 var selectedOptionId = null;
 var selectedPlan = null;
-var OPTIONS = {{ options|tojson }};
+var selectedExtras = {};
 
 function fmtMoney(n) {
   return 'Q' + Number(n || 0).toLocaleString('es-GT', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
+function extrasTotal() {
+  var total = 0;
+  document.querySelectorAll('.extra-row.checked').forEach(function(el) {
+    total += Number(el.dataset.price || 0);
+  });
+  return total;
+}
+
 function selectPackage(optionId) {
   selectedOptionId = optionId;
-  document.querySelectorAll('.pkg-card').forEach(function(el) {
+  document.querySelectorAll('.opt').forEach(function(el) {
     el.classList.toggle('selected', el.dataset.optionId === optionId);
   });
   var opt = OPTIONS.find(function(o) { return o.id === optionId; });
-  document.getElementById('sum-package').textContent = opt ? opt.name : 'Elegi una opcion arriba';
+  document.getElementById('sum-package').textContent = opt ? opt.name : 'Elegí una opción arriba';
+  var extrasSection = document.getElementById('extras-section');
+  if (extrasSection) extrasSection.style.display = 'block';
+  updateSummary();
+}
+
+function toggleExtra(extraId) {
+  var row = document.querySelector('.extra-row[data-extra-id="' + extraId + '"]');
+  if (!row) return;
+  row.classList.toggle('checked');
   updateSummary();
 }
 
 function selectPlan(n) {
   selectedPlan = n;
-  document.querySelectorAll('.plan-btn').forEach(function(el) {
+  document.querySelectorAll('.plan-opt').forEach(function(el) {
     el.classList.toggle('selected', Number(el.dataset.plan) === n);
   });
-  document.getElementById('sum-plan').textContent = n === 1 ? 'Pago unico' : (n + ' cuotas');
+  document.getElementById('sum-plan').textContent = n === 1 ? 'Pago único' : (n + ' cuotas');
   updateSummary();
 }
 
 function updateSummary() {
   var opt = OPTIONS.find(function(o) { return o.id === selectedOptionId; });
-  var cuota = 0;
-  if (opt && selectedPlan) {
-    cuota = (opt.precio_total || 0) / selectedPlan;
+  var extras = extrasTotal();
+  var extrasRow = document.getElementById('sum-extras-row');
+  if (extrasRow) {
+    extrasRow.style.display = extras > 0 ? 'flex' : 'none';
+    document.getElementById('sum-extras').textContent = fmtMoney(extras);
   }
+  var base = opt ? Number(opt.precio_total || 0) + extras : 0;
+  var cuota = (base && selectedPlan) ? base / selectedPlan : 0;
   document.getElementById('sum-cuota').textContent = fmtMoney(cuota);
-  var heroEl = document.getElementById('hero-amount');
-  if (heroEl) heroEl.textContent = cuota ? fmtMoney(cuota) : '—';
 
   var acceptBtn = document.getElementById('accept-btn');
   if (acceptBtn) acceptBtn.disabled = !(opt && selectedPlan);
   var optIdInput = document.getElementById('accept-option-id');
   var planInput = document.getElementById('accept-plan-pago');
+  var extraIdsInput = document.getElementById('accept-extra-ids');
   if (optIdInput) optIdInput.value = selectedOptionId || '';
   if (planInput) planInput.value = selectedPlan || '';
+  if (extraIdsInput) {
+    var ids = Array.prototype.slice.call(document.querySelectorAll('.extra-row.checked'))
+      .map(function(el) { return el.dataset.extraId; });
+    extraIdsInput.value = ids.join(',');
+  }
+}
+
+function copyText(elId, btn) {
+  var text = document.getElementById(elId).textContent.trim();
+  var done = function() { var old = btn.textContent; btn.textContent = 'Copiado'; setTimeout(function() { btn.textContent = old; }, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done)['catch'](function() {});
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
   if (OPTIONS.length === 1) { selectPackage(OPTIONS[0].id); }
-  // Plan de pago pre-seleccionado: 2 cuotas si esta entre las opciones
-  // ofrecidas, si no la primera disponible. El cliente puede cambiarlo.
-  var planBtns = Array.prototype.slice.call(document.querySelectorAll('.plan-btn'));
-  if (planBtns.length) {
-    var plans = planBtns.map(function(el) { return Number(el.dataset.plan); });
+  var planEls = Array.prototype.slice.call(document.querySelectorAll('.plan-opt'));
+  if (planEls.length) {
+    var plans = planEls.map(function(el) { return Number(el.dataset.plan); });
     selectPlan(plans.indexOf(2) !== -1 ? 2 : plans[0]);
   }
 });

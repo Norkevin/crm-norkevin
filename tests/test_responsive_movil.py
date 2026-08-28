@@ -144,15 +144,25 @@ def test_ninguna_tabla_queda_con_scroll_horizontal_en_movil():
 
 
 def test_la_cotizacion_del_cliente_apila_su_plan_de_pago():
-    """La cotizacion llega por WhatsApp y se abre en el telefono. Su tabla
-    tiene 4 columnas: si no apila, el cliente ve su plan de pago cortado."""
+    """La cotizacion llega por WhatsApp y se abre en el telefono. El plan de
+    pago no puede depender de una tabla ancha que se corte.
+
+    BLOQUE C (Public Quote Experience) rediseño esta pagina: el plan de
+    pago ya no es un <table class="doc-table"> de 4 columnas con celdas
+    data-label, sino filas flex (.extra-row, una por cuota) que apilan
+    solas en cualquier ancho porque nunca fueron una grilla de columnas.
+    .doc-table sigue existiendo y sigue necesitando apilarse (lo usan
+    contract_view.html y questionnaire_view.html), asi que esa guarda se
+    mantiene; lo que ya no aplica es exigirle data-label a quote_view.html
+    en particular."""
     movil = _bloques_movil(_css('_document_style.html'))
     assert '.doc-table thead' in movil and 'display: none' in movil, \
         '.doc-table no apila en movil'
     assert re.search(r'\.doc-table td\[data-label\]::before', movil), \
         '.doc-table no pinta las etiquetas al apilar'
-    assert 'data-label' in _leer('quote_view.html'), \
-        'quote_view.html no tiene data-label en sus celdas'
+    quote_html = _leer('quote_view.html')
+    assert '<table' not in quote_html, \
+        'quote_view.html volvio a depender de una tabla ancha para el plan de pago'
 
 
 def test_el_dashboard_no_obliga_a_arrastrar_de_lado():
