@@ -256,8 +256,9 @@
 
       <div class="doc-actions">
         <a class="doc-btn outline" href="/quotes/{{ quote.id }}" target="_blank">Vista previa (como la ve el cliente)</a>
+        <button type="button" class="doc-btn outline" onclick="saveAsTemplate()">Guardar como plantilla</button>
         <button type="button" class="doc-btn primary" onclick="sendQuote()">Enviar cotizacion al cliente</button>
-        <p class="doc-hint">Una vez enviada, ya no vas a poder seguir editando las opciones.</p>
+        <p class="doc-hint">Una vez enviada, ya no vas a poder seguir editando las opciones. "Guardar como plantilla" copia las opciones y el plan de pago para reutilizarlos en cotizaciones futuras (ver Settings &gt; Cotizaciones).</p>
       </div>
 
     </div>
@@ -295,6 +296,7 @@
 <script>
 var QUOTE_ID = {{ quote.id|tojson }};
 var SAVED_PACKAGES = {{ saved_packages|tojson }};
+var CURRENT_OPTIONS = {{ options|tojson }};
 
 function fillFromSavedPackage(pkgId) {
   var pkg = SAVED_PACKAGES.find(function(p) { return p.id === pkgId; });
@@ -483,6 +485,31 @@ function saveExtras() {
       else { hint.textContent = 'Error: ' + data.error; hint.style.color = '#B4232A'; }
     })
     .catch(function() { hint.textContent = 'Error de red'; hint.style.color = '#B4232A'; });
+}
+
+// ---------- Guardar como plantilla reutilizable (BLOQUE F) ----------
+function saveAsTemplate() {
+  if (!CURRENT_OPTIONS.length) { alert('Agrega al menos 1 opcion de paquete antes de guardar como plantilla'); return; }
+  var name = prompt('Nombre de la plantilla (ej: Boda foto+video, Civil, XV anios):');
+  if (!name || !name.trim()) return;
+  var checkedPlans = Array.prototype.slice.call(document.querySelectorAll('#plan-check-row input:checked')).map(function(el) { return Number(el.value); });
+  var termsPicker = document.getElementById('terms-picker');
+  fetch('/api/quote-templates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: name.trim(),
+      options: CURRENT_OPTIONS,
+      plan_pago_opciones: checkedPlans.length ? checkedPlans : undefined,
+      terms_template_id: termsPicker ? termsPicker.value : ''
+    })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { alert('Plantilla guardada. La podes usar desde Settings > Cotizaciones al crear una cotizacion nueva.'); }
+      else { alert('Error: ' + data.error); }
+    })
+    .catch(function() { alert('Error de red'); });
 }
 
 // ---------- Portafolio y condiciones ----------

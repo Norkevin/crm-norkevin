@@ -1,0 +1,424 @@
+{% extends "base.html" %}
+{% block title %}Cotizaciones · {{ current_tenant.name }} CRM{% endblock %}
+{% block header %}Cotizaciones{% endblock %}
+{% block subtitle %}Dashboard &gt; Settings &gt; Cotizaciones{% endblock %}
+{% block topbar_title %}Settings{% endblock %}
+
+{% block content %}
+<section class="sn-page">
+  <div class="sn-page-head">
+    <div>
+      <h1 class="sn-page-title">Cotizaciones</h1>
+      <div class="sn-breadcrumbs">Tema visual, portafolio y condiciones que se muestran en la cotizacion publica de {{ current_tenant.name }}.</div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       TEMA VISUAL
+       ============================================================ -->
+  <div class="mb-8" style="margin-top:20px;">
+    <h3 class="settings-section-title">Tema visual</h3>
+    <div class="sn-card white" style="padding:18px;">
+      <p class="sn-muted text-sm mb-4">
+        Colores y textos de la cotizacion que ve el cliente en /q/&lt;link&gt;.
+        No afecta el resto del CRM. Si dejas un campo vacio, se usa el
+        default (misma paleta para todas las cuentas hasta que la cambies aca).
+      </p>
+      <div class="grid-3" style="margin-bottom:14px;">
+        <div class="form-group">
+          <label class="form-label">Fondo oscuro (footer)</label>
+          <input class="form-input theme-color-input" id="theme-bg-dark" type="text" value="{{ quote_theme.bg_dark }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Crema (acentos)</label>
+          <input class="form-input theme-color-input" id="theme-cream" type="text" value="{{ quote_theme.cream }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fondo claro</label>
+          <input class="form-input theme-color-input" id="theme-bone" type="text" value="{{ quote_theme.bone }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Texto principal</label>
+          <input class="form-input theme-color-input" id="theme-ink" type="text" value="{{ quote_theme.ink }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Texto secundario</label>
+          <input class="form-input theme-color-input" id="theme-ink-soft" type="text" value="{{ quote_theme.ink_soft }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lineas / bordes</label>
+          <input class="form-input theme-color-input" id="theme-line" type="text" value="{{ quote_theme.line }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Acento (precios, badges)</label>
+          <input class="form-input theme-color-input" id="theme-accent" type="text" value="{{ quote_theme.accent }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Texto del boton de aceptar</label>
+          <input class="form-input" id="theme-cta-text" value="{{ quote_theme.cta_text }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">WhatsApp de contacto (opcional)</label>
+          <input class="form-input" id="theme-whatsapp" value="{{ quote_theme.whatsapp }}" placeholder="+502 1234 5678">
+        </div>
+      </div>
+      <div id="theme-preview-strip" style="display:flex;height:36px;border-radius:8px;overflow:hidden;margin-bottom:14px;border:1px solid var(--sn-line);"></div>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="saveQuoteTheme()">Guardar tema</button>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       PORTAFOLIO
+       ============================================================ -->
+  <div class="mb-8">
+    <div class="flex items-center justify-between" style="margin-bottom:10px;">
+      <h3 class="settings-section-title" style="margin:0;">Portafolio</h3>
+      <button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick="openPortfolioModal()">+ Nueva boda</button>
+    </div>
+    <p class="sn-muted text-sm mb-4">Bodas que se muestran como referencia en la cotizacion publica. Elegis cuales van en cada cotizacion desde el editor.</p>
+    <div class="sn-table-shell stack-mobile">
+      <table class="sn-table">
+        <thead>
+          <tr>
+            <th>Boda</th>
+            <th style="width:160px;">Ubicacion</th>
+            <th style="width:90px;">Orden</th>
+            <th style="width:90px;">Estado</th>
+            <th style="width:160px;text-align:right;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in portfolio_items %}
+          <tr>
+            <td data-label="Boda">
+              <div class="sn-list-title">{{ p.couple_names or p.title }}</div>
+              {% if p.couple_names and p.title and p.title != p.couple_names %}<div class="sn-list-meta">{{ p.title }}</div>{% endif %}
+            </td>
+            <td data-label="Ubicacion">{{ p.location }}</td>
+            <td data-label="Orden">{{ p.order }}</td>
+            <td data-label="Estado">{% if p.active %}<span class="sn-chip" style="background:#DCFCE7;color:#166534;">Activa</span>{% else %}<span class="sn-chip">Oculta</span>{% endif %}</td>
+            <td class="stack-actions" style="text-align:right;">
+              <button class="sn-btn sn-btn-sm" type="button" onclick='openPortfolioModal({{ p|tojson }})'>Editar</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="deletePortfolioItem('{{ p.id }}')" style="color:#b3263b;">Eliminar</button>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="sn-muted" style="text-align:center;padding:24px;">Todavia no hay bodas en el portafolio.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       CONDICIONES
+       ============================================================ -->
+  <div class="mb-8">
+    <div class="flex items-center justify-between" style="margin-bottom:10px;">
+      <h3 class="settings-section-title" style="margin:0;">Condiciones</h3>
+      <button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick="openTermsModal()">+ Nueva plantilla</button>
+    </div>
+    <p class="sn-muted text-sm mb-4">Bloques de informacion (cobertura, entrega, anticipo...) que se muestran al final de la cotizacion.</p>
+    <div class="sn-table-shell stack-mobile">
+      <table class="sn-table">
+        <thead>
+          <tr>
+            <th>Plantilla</th>
+            <th style="width:120px;">Bloques</th>
+            <th style="width:90px;">Estado</th>
+            <th style="width:160px;text-align:right;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in terms_templates %}
+          <tr>
+            <td data-label="Plantilla"><div class="sn-list-title">{{ t.title }}</div></td>
+            <td data-label="Bloques">{{ (t.blocks or [])|length }}</td>
+            <td data-label="Estado">{% if t.active %}<span class="sn-chip" style="background:#DCFCE7;color:#166534;">Activa</span>{% else %}<span class="sn-chip">Oculta</span>{% endif %}</td>
+            <td class="stack-actions" style="text-align:right;">
+              <button class="sn-btn sn-btn-sm" type="button" onclick='openTermsModal({{ t|tojson }})'>Editar</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="deleteTermsTemplate('{{ t.id }}')" style="color:#b3263b;">Eliminar</button>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="sn-muted" style="text-align:center;padding:24px;">Todavia no hay plantillas de condiciones.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       PLANTILLAS DE COTIZACION
+       ============================================================ -->
+  <div class="mb-8">
+    <h3 class="settings-section-title">Plantillas de cotizacion</h3>
+    <p class="sn-muted text-sm mb-4">
+      Paquetes + plan de pago + condiciones ya armados para empezar una cotizacion nueva mas rapido.
+      Se crean desde el editor de una cotizacion existente con el boton <strong>"Guardar como plantilla"</strong>, no desde aca.
+    </p>
+    <div class="sn-table-shell stack-mobile">
+      <table class="sn-table">
+        <thead>
+          <tr>
+            <th>Plantilla</th>
+            <th style="width:110px;">Opciones</th>
+            <th style="width:90px;">Estado</th>
+            <th style="width:100px;text-align:right;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for qt in quote_templates %}
+          <tr>
+            <td data-label="Plantilla">
+              <div class="sn-list-title">{{ qt.name }}</div>
+              {% if qt.description %}<div class="sn-list-meta">{{ qt.description }}</div>{% endif %}
+            </td>
+            <td data-label="Opciones">{{ (qt.options or [])|length }}</td>
+            <td data-label="Estado">{% if qt.active %}<span class="sn-chip" style="background:#DCFCE7;color:#166534;">Activa</span>{% else %}<span class="sn-chip">Oculta</span>{% endif %}</td>
+            <td class="stack-actions" style="text-align:right;">
+              <button class="sn-btn sn-btn-sm" type="button" onclick="deleteQuoteTemplate('{{ qt.id }}')" style="color:#b3263b;">Eliminar</button>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="sn-muted" style="text-align:center;padding:24px;">Todavia no hay plantillas de cotizacion guardadas.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Modal: portfolio item -->
+<div class="modal-overlay" id="portfolio-modal">
+  <div class="modal-content" style="width:min(560px,94vw);">
+    <button type="button" class="modal-close" onclick="closeModal('portfolio-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title" id="portfolio-modal-title">Nueva boda</h2>
+    <form onsubmit="submitPortfolioItem(event)">
+      <input type="hidden" id="pf-id">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Titulo interno *</label>
+          <input class="form-input" id="pf-title" required placeholder="Boda en el lago">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nombres de la pareja</label>
+          <input class="form-input" id="pf-couple" placeholder="Maria &amp; Jose">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Ubicacion</label>
+          <input class="form-input" id="pf-location" placeholder="Lago de Atitlan">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Orden (menor = primero)</label>
+          <input class="form-input" id="pf-order" type="number" step="1" value="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">URL de imagen</label>
+        <input class="form-input" id="pf-image" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link a la galeria completa</label>
+        <input class="form-input" id="pf-external-url" placeholder="https://...">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Contrasena de la galeria (opcional)</label>
+          <input class="form-input" id="pf-password">
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input type="checkbox" id="pf-active" checked> Visible en cotizaciones nuevas
+          </label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descripcion breve</label>
+        <textarea class="form-input" id="pf-blurb" rows="2"></textarea>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeModal('portfolio-modal')">Cancelar</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: terms template -->
+<div class="modal-overlay" id="terms-modal">
+  <div class="modal-content" style="width:min(640px,94vw);">
+    <button type="button" class="modal-close" onclick="closeModal('terms-modal')" aria-label="Close">x</button>
+    <h2 class="modal-title" id="terms-modal-title">Nueva plantilla de condiciones</h2>
+    <form onsubmit="submitTermsTemplate(event)">
+      <input type="hidden" id="terms-id">
+      <div class="form-group">
+        <label class="form-label">Nombre de la plantilla *</label>
+        <input class="form-input" id="terms-title" required placeholder="Condiciones estandar">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Bloques</label>
+        <div id="terms-blocks-list"></div>
+        <button type="button" class="sn-btn sn-btn-sm" onclick="addTermsBlockRow()">+ Agregar bloque</button>
+      </div>
+      <div class="sn-actions" style="justify-content:space-between;">
+        <button class="sn-btn" type="button" onclick="closeModal('terms-modal')">Cancelar</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.term-block-row { border: 1px solid var(--sn-line); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--sn-row); }
+.term-block-row input { margin-bottom: 6px; }
+.term-block-remove { border: none; background: none; color: #b3263b; font-size: 12px; font-weight: 600; cursor: pointer; float: right; }
+</style>
+
+<script>
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ---------- Tema visual ----------
+function renderThemePreview() {
+  var ids = ['theme-bg-dark', 'theme-cream', 'theme-bone', 'theme-ink', 'theme-ink-soft', 'theme-line', 'theme-accent'];
+  var strip = document.getElementById('theme-preview-strip');
+  strip.innerHTML = '';
+  ids.forEach(function(id) {
+    var val = document.getElementById(id).value || '#ffffff';
+    var div = document.createElement('div');
+    div.style.flex = '1';
+    div.style.background = val;
+    strip.appendChild(div);
+  });
+}
+document.querySelectorAll('.theme-color-input').forEach(function(el) {
+  el.addEventListener('input', renderThemePreview);
+});
+renderThemePreview();
+
+function saveQuoteTheme() {
+  apiPost('/api/settings/quote-theme', {
+    bg_dark: document.getElementById('theme-bg-dark').value,
+    cream: document.getElementById('theme-cream').value,
+    bone: document.getElementById('theme-bone').value,
+    ink: document.getElementById('theme-ink').value,
+    ink_soft: document.getElementById('theme-ink-soft').value,
+    line: document.getElementById('theme-line').value,
+    accent: document.getElementById('theme-accent').value,
+    cta_text: document.getElementById('theme-cta-text').value,
+    whatsapp: document.getElementById('theme-whatsapp').value
+  })
+    .then(function() { flashToast('Tema guardado', 'success'); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+// ---------- Portafolio ----------
+function openPortfolioModal(item) {
+  document.getElementById('portfolio-modal-title').textContent = item ? 'Editar boda' : 'Nueva boda';
+  document.getElementById('pf-id').value = item ? item.id : '';
+  document.getElementById('pf-title').value = item ? item.title : '';
+  document.getElementById('pf-couple').value = item ? item.couple_names : '';
+  document.getElementById('pf-location').value = item ? item.location : '';
+  document.getElementById('pf-order').value = item && item.order != null ? item.order : 0;
+  document.getElementById('pf-image').value = item ? item.image_url : '';
+  document.getElementById('pf-external-url').value = item ? item.external_url : '';
+  document.getElementById('pf-password').value = item ? item.password : '';
+  document.getElementById('pf-active').checked = item ? !!item.active : true;
+  document.getElementById('pf-blurb').value = item ? item.blurb : '';
+  openModal('portfolio-modal');
+}
+function submitPortfolioItem(event) {
+  event.preventDefault();
+  apiPost('/api/portfolio', {
+    id: document.getElementById('pf-id').value || undefined,
+    title: document.getElementById('pf-title').value,
+    couple_names: document.getElementById('pf-couple').value,
+    location: document.getElementById('pf-location').value,
+    order: Number(document.getElementById('pf-order').value || 0),
+    image_url: document.getElementById('pf-image').value,
+    external_url: document.getElementById('pf-external-url').value,
+    password: document.getElementById('pf-password').value,
+    active: document.getElementById('pf-active').checked,
+    blurb: document.getElementById('pf-blurb').value
+  })
+    .then(function() { flashToast('Boda guardada', 'success'); setTimeout(function(){ location.reload(); }, 450); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function deletePortfolioItem(id) {
+  if (!confirm('Eliminar esta boda del portafolio?')) return;
+  fetch('/api/portfolio/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { flashToast('Eliminada', 'success'); setTimeout(function(){ location.reload(); }, 400); }
+      else { flashToast(data.error || 'Error', 'error'); }
+    })
+    .catch(function() { flashToast('Error de red', 'error'); });
+}
+
+// ---------- Condiciones ----------
+function addTermsBlockRow(title, body) {
+  var wrap = document.createElement('div');
+  wrap.className = 'term-block-row';
+  wrap.innerHTML =
+    '<button type="button" class="term-block-remove" onclick="this.closest(\'.term-block-row\').remove()">Quitar</button>' +
+    '<input class="form-input term-block-title" placeholder="Titulo del bloque (ej: Cobertura)" style="margin-bottom:6px;">' +
+    '<textarea class="form-input term-block-body" rows="2" placeholder="Texto del bloque"></textarea>';
+  document.getElementById('terms-blocks-list').appendChild(wrap);
+  wrap.querySelector('.term-block-title').value = title || '';
+  wrap.querySelector('.term-block-body').value = body || '';
+}
+function openTermsModal(tpl) {
+  document.getElementById('terms-modal-title').textContent = tpl ? 'Editar plantilla' : 'Nueva plantilla de condiciones';
+  document.getElementById('terms-id').value = tpl ? tpl.id : '';
+  document.getElementById('terms-title').value = tpl ? tpl.title : '';
+  document.getElementById('terms-blocks-list').innerHTML = '';
+  if (tpl && tpl.blocks && tpl.blocks.length) {
+    tpl.blocks.forEach(function(b) { addTermsBlockRow(b.title, b.body); });
+  } else {
+    addTermsBlockRow();
+  }
+  openModal('terms-modal');
+}
+function submitTermsTemplate(event) {
+  event.preventDefault();
+  var blocks = Array.prototype.slice.call(document.querySelectorAll('#terms-blocks-list .term-block-row')).map(function(row) {
+    return {
+      title: row.querySelector('.term-block-title').value.trim(),
+      body: row.querySelector('.term-block-body').value.trim()
+    };
+  }).filter(function(b) { return b.title || b.body; });
+  apiPost('/api/quote-terms-templates', {
+    id: document.getElementById('terms-id').value || undefined,
+    title: document.getElementById('terms-title').value,
+    blocks: blocks
+  })
+    .then(function() { flashToast('Plantilla guardada', 'success'); setTimeout(function(){ location.reload(); }, 450); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function deleteTermsTemplate(id) {
+  if (!confirm('Eliminar esta plantilla de condiciones?')) return;
+  fetch('/api/quote-terms-templates/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { flashToast('Eliminada', 'success'); setTimeout(function(){ location.reload(); }, 400); }
+      else { flashToast(data.error || 'Error', 'error'); }
+    })
+    .catch(function() { flashToast('Error de red', 'error'); });
+}
+
+// ---------- Plantillas de cotizacion ----------
+function deleteQuoteTemplate(id) {
+  if (!confirm('Eliminar esta plantilla de cotizacion?')) return;
+  fetch('/api/quote-templates/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) { flashToast('Eliminada', 'success'); setTimeout(function(){ location.reload(); }, 400); }
+      else { flashToast(data.error || 'Error', 'error'); }
+    })
+    .catch(function() { flashToast('Error de red', 'error'); });
+}
+</script>
+{% endblock %}

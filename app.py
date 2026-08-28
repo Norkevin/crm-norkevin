@@ -5521,6 +5521,48 @@ def settings_packages():
     return render_template('settings_packages.html', packages=store.list('packages'))
 
 
+@app.route('/settings/quotes')
+def settings_quotes():
+    """BLOQUE F: donde se administran tema/portafolio/condiciones/plantillas
+    de la Public Quote Experience -- las librerias que BLOQUE D (el editor
+    de cotizaciones) deja ELEGIR pero no crear. Pagina interna con sesion:
+    todo tenant-scoped a la cuenta activa, mismo patron que /settings/packages."""
+    tenant_id = get_current_tenant_id()
+    return render_template(
+        'settings_quotes.html',
+        quote_theme=_quote_theme_for_tenant(tenant_id),
+        portfolio_items=_load_portfolio(tenant_id, only_active=False),
+        terms_templates=_load_terms_templates(tenant_id),
+        quote_templates=_load_quote_templates(tenant_id),
+    )
+
+
+@app.route('/api/settings/quote-theme', methods=['POST'])
+def api_settings_quote_theme_update():
+    """Guarda quote_theme dentro de settings.<tenant>.json, mismo lugar que
+    _quote_theme_for_tenant (BLOQUE B) ya sabe leer -- no hace falta tocar
+    esa funcion para que esto tenga efecto. Solo lo cosmetico (colores,
+    texto del boton, whatsapp); nombre/email/telefono siguen viniendo de
+    tenant_brand_map/resolve_pdf_brand, sin duplicarlos aca."""
+    s = get_settings()
+    data = request.get_json() or {}
+
+    if 'quote_theme' not in s:
+        s['quote_theme'] = {}
+    campos = ('bg_dark', 'cream', 'bone', 'ink', 'ink_soft', 'line', 'accent',
+              'cta_text', 'whatsapp', 'logo_url', 'footer_text')
+    for campo in campos:
+        if campo in data:
+            valor = (data.get(campo) or '').strip()
+            if valor:
+                s['quote_theme'][campo] = valor
+            else:
+                s['quote_theme'].pop(campo, None)
+
+    store.save_tenant_dict('settings', s)
+    return jsonify({'ok': True, 'quote_theme': s['quote_theme']})
+
+
 @app.route('/api/settings/packages', methods=['POST'])
 def api_settings_package_save():
     import uuid
