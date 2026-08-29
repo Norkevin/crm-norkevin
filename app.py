@@ -10857,23 +10857,33 @@ def _quote_theme_for_tenant(tenant_id):
         #
         # Todo esto es por cuenta: una marca futura puede cambiar su primary
         # sin tocar una sola plantilla.
-        'primary': '#7357F6',        # accion principal (= --sn-green del CRM)
-        'primary_dark': '#6447EE',   # hover/pressed
-        'primary_soft': '#F0EDFF',   # fondo de realce suave
-        'background': '#F7F8FC',     # lienzo de la pagina (= --sn-canvas)
-        'surface': '#FFFFFF',        # tarjetas/paneles del documento
-        'surface_2': '#F4F5F9',      # filas alternas, zonas secundarias
-        'text_primary': '#111827',   # (= --sn-ink)
-        'text_secondary': '#667085', # (= --sn-muted)
-        'muted': '#98A2B3',          # (= --sn-soft) etiquetas, metadatos
-        'border': '#E7EAF0',         # (= --sn-line)
-        'border_strong': '#D7DCE5',
-        'success': '#2FB66D', 'success_soft': '#EAF8F0',
-        'warning': '#F59E0B', 'warning_soft': '#FFF5DF',
-        'danger': '#EF5B5B', 'danger_soft': '#FEEEEE',
-        'radius_sm': '8px', 'radius_md': '12px', 'radius_lg': '16px',
-        'shadow_card': '0 1px 2px rgba(16, 24, 40, .03), 0 3px 10px rgba(16, 24, 40, .04)',
-        'shadow_raised': '0 8px 24px rgba(16, 24, 40, .06)',
+        'primary': '#6D4AF2',        # accion principal (violeta del CRM, un
+                                     # punto mas saturado para que el acento
+                                     # se lea como intencion y no como gris)
+        'primary_dark': '#5B36E0',   # hover/pressed
+        'primary_soft': '#F1EDFE',   # realce suave
+        'primary_tint': '#FAF8FF',   # veladura casi imperceptible de marca
+        # Fondos con temperatura, no gris neutro: un lienzo levemente calido
+        # se lee como papel y da profundidad sin agregar un solo borde.
+        'background': '#FBFAFC',
+        'surface': '#FFFFFF',
+        'surface_2': '#F6F5F9',
+        # Texto en escala real (no dos grises casi iguales): esto es la mitad
+        # de lo que hace que una pagina se vea ordenada.
+        'text_primary': '#12121A',
+        'text_secondary': '#5B5B6B',
+        'muted': '#8E8EA0',
+        # Bordes mas suaves: cuando hay que usarlos, que casi no se vean.
+        'border': '#ECECF2',
+        'border_strong': '#DEDEE8',
+        'success': '#159E63', 'success_soft': '#E7F6EE',
+        'warning': '#D97706', 'warning_soft': '#FDF3E3',
+        'danger': '#DC4E4E', 'danger_soft': '#FCEDED',
+        'radius_sm': '10px', 'radius_md': '14px', 'radius_lg': '20px',
+        # Sombras en dos capas (contacto + difusion). Reemplazan bordes:
+        # dan profundidad real en vez de encajonar cada cosa.
+        'shadow_card': '0 1px 2px rgba(18, 18, 26, .04), 0 8px 24px -12px rgba(18, 18, 26, .10)',
+        'shadow_raised': '0 2px 4px rgba(18, 18, 26, .04), 0 16px 40px -16px rgba(18, 18, 26, .16)',
         # ------------------------------------------------------------------
         # Compatibilidad: los nombres viejos siguen existiendo porque los
         # theme_snapshot ya guardados los traen y porque Settings >
@@ -10890,12 +10900,19 @@ def _quote_theme_for_tenant(tenant_id):
         # completa del <link> a cargar -- si una cuenta algun dia necesita
         # otra tipografia, alcanza con cambiar estos tres campos aca.
         'currency_symbol': 'Q', 'currency_label': 'Quetzales (GTQ)', 'featured_video_url': '',
-        'serif_font': "'Fraunces', Georgia, 'Times New Roman', serif",
+        # Serif de display: Instrument Serif. Alto contraste y formas
+        # afiladas -- se lee cara y actual en tamaños grandes, que es donde
+        # se usa (nombres, precios, titulos). Fraunces, la anterior, tiene
+        # formas mas blandas y a tamaño grande se veia mas antigua que
+        # elegante.
+        # Sans: Inter, la misma del CRM. No se cambia a proposito: es lo que
+        # mantiene el parentesco con el dashboard, y en textos chicos es
+        # mejor que cualquier alternativa "de moda".
+        'serif_font': "'Instrument Serif', Georgia, 'Times New Roman', serif",
         'sans_font': "'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
         'google_fonts_href': (
             'https://fonts.googleapis.com/css2?'
-            'family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;'
-            '0,9..144,600;1,9..144,400;1,9..144,500'
+            'family=Instrument+Serif:ital@0;1'
             '&family=Inter:wght@400;500;600;700&display=swap'
         ),
     }
@@ -11070,6 +11087,11 @@ def quote_view(quote_id):
         portfolio=portfolio,
         terms_blocks=terms_blocks,
         public_base=public_base,
+        # Formateada aca porque Jinja no puede llamar _format_date_es. Puede
+        # venir vacia: las cotizaciones importadas de Studio Ninja entran ya
+        # aceptadas pero sin fecha de aceptacion, y el template cierra la
+        # frase sin ella en vez de dejar "aceptada el ." colgando.
+        estado_fecha=_format_date_es(quote.get('aceptada_en') or quote.get('rechazada_en')),
     )
 
 

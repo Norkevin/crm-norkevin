@@ -21,9 +21,13 @@ body {
   background: var(--background);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: 15.5px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Tracking levemente negativo en todo el cuerpo: es el ajuste que mas
+     hace por que un texto se lea "de producto actual" y no de plantilla. */
+  letter-spacing: -0.006em;
   overflow-x: hidden;
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
@@ -44,28 +48,40 @@ a { color: inherit; }
 .doc-wrap { max-width: 1180px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
 .doc-wrap-narrow { max-width: 860px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
 
-/* ---------- TIPOGRAFIA ---------- */
+/* ---------- TIPOGRAFIA ----------
+   La escala tiene saltos grandes a proposito: un display enorme, un titulo
+   claramente menor y un cuerpo tranquilo. Cuando los tamaños son parecidos
+   entre si, la pagina se ve plana por mas espacio que tenga. */
 .doc-eyebrow {
-  font-size: 11px; font-weight: 600; letter-spacing: 2.4px; text-transform: uppercase;
+  font-size: 11px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase;
   color: var(--muted);
 }
 .doc-title {
   font-family: var(--font-serif); font-weight: 400;
-  font-size: clamp(24px, 4vw, 32px); margin: 6px 0 0; line-height: 1.2;
+  font-size: clamp(28px, 4.4vw, 40px); margin: 10px 0 0; line-height: 1.12;
+  letter-spacing: -0.02em;
 }
 .doc-display {
-  font-family: var(--font-serif); font-weight: 300; line-height: 1.05;
-  font-size: clamp(34px, 7vw, 64px); margin: 0; word-break: break-word;
-  letter-spacing: -0.5px;
+  font-family: var(--font-serif); font-weight: 400; line-height: 0.98;
+  font-size: clamp(40px, 8.5vw, 88px); margin: 0; word-break: break-word;
+  letter-spacing: -0.03em;
 }
 .doc-display em { font-style: italic; font-weight: 400; }
-.doc-lede { font-size: 14.5px; color: var(--text-secondary); max-width: 60ch; }
+.doc-lede { font-size: 15.5px; color: var(--text-secondary); max-width: 58ch; line-height: 1.65; }
 
 /* ---------- ENCABEZADO DE MARCA ---------- */
 .doc-header {
   position: sticky; top: 0; z-index: 20;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  /* Sin borde: el header se separa por un velo translucido con blur, que
+     es lo que hace que el contenido "pase por debajo" en vez de chocar
+     contra una linea. */
+  background: color-mix(in srgb, var(--background) 78%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  backdrop-filter: saturate(180%) blur(14px);
+}
+/* Fallback para navegadores sin color-mix: color solido, sigue legible. */
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+  .doc-header { background: var(--background); }
 }
 .doc-header-inner {
   max-width: 1180px; margin: 0 auto;
@@ -86,20 +102,24 @@ a { color: inherit; }
 }
 @media (max-width: 640px) { .doc-brand-tag { display: none; } }
 
-/* ---------- SECCIONES ---------- */
-.doc-section { padding: clamp(28px, 6vw, 56px) 0; border-top: 1px solid var(--border); }
-.doc-section:first-of-type { border-top: none; }
-.doc-section-head { margin-bottom: clamp(20px, 5vw, 36px); }
+/* ---------- SECCIONES ----------
+   Sin lineas divisorias: el aire separa. Es el cambio que mas "moderniza"
+   la pagina, y solo funciona si el espacio es de verdad generoso -- por eso
+   el salto entre secciones es grande, no timido. */
+.doc-section { padding: clamp(48px, 9vw, 104px) 0 0; }
+.doc-section:last-of-type { padding-bottom: clamp(48px, 9vw, 104px); }
+.doc-section-head { margin-bottom: clamp(24px, 5vw, 44px); }
 .doc-section-head.center { text-align: center; }
 .doc-section-head.center .doc-lede { margin-left: auto; margin-right: auto; }
 
-/* ---------- TARJETA ---------- */
+/* ---------- TARJETA ----------
+   Profundidad por sombra, no por borde. Un borde encajona; una sombra
+   apoya el elemento sobre la pagina. */
 .doc-card {
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
-  padding: clamp(20px, 4vw, 32px);
+  padding: clamp(22px, 4vw, 34px);
 }
 .doc-card.flush { padding: 0; overflow: hidden; }
 
@@ -110,8 +130,8 @@ a { color: inherit; }
    no distingue rojo/verde. */
 .doc-badge {
   display: inline-flex; align-items: center; gap: 7px;
-  padding: 6px 12px; border-radius: 999px;
-  font-size: 11.5px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase;
+  padding: 6px 13px; border-radius: 999px;
+  font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none;
   border: 1px solid transparent; white-space: nowrap;
 }
 .doc-badge::before {
@@ -132,10 +152,10 @@ a { color: inherit; }
 /* ---------- PARES ETIQUETA/VALOR ---------- */
 .doc-meta { display: flex; flex-wrap: wrap; gap: clamp(24px, 6vw, 56px); }
 .doc-meta-item { min-width: 0; max-width: 100%; }
-.doc-meta-value { font-size: 15px; font-weight: 500; overflow-wrap: break-word; }
+.doc-meta-value { font-size: 16px; font-weight: 500; overflow-wrap: break-word; letter-spacing: -0.01em; }
 .doc-meta-label {
-  font-size: 11px; color: var(--muted); letter-spacing: 1.3px;
-  text-transform: uppercase; margin-top: 4px;
+  font-size: 12.5px; color: var(--muted); letter-spacing: 0;
+  text-transform: none; margin-top: 5px;
 }
 @media (max-width: 620px) { .doc-meta { flex-direction: column; gap: 14px; } }
 
@@ -161,72 +181,81 @@ a { color: inherit; }
 .totals-label { color: var(--text-secondary); }
 .totals-value { font-weight: 500; white-space: nowrap; }
 .totals-row--grand {
-  border-top: 1px solid var(--border-strong); margin-top: 8px; padding-top: 18px;
+  border-top: 1px solid var(--border); margin-top: 10px; padding-top: 22px;
 }
 .totals-row--grand .totals-label {
   font-family: var(--font-serif); font-style: italic;
-  font-size: 19px; color: var(--text-primary);
+  font-size: 22px; color: var(--text-primary); letter-spacing: -0.01em;
 }
 .totals-row--grand .totals-value {
-  font-family: var(--font-serif); font-weight: 300; font-size: clamp(26px, 4vw, 32px);
+  font-family: var(--font-serif); font-weight: 400;
+  font-size: clamp(32px, 5vw, 44px); letter-spacing: -0.025em;
 }
 .totals-row--due .totals-value { color: var(--danger); font-weight: 600; }
 .totals-row--paid .totals-value { color: var(--success); }
 
 /* Tres cifras grandes lado a lado (total / pagado / pendiente) */
+/* Tres cifras: tarjetas separadas por espacio, sin rejilla de bordes.
+   La del saldo lleva una veladura de marca para que sea la que el ojo
+   busca primero. */
 .figure-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  border: 1px solid var(--border); border-radius: var(--radius-lg);
-  overflow: hidden; background: var(--surface);
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(10px, 1.6vw, 16px);
 }
-.figure-cell { padding: clamp(16px, 3vw, 24px); border-left: 1px solid var(--border); }
-.figure-cell:first-child { border-left: none; }
+.figure-cell {
+  padding: clamp(20px, 3vw, 28px);
+  background: var(--surface); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+.figure-cell--due, .figure-cell--settled { background: var(--primary-tint); }
 .figure-label {
-  font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted);
+  font-size: 12.5px; letter-spacing: 0; text-transform: none; color: var(--muted);
 }
 .figure-value {
-  font-family: var(--font-serif); font-weight: 300;
-  font-size: clamp(20px, 3.4vw, 30px); margin-top: 6px; white-space: nowrap;
+  font-family: var(--font-serif); font-weight: 400; letter-spacing: -0.025em;
+  font-size: clamp(26px, 4vw, 38px); margin-top: 8px; white-space: nowrap; line-height: 1.05;
 }
 .figure-cell--paid .figure-value { color: var(--success); }
 .figure-cell--due .figure-value { color: var(--danger); }
 .figure-cell--settled .figure-value { color: var(--success); }
 @media (max-width: 620px) {
   .figure-grid { grid-template-columns: 1fr; }
-  .figure-cell { border-left: none; border-top: 1px solid var(--border); }
-  .figure-cell:first-child { border-top: none; }
 }
 
 /* ---------- BOTONES ---------- */
 .doc-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 48px; padding: 14px 24px;
+  min-height: 52px; padding: 15px 28px;
   border-radius: var(--radius-md); border: 1px solid transparent;
-  font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
+  font-size: 14.5px; font-weight: 500; letter-spacing: -0.01em;
   cursor: pointer; text-decoration: none;
-  transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+  transition: background-color .18s ease, border-color .18s ease,
+              color .18s ease, transform .18s ease, box-shadow .18s ease;
 }
-.doc-btn--primary { background: var(--primary); color: #fff; }
-.doc-btn--primary:hover { background: var(--primary-dark); }
-.doc-btn--primary:disabled { opacity: .4; cursor: not-allowed; }
-.doc-btn--ghost { background: var(--surface); color: var(--text-secondary); border-color: var(--border); }
-.doc-btn--ghost:hover { border-color: var(--border-strong); color: var(--text-primary); }
-.doc-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.doc-btn--primary {
+  background: var(--primary); color: #fff;
+  box-shadow: 0 1px 2px rgba(18,18,26,.10), 0 10px 24px -12px var(--primary);
+}
+.doc-btn--primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+.doc-btn--primary:active { transform: translateY(0); }
+.doc-btn--primary:disabled { opacity: .38; cursor: not-allowed; box-shadow: none; transform: none; }
+.doc-btn--ghost { background: var(--surface); color: var(--text-secondary); box-shadow: var(--shadow-card); }
+.doc-btn--ghost:hover { color: var(--text-primary); transform: translateY(-1px); }
+.doc-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 
 /* ---------- INPUTS ---------- */
 .doc-field { margin-bottom: 20px; }
 .doc-label {
-  display: block; font-size: 11.5px; font-weight: 600; letter-spacing: 1.2px;
-  text-transform: uppercase; color: var(--text-secondary); margin-bottom: 7px;
+  display: block; font-size: 13px; font-weight: 500; letter-spacing: 0;
+  text-transform: none; color: var(--text-secondary); margin-bottom: 8px;
 }
 .doc-input {
-  width: 100%; padding: 12px 14px;
+  width: 100%; padding: 14px 16px;
   background: var(--surface); color: var(--text-primary);
   border: 1px solid var(--border); border-radius: var(--radius-sm);
-  font-size: 15px; outline: none;
+  font-size: 15.5px; outline: none;
   transition: border-color .16s ease, box-shadow .16s ease;
 }
-.doc-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.doc-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-soft); }
 
 /* ---------- HISTORIAL DE PAGOS ---------- */
 .pay-list { display: grid; }
@@ -251,13 +280,13 @@ a { color: inherit; }
 
 /* ---------- FOOTER ---------- */
 .doc-footer {
-  background: var(--surface); border-top: 1px solid var(--border);
-  text-align: center; padding: clamp(32px, 6vw, 56px) 24px;
+  text-align: center; padding: clamp(48px, 8vw, 88px) 24px clamp(40px, 6vw, 64px);
 }
 .doc-footer-name {
-  font-size: 12px; font-weight: 600; letter-spacing: 2.4px; text-transform: uppercase;
+  font-size: 12px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase;
+  color: var(--text-secondary);
 }
-.doc-footer-meta { font-size: 12.5px; color: var(--text-secondary); margin-top: 10px; }
+.doc-footer-meta { font-size: 13px; color: var(--muted); margin-top: 10px; }
 
 /* ---------- WHATSAPP FLOTANTE ---------- */
 .doc-wa {

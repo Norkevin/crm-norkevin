@@ -35,32 +35,33 @@
 .wrap { max-width: 980px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
 
 /* ---------- CABECERA DEL DOCUMENTO ---------- */
-.inv-head { padding: clamp(32px, 7vw, 64px) 0 clamp(24px, 5vw, 40px); }
-.inv-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 2.4px; text-transform: uppercase; color: var(--muted); }
+.inv-head { padding: clamp(44px, 9vw, 96px) 0 clamp(28px, 5vw, 44px); }
+.inv-eyebrow { font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted); }
 .inv-number {
-  font-family: var(--font-serif); font-weight: 300; line-height: 1.1;
-  font-size: clamp(32px, 6vw, 52px); margin: 10px 0 0; word-break: break-word;
-  font-variant-numeric: tabular-nums;
+  font-family: var(--font-serif); font-weight: 400; line-height: 1;
+  font-size: clamp(38px, 6.5vw, 64px); margin: 12px 0 0; word-break: break-word;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
 }
-.inv-status-row { margin-top: clamp(16px, 3vw, 22px); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.inv-status-note { font-size: 13.5px; color: var(--text-secondary); }
-.inv-divider { border: none; border-top: 1px solid var(--border); margin: clamp(24px, 5vw, 36px) 0 clamp(20px, 4vw, 28px); }
+.inv-status-row { margin-top: clamp(20px, 3vw, 26px); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.inv-status-note { font-size: 14.5px; color: var(--text-secondary); }
+/* El aire separa; nada de reglas horizontales. */
+.inv-divider { border: none; margin: clamp(28px, 5vw, 44px) 0 0; }
 
 /* ---------- CONCEPTOS ---------- */
-.inv-lines { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
-.inv-line { padding: clamp(18px, 3vw, 24px); border-bottom: 1px solid var(--border); }
+.inv-lines { border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-card); overflow: hidden; }
+.inv-line { padding: clamp(22px, 3vw, 30px); border-bottom: 1px solid var(--border); }
 .inv-line:last-child { border-bottom: none; }
 .inv-line-top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.inv-line-name { font-family: var(--font-serif); font-size: clamp(19px, 2.6vw, 22px); }
-.inv-line-amount { font-size: 17px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.inv-line-list { list-style: none; margin: 14px 0 0; padding: 0; }
-.inv-line-list li { font-size: 13.5px; color: var(--text-secondary); padding: 3px 0; }
+.inv-line-name { font-family: var(--font-serif); font-size: clamp(22px, 2.8vw, 27px); letter-spacing: -0.02em; }
+.inv-line-amount { font-size: 19px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.inv-line-list { list-style: none; margin: 16px 0 0; padding: 0; }
+.inv-line-list li { font-size: 14.5px; color: var(--text-secondary); padding: 4px 0; }
 
 /* ---------- NOTAS / CONDICIONES ---------- */
 .inv-note-box {
-  border: 1px solid var(--border); border-radius: var(--radius-lg);
-  background: var(--surface); padding: clamp(18px, 3vw, 24px);
-  font-size: 13.5px; color: var(--text-secondary); line-height: 1.65;
+  border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-card);
+  padding: clamp(22px, 3vw, 30px);
+  font-size: 14.5px; color: var(--text-secondary); line-height: 1.7;
 }
 
 /* ---------- ACCIONES ---------- */
