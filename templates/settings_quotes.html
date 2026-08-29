@@ -61,6 +61,14 @@
           <label class="form-label">WhatsApp de contacto (opcional)</label>
           <input class="form-input" id="theme-whatsapp" value="{{ quote_theme.whatsapp }}" placeholder="+502 1234 5678">
         </div>
+        <div class="form-group">
+          <label class="form-label">Simbolo de moneda</label>
+          <input class="form-input" id="theme-currency-symbol" value="{{ quote_theme.currency_symbol }}" placeholder="Q">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nombre de la moneda</label>
+          <input class="form-input" id="theme-currency-label" value="{{ quote_theme.currency_label }}" placeholder="Quetzales (GTQ)">
+        </div>
       </div>
       <div id="theme-preview-strip" style="display:flex;height:36px;border-radius:8px;overflow:hidden;margin-bottom:14px;border:1px solid var(--sn-line);"></div>
       <button class="sn-btn sn-btn-primary" type="button" onclick="saveQuoteTheme()">Guardar tema</button>
@@ -76,6 +84,14 @@
       <button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick="openPortfolioModal()">+ Nueva boda</button>
     </div>
     <p class="sn-muted text-sm mb-4">Bodas que se muestran como referencia en la cotizacion publica. Elegis cuales van en cada cotizacion desde el editor.</p>
+    <div class="sn-card white" style="padding:18px;margin-bottom:16px;">
+      <div class="form-group" style="margin:0;">
+        <label class="form-label">Video destacado (opcional)</label>
+        <input class="form-input" id="theme-featured-video" value="{{ quote_theme.featured_video_url }}" placeholder="https://www.youtube.com/watch?v=... o https://vimeo.com/...">
+        <p class="sn-muted text-sm" style="margin-top:6px;">Se muestra grande arriba de las bodas de referencia. Pega el link tal cual lo copiaste de YouTube o Vimeo.</p>
+      </div>
+      <button class="sn-btn sn-btn-primary sn-btn-sm" type="button" style="margin-top:12px;" onclick="saveFeaturedVideo()">Guardar video</button>
+    </div>
     <div class="sn-table-shell stack-mobile">
       <table class="sn-table">
         <thead>
@@ -309,9 +325,19 @@ function saveQuoteTheme() {
     line: document.getElementById('theme-line').value,
     accent: document.getElementById('theme-accent').value,
     cta_text: document.getElementById('theme-cta-text').value,
-    whatsapp: document.getElementById('theme-whatsapp').value
+    whatsapp: document.getElementById('theme-whatsapp').value,
+    currency_symbol: document.getElementById('theme-currency-symbol').value,
+    currency_label: document.getElementById('theme-currency-label').value
   })
     .then(function() { flashToast('Tema guardado', 'success'); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+
+function saveFeaturedVideo() {
+  apiPost('/api/settings/quote-theme', {
+    featured_video_url: document.getElementById('theme-featured-video').value
+  })
+    .then(function() { flashToast('Video guardado', 'success'); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 

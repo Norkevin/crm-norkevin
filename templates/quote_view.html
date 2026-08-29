@@ -6,7 +6,7 @@
 <title>Cotizacion {{ quote.number or '' }} · {{ lead.nombre }} · {{ theme.display_name }}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="{{ theme.google_fonts_href }}" rel="stylesheet">
 <style>
 :root {
   --bg: {{ theme.bone }};
@@ -16,173 +16,274 @@
   --ink-soft: {{ theme.ink_soft }};
   --line: {{ theme.line }};
   --accent: {{ theme.accent }};
-  --serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
-  --sans: 'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --serif: {{ theme.serif_font }};
+  --sans: {{ theme.sans_font }};
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans);
-  -webkit-font-smoothing: antialiased; line-height: 1.5;
+  -webkit-font-smoothing: antialiased; line-height: 1.5; overflow-x: hidden;
   padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);
 }
 img { max-width: 100%; display: block; }
-.wrap { max-width: 880px; margin: 0 auto; padding: 0 clamp(18px, 5vw, 48px); }
+button, input { font-family: inherit; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 56px); }
+.wrap-narrow { max-width: 900px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 56px); }
 .eyebrow {
-  font-size: 10.5px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;
   color: var(--ink-soft);
+}
+.italic { font-style: italic; }
+a { color: inherit; }
+
+/* ---------- HEADER ---------- */
+header.pq-header {
+  position: sticky; top: 0; z-index: 20; background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.pq-header-inner {
+  max-width: 1200px; margin: 0 auto; padding: clamp(16px, 3vw, 22px) clamp(20px, 5vw, 56px);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.pq-brand-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pq-brand-logo { width: 26px; height: 26px; object-fit: contain; flex-shrink: 0; }
+.pq-brand-name {
+  font-size: clamp(10.5px, 1.6vw, 12px); font-weight: 600; letter-spacing: clamp(1.5px, 0.6vw, 3.5px);
+  text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pq-brand-right {
+  font-size: 10.5px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--ink-soft); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 640px) {
+  .pq-brand-right { display: none; }
 }
 
 /* ---------- HERO ---------- */
-.hero { padding: clamp(36px, 8vw, 72px) 0 clamp(28px, 6vw, 48px); }
-.hero-brand { display: flex; align-items: center; gap: 10px; margin-bottom: clamp(28px, 7vw, 56px); }
-.hero-brand .mark {
-  width: 34px; height: 34px; border-radius: 50%; background: var(--dark); color: var(--cream);
-  display: flex; align-items: center; justify-content: center; font-family: var(--serif);
-  font-size: 15px; flex-shrink: 0;
-}
-.hero-brand .brand-name { font-size: 13px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; }
-.hero-brand .brand-tag { font-size: 10.5px; color: var(--ink-soft); letter-spacing: 1px; margin-top: 1px; }
-.hero-quotenum { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+.hero { padding: clamp(40px, 9vw, 84px) 0 clamp(32px, 7vw, 56px); }
+.hero-quotenum { font-size: 11px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--ink-soft); margin-bottom: clamp(14px, 3vw, 22px); }
 .hero-names {
-  font-family: var(--serif); font-weight: 300; letter-spacing: -0.5px; line-height: 1.08;
-  font-size: clamp(38px, 9vw, 68px); margin: 0 0 clamp(20px, 5vw, 36px);
+  font-family: var(--serif); font-weight: 300; letter-spacing: -0.5px; line-height: 1.05;
+  font-size: clamp(40px, 8vw, 76px); margin: 0 0 clamp(24px, 6vw, 44px);
   word-break: break-word;
 }
-.hero-meta { display: flex; flex-wrap: wrap; gap: clamp(24px, 6vw, 56px); }
-.hero-stat .v { font-size: 15px; font-weight: 500; }
-.hero-stat .l { font-size: 10.5px; color: var(--ink-soft); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 3px; }
+.hero-names em { font-style: italic; font-weight: 400; }
+.hero-names .amp { font-size: 0.6em; color: var(--ink-soft); padding: 0 0.08em; font-style: italic; }
+.hero-divider { border: none; border-top: 1px solid var(--line); margin: 0 0 clamp(20px, 5vw, 32px); }
+.hero-meta { display: flex; flex-wrap: wrap; gap: clamp(28px, 7vw, 64px); }
+.hero-stat { min-width: 0; max-width: 100%; }
+.hero-stat .v { font-size: 15.5px; font-weight: 500; overflow-wrap: break-word; }
+.hero-stat .l { font-size: 10.5px; color: var(--ink-soft); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
+@media (max-width: 620px) {
+  .hero-meta { flex-direction: column; gap: 14px; }
+}
 
 /* ---------- SECTIONS ---------- */
-.section { padding: clamp(28px, 7vw, 56px) 0; border-top: 1px solid var(--line); }
-.section-head { margin-bottom: clamp(20px, 5vw, 32px); }
-.section-title { font-family: var(--serif); font-weight: 400; font-size: clamp(22px, 4vw, 30px); margin: 6px 0 0; }
+.section { padding: clamp(32px, 7vw, 64px) 0; border-top: 1px solid var(--line); }
+.section-head { margin-bottom: clamp(24px, 6vw, 40px); }
+.section-title { font-family: var(--serif); font-weight: 400; font-size: clamp(24px, 4vw, 32px); margin: 6px 0 0; }
+.section-head.center { text-align: center; }
+.section-intro { font-size: 14px; color: var(--ink-soft); max-width: 56ch; margin: 10px 0 0; }
+.section-head.center .section-intro { margin-left: auto; margin-right: auto; }
 
 /* ---------- STATUS BANNER ---------- */
-.status-banner { border-radius: 2px; padding: 16px 18px; font-size: 14px; margin-bottom: 8px; }
-.status-banner.ok { background: #EEF6EF; color: #2C5F35; }
-.status-banner.no { background: #FBEEEE; color: #7A2A2A; }
+.status-banner { border: 1px solid var(--line); padding: 16px 20px; font-size: 13.5px; margin-bottom: 0; }
+.status-banner.no { color: var(--ink-soft); }
 
 /* ---------- OPTIONS ---------- */
+.options-grid {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(270px, 1fr);
+  overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.options-grid.single { grid-auto-flow: row; grid-auto-columns: unset; grid-template-columns: minmax(0,1fr); max-width: 620px; margin: 0 auto; }
 .opt {
-  border: 1px solid var(--line); padding: clamp(20px, 5vw, 36px); margin-bottom: 18px;
-  cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; position: relative;
-  background: rgba(255,255,255,.4);
+  border-left: 1px solid var(--line); padding: 0 clamp(20px, 3vw, 32px) clamp(24px, 4vw, 36px);
+  scroll-snap-align: start; outline: none; cursor: pointer; transition: background-color .18s ease;
 }
-.opt.selected { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); background: #fff; }
-.opt-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-.opt-num { font-family: var(--serif); font-size: 13px; color: var(--ink-soft); margin-bottom: 6px; }
-.opt-label {
-  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
-  background: var(--dark); color: var(--cream); padding: 4px 10px; margin-bottom: 10px;
-}
-.opt-name { font-family: var(--serif); font-weight: 400; font-size: clamp(20px, 4vw, 26px); margin: 0; }
-.opt-subtitle { font-size: 13px; color: var(--ink-soft); margin-top: 3px; }
-.opt-price-wrap { text-align: right; flex-shrink: 0; }
-.opt-price { font-family: var(--serif); font-weight: 300; font-size: clamp(26px, 5vw, 34px); letter-spacing: -0.5px; }
-.opt-price-old { font-size: 14px; color: var(--ink-soft); text-decoration: line-through; }
-.opt-price-currency { font-size: 10px; color: var(--ink-soft); letter-spacing: 1.5px; text-transform: uppercase; }
-.opt-desc { font-size: 14px; color: var(--ink-soft); margin: 14px 0 0; max-width: 60ch; }
-.opt-hours { font-size: 12px; color: var(--accent); font-weight: 600; margin-top: 8px; }
-.opt-groups { margin-top: 18px; display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-.opt-group-title { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-soft); padding-bottom: 8px; }
+.options-grid.single .opt { border-left: none; padding-left: 0; padding-right: 0; }
+.opt:first-child { border-left: none; padding-left: 0; }
+.opt:hover { background: rgba(0,0,0,.015); }
+.opt:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.opt.selected { background: {{ theme.cream }}55; }
+.opt-recommended { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+.opt-num { font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-soft); margin-bottom: 10px; }
+.opt-name { font-family: var(--serif); font-weight: 400; font-size: clamp(21px, 3vw, 25px); margin: 0; line-height: 1.15; }
+.opt-subtitle { font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; }
+.opt-price-wrap { margin-top: clamp(16px, 3vw, 24px); }
+.opt-price-old { font-size: 13px; color: var(--ink-soft); text-decoration: line-through; }
+.opt-price { font-family: var(--serif); font-weight: 300; font-size: clamp(30px, 4vw, 38px); letter-spacing: -0.5px; }
+.opt-price-currency { font-size: 10.5px; color: var(--ink-soft); letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+.opt-desc { font-size: 13.5px; color: var(--ink-soft); margin: 16px 0 0; font-style: italic; }
+.opt-hours { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-soft); margin-top: 12px; }
+.opt-groups { margin-top: 22px; display: grid; gap: 20px; grid-template-columns: 1fr; }
+.opt-group-title { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-soft); padding-bottom: 8px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
 .opt-list { list-style: none; margin: 0; padding: 0; }
-.opt-list li { display: flex; gap: 8px; font-size: 13.5px; padding: 3px 0; align-items: flex-start; }
-.opt-list li svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; color: var(--accent); }
-.opt-note { font-size: 12px; color: var(--ink-soft); font-style: italic; margin-top: 14px; }
-.opt-cta {
-  margin-top: 20px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 44px; border: 1px solid var(--ink); background: transparent; color: var(--ink);
-  font-family: var(--sans); font-size: 11px; font-weight: 700;
-  letter-spacing: 2px; text-transform: uppercase; padding: 13px 22px; cursor: pointer; transition: background .12s, color .12s;
+.opt-list li { font-size: 13px; padding: 3.5px 0; color: var(--ink); }
+.opt-note { font-size: 12px; color: var(--ink-soft); font-style: italic; margin-top: 16px; }
+.opt-select {
+  margin-top: 22px; display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; padding: 0; color: var(--ink);
+  font-family: var(--sans); font-size: 10.5px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase;
+  border-bottom: 1px solid var(--ink); padding-bottom: 3px;
 }
-.opt.selected .opt-cta, .opt-cta:hover { background: var(--ink); color: var(--cream); }
-.opt-radio { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--ink); flex-shrink: 0; }
-.opt.selected .opt-radio { background: var(--ink); }
+.opt.selected .opt-select { color: var(--accent); border-color: var(--accent); }
+.opt.selected .opt-select::before { content: '✓ '; }
 
 /* ---------- EXTRAS ---------- */
 .extra-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0;
-  border-bottom: 1px solid var(--line); cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0;
+  border-bottom: 1px solid var(--line); cursor: pointer; outline: none;
 }
-.extra-row:last-child { border-bottom: none; }
-.extra-left { display: flex; align-items: center; gap: 12px; }
-.extra-check { width: 18px; height: 18px; border: 1px solid var(--ink-soft); flex-shrink: 0; position: relative; }
-.extra-row.checked .extra-check { background: var(--ink); border-color: var(--ink); }
-.extra-row.checked .extra-check::after { content: ''; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid var(--cream); border-width: 0 2px 2px 0; transform: rotate(45deg); }
-.extra-name { font-size: 14px; font-weight: 500; }
-.extra-desc { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
-.extra-price { font-size: 14px; font-family: var(--serif); flex-shrink: 0; }
+.extra-row:first-child { border-top: 1px solid var(--line); }
+.extra-row:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.extra-name { font-size: 14.5px; font-weight: 500; }
+.extra-desc { font-size: 12.5px; color: var(--ink-soft); margin-top: 3px; }
+.extra-right { display: flex; align-items: center; gap: 18px; flex-shrink: 0; }
+.extra-price { font-size: 14px; font-family: var(--serif); }
+.extra-action {
+  font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-soft);
+  border: 1px solid var(--line); padding: 8px 14px; min-width: 96px; text-align: center; background: #fff;
+}
+.extra-row.checked .extra-action { background: var(--ink); color: var(--cream); border-color: var(--ink); }
 
 /* ---------- PLAN DE PAGO ---------- */
-.plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
-.plan-opt { border: 1px solid var(--line); padding: 16px 10px; text-align: center; cursor: pointer; transition: border-color .12s; }
-.plan-opt.selected { border-color: var(--ink); background: #fff; }
-.plan-opt .n { font-family: var(--serif); font-size: 22px; }
-.plan-opt .l { font-size: 10px; color: var(--ink-soft); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+.plan-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.plan-opt {
+  border: 1px solid var(--line); background: #fff; padding: 13px 24px; cursor: pointer; outline: none;
+  font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink);
+  transition: background-color .15s, color .15s;
+}
+.plan-opt:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.plan-opt.selected { background: var(--ink); color: var(--cream); border-color: var(--ink); }
 
 /* ---------- SUMMARY ---------- */
-.summary { background: var(--dark); color: var(--cream); padding: clamp(24px, 6vw, 40px); }
-.summary .row { display: flex; justify-content: space-between; font-size: 13.5px; padding: 7px 0; color: #d8d5cd; }
-.summary .row.total { border-top: 1px solid rgba(255,255,255,.2); margin-top: 8px; padding-top: 16px; font-family: var(--serif); font-size: 24px; color: var(--cream); }
-.cta-row { margin-top: clamp(20px, 5vw, 32px); display: flex; flex-wrap: wrap; gap: 12px; }
+.summary-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding: 9px 0; }
+.summary-row .k { color: var(--ink-soft); }
+.summary-row.total { border-top: 1px solid var(--ink); margin-top: 10px; padding-top: 18px; }
+.summary-row.total .k { font-family: var(--serif); font-size: 20px; color: var(--ink); font-style: italic; }
+.summary-row.total .v { font-family: var(--serif); font-size: clamp(26px, 4vw, 32px); font-weight: 300; }
+.summary-plan { margin-top: clamp(28px, 5vw, 40px); padding-top: clamp(20px, 4vw, 28px); border-top: 1px solid var(--line); }
+.summary-plan .plan-name { font-family: var(--serif); font-size: 19px; margin-top: 4px; }
+.summary-schedule { margin-top: 14px; }
+.cta-row { margin-top: clamp(28px, 5vw, 40px); display: flex; flex-wrap: wrap; gap: 14px; }
 .btn-accept {
-  flex: 1 1 220px; background: var(--accent); color: var(--dark); border: none; font-family: var(--sans);
-  font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 18px 24px;
+  flex: 1 1 260px; background: var(--ink); color: var(--cream); border: none; font-family: var(--sans);
+  font-size: 11.5px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; padding: 20px 24px;
   cursor: pointer; transition: opacity .12s;
 }
-.btn-accept:disabled { opacity: .35; cursor: not-allowed; }
+.btn-accept:disabled { opacity: .3; cursor: not-allowed; }
 .btn-decline {
-  background: transparent; color: var(--cream); border: 1px solid rgba(255,255,255,.35); font-family: var(--sans);
-  font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; padding: 18px 24px; cursor: pointer;
+  background: transparent; color: var(--ink-soft); border: 1px solid var(--line); font-family: var(--sans);
+  font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; padding: 20px 24px; cursor: pointer;
 }
-.summary-hint { font-size: 11.5px; color: #a9a49a; margin-top: 14px; }
+.summary-hint { font-size: 11.5px; color: var(--ink-soft); margin-top: 18px; }
 
 /* ---------- PORTFOLIO ---------- */
-.pf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 22px; }
-.pf-card { border: 1px solid var(--line); overflow: hidden; }
-.pf-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; background: var(--line); }
-.pf-body { padding: 16px 18px; }
-.pf-names { font-family: var(--serif); font-size: 19px; }
-.pf-loc { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
-.pf-blurb { font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; }
-.pf-link { display: inline-block; margin-top: 12px; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--ink); }
-.pf-pass { margin-top: 12px; display: flex; align-items: center; gap: 10px; font-size: 11px; }
-.pf-pass .pf-pass-label { color: var(--ink-soft); letter-spacing: 1px; text-transform: uppercase; }
-.pf-pass-value { font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 1px; }
-.pf-copy { border: none; background: var(--ink); color: var(--cream); font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 10px 12px; min-height: 36px; cursor: pointer; }
+.pf-video { margin-bottom: clamp(32px, 6vw, 48px); }
+.pf-video-frame { position: relative; width: 100%; aspect-ratio: 16/9; background: var(--dark); }
+.pf-video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.pf-list { display: flex; flex-direction: column; }
+.pf-row {
+  display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 20px; align-items: center;
+  padding: clamp(18px, 3vw, 26px) 0; border-top: 1px solid var(--line); text-decoration: none; color: inherit;
+}
+.pf-list a.pf-row { cursor: pointer; }
+.pf-row:last-child { border-bottom: 1px solid var(--line); }
+.pf-thumb { width: 84px; height: 84px; object-fit: cover; flex-shrink: 0; background: var(--line); }
+.pf-row-main { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.pf-names { font-family: var(--serif); font-size: clamp(19px, 2.4vw, 23px); }
+.pf-loc { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
+.pf-arrow { font-size: 20px; color: var(--ink-soft); flex-shrink: 0; }
+.pf-pass-wrap { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+.pf-pass-field { border: 1px solid var(--line); background: #fff; font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 1.5px; font-size: 12px; padding: 8px 12px; }
+.pf-copy { border: none; background: var(--ink); color: var(--cream); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; padding: 9px 14px; min-height: 34px; cursor: pointer; }
 
 /* ---------- CONDICIONES ---------- */
-.terms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
-.term-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
-.term-body { font-size: 13px; color: var(--ink-soft); line-height: 1.55; }
+.terms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.term-cell { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: clamp(20px, 3vw, 28px) clamp(20px, 3vw, 24px); }
+.term-title { font-size: 12.5px; font-weight: 700; margin-bottom: 8px; letter-spacing: 0.2px; }
+.term-body { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
+
+/* ---------- FORMA DE PAGO (intro) ---------- */
+.payment-intro { text-align: center; max-width: 60ch; margin: 0 auto clamp(28px, 5vw, 40px); }
+.payment-intro p { font-size: 14px; color: var(--ink-soft); line-height: 1.65; margin: 10px 0 0; }
+
+/* ---------- ACCEPT FORM ---------- */
+.field-group { margin-bottom: 22px; }
+.field-label { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 8px; }
+.field-input {
+  width: 100%; border: none; border-bottom: 1px solid var(--line); background: transparent;
+  font-size: 15px; font-family: var(--sans); color: var(--ink); padding: 8px 2px; outline: none;
+}
+.field-input:focus { border-color: var(--ink); }
+.field-check { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; color: var(--ink-soft); }
+.field-check input { margin-top: 3px; }
 
 /* ---------- FOOTER ---------- */
-footer.pq { background: var(--dark); color: var(--cream); text-align: center; padding: 48px 24px; margin-top: 0; }
-footer.pq .fname { font-size: 13px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; }
-footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
+footer.pq { background: var(--dark); color: var(--cream); text-align: center; padding: clamp(40px, 7vw, 64px) 24px; }
+footer.pq .fname { font-size: 12px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; }
+footer.pq .fmeta { font-size: 12px; color: #9a978f; margin-top: 10px; }
 
-@media (max-width: 640px) {
-  .opt-top { flex-direction: column; }
-  .opt-price-wrap { text-align: left; }
+/* ---------- WHATSAPP FLOTANTE ---------- */
+.wa-float {
+  position: fixed; right: 18px; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 30;
+  width: 50px; height: 50px; border-radius: 50%; background: #25D366; display: flex; align-items: center;
+  justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,.18); text-decoration: none;
+  transition: opacity .2s, transform .2s;
+}
+.wa-float.hidden-by-cta { opacity: 0; transform: scale(.85); pointer-events: none; }
+.wa-float svg { width: 24px; height: 24px; }
+
+/* ---------- CONFIRM TOAST (extras) ---------- */
+.copied-flash { color: var(--accent); }
+
+/* ---------- RESPONSIVE: TABLET ---------- */
+@media (max-width: 900px) {
+  .options-grid:not(.single) { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); overflow-x: visible; }
+  .options-grid:not(.single) > .opt { border-left: 1px solid var(--line); border-top: 1px solid var(--line); padding-top: 24px; }
+}
+
+/* ---------- RESPONSIVE: MOBILE ---------- */
+@media (max-width: 620px) {
+  .options-grid:not(.single) { grid-template-columns: 1fr; }
+  .options-grid:not(.single) > .opt { border-left: none; }
+  .options-grid.single .opt { padding-left: 0; padding-right: 0; }
   .cta-row { flex-direction: column; }
+  .pf-row { grid-template-columns: 1fr; }
+  .pf-arrow { display: none; }
+  .terms-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
 <body>
 
-<div class="wrap hero">
-  <div class="hero-brand">
-    <div class="mark">{{ theme.display_name[:1] }}</div>
-    <div>
-      <div class="brand-name">{{ theme.display_name }}</div>
-      {% if theme.tagline %}<div class="brand-tag">{{ theme.tagline }}</div>{% endif %}
+<header class="pq-header">
+  <div class="pq-header-inner">
+    <div class="pq-brand-left">
+      {% if theme.logo_url %}<img class="pq-brand-logo" src="{{ theme.logo_url }}" alt="">{% endif %}
+      <div class="pq-brand-name">{{ theme.display_name }}</div>
     </div>
+    {% if theme.tagline %}<div class="pq-brand-right">{{ theme.tagline }}</div>{% endif %}
   </div>
+</header>
+
+<div class="wrap hero">
   <div class="hero-quotenum">Cotización {{ quote.number or ('N.º ' + quote.id[-6:]|upper) }}</div>
-  <h1 class="hero-names">{{ lead.nombre }}</h1>
+  {% set _nombre = lead.nombre or '' %}
+  {% if ' & ' in _nombre %}
+    {% set _partes = _nombre.split(' & ', 1) %}
+    <h1 class="hero-names">{{ _partes[0] }}<span class="amp"> &amp; </span><em>{{ _partes[1] }}</em></h1>
+  {% elif ' y ' in _nombre %}
+    {% set _partes = _nombre.split(' y ', 1) %}
+    <h1 class="hero-names">{{ _partes[0] }}<span class="amp"> y </span><em>{{ _partes[1] }}</em></h1>
+  {% else %}
+    <h1 class="hero-names">{{ _nombre }}</h1>
+  {% endif %}
+  <hr class="hero-divider">
   <div class="hero-meta">
-    {% if lead.fecha_tentativa %}<div class="hero-stat"><div class="v">{{ lead.fecha_tentativa }}</div><div class="l">Fecha</div></div>{% endif %}
+    {% if lead.fecha_tentativa %}<div class="hero-stat"><div class="v">{{ lead.fecha_tentativa }}</div><div class="l">Fecha de la boda</div></div>{% endif %}
     {% if lead.locacion %}<div class="hero-stat"><div class="v">{{ lead.locacion }}</div><div class="l">Ubicación</div></div>{% endif %}
     {% if options|length > 1 and quote.status not in ('Aceptada', 'Rechazada') %}
     <div class="hero-stat"><div class="v">{{ options|length }} opciones</div><div class="l">Modalidades disponibles</div></div>
@@ -191,7 +292,7 @@ footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
 </div>
 
 {% if quote.status == 'Aceptada' %}
-<div class="wrap"><div class="status-banner ok">Cotización aceptada el {{ quote.aceptada_en or '' }}.</div></div>
+<div class="wrap"><div class="status-banner">Cotización aceptada el {{ quote.aceptada_en or '' }}.</div></div>
 {% elif quote.status == 'Rechazada' %}
 <div class="wrap"><div class="status-banner no">Cotización rechazada el {{ quote.rechazada_en or '' }}. Escribinos si querés revisar otras opciones.</div></div>
 {% endif %}
@@ -200,24 +301,24 @@ footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
 <div class="wrap section">
   <div class="section-head"><div class="eyebrow">Paquete contratado</div><h2 class="section-title">{{ quote.paquete_nombre }}</h2></div>
   {% if quote.selected_extras %}
-  <div class="extra-row" style="cursor:default;padding-top:0;">
-    <div class="extra-left"><div class="extra-name">{{ quote.paquete_nombre }}</div></div>
-    <div class="extra-price">Q{{ '{:,.2f}'.format(quote.paquete_precio_base or 0) }}</div>
+  <div class="extra-row" style="cursor:default;">
+    <div class="extra-name">{{ quote.paquete_nombre }}</div>
+    <div class="extra-price">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.paquete_precio_base or 0) }}</div>
   </div>
   {% for ex in quote.selected_extras %}
   <div class="extra-row" style="cursor:default;">
-    <div class="extra-left"><div class="extra-name">{{ ex.name }}</div></div>
-    <div class="extra-price">+Q{{ '{:,.2f}'.format(ex.price or 0) }}</div>
+    <div class="extra-name">{{ ex.name }}</div>
+    <div class="extra-price">+{{ theme.currency_symbol }}{{ '{:,.2f}'.format(ex.price or 0) }}</div>
   </div>
   {% endfor %}
-  <div class="opt-price" style="margin-top:14px;">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
+  <div class="summary-row total" style="margin-top:14px;"><span class="k">Total</span><span class="v">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.precio_total or 0) }}</span></div>
   {% else %}
-  <div class="opt-price">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
+  <div class="opt-price">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
   {% endif %}
   {% if quote.incluye %}
-  <ul class="opt-list" style="margin-top:18px;">
+  <ul class="opt-list" style="margin-top:22px;">
     {% for item in quote.incluye %}
-    <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>{{ item }}</span></li>
+    <li>— {{ item }}</li>
     {% endfor %}
   </ul>
   {% endif %}
@@ -227,8 +328,8 @@ footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
   <div class="section-head"><div class="eyebrow">Plan de pago</div><h2 class="section-title">{{ quote.plan_pago }} pagos</h2></div>
   {% for p in payment_schedule %}
   <div class="extra-row" style="cursor:default;">
-    <div class="extra-left"><div><div class="extra-name">Pago {{ p.cuota }} &middot; {{ p.due_date }}</div></div></div>
-    <div class="extra-price">Q{{ '{:,.2f}'.format(p.amount or 0) }} {% if p.status == 'Pagado' %}&middot; pagado{% endif %}</div>
+    <div><div class="extra-name">Pago {{ p.cuota }} &middot; {{ p.due_date }}</div></div>
+    <div class="extra-price">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(p.amount or 0) }}{% if p.status == 'Pagado' %} &middot; pagado{% endif %}</div>
   </div>
   {% endfor %}
 </div>
@@ -237,7 +338,7 @@ footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
 {% elif quote.status == 'Rechazada' %}
 <div class="wrap section">
   <div class="section-head"><div class="eyebrow">Paquete</div><h2 class="section-title">{{ quote.paquete_nombre }}</h2></div>
-  <div class="opt-price">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
+  <div class="opt-price">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
 </div>
 
 {% else %}
@@ -246,26 +347,23 @@ footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
     <div class="eyebrow">{{ 'Elegí tu modalidad' if options|length > 1 else 'Tu propuesta' }}</div>
     <h2 class="section-title">Opciones</h2>
   </div>
-  <div id="pkg-options">
+  <div id="pkg-options" class="options-grid{{ ' single' if options|length <= 1 else '' }}" role="radiogroup" aria-label="Opciones de paquete">
     {% for opt in options %}
-    <div class="opt" data-option-id="{{ opt.id }}" data-price="{{ opt.precio_total or 0 }}" onclick="selectPackage('{{ opt.id }}')">
-      <div class="opt-top">
-        <div>
-          {% if options|length > 1 %}<div class="opt-num">{{ '%02d'|format(loop.index) }} / {{ '%02d'|format(options|length) }}</div>{% endif %}
-          {% if opt.label %}<div class="opt-label">{{ opt.label }}</div>{% endif %}
-          <h3 class="opt-name">{{ opt.name }}</h3>
-          {% if opt.subtitle %}<div class="opt-subtitle">{{ opt.subtitle }}</div>{% endif %}
-        </div>
-        <div class="opt-price-wrap">
-          {% if opt.precio_anterior and opt.precio_anterior|float > (opt.precio_total or 0)|float %}
-          <div class="opt-price-old">Q{{ '{:,.0f}'.format(opt.precio_anterior|float) }}</div>
-          {% endif %}
-          <div class="opt-price">Q{{ '{:,.2f}'.format(opt.precio_total or 0) }}</div>
-          <div class="opt-price-currency">Quetzales</div>
-        </div>
+    <div class="opt" role="radio" aria-checked="false" tabindex="0"
+         data-option-id="{{ opt.id }}" data-price="{{ opt.precio_total or 0 }}" data-name="{{ opt.name }}">
+      {% if opt.label %}<div class="opt-recommended">{{ opt.label }}</div>{% endif %}
+      {% if options|length > 1 %}<div class="opt-num">{{ '%02d'|format(loop.index) }} / Opción</div>{% endif %}
+      <h3 class="opt-name">{{ opt.name }}</h3>
+      {% if opt.subtitle %}<div class="opt-subtitle">{{ opt.subtitle }}</div>{% endif %}
+      <div class="opt-price-wrap">
+        {% if opt.precio_anterior and opt.precio_anterior|float > (opt.precio_total or 0)|float %}
+        <div class="opt-price-old">{{ theme.currency_symbol }}{{ '{:,.0f}'.format(opt.precio_anterior|float) }}</div>
+        {% endif %}
+        <div class="opt-price">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(opt.precio_total or 0) }}</div>
+        <div class="opt-price-currency">{{ theme.currency_label }}</div>
       </div>
       {% if opt.description %}<p class="opt-desc">{{ opt.description }}</p>{% endif %}
-      {% if opt.horas %}<div class="opt-hours">{{ opt.horas|int }} horas de cobertura</div>{% endif %}
+      {% if opt.horas %}<div class="opt-hours">{{ opt.horas|int }} horas continuas de cobertura</div>{% endif %}
       {% if opt.groups %}
       <div class="opt-groups">
         {% for g in opt.groups %}
@@ -273,23 +371,21 @@ footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
           {% if g.title %}<div class="opt-group-title">{{ g.title }}</div>{% endif %}
           <ul class="opt-list">
             {% for item in g['items'] %}
-            <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>{{ item }}</span></li>
+            <li>{{ item }}</li>
             {% endfor %}
           </ul>
         </div>
         {% endfor %}
       </div>
       {% elif opt.incluye %}
-      <ul class="opt-list" style="margin-top:16px;">
+      <ul class="opt-list" style="margin-top:18px;">
         {% for item in opt.incluye %}
-        <li><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg><span>{{ item }}</span></li>
+        <li>{{ item }}</li>
         {% endfor %}
       </ul>
       {% endif %}
       {% if opt.notas %}<div class="opt-note">{{ opt.notas }}</div>{% endif %}
-      <button type="button" class="opt-cta" onclick="event.stopPropagation(); selectPackage('{{ opt.id }}');">
-        <span class="opt-radio"></span> Elegir esta opción
-      </button>
+      <button type="button" class="opt-select" tabindex="-1" aria-hidden="true">Elegir esta opción</button>
     </div>
     {% endfor %}
   </div>
@@ -297,18 +393,18 @@ footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
 
 {% if quote.extras_catalog %}
 <div class="wrap section" id="extras-section" style="display:none;">
-  <div class="section-head"><div class="eyebrow">Personalizá tu experiencia</div><h2 class="section-title">Agregá a tu propuesta</h2></div>
+  <div class="section-head"><div class="eyebrow">Personalizá</div><h2 class="section-title">Tu cobertura</h2></div>
   <div id="extras-list">
     {% for ex in quote.extras_catalog %}
-    <div class="extra-row" data-extra-id="{{ ex.id }}" data-price="{{ ex.price or 0 }}" onclick="toggleExtra('{{ ex.id }}')">
-      <div class="extra-left">
-        <div class="extra-check"></div>
-        <div>
-          <div class="extra-name">{{ ex.name }}</div>
-          {% if ex.description %}<div class="extra-desc">{{ ex.description }}</div>{% endif %}
-        </div>
+    <div class="extra-row" role="checkbox" aria-checked="false" tabindex="0" data-extra-id="{{ ex.id }}" data-price="{{ ex.price or 0 }}">
+      <div>
+        <div class="extra-name">{{ ex.name }}</div>
+        {% if ex.description %}<div class="extra-desc">{{ ex.description }}</div>{% endif %}
       </div>
-      <div class="extra-price">+Q{{ '{:,.0f}'.format(ex.price or 0) }}</div>
+      <div class="extra-right">
+        <div class="extra-price">+{{ theme.currency_symbol }}{{ '{:,.0f}'.format(ex.price or 0) }}</div>
+        <div class="extra-action">Agregar</div>
+      </div>
     </div>
     {% endfor %}
   </div>
@@ -316,64 +412,90 @@ footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
 {% endif %}
 
 <div class="wrap section">
-  <div class="section-head"><div class="eyebrow">Forma de pago</div><h2 class="section-title">¿En cuántos pagos?</h2></div>
-  <div class="plan-grid" id="plan-options">
-    {% for n in plan_choices %}
-    <div class="plan-opt" data-plan="{{ n }}" onclick="selectPlan({{ n }})">
-      <div class="n">{{ n }}</div>
-      <div class="l">{{ 'pago único' if n == 1 else 'cuotas' }}</div>
+  <div class="section-head center">
+    <div class="eyebrow">Forma de pago</div>
+    <h2 class="section-title">¿En cuántos pagos?</h2>
+    <div class="payment-intro">
+      <p>La contratación puede dividirse en las cuotas que se muestran abajo. El primer pago reserva la fecha; los siguientes se programan durante los meses previos al evento.</p>
     </div>
+  </div>
+  <div class="plan-row" id="plan-options" role="radiogroup" aria-label="Plan de pago">
+    {% for n in plan_choices %}
+    <div class="plan-opt" role="radio" aria-checked="false" tabindex="0" data-plan="{{ n }}">{{ 'Pago único' if n == 1 else (n|string + ' pagos') }}</div>
     {% endfor %}
   </div>
 </div>
 
-<div class="wrap section" style="border-top:none;">
-  <div class="summary">
-    <div class="row"><span>Modalidad</span><span id="sum-package">Elegí una opción arriba</span></div>
-    <div class="row" id="sum-extras-row" style="display:none;"><span>Extras</span><span id="sum-extras">Q0</span></div>
-    <div class="row"><span>Plan de pago</span><span id="sum-plan">&mdash;</span></div>
-    <div class="row total"><span>{{ 'Monto por cuota' }}</span><span id="sum-cuota">Q0.00</span></div>
-    <div class="cta-row">
-      <form method="POST" action="{{ public_base }}/accept" id="accept-form" style="flex:1 1 220px;">
-        <input type="hidden" name="option_id" id="accept-option-id">
-        <input type="hidden" name="plan_pago" id="accept-plan-pago">
-        <input type="hidden" name="extra_ids" id="accept-extra-ids">
-        <button type="submit" class="btn-accept" id="accept-btn" disabled style="width:100%;">{{ theme.cta_text }}</button>
-      </form>
-      <form method="POST" action="{{ public_base }}/decline" onsubmit="return confirm('¿Rechazar esta cotización?');">
-        <button type="submit" class="btn-decline">Rechazar</button>
-      </form>
-    </div>
-    <div class="summary-hint">Elegí tu opción y plan de pago. Al aceptar, generamos automáticamente tu calendario de pagos.</div>
+<div class="wrap-narrow section">
+  <div class="section-head"><div class="eyebrow">Tu selección</div><h2 class="section-title">Resumen</h2></div>
+  <div class="summary-row"><span class="k">Modalidad</span><span id="sum-package">Elegí una opción arriba</span></div>
+  <div class="summary-row" id="sum-extras-row" style="display:none;"><span class="k">Extras</span><span id="sum-extras">{{ theme.currency_symbol }}0</span></div>
+  <div class="summary-row total"><span class="k">Total</span><span class="v" id="sum-total">{{ theme.currency_symbol }}0.00</span></div>
+  <div class="summary-plan">
+    <div class="eyebrow">Plan elegido</div>
+    <div class="plan-name" id="sum-plan">—</div>
+    <div class="summary-schedule" id="sum-schedule"></div>
   </div>
+  <div class="cta-row">
+    <form method="POST" action="{{ public_base }}/accept" id="accept-form" style="flex:1 1 260px;">
+      <input type="hidden" name="option_id" id="accept-option-id">
+      <input type="hidden" name="plan_pago" id="accept-plan-pago">
+      <input type="hidden" name="extra_ids" id="accept-extra-ids">
+      <button type="submit" class="btn-accept" id="accept-btn" disabled style="width:100%;">{{ theme.cta_text }}</button>
+    </form>
+    <form method="POST" action="{{ public_base }}/decline" onsubmit="return confirm('¿Rechazar esta cotización?');">
+      <button type="submit" class="btn-decline">Rechazar</button>
+    </form>
+  </div>
+  <div class="summary-hint">Elegí tu opción y plan de pago. Al aceptar, generamos automáticamente tu calendario de pagos.</div>
 </div>
 {% if quote.notas %}
-<div class="wrap section"><div class="section-head"><div class="eyebrow">Notas</div></div><p class="opt-desc">{{ quote.notas }}</p></div>
+<div class="wrap section"><div class="section-head"><div class="eyebrow">Notas</div></div><p class="opt-desc" style="font-style:normal;">{{ quote.notas }}</p></div>
 {% endif %}
 {% endif %}
 
 {% if portfolio %}
 <div class="wrap section">
-  <div class="section-head"><div class="eyebrow">Portafolio</div><h2 class="section-title">Bodas completas</h2></div>
-  <div class="pf-grid">
-    {% for p in portfolio %}
-    <div class="pf-card">
-      {% if p.image_url %}<img class="pf-img" src="{{ p.image_url }}" alt="{{ p.couple_names or p.title }}" loading="lazy">{% endif %}
-      <div class="pf-body">
-        <div class="pf-names">{{ p.couple_names or p.title }}</div>
-        {% if p.couple_names and p.title and p.title != p.couple_names %}<div class="pf-loc">{{ p.title }}</div>{% endif %}
-        {% if p.location %}<div class="pf-loc">{{ p.location }}</div>{% endif %}
-        {% if p.blurb %}<div class="pf-blurb">{{ p.blurb }}</div>{% endif %}
-        {% if p.external_url %}<a class="pf-link" href="{{ p.external_url }}" target="_blank" rel="noopener">Ver boda completa →</a>{% endif %}
-        {% if p.password %}
-        <div class="pf-pass">
-          <span class="pf-pass-label">Contraseña</span>
-          <span class="pf-pass-value" id="pf-pass-{{ loop.index }}">{{ p.password }}</span>
-          <button type="button" class="pf-copy" onclick="copyText('pf-pass-{{ loop.index }}', this)">Copiar</button>
-        </div>
-        {% endif %}
-      </div>
+  <div class="section-head">
+    <div class="eyebrow">Portafolio</div>
+    <h2 class="section-title">Bodas completas</h2>
+    <p class="section-intro">Algunas bodas reales donde podés ver el estilo, la narrativa y el resultado final del trabajo.</p>
+  </div>
+  {% if theme.featured_video_embed %}
+  <div class="pf-video">
+    <div class="pf-video-frame">
+      <iframe src="{{ theme.featured_video_embed }}" title="Video destacado" loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen></iframe>
     </div>
+  </div>
+  {% endif %}
+  <div class="pf-list">
+    {% for p in portfolio %}
+    {% if p.external_url %}<a class="pf-row" href="{{ p.external_url }}" target="_blank" rel="noopener">{% else %}<div class="pf-row">{% endif %}
+      <div class="pf-row-main">
+        {% if p.image_url %}<img class="pf-thumb" src="{{ p.image_url }}" alt="{{ p.couple_names or p.title }}" loading="lazy">{% endif %}
+        <div>
+          <div class="pf-names">{{ p.couple_names or p.title }}</div>
+          {% if p.couple_names and p.title and p.title != p.couple_names and p.location %}
+          <div class="pf-loc">{{ p.title }} &middot; {{ p.location }}</div>
+          {% elif p.couple_names and p.title and p.title != p.couple_names %}
+          <div class="pf-loc">{{ p.title }}</div>
+          {% elif p.location %}
+          <div class="pf-loc">{{ p.location }}</div>
+          {% endif %}
+          {% if p.blurb %}<div class="pf-loc">{{ p.blurb }}</div>{% endif %}
+          {% if p.password %}
+          <div class="pf-pass-wrap" onclick="event.stopPropagation();">
+            <span class="eyebrow">Contraseña</span>
+            <span class="pf-pass-field" id="pf-pass-{{ loop.index }}">{{ p.password }}</span>
+            <button type="button" class="pf-copy" onclick="copyText('pf-pass-{{ loop.index }}', this)">Copiar</button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% if p.external_url %}<span class="pf-arrow">→</span>{% endif %}
+    {% if p.external_url %}</a>{% else %}</div>{% endif %}
     {% endfor %}
   </div>
 </div>
@@ -384,7 +506,7 @@ footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
   <div class="section-head"><div class="eyebrow">Información general</div><h2 class="section-title">Detalles a tener en cuenta</h2></div>
   <div class="terms-grid">
     {% for b in terms_blocks %}
-    <div>
+    <div class="term-cell">
       {% if b.title %}<div class="term-title">{{ b.title }}</div>{% endif %}
       {% if b.body %}<div class="term-body">{{ b.body }}</div>{% endif %}
     </div>
@@ -398,14 +520,21 @@ footer.pq .fmeta { font-size: 12px; color: #a9a49a; margin-top: 10px; }
   <div class="fmeta">{% if theme.phone %}Tel: {{ theme.phone }}{% endif %}{% if theme.phone and theme.email %} &middot; {% endif %}{% if theme.email %}Email: {{ theme.email }}{% endif %}</div>
 </footer>
 
+{% if theme.whatsapp %}
+{% set _wa_digits = theme.whatsapp | replace(' ', '') | replace('-', '') | replace('(', '') | replace(')', '') | replace('+', '') %}
+<a class="wa-float" id="wa-float" href="https://wa.me/{{ _wa_digits }}" target="_blank" rel="noopener" aria-label="Escribinos por WhatsApp">
+  <svg viewBox="0 0 24 24" fill="#fff"><path d="M17.47 14.38c-.29-.15-1.71-.85-1.98-.94-.27-.1-.46-.15-.65.15-.19.29-.75.94-.92 1.13-.17.19-.34.22-.63.07-.29-.15-1.22-.45-2.33-1.44-.86-.77-1.44-1.71-1.61-2-.17-.29-.02-.45.13-.6.13-.13.29-.34.44-.51.15-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.07-.15-.65-1.57-.89-2.15-.23-.56-.47-.48-.65-.49-.17-.01-.36-.01-.55-.01-.19 0-.51.07-.78.36-.27.29-1.02 1-1.02 2.43 0 1.43 1.04 2.82 1.19 3.01.15.19 2.05 3.13 4.96 4.39.69.3 1.23.48 1.65.61.69.22 1.32.19 1.82.11.55-.08 1.71-.7 1.95-1.38.24-.68.24-1.26.17-1.38-.07-.12-.26-.19-.55-.34z"/><path d="M12 2C6.48 2 2 6.48 2 12c0 1.98.58 3.83 1.58 5.39L2 22l4.75-1.53C8.26 21.44 10.08 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18.15c-1.7 0-3.36-.46-4.8-1.32l-.34-.2-3.05.98.99-2.97-.22-.35C3.63 14.9 3.15 13.47 3.15 12 3.15 7.13 7.13 3.15 12 3.15S20.85 7.13 20.85 12 16.87 20.85 12 20.85z"/></svg>
+</a>
+{% endif %}
+
 <script>
 var OPTIONS = {{ options|tojson }};
+var CURRENCY = {{ theme.currency_symbol|tojson }};
 var selectedOptionId = null;
 var selectedPlan = null;
-var selectedExtras = {};
 
 function fmtMoney(n) {
-  return 'Q' + Number(n || 0).toLocaleString('es-GT', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  return CURRENCY + Number(n || 0).toLocaleString('es-GT', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
 function extrasTotal() {
@@ -418,8 +547,10 @@ function extrasTotal() {
 
 function selectPackage(optionId) {
   selectedOptionId = optionId;
-  document.querySelectorAll('.opt').forEach(function(el) {
-    el.classList.toggle('selected', el.dataset.optionId === optionId);
+  document.querySelectorAll('#pkg-options .opt').forEach(function(el) {
+    var is = el.dataset.optionId === optionId;
+    el.classList.toggle('selected', is);
+    el.setAttribute('aria-checked', is ? 'true' : 'false');
   });
   var opt = OPTIONS.find(function(o) { return o.id === optionId; });
   document.getElementById('sum-package').textContent = opt ? opt.name : 'Elegí una opción arriba';
@@ -431,16 +562,22 @@ function selectPackage(optionId) {
 function toggleExtra(extraId) {
   var row = document.querySelector('.extra-row[data-extra-id="' + extraId + '"]');
   if (!row) return;
-  row.classList.toggle('checked');
+  var checked = !row.classList.contains('checked');
+  row.classList.toggle('checked', checked);
+  row.setAttribute('aria-checked', checked ? 'true' : 'false');
+  var action = row.querySelector('.extra-action');
+  if (action) action.textContent = checked ? 'Agregado ✓' : 'Agregar';
   updateSummary();
 }
 
 function selectPlan(n) {
   selectedPlan = n;
-  document.querySelectorAll('.plan-opt').forEach(function(el) {
-    el.classList.toggle('selected', Number(el.dataset.plan) === n);
+  document.querySelectorAll('#plan-options .plan-opt').forEach(function(el) {
+    var is = Number(el.dataset.plan) === n;
+    el.classList.toggle('selected', is);
+    el.setAttribute('aria-checked', is ? 'true' : 'false');
   });
-  document.getElementById('sum-plan').textContent = n === 1 ? 'Pago único' : (n + ' cuotas');
+  document.getElementById('sum-plan').textContent = n === 1 ? 'Pago único' : (n + ' pagos');
   updateSummary();
 }
 
@@ -453,8 +590,24 @@ function updateSummary() {
     document.getElementById('sum-extras').textContent = fmtMoney(extras);
   }
   var base = opt ? Number(opt.precio_total || 0) + extras : 0;
-  var cuota = (base && selectedPlan) ? base / selectedPlan : 0;
-  document.getElementById('sum-cuota').textContent = fmtMoney(cuota);
+  document.getElementById('sum-total').textContent = fmtMoney(base);
+
+  var scheduleEl = document.getElementById('sum-schedule');
+  if (scheduleEl) {
+    scheduleEl.innerHTML = '';
+    if (base && selectedPlan && selectedPlan > 1) {
+      var per = Math.round((base / selectedPlan) * 100) / 100;
+      var acumulado = 0;
+      for (var i = 1; i <= selectedPlan; i++) {
+        var monto = (i < selectedPlan) ? per : Math.round((base - acumulado) * 100) / 100;
+        acumulado += per;
+        var row = document.createElement('div');
+        row.className = 'summary-row';
+        row.innerHTML = '<span class="k">Pago ' + i + '</span><span>' + fmtMoney(monto) + '</span>';
+        scheduleEl.appendChild(row);
+      }
+    }
+  }
 
   var acceptBtn = document.getElementById('accept-btn');
   if (acceptBtn) acceptBtn.disabled = !(opt && selectedPlan);
@@ -483,12 +636,40 @@ function copyText(elId, btn) {
   }
 }
 
+function onActivate(el, fn) {
+  el.addEventListener('click', fn);
+  el.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); fn(); }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('#pkg-options .opt').forEach(function(el) {
+    onActivate(el, function() { selectPackage(el.dataset.optionId); });
+  });
+  document.querySelectorAll('.extra-row[data-extra-id]').forEach(function(el) {
+    onActivate(el, function() { toggleExtra(el.dataset.extraId); });
+  });
+  document.querySelectorAll('#plan-options .plan-opt').forEach(function(el) {
+    onActivate(el, function() { selectPlan(Number(el.dataset.plan)); });
+  });
+
   if (OPTIONS.length === 1) { selectPackage(OPTIONS[0].id); }
-  var planEls = Array.prototype.slice.call(document.querySelectorAll('.plan-opt'));
+  var planEls = Array.prototype.slice.call(document.querySelectorAll('#plan-options .plan-opt'));
   if (planEls.length) {
     var plans = planEls.map(function(el) { return Number(el.dataset.plan); });
     selectPlan(plans.indexOf(2) !== -1 ? 2 : plans[0]);
+  }
+
+  var waFloat = document.getElementById('wa-float');
+  var acceptForm = document.getElementById('accept-form');
+  if (waFloat && acceptForm && 'IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        waFloat.classList.toggle('hidden-by-cta', entry.isIntersecting);
+      });
+    }, { threshold: 0.15 });
+    io.observe(acceptForm);
   }
 });
 </script>

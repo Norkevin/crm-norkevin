@@ -6,7 +6,7 @@
 <title>Cotizacion aceptada · {{ theme.display_name if theme else brand.display_name }}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="{{ theme.google_fonts_href if theme else 'https://fonts.googleapis.com/css2?family=Fraunces&family=Inter&display=swap' }}" rel="stylesheet">
 <style>
 :root {
   --bg: {{ theme.bone if theme else '#faf8f3' }};
@@ -16,8 +16,8 @@
   --ink-soft: {{ theme.ink_soft if theme else '#5a5a5a' }};
   --line: {{ theme.line if theme else '#d4cfc5' }};
   --accent: {{ theme.accent if theme else '#c9a961' }};
-  --serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
-  --sans: 'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --serif: {{ theme.serif_font if theme else "'Fraunces', Georgia, serif" }};
+  --sans: {{ theme.sans_font if theme else "'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }};
 }
 * { box-sizing: border-box; }
 body {

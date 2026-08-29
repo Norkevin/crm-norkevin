@@ -5601,7 +5601,8 @@ def api_settings_quote_theme_update():
     if 'quote_theme' not in s:
         s['quote_theme'] = {}
     campos = ('bg_dark', 'cream', 'bone', 'ink', 'ink_soft', 'line', 'accent',
-              'cta_text', 'whatsapp', 'logo_url', 'footer_text')
+              'cta_text', 'whatsapp', 'logo_url', 'footer_text',
+              'currency_symbol', 'currency_label', 'featured_video_url')
     for campo in campos:
         if campo in data:
             valor = (data.get(campo) or '').strip()
@@ -10529,6 +10530,27 @@ def _load_quote_templates(tenant_id=None):
                   key=lambda i: (i.get('order') if i.get('order') is not None else 999))
 
 
+def _video_embed_url(url):
+    """Convierte un link de YouTube/Vimeo pegado a mano a su URL de embed.
+
+    Rediseño editorial (29-ago-2026): Kevin pidio un 'video destacado' en el
+    portafolio de la cotizacion publica. No existia ningun campo de video en
+    el modelo -- se agrega theme.featured_video_url (una URL comun, la que
+    se copia de la barra de direcciones) y esta funcion la traduce a lo que
+    un <iframe> puede reproducir. Si no reconoce el formato, devuelve None
+    a proposito: mejor no mostrar nada que mostrar un iframe roto."""
+    if not url:
+        return None
+    url = url.strip()
+    m = re.search(r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([\w-]{6,})', url)
+    if m:
+        return f'https://www.youtube.com/embed/{m.group(1)}'
+    m = re.search(r'vimeo\.com/(?:video/)?(\d+)', url)
+    if m:
+        return f'https://player.vimeo.com/video/{m.group(1)}'
+    return None
+
+
 def _quote_theme_for_tenant(tenant_id):
     """Theme visual (colores/logo/footer/CTA) de la Public Quote Experience
     para una cuenta. Envuelve resolve_pdf_brand (sin tocarlo ni duplicar su
@@ -10547,12 +10569,32 @@ def _quote_theme_for_tenant(tenant_id):
         'ink': '#1a1a1a', 'ink_soft': '#5a5a5a', 'line': '#d4cfc5',
         'accent': '#c9a961', 'logo_url': '', 'footer_text': '',
         'cta_text': 'ACEPTAR COTIZACIÓN', 'whatsapp': '',
+        # Rediseño editorial (29-ago-2026): moneda y tipografia tambien
+        # salen del theme en vez de estar escritas a mano en quote_view.html,
+        # para que una cuenta futura pueda tener su propia combinacion sin
+        # duplicar la plantilla. serif_font/sans_font son el valor CSS
+        # font-family completo (con fallbacks); google_fonts_href es la URL
+        # completa del <link> a cargar -- si una cuenta algun dia necesita
+        # otra tipografia, alcanza con cambiar estos tres campos aca.
+        'currency_symbol': 'Q', 'currency_label': 'Quetzales (GTQ)', 'featured_video_url': '',
+        'serif_font': "'Fraunces', Georgia, 'Times New Roman', serif",
+        'sans_font': "'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+        'google_fonts_href': (
+            'https://fonts.googleapis.com/css2?'
+            'family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;'
+            '0,9..144,600;1,9..144,400;1,9..144,500'
+            '&family=Inter:wght@400;500;600;700&display=swap'
+        ),
     }
     theme = {**defaults, **theme_saved}
     theme['display_name'] = brand['display_name']
     theme['tagline'] = brand.get('tagline', '')
     theme['email'] = brand.get('email', '')
     theme['phone'] = brand.get('phone', '')
+    # Precalculado aca (no en el template: Jinja no puede llamar re.search)
+    # para que quote_view.html solo necesite un 'if' -- y para que quede
+    # congelado dentro de theme_snapshot igual que el resto del tema.
+    theme['featured_video_embed'] = _video_embed_url(theme.get('featured_video_url'))
     return theme
 
 
