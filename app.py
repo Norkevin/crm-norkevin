@@ -2030,6 +2030,12 @@ PUBLIC_PATTERNS = [
     _re_auth.compile(r'^/questionnaires/[^/]+$'),
     _re_auth.compile(r'^/api/questionnaires/[^/]+/submit$'),
     _re_auth.compile(r'^/invoices/[^/]+/pdf$'),
+    # Factura web publica (29-ago-2026): /i/<token> es el enlace nuevo que
+    # recibe el cliente. Antes solo existia el PDF. /invoices/<id> (sin
+    # /pdf) NO se agrega: esa sigue siendo la vista interna con acciones de
+    # administracion, y el cliente nunca debe aterrizar ahi.
+    _re_auth.compile(r'^/i/[^/]+$'),
+    _re_auth.compile(r'^/i/[^/]+/pdf$'),
     _re_auth.compile(r'^/files/[^/]+/download$'),
     _re_auth.compile(r'^/contacto/[^/]+$'),
     _re_auth.compile(r'^/captacion/[^/]+$'),
@@ -2117,6 +2123,15 @@ def _resolve_public_tenant(path):
         if not token:
             return None
         return store.owner_tenant_of_public_token('quotes', token)
+
+    # Factura publica (29-ago-2026): mismo caso que /q/, pero el hash vive
+    # en las filas de 'payments' -- una factura es el conjunto de cuotas que
+    # comparten invoice_id, no un registro propio.
+    if path.startswith('/i/'):
+        token = path[len('/i/'):].split('/', 1)[0]
+        if not token:
+            return None
+        return store.owner_tenant_of_public_token('payments', token)
 
     for prefix, table, field in _PUBLIC_TENANT_LOOKUP:
         if not path.startswith(prefix):
@@ -4689,6 +4704,234 @@ def api_payments_list():
     """Lista pagos locales para diagnostico/UI."""
     visible = _visible_billable_payments()
     return jsonify({'ok': True, 'payments': visible, 'count': len(visible)})
+
+
+def _row_saldo_vivo(row):
+    """Cuanto le queda debiendo el cliente en ESTA cuota, ahora mismo.
+
+    Es 'amount', no 'original_amount - paid_amount'. La diferencia es real y
+    ya mordio una vez: _apply_payment_sequentially() reparte un sobrepago
+    entre las cuotas siguientes bajando su 'amount' (y marcandolas 'Pagado'
+    cuando llega a cero) SIN tocar 'paid_amount' -- porque ese credito no es
+    dinero recibido en esa cuota, es saldo trasladado. Calcular el saldo
+    restando paid_amount daria una cuota "vencida por Q5,000" que en
+    realidad ya esta saldada, en un documento que ve el cliente.
+
+    'original_amount' se sigue usando para el subtotal (el precio del
+    contrato, que no cambia); 'amount' para lo que falta cobrar; y
+    _row_paid_amount para lo efectivamente recibido en la cuota.
+    """
+    if (row.get('status') or '') in ('Pagado', 'Cancelado'):
+        # Cancelado no se le cobra a nadie: no debe nada.
+        return 0.0
+    return round(max(float(row.get('amount') or 0), 0), 2)
+
+
+def _invoice_estado(total, pagado, pendiente, schedule, *, cancelada=False):
+    """Estado de la factura como documento (no de una cuota suelta).
+
+    Sistema de documentos (29-ago-2026). Kevin pidio estados claros:
+    BORRADOR / PENDIENTE / PARCIALMENTE PAGADA / PAGADA / VENCIDA /
+    CANCELADA. No hay un campo 'estado de factura' en el modelo -- una
+    factura es el conjunto de cuotas que comparten invoice_id -- asi que se
+    DEDUCE de esas cuotas, que son la fuente de verdad de siempre. No se
+    escribe nada: esto solo mira.
+
+    El orden importa: pagada gana sobre vencida (una factura saldada no
+    puede estar vencida), y vencida gana sobre parcial (si hay algo
+    vencido, es lo que el cliente necesita ver primero).
+
+    Devuelve (etiqueta, tono, detalle) -- el tono es el sufijo del badge
+    compartido, nunca el unico portador del significado.
+    """
+    hoy = date.today()
+    if cancelada:
+        return 'Cancelada', 'neutral', 'Esta factura fue cancelada.'
+    if total <= 0:
+        return 'Borrador', 'neutral', 'Todavia no tiene montos definidos.'
+    if pendiente <= 0.005:
+        return 'Pagada', 'success', 'No queda saldo pendiente.'
+
+    vencidas = []
+    for fila in schedule:
+        # Una cuota cancelada no se le cobra a nadie: no puede estar
+        # vencida ni sumar al aviso.
+        if (fila.get('status') or '') == 'Cancelado':
+            continue
+        if _row_saldo_vivo(fila) <= 0.005:
+            continue
+        try:
+            if date.fromisoformat(str(fila.get('due_date') or '')) < hoy:
+                vencidas.append(fila)
+        except (ValueError, TypeError):
+            # due_date vacio o mal formado: no se puede afirmar que este
+            # vencido, asi que no se afirma.
+            continue
+    if vencidas:
+        monto = sum(_row_saldo_vivo(f) for f in vencidas)
+        cuantas = len(vencidas)
+        return ('Vencida', 'danger',
+                f'{cuantas} pago{"s" if cuantas != 1 else ""} vencido'
+                f'{"s" if cuantas != 1 else ""} por Q{monto:,.2f}.')
+    if pagado > 0.005:
+        return 'Parcialmente pagada', 'warning', 'Ya se recibio una parte del total.'
+    return 'Pendiente', 'info', 'Todavia no se ha recibido ningun pago.'
+
+
+def _invoice_document(invoice_id, *, tenant_id=None):
+    """Arma TODO lo que necesita un documento de factura (web o PDF) a
+    partir del modelo real: payments agrupados por invoice_id, su quote, su
+    job y su cliente.
+
+    Un solo lugar produce estos datos para que la factura web, la interna y
+    el PDF no puedan mostrar cifras distintas del mismo documento. No
+    calcula dinero nuevo: reutiliza _row_original_amount/_row_paid_amount,
+    los mismos helpers que ya usan /invoices y el portal.
+
+    Devuelve None si no existe (el llamador decide el 404).
+    """
+    payments_all = _visible_billable_payments(tenant_id)
+    selected = next((p for p in payments_all
+                     if p.get('invoice_id') == invoice_id or p.get('id') == invoice_id), None)
+    if not selected:
+        return None
+
+    quote = store.get('quotes', selected.get('quote_id', '')) if selected.get('quote_id') else None
+    if quote:
+        schedule = [p for p in payments_all
+                    if p.get('quote_id') == quote.get('id') and p.get('job_id') == selected.get('job_id')]
+    else:
+        # Sin cotizacion, la factura es el conjunto de filas que comparten
+        # invoice_id (asi se agrupan las cuotas desde el importador y desde
+        # la creacion manual de facturas).
+        mismo = [p for p in payments_all if p.get('invoice_id') and p.get('invoice_id') == selected.get('invoice_id')]
+        schedule = mismo or [selected]
+    schedule.sort(key=lambda p: (p.get('due_date') or '', str(p.get('cuota') or ''), p.get('id') or ''))
+
+    job = get_job(selected.get('job_id', '')) if selected.get('job_id') else None
+    client = get_client(selected.get('client_id', '')) if selected.get('client_id') else None
+    lead = get_lead(job.get('lead_id', '')) if (job and job.get('lead_id')) else None
+
+    # Las tres cifras del documento tienen que cuadrar entre si SIEMPRE
+    # (total = pagado + pendiente), porque es lo primero que el cliente
+    # suma con la vista. Por eso:
+    #   total     = precio del contrato (original_amount, no cambia nunca)
+    #   pendiente = lo que de verdad falta cobrar (saldo vivo por cuota)
+    #   pagado    = total - pendiente, o sea todo lo ya cubierto
+    # 'pagado' NO es la suma de paid_amount a proposito: cuando un sobrepago
+    # se traslada como credito a la cuota siguiente, esa cuota queda saldada
+    # sin que su paid_amount suba. Sumar paid_amount mostraria una factura
+    # saldada como "parcialmente pagada, faltan Q5,000".
+    # Una cuota cancelada no se factura: queda fuera del total (si no, el
+    # cliente veria un total mas alto del que se le va a cobrar) pero sigue
+    # apareciendo en el historial, marcada como cancelada, para que no
+    # parezca que un pago "desaparecio".
+    cobrables = [p for p in schedule if (p.get('status') or '') != 'Cancelado']
+    total = round(sum(_row_original_amount(p) for p in cobrables), 2)
+    pendiente = round(min(round(sum(_row_saldo_vivo(p) for p in cobrables), 2), total), 2)
+    pagado = round(max(total - pendiente, 0), 2)
+
+    cancelada = bool(schedule) and all((p.get('status') or '') == 'Cancelado' for p in schedule)
+    etiqueta, tono, detalle = _invoice_estado(total, pagado, pendiente, schedule, cancelada=cancelada)
+
+    # --- filas para el historial/calendario que renderiza el componente ---
+    hoy = date.today()
+    filas = []
+    proximo = None
+    for fila in schedule:
+        importe = _row_original_amount(fila)
+        cobrado = _row_paid_amount(fila)
+        saldo = _row_saldo_vivo(fila)
+        vence = fila.get('due_date') or ''
+        cancelada_fila = (fila.get('status') or '') == 'Cancelado'
+        pagada_completa = (not cancelada_fila) and saldo <= 0.005
+        try:
+            vencida = (not pagada_completa) and (not cancelada_fila) and date.fromisoformat(str(vence)) < hoy
+        except (ValueError, TypeError):
+            vencida = False
+
+        if cancelada_fila:
+            estado = 'scheduled'
+        elif pagada_completa:
+            estado = 'paid'
+        elif vencida:
+            estado = 'due'
+        elif proximo is None and vence:
+            # Sin fecha no se puede llamar "proximo pago" a nada.
+            estado = 'next'
+            proximo = fila
+        else:
+            estado = 'scheduled'
+
+        cuota_txt = f"Pago {fila.get('cuota')}" if fila.get('cuota') else 'Pago'
+        if cancelada_fila:
+            cuando = _format_date_es(vence) or vence or 'Sin fecha'
+            nota = f'{cuota_txt} · cancelado'
+        elif pagada_completa:
+            cuando = _format_date_es(fila.get('paid_date') or fila.get('fecha_pago') or vence) or vence or 'Sin fecha'
+            nota = f'{cuota_txt} · pagado'
+        else:
+            cuando = _format_date_es(vence) or vence or 'Sin fecha'
+            nota = f'{cuota_txt} · vencido' if vencida else (
+                f'{cuota_txt} · proximo pago' if estado == 'next' else f'{cuota_txt} · programado')
+            if cobrado > 0.005:
+                nota += f' (abonado Q{cobrado:,.2f})'
+        filas.append({'estado': estado, 'cuando': cuando, 'nota': nota,
+                      'monto': importe if pagada_completa else saldo})
+
+    concepto = (quote.get('paquete_nombre') if quote else None) or selected.get('concepto') or 'Servicios'
+    incluye = []
+    if quote:
+        _nombre_paq, incluye = _resolve_quote_package(quote)
+        concepto = _nombre_paq or concepto
+
+    return {
+        'invoice_id': selected.get('invoice_id') or selected.get('id'),
+        'selected': selected,
+        'schedule': schedule,
+        'quote': quote, 'job': job, 'client': client, 'lead': lead,
+        'total': total, 'pagado': pagado, 'pendiente': pendiente,
+        'estado_label': etiqueta, 'estado_tono': tono, 'estado_detalle': detalle,
+        'filas_pago': filas,
+        'proximo': ({'cuando': _format_date_es(proximo.get('due_date')) or proximo.get('due_date'),
+                     'monto': round(_row_original_amount(proximo) - _row_paid_amount(proximo), 2)}
+                    if proximo else None),
+        'concepto': concepto,
+        'incluye': incluye or [],
+        'emitida': _format_date_es(selected.get('created') or selected.get('issued_date')),
+        'vence': _format_date_es(selected.get('due_date')),
+        'cliente_nombre': _client_name(client=client, lead=lead, job=job),
+        'job_nombre': (job or {}).get('nombre') or '',
+        'boda_fecha': _format_date_es((job or {}).get('boda_date')),
+        'notas': selected.get('notas') or selected.get('nota') or '',
+    }
+
+
+@app.route('/invoices/<invoice_id>/documento')
+def invoice_document_preview(invoice_id):
+    """El MISMO documento de factura que ve el cliente, pero desde adentro
+    (con sesion). Sirve para revisar como quedo antes de mandarlo.
+
+    No emite token a proposito: emitir rota el enlace y dejaria muerto el
+    que el cliente ya tenga. Por eso esta es una ruta interna aparte y no
+    /i/<token> -- mirar una factura nunca deberia invalidar el enlace de
+    nadie. La ruta NO esta en PUBLIC_PATTERNS: exige sesion como cualquier
+    pantalla de administracion, y _visible_billable_payments() ya filtra por
+    la cuenta activa, asi que no puede mostrar la factura de otra empresa."""
+    doc = _invoice_document(invoice_id)
+    if not doc:
+        abort(404)
+    tenant_id = ((doc['job'] or {}).get('tenant_id')
+                 or (doc['selected'] or {}).get('tenant_id')
+                 or get_current_tenant_id())
+    terms = _load_terms_templates(tenant_id) if tenant_id else []
+    return render_template(
+        'invoice_document.html',
+        doc=doc, theme=_document_theme(tenant_id), publico=False,
+        terms_blocks=(terms[0].get('blocks') if terms else []) or [],
+        pdf_url=f'/invoices/{invoice_id}/pdf',
+        pay_url=None,
+    )
 
 
 @app.route('/invoices/<invoice_id>')
@@ -8946,21 +9189,46 @@ def api_job_create_invoice(job_id):
 # Aqui existia un duplicado muerto (api_pago_pay) que Flask nunca despachaba; eliminado.
 
 
-def _client_facing_invoice_url(host, client, invoice_id):
+def _client_facing_invoice_url(host, client, invoice_id, *, emitir_token=False, tenant_id=None):
     """URL que le mandamos al CLIENTE para ver/pagar su factura.
 
     /invoices/<id> es la vista interna (admin): tiene boton para editar fecha
     de vencimiento y generar links de pago con nuestra API key de Recurrente.
-    El cliente nunca debe aterrizar ahi -- lo mandamos a su Portal, que ya
-    muestra la factura de forma segura (solo lectura + Pagar ahora)."""
+    El cliente nunca debe aterrizar ahi.
+
+    Sistema de documentos (29-ago-2026): ahora existe la factura web publica
+    en /i/<token> -- un documento real, con la misma piel que la cotizacion,
+    en vez de un PDF suelto o el portal completo.
+
+    emitir_token=True SOLO cuando se esta componiendo el correo que le lleva
+    el enlace al cliente. Emitir rota el token (el anterior deja de servir,
+    porque en la base solo vive el hash y no se puede recuperar el viejo),
+    asi que hacerlo desde un redirect post-pago romperia el enlace que el
+    cliente ya tiene en su bandeja. Por eso esta apagado por default y los
+    llamadores que solo necesitan "a donde mando al cliente ahora" siguen
+    cayendo al portal, igual que antes de este cambio."""
+    if emitir_token:
+        token = _emitir_token_de_factura(invoice_id, tenant_id, rotar=True)
+        if token:
+            return host + f'/i/{token}'
     if client and client.get('id'):
         return host + f"/portal/{client['id']}#invoices"
     return host + f"/invoices/{invoice_id}"
 
 
-def _invoice_send_email_text(pay, client, job, lead, host):
+def _invoice_send_email_text(pay, client, job, lead, host, *, emitir_token=False):
+    """Texto del correo de factura.
+
+    emitir_token: solo el ENVIO real lo pone en True. La vista previa no
+    puede emitir -- emitir rota el token y dejaria muerto el enlace que el
+    cliente ya tiene en su bandeja solo por abrir la previsualizacion. Sin
+    emitir, la previa muestra el marcador [[INVOICE_LINK]], que api_pago_send
+    reemplaza por la URL real recien emitida (mismo patron ya probado con
+    [[QUOTE_LINK]] en api_quote_send)."""
     invoice_id = pay.get('invoice_id') or pay['id']
-    invoice_url = _client_facing_invoice_url(host, client, invoice_id)
+    invoice_url = _client_facing_invoice_url(
+        host, client, invoice_id, emitir_token=emitir_token,
+        tenant_id=(job or {}).get('tenant_id') or pay.get('tenant_id')) if emitir_token else '[[INVOICE_LINK]]'
     name = _client_name(client=client, lead=lead, job=job)
     amount = float(pay.get('amount') or 0)
     # Antes hardcodeado a 'ASTRAL WEDDINGS' sin importar el tenant del job --
@@ -9010,7 +9278,10 @@ def api_pago_send(pago_id):
     client = get_client(pay.get('client_id', '')) if pay.get('client_id') else None
     lead = get_lead(job.get('lead_id', '')) if (job and job.get('lead_id')) else None
     host = request.host_url.rstrip('/')
-    default_subject, default_body, invoice_url = _invoice_send_email_text(pay, client, job, lead, host)
+    # Aca SI se emite el token: este es el momento en que el enlace sale
+    # hacia el cliente. Ver _invoice_send_email_text.
+    default_subject, default_body, invoice_url = _invoice_send_email_text(
+        pay, client, job, lead, host, emitir_token=True)
 
     # Si Kevin edito el "Para/Asunto/Mensaje" en la vista previa, respetamos
     # eso tal cual -- si no mando nada, generamos el correo por defecto.
@@ -9020,6 +9291,10 @@ def api_pago_send(pago_id):
         return jsonify({'ok': False, 'error': 'Este pago no tiene email de cliente'}), 400
     subject = (data.get('subject') or '').strip() or default_subject
     body = (data.get('body') or '').strip() or default_body
+    # El cuerpo editado en la previa trae el marcador; se cambia por el
+    # enlace real. Sin esto el cliente recibiria literalmente
+    # "[[INVOICE_LINK]]" en vez de su factura.
+    body = body.replace('[[INVOICE_LINK]]', invoice_url)
 
     # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega inmediata.
     mail = get_tracker().queue_email(
@@ -10565,9 +10840,47 @@ def _quote_theme_for_tenant(tenant_id):
         except Exception:
             theme_saved = {}
     defaults = {
-        'bg_dark': '#0a0a0a', 'cream': '#f4ede4', 'bone': '#faf8f3',
-        'ink': '#1a1a1a', 'ink_soft': '#5a5a5a', 'line': '#d4cfc5',
-        'accent': '#c9a961', 'logo_url': '', 'footer_text': '',
+        # ------------------------------------------------------------------
+        # TOKENS DEL SISTEMA DE DOCUMENTOS DE FLOW CRM (29-ago-2026)
+        # ------------------------------------------------------------------
+        # Kevin: "quiero que Flow CRM tenga un lenguaje visual consistente...
+        # la cotizacion que ya tenemos, pero diseñada por Flow CRM". Estos
+        # valores son el MISMO ADN que templates/base.html (las variables
+        # --sn-* del CRM), para que dashboard, cotizacion y factura se vean
+        # obviamente del mismo producto sin ser la misma pantalla.
+        #
+        # Los defaults viejos (paleta editorial hueso/crema/dorado) quedaron
+        # reemplazados aca, pero NO se pierden donde importa: una cotizacion
+        # ya enviada guarda su theme_snapshot y _document_theme() hace merge
+        # sobre estos defaults, asi que sigue viendose como cuando se mando
+        # y ademas hereda los tokens nuevos que su snapshot no conocia.
+        #
+        # Todo esto es por cuenta: una marca futura puede cambiar su primary
+        # sin tocar una sola plantilla.
+        'primary': '#7357F6',        # accion principal (= --sn-green del CRM)
+        'primary_dark': '#6447EE',   # hover/pressed
+        'primary_soft': '#F0EDFF',   # fondo de realce suave
+        'background': '#F7F8FC',     # lienzo de la pagina (= --sn-canvas)
+        'surface': '#FFFFFF',        # tarjetas/paneles del documento
+        'surface_2': '#F4F5F9',      # filas alternas, zonas secundarias
+        'text_primary': '#111827',   # (= --sn-ink)
+        'text_secondary': '#667085', # (= --sn-muted)
+        'muted': '#98A2B3',          # (= --sn-soft) etiquetas, metadatos
+        'border': '#E7EAF0',         # (= --sn-line)
+        'border_strong': '#D7DCE5',
+        'success': '#2FB66D', 'success_soft': '#EAF8F0',
+        'warning': '#F59E0B', 'warning_soft': '#FFF5DF',
+        'danger': '#EF5B5B', 'danger_soft': '#FEEEEE',
+        'radius_sm': '8px', 'radius_md': '12px', 'radius_lg': '16px',
+        'shadow_card': '0 1px 2px rgba(16, 24, 40, .03), 0 3px 10px rgba(16, 24, 40, .04)',
+        'shadow_raised': '0 8px 24px rgba(16, 24, 40, .06)',
+        # ------------------------------------------------------------------
+        # Compatibilidad: los nombres viejos siguen existiendo porque los
+        # theme_snapshot ya guardados los traen y porque Settings >
+        # Cotizaciones los deja editar. Ahora apuntan al mismo ADN.
+        'bg_dark': '#111827', 'cream': '#FFFFFF', 'bone': '#F7F8FC',
+        'ink': '#111827', 'ink_soft': '#667085', 'line': '#E7EAF0',
+        'accent': '#7357F6', 'logo_url': '', 'footer_text': '',
         'cta_text': 'ACEPTAR COTIZACIÓN', 'whatsapp': '',
         # Rediseño editorial (29-ago-2026): moneda y tipografia tambien
         # salen del theme en vez de estar escritas a mano en quote_view.html,
@@ -10596,6 +10909,35 @@ def _quote_theme_for_tenant(tenant_id):
     # congelado dentro de theme_snapshot igual que el resto del tema.
     theme['featured_video_embed'] = _video_embed_url(theme.get('featured_video_url'))
     return theme
+
+
+def _document_theme(tenant_id, snapshot=None):
+    """Tokens visuales de CUALQUIER documento de Flow CRM (cotizacion,
+    factura, y lo que venga) para una cuenta.
+
+    Sistema de documentos (29-ago-2026). Un solo lugar resuelve el tema,
+    para que factura y cotizacion no puedan divergir: si manana cambia el
+    primary de una marca, cambian los dos documentos a la vez.
+
+    `snapshot` es el tema congelado dentro del registro (quote.theme_snapshot).
+    Se hace merge SOBRE los defaults actuales, nunca se usa crudo: un
+    snapshot guardado antes de que existieran estos tokens no los tiene, y
+    usarlo tal cual dejaria variables CSS sin definir (colores rotos en una
+    cotizacion vieja). Con el merge, el snapshot sigue mandando en lo que si
+    guardo -- que es justo la garantia que Kevin pidio: "una cotizacion
+    enviada ayer NO debe cambiar silenciosamente" -- y hereda lo demas.
+    """
+    base = _quote_theme_for_tenant(tenant_id)
+    if not snapshot:
+        return base
+    tema = {**base, **{k: v for k, v in snapshot.items() if v not in (None, '')}}
+    # La marca NUNCA sale del snapshot: se re-resuelve siempre desde el
+    # tenant. Un snapshot es una foto de lo cosmetico, no una credencial de
+    # identidad -- si alguna vez se guardo mal, no puede convertirse en la
+    # marca equivocada mostrada a un cliente (el incidente de agosto).
+    for campo in ('display_name', 'tagline', 'email', 'phone'):
+        tema[campo] = base.get(campo, '')
+    return tema
 
 
 def _snapshot_public_quote_extras(quote, tenant_id):
@@ -10693,7 +11035,12 @@ def quote_view(quote_id):
     # aceptado); para un Borrador que un admin esta previsualizando todavia
     # no hay snapshot, asi que se resuelve en vivo -- asi el live preview
     # (BLOQUE D) siempre refleja el catalogo actual hasta que se envia.
-    theme = quote.get('theme_snapshot') or _quote_theme_for_tenant(_tenant_para_marca)
+    # _document_theme y no el snapshot crudo: un quote enviado ANTES del
+    # sistema de documentos guardo un snapshot sin los tokens nuevos, y
+    # usarlo tal cual dejaba media hoja de estilos con variables vacias
+    # (boton de aceptar blanco sobre blanco). El merge conserva lo que el
+    # snapshot si guardo -- la garantia de "no cambia sola" sigue intacta.
+    theme = _document_theme(_tenant_para_marca, quote.get('theme_snapshot'))
     portfolio = quote.get('portfolio_snapshot')
     if portfolio is None:
         portfolio = _load_portfolio(_tenant_para_marca)
@@ -11229,7 +11576,9 @@ def quote_accept(quote_id):
     # aceptar, y para que "Ver cotizacion" seguido apunte a /q/<token> si
     # entro por ahi. Puramente de presentacion: no toca ninguna rama de
     # decision de aca abajo (idempotencia, conversion, pagos).
-    theme = quote.get('theme_snapshot') or _quote_theme_for_tenant(quote.get('tenant_id'))
+    # Mismo merge que quote_view (ver comentario alla): el snapshot viejo no
+    # trae los tokens del sistema de documentos.
+    theme = _document_theme(quote.get('tenant_id'), quote.get('theme_snapshot'))
     if request.path.startswith('/q/'):
         public_base = '/q/' + request.path.split('/')[2]
     else:
@@ -11510,6 +11859,97 @@ def public_quote_pdf(token):
     if not quote:
         abort(404)
     return quote_pdf(quote['id'])
+
+
+# ============================================================
+# FACTURA PUBLICA -- /i/<token> (29-ago-2026)
+# ============================================================
+# Mismo mecanismo de enlace seguro que /q/<token> (src/public_tokens.py):
+# el token viaja en la URL, en la base solo vive su hash. Se emite una vez,
+# al mandar la factura, y se guarda en TODAS las filas de pago de esa
+# factura -- una "factura" en este CRM es el conjunto de payments que
+# comparten invoice_id, no un registro propio, asi que el token tiene que
+# vivir donde vive la factura.
+#
+# Antes de esto el cliente solo podia recibir un PDF o el portal completo.
+# Kevin: "no quiero que la experiencia principal sea un archivo PDF".
+
+def _emitir_token_de_factura(invoice_id, tenant_id=None, *, rotar=False):
+    """Emite (o reemplaza) el enlace publico de una factura.
+
+    Devuelve el token en claro, que solo existe en este momento: en la base
+    queda unicamente su hash, igual que /q/<token>. Se guarda en TODAS las
+    filas de la factura porque una factura ES ese conjunto de filas.
+
+    OJO con rotar: emitir un token nuevo MATA el anterior (en la base solo
+    hay hashes, el viejo no se puede recuperar). Por eso rotar es explicito
+    y solo lo pide el ENVIO -- mirar la factura o previsualizar el correo
+    nunca rota, que era el riesgo real: dejar muerto de un vistazo el
+    enlace que el cliente ya tiene.
+
+    Al reenviar SI se rota, igual que hace api_quote_send con la cotizacion
+    (public_tokens.emitir_para en cada envio): la regla del producto es "el
+    ultimo correo enviado es el que tiene el enlace bueno". Consecuencia a
+    tener presente con la cola de aprobacion de STAGE 2: si se encolan dos
+    envios de la misma factura y se aprueba el mas viejo, ese llevara un
+    enlace ya rotado. Lo mismo aplica hoy a las cotizaciones; queda
+    anotado como deuda conocida, no es algo que introduzca esta ruta.
+    """
+    filas = [p for p in _visible_billable_payments(tenant_id)
+             if (p.get('invoice_id') or p.get('id')) == invoice_id]
+    if not filas:
+        return None
+    if not rotar and any(p.get('public_token_hash') for p in filas):
+        return None
+    token = public_tokens.generar_token()
+    hash_token = public_tokens.hash_token(token)
+    for fila in filas:
+        fila['public_token_hash'] = hash_token
+        store.upsert('payments', fila)
+    return token
+
+
+def _resolve_invoice_by_token(token):
+    fila = public_tokens.buscar_por_token(store.list('payments'), token)
+    if not fila:
+        return None
+    return fila.get('invoice_id') or fila.get('id')
+
+
+@app.route('/i/<token>')
+def public_invoice_view(token):
+    """Factura web que ve el CLIENTE. Solo lectura: ninguna accion interna
+    (editar vencimiento, generar links de cobro) existe en esta pagina."""
+    invoice_id = _resolve_invoice_by_token(token)
+    if not invoice_id:
+        abort(404)
+    doc = _invoice_document(invoice_id)
+    if not doc:
+        abort(404)
+
+    tenant_id = ((doc['job'] or {}).get('tenant_id')
+                 or (doc['selected'] or {}).get('tenant_id'))
+    theme = _document_theme(tenant_id)
+    terms = _load_terms_templates(tenant_id) if tenant_id else []
+    # El PDF solo se ofrece si de verdad se puede generar: invoice_pdf()
+    # exige invoice_id + job + client y si no, aborta con 404. Mostrar el
+    # boton igual seria darle al cliente un enlace roto.
+    puede_pdf = bool(doc['selected'].get('invoice_id') and doc['job'] and doc['client'])
+    return render_template(
+        'invoice_document.html',
+        doc=doc, theme=theme, publico=True,
+        terms_blocks=(terms[0].get('blocks') if terms else []) or [],
+        pdf_url=(f'/i/{token}/pdf' if puede_pdf else None),
+        pay_url=(doc['selected'] or {}).get('payment_link_url') or None,
+    )
+
+
+@app.route('/i/<token>/pdf')
+def public_invoice_pdf(token):
+    invoice_id = _resolve_invoice_by_token(token)
+    if not invoice_id:
+        abort(404)
+    return invoice_pdf(invoice_id)
 
 
 # ============================================================

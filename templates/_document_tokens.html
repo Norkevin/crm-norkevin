@@ -1,0 +1,81 @@
+{#
+  TOKENS VISUALES DEL SISTEMA DE DOCUMENTOS DE FLOW CRM (29-ago-2026)
+
+  Kevin: "no quiero que las empresas -- las actuales ni las futuras --
+  dependan de colores escritos manualmente dentro de cada cotizacion o
+  factura".
+
+  Este parcial se incluye DENTRO del <style> de cada documento publico
+  (cotizacion, factura) y emite las variables CSS a partir del tema que
+  resolvio _document_theme(tenant_id, snapshot) en app.py. Ningun color va
+  escrito a mano en las plantillas de documento: todos salen de aca, y todos
+  son configurables por cuenta.
+
+  Requiere en el contexto: `theme`.
+
+  Cambiar un token aca lo cambia en TODOS los documentos a la vez -- que es
+  exactamente el punto de tenerlo en un solo archivo.
+#}
+  /* ---- marca / accion ---- */
+  --primary: {{ theme.primary }};
+  --primary-dark: {{ theme.primary_dark }};
+  --primary-soft: {{ theme.primary_soft }};
+  --accent: {{ theme.accent }};
+
+  /* ---- superficies ---- */
+  --background: {{ theme.background }};
+  --surface: {{ theme.surface }};
+  --surface-2: {{ theme.surface_2 }};
+
+  /* ---- texto ---- */
+  --text-primary: {{ theme.text_primary }};
+  --text-secondary: {{ theme.text_secondary }};
+  --muted: {{ theme.muted }};
+
+  /* ---- lineas ---- */
+  --border: {{ theme.border }};
+  --border-strong: {{ theme.border_strong }};
+
+  /* ---- estados ---- */
+  --success: {{ theme.success }};
+  --success-soft: {{ theme.success_soft }};
+  --warning: {{ theme.warning }};
+  --warning-soft: {{ theme.warning_soft }};
+  --danger: {{ theme.danger }};
+  --danger-soft: {{ theme.danger_soft }};
+
+  /* ---- forma ---- */
+  --radius-sm: {{ theme.radius_sm }};
+  --radius-md: {{ theme.radius_md }};
+  --radius-lg: {{ theme.radius_lg }};
+  --shadow-card: {{ theme.shadow_card }};
+  --shadow-raised: {{ theme.shadow_raised }};
+
+  /* ---- espaciado (escala unica para los dos documentos) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* ---- tipografia ----
+     Sans = la misma del CRM (Inter), para que el parentesco con el
+     dashboard sea inmediato. Serif solo para titulos y cifras grandes:
+     es lo que le da al documento el aire editorial que Kevin pidio
+     conservar de las cotizaciones. Las dos salen del tema, asi que una
+     marca futura puede cambiarlas sin tocar plantillas. */
+  --font-sans: {{ theme.sans_font }};
+  --font-serif: {{ theme.serif_font }};
+
+  /* ---- fondo heredado (nombres viejos que siguen usando snapshots) ---- */
+  --bg: {{ theme.background }};
+  --dark: {{ theme.bg_dark }};
+  --cream: {{ theme.cream }};
+  --ink: {{ theme.text_primary }};
+  --ink-soft: {{ theme.text_secondary }};
+  --line: {{ theme.border }};
+  --serif: {{ theme.serif_font }};
+  --sans: {{ theme.sans_font }};

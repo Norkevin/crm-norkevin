@@ -82,20 +82,31 @@ def resolve_pdf_brand(tenant_id):
     }
 
 
-# Colores -- sobrios y planos (sin degradado), acorde a una marca de
-# fotografia de bodas: navy oscuro + acento dorado, no azul corporativo.
-# (Paleta compartida entre marcas por ahora -- ninguna tiene colores propios
-# guardados en settings; si eso cambia, se resuelve igual que display_name.)
-BRAND = HexColor('#232B3A')
-INK = HexColor('#0A0E1A')
-INK_SOFT = HexColor('#4B5563')
-MUTE = HexColor('#6B7280')
-LINE = HexColor('#E4E7EC')
-LINE_SOFT = HexColor('#F1F3F6')
-GOLD = HexColor('#B08D57')
-EMERALD = HexColor('#059669')
-ROSE = HexColor('#DC2626')
-AMBER = HexColor('#D97706')
+# Colores del sistema de documentos de Flow CRM (29-ago-2026).
+#
+# Kevin: "no quiero factura web = diseño nuevo y PDF = plantilla antigua
+# totalmente diferente. Deben representar el mismo documento en dos medios".
+# Por eso estos valores son EXACTAMENTE los mismos tokens que emite
+# templates/_document_tokens.html (que a su vez son las variables --sn-* del
+# CRM en templates/base.html). Antes esta paleta era navy + dorado, sin
+# relacion con nada del producto: un PDF que no se parecia ni al CRM ni a la
+# cotizacion.
+#
+# Si algun dia una marca define colores propios, se resuelven igual que
+# display_name (via el brand que ya recibe cada generate_*_pdf) sin tocar
+# estas constantes, que son el default compartido.
+BRAND = HexColor('#111827')      # text-primary: cabecera del documento
+INK = HexColor('#111827')        # text-primary
+INK_SOFT = HexColor('#667085')   # text-secondary
+MUTE = HexColor('#98A2B3')       # muted
+LINE = HexColor('#E7EAF0')       # border
+LINE_SOFT = HexColor('#F4F5F9')  # surface-2
+GOLD = HexColor('#7357F6')       # primary (el acento del producto; el nombre
+                                 # de la constante se conserva para no tocar
+                                 # las ~40 referencias que ya la usan)
+EMERALD = HexColor('#2FB66D')    # success
+ROSE = HexColor('#EF5B5B')       # danger
+AMBER = HexColor('#F59E0B')      # warning
 
 
 def _draw_hero(c, width, height, doc_type, doc_id, total=None, brand=None):
@@ -113,11 +124,15 @@ def _draw_hero(c, width, height, doc_type, doc_id, total=None, brand=None):
     c.setFillColor(GOLD)
     c.rect(0, height - hero_h, width, 0.9*mm, fill=True, stroke=False)
 
-    # Marca (glyph con borde dorado + nombre)
+    # Marca (glyph enmarcado + nombre). El borde lleva el color de acento
+    # del producto, pero la INICIAL va en blanco: sobre la cabecera oscura,
+    # el acento contra ese fondo queda en ~3.7:1, por debajo del minimo
+    # legible. El acento se ve igual en el marco, donde el contraste no
+    # decide si se puede leer o no.
     c.setStrokeColor(GOLD)
     c.setLineWidth(0.6)
     c.roundRect(15*mm, height - 26*mm, 11*mm, 11*mm, 2.5*mm, fill=False, stroke=True)
-    c.setFillColor(GOLD)
+    c.setFillColor(HexColor('#FFFFFF'))
     c.setFont("Helvetica", 12)
     c.drawCentredString(20.5*mm, height - 22.3*mm, brand['initial'])
 

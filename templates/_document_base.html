@@ -1,0 +1,278 @@
+{#
+  ESTILOS BASE DEL SISTEMA DE DOCUMENTOS DE FLOW CRM (29-ago-2026)
+
+  Lo que cotizacion y factura comparten de verdad: reset, tipografia,
+  contenedores, encabezado de marca, secciones, badges de estado, filas de
+  totales, historial de pagos, botones, inputs y footer.
+
+  Se incluye DENTRO del <style> de cada documento, despues de
+  _document_tokens.html. Cada documento agrega despues SOLO lo suyo
+  (la comparacion de paquetes en la cotizacion, el desglose de conceptos en
+  la factura). Asi no hay dos sistemas visuales que mantener en paralelo.
+
+  Deliberadamente NO se toca ninguna clase del CRM (--sn-*, .sn-card, etc.):
+  estas plantillas no extienden base.html y no comparten hoja de estilos con
+  el dashboard, asi que nada de aca puede filtrarse a las pantallas internas.
+#}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+img { max-width: 100%; display: block; }
+button, input, select, textarea { font-family: inherit; }
+a { color: inherit; }
+
+/* Cifras: tabular para que los montos de una columna queden alineados
+   digito con digito. En una factura eso no es un detalle estetico -- es lo
+   que hace que se puedan comparar de un vistazo. */
+.num, .doc-amount, .totals-value, .money {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ---------- CONTENEDORES ---------- */
+.doc-wrap { max-width: 1180px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
+.doc-wrap-narrow { max-width: 860px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
+
+/* ---------- TIPOGRAFIA ---------- */
+.doc-eyebrow {
+  font-size: 11px; font-weight: 600; letter-spacing: 2.4px; text-transform: uppercase;
+  color: var(--muted);
+}
+.doc-title {
+  font-family: var(--font-serif); font-weight: 400;
+  font-size: clamp(24px, 4vw, 32px); margin: 6px 0 0; line-height: 1.2;
+}
+.doc-display {
+  font-family: var(--font-serif); font-weight: 300; line-height: 1.05;
+  font-size: clamp(34px, 7vw, 64px); margin: 0; word-break: break-word;
+  letter-spacing: -0.5px;
+}
+.doc-display em { font-style: italic; font-weight: 400; }
+.doc-lede { font-size: 14.5px; color: var(--text-secondary); max-width: 60ch; }
+
+/* ---------- ENCABEZADO DE MARCA ---------- */
+.doc-header {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.doc-header-inner {
+  max-width: 1180px; margin: 0 auto;
+  padding: clamp(14px, 2.5vw, 20px) clamp(20px, 5vw, 48px);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.doc-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.doc-brand-logo { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; }
+.doc-brand-name {
+  font-size: clamp(11px, 1.6vw, 12.5px); font-weight: 600;
+  letter-spacing: clamp(1.4px, 0.5vw, 2.8px); text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.doc-brand-tag {
+  font-size: 11px; font-weight: 500; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--text-secondary); text-align: right;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 640px) { .doc-brand-tag { display: none; } }
+
+/* ---------- SECCIONES ---------- */
+.doc-section { padding: clamp(28px, 6vw, 56px) 0; border-top: 1px solid var(--border); }
+.doc-section:first-of-type { border-top: none; }
+.doc-section-head { margin-bottom: clamp(20px, 5vw, 36px); }
+.doc-section-head.center { text-align: center; }
+.doc-section-head.center .doc-lede { margin-left: auto; margin-right: auto; }
+
+/* ---------- TARJETA ---------- */
+.doc-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: clamp(20px, 4vw, 32px);
+}
+.doc-card.flush { padding: 0; overflow: hidden; }
+
+/* ---------- BADGES DE ESTADO ----------
+   Nunca solo color: cada badge lleva texto, y los criticos ademas un punto
+   con forma propia. Kevin: "no dependas solamente del color para comunicar
+   el estado". Asi tambien funciona impreso en blanco y negro y para quien
+   no distingue rojo/verde. */
+.doc-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 12px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.doc-badge::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+.doc-badge--neutral { background: var(--surface-2); color: var(--text-secondary); border-color: var(--border); }
+.doc-badge--info    { background: var(--primary-soft); color: var(--primary-dark); border-color: var(--primary-soft); }
+.doc-badge--success { background: var(--success-soft); color: var(--success); border-color: var(--success-soft); }
+.doc-badge--warning { background: var(--warning-soft); color: #92400E; border-color: var(--warning-soft); }
+.doc-badge--danger  { background: var(--danger-soft); color: #B42318; border-color: var(--danger-soft); }
+/* Vencida: ademas del color, el punto pasa a cuadrado -- una segunda señal
+   que no depende de ver el matiz. */
+.doc-badge--danger::before { border-radius: 2px; }
+/* Pagada: se siente resuelta, sin gritar. */
+.doc-badge--success::before { border-radius: 50%; }
+
+/* ---------- PARES ETIQUETA/VALOR ---------- */
+.doc-meta { display: flex; flex-wrap: wrap; gap: clamp(24px, 6vw, 56px); }
+.doc-meta-item { min-width: 0; max-width: 100%; }
+.doc-meta-value { font-size: 15px; font-weight: 500; overflow-wrap: break-word; }
+.doc-meta-label {
+  font-size: 11px; color: var(--muted); letter-spacing: 1.3px;
+  text-transform: uppercase; margin-top: 4px;
+}
+@media (max-width: 620px) { .doc-meta { flex-direction: column; gap: 14px; } }
+
+/* ---------- FILAS ---------- */
+.doc-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 15px 0; border-bottom: 1px solid var(--border);
+}
+.doc-row:last-child { border-bottom: none; }
+.doc-row-title { font-size: 14.5px; font-weight: 500; }
+.doc-row-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
+.doc-amount { font-size: 15px; font-weight: 500; flex-shrink: 0; white-space: nowrap; }
+
+/* ---------- TOTALES ----------
+   La jerarquia que pidio Kevin: TOTAL / PAGADO / PENDIENTE inmediatamente
+   legibles. Pendiente es el numero que decide si el cliente tiene que
+   hacer algo, asi que es el que se lleva el peso visual. */
+.totals { display: grid; gap: 2px; }
+.totals-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 9px 0; font-size: 14.5px;
+}
+.totals-label { color: var(--text-secondary); }
+.totals-value { font-weight: 500; white-space: nowrap; }
+.totals-row--grand {
+  border-top: 1px solid var(--border-strong); margin-top: 8px; padding-top: 18px;
+}
+.totals-row--grand .totals-label {
+  font-family: var(--font-serif); font-style: italic;
+  font-size: 19px; color: var(--text-primary);
+}
+.totals-row--grand .totals-value {
+  font-family: var(--font-serif); font-weight: 300; font-size: clamp(26px, 4vw, 32px);
+}
+.totals-row--due .totals-value { color: var(--danger); font-weight: 600; }
+.totals-row--paid .totals-value { color: var(--success); }
+
+/* Tres cifras grandes lado a lado (total / pagado / pendiente) */
+.figure-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  overflow: hidden; background: var(--surface);
+}
+.figure-cell { padding: clamp(16px, 3vw, 24px); border-left: 1px solid var(--border); }
+.figure-cell:first-child { border-left: none; }
+.figure-label {
+  font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted);
+}
+.figure-value {
+  font-family: var(--font-serif); font-weight: 300;
+  font-size: clamp(20px, 3.4vw, 30px); margin-top: 6px; white-space: nowrap;
+}
+.figure-cell--paid .figure-value { color: var(--success); }
+.figure-cell--due .figure-value { color: var(--danger); }
+.figure-cell--settled .figure-value { color: var(--success); }
+@media (max-width: 620px) {
+  .figure-grid { grid-template-columns: 1fr; }
+  .figure-cell { border-left: none; border-top: 1px solid var(--border); }
+  .figure-cell:first-child { border-top: none; }
+}
+
+/* ---------- BOTONES ---------- */
+.doc-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 14px 24px;
+  border-radius: var(--radius-md); border: 1px solid transparent;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
+  cursor: pointer; text-decoration: none;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+}
+.doc-btn--primary { background: var(--primary); color: #fff; }
+.doc-btn--primary:hover { background: var(--primary-dark); }
+.doc-btn--primary:disabled { opacity: .4; cursor: not-allowed; }
+.doc-btn--ghost { background: var(--surface); color: var(--text-secondary); border-color: var(--border); }
+.doc-btn--ghost:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.doc-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ---------- INPUTS ---------- */
+.doc-field { margin-bottom: 20px; }
+.doc-label {
+  display: block; font-size: 11.5px; font-weight: 600; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--text-secondary); margin-bottom: 7px;
+}
+.doc-input {
+  width: 100%; padding: 12px 14px;
+  background: var(--surface); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 15px; outline: none;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+.doc-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+/* ---------- HISTORIAL DE PAGOS ---------- */
+.pay-list { display: grid; }
+.pay-item {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.pay-item:last-child { border-bottom: none; }
+.pay-dot {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0;
+}
+.pay-item--paid .pay-dot { background: var(--success); }
+.pay-item--due .pay-dot { background: var(--danger); border-radius: 2px; }
+.pay-item--next .pay-dot { background: var(--primary); }
+.pay-when { font-size: 14px; font-weight: 500; }
+.pay-note { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+.pay-amount { font-size: 14.5px; font-weight: 500; white-space: nowrap; }
+@media (max-width: 480px) {
+  .pay-item { grid-template-columns: auto 1fr; row-gap: 4px; }
+  .pay-amount { grid-column: 2; justify-self: start; }
+}
+
+/* ---------- FOOTER ---------- */
+.doc-footer {
+  background: var(--surface); border-top: 1px solid var(--border);
+  text-align: center; padding: clamp(32px, 6vw, 56px) 24px;
+}
+.doc-footer-name {
+  font-size: 12px; font-weight: 600; letter-spacing: 2.4px; text-transform: uppercase;
+}
+.doc-footer-meta { font-size: 12.5px; color: var(--text-secondary); margin-top: 10px; }
+
+/* ---------- WHATSAPP FLOTANTE ---------- */
+.doc-wa {
+  position: fixed; right: 18px; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 30;
+  width: 50px; height: 50px; border-radius: 50%; background: #25D366;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-raised); text-decoration: none;
+  transition: opacity .2s, transform .2s;
+}
+.doc-wa.is-hidden { opacity: 0; transform: scale(.85); pointer-events: none; }
+.doc-wa svg { width: 24px; height: 24px; }
+
+/* ---------- IMPRESION ---------- */
+@media print {
+  .doc-header { position: static; }
+  .doc-wa, .doc-actions { display: none !important; }
+  body { background: #fff; }
+}
