@@ -81,7 +81,10 @@
 {% macro meta_item(label, value, ico='') %}
 {% if value %}
 <div class="meta-item">
-  <div class="meta-label">{% if ico %}{{ icon(ico) }}{% endif %}{{ label }}</div>
+  <div class="meta-label">
+    {%- if ico %}<span class="meta-ico">{{ icon(ico) }}</span>{% endif -%}
+    <span>{{ label }}</span>
+  </div>
   <div class="meta-value">{{ value }}</div>
 </div>
 {% endif %}

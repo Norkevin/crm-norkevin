@@ -160,6 +160,17 @@ a { color: inherit; }
 }
 .hero-card__media { position: relative; min-height: 175px; background: var(--primary-soft); }
 .hero-card__media img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
+/* Degradado hacia el lado del texto: la foto entra en la card en vez de
+   quedar pegada como un recorte. */
+.hero-card__media::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to right, var(--surface-2) 0%, transparent 42%);
+}
+@media (max-width: 720px) {
+  .hero-card__media::after {
+    background: linear-gradient(to bottom, transparent 55%, var(--surface-2) 100%);
+  }
+}
 @media (max-width: 720px) {
   .hero-card--with-image { grid-template-columns: 1fr; }
   .hero-card__media { min-height: 150px; order: -1; }
@@ -173,9 +184,16 @@ a { color: inherit; }
   gap: clamp(16px, 2.2vw, 30px);
 }
 .meta-item { min-width: 0; }
-.meta-label { font-size: 12.5px; color: var(--muted); margin-bottom: 5px; display: flex; align-items: center; gap: 7px; }
-.meta-label svg { width: 15px; height: 15px; color: var(--primary); flex-shrink: 0; }
-.meta-value { font-size: 14.5px; font-weight: 500; letter-spacing: -0.01em; overflow-wrap: break-word; }
+.meta-label { font-size: 12.5px; color: var(--muted); margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+/* El icono vive dentro de un cuadrito lavanda: es lo que le da a la
+   metadata el aire de producto en vez de texto con un simbolo al lado. */
+.meta-ico {
+  width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: var(--primary-soft); color: var(--primary);
+}
+.meta-ico svg { width: 13px; height: 13px; }
+.meta-value { font-size: 14.5px; font-weight: 550; letter-spacing: -0.01em; overflow-wrap: break-word; }
 
 /* ============================================================
    SummaryCards -- icono en cuadrito + label + cifra en color
@@ -213,6 +231,9 @@ a { color: inherit; }
   display: grid; place-items: center; background: var(--primary-soft); color: var(--primary);
 }
 .wide-card__icon svg { width: 20px; height: 20px; }
+/* Variante solida para confirmaciones (cotizacion aceptada): circulo
+   morado lleno con el icono en blanco. */
+.wide-card__icon--solid { border-radius: 50%; background: var(--primary); color: #fff; }
 .wide-card__text { flex: 1 1 220px; min-width: 0; }
 .wide-card__label { font-size: 10.5px; font-weight: 600; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); }
 .wide-card__value { font-size: clamp(17px, 2vw, 20px); font-weight: 600; letter-spacing: -0.02em; margin-top: 3px; }

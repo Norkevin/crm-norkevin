@@ -45,11 +45,11 @@
   <div class="card card--quiet">
     <div class="card__body">
       <div class="meta-grid">
-        {{ ui.meta_item('Cliente', doc.cliente_nombre) }}
-        {{ ui.meta_item('Evento', doc.job_nombre) }}
-        {{ ui.meta_item('Fecha del evento', doc.boda_fecha) }}
-        {{ ui.meta_item('Emitida', doc.emitida) }}
-        {{ ui.meta_item('Vence', doc.vence) }}
+        {{ ui.meta_item('Cliente', doc.cliente_nombre, 'users') }}
+        {{ ui.meta_item('Evento', doc.job_nombre, 'sparkle') }}
+        {{ ui.meta_item('Fecha del evento', doc.boda_fecha, 'calendar') }}
+        {{ ui.meta_item('Emitida', doc.emitida, 'file') }}
+        {{ ui.meta_item('Vence', doc.vence, 'clock') }}
       </div>
       {% if doc.estado_detalle %}
       <p class="doc-text doc-text--sm" style="margin-top:16px;">{{ doc.estado_detalle }}</p>
@@ -67,8 +67,13 @@
   {% endif %}
 
   {# ---------- Conceptos + calendario, lado a lado ---------- #}
-  <div class="col-2" style="margin-bottom: clamp(12px, 1.6vw, 18px);">
+  {# Columna izquierda (conceptos + totales) y derecha (calendario). Los
+     totales van dentro de la MISMA columna, no como tercer hijo del grid:
+     si no, cuando el calendario es mas alto que los conceptos quedaria un
+     hueco entre una card y otra. #}
+  <div class="col-2" style="margin-bottom: clamp(10px, 1.1vw, 14px);">
 
+    <div>
     <div class="card">
       <div class="card__body">
         <h2 class="doc-h2" style="margin-bottom:14px;">Conceptos facturados</h2>
@@ -88,11 +93,21 @@
           {% endif %}
         </div>
 
-        <div class="totals" style="margin-top:4px;">
+        {# Subtotal cierra la card de conceptos; lo cobrado y el saldo van
+           en su propia card debajo, como en la referencia: separa "que se
+           factura" de "como va el pago". #}
+        <div class="totals" style="margin-top:2px;">
           <div class="totals__row">
             <span class="totals__label">Subtotal</span>
             <span class="totals__value num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.total) }}</span>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__body">
+        <div class="totals">
           <div class="totals__row totals__row--credit">
             <span class="totals__label">Pagado</span>
             <span class="totals__value num">− {{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.pagado) }}</span>
@@ -103,6 +118,7 @@
           </div>
         </div>
       </div>
+    </div>
     </div>
 
     {% if doc.filas_pago %}

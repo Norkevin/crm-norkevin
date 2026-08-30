@@ -220,7 +220,7 @@
   {% if _estado == 'Aceptada' %}
   <div class="card card--accent">
     <div class="wide-card">
-      <div class="wide-card__icon">{{ ui.icon('check-circle') }}</div>
+      <div class="wide-card__icon wide-card__icon--solid">{{ ui.icon_solid('check') }}</div>
       <div class="wide-card__text">
         <div class="wide-card__value" style="font-size:15.5px;">
           {% if estado_fecha %}Cotización aceptada el {{ estado_fecha }}{% else %}Esta cotización ya fue aceptada{% endif %}
