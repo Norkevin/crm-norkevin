@@ -212,3 +212,26 @@
 </a>
 {% endif %}
 {% endmacro %}
+
+{# --------------------------------------------------------------
+   Icono de una inclusion. En la referencia cada feature lleva un icono
+   distinto segun lo que describe (reloj para horas, camara para
+   fotografos, video, sobre para entrega...), no el mismo check repetido.
+   Se deduce del texto real de la inclusion -- no se inventa nada: si no
+   reconoce nada, cae en un check neutro.
+   -------------------------------------------------------------- #}
+{% macro icon_feature(texto) -%}
+{%- set t = (texto or '')|lower -%}
+{%- if 'hora' in t or 'continua' in t -%}{{ icon('clock') }}
+{%- elif 'video' in t or 'vídeo' in t or 'camarógrafo' in t or 'camarografo' in t -%}{{ icon('video') }}
+{%- elif 'fotógrafo' in t or 'fotografo' in t or 'fotógrafos' in t -%}{{ icon('camera') }}
+{%- elif 'imagen' in t or 'fotografía' in t or 'fotografia' in t or 'foto' in t -%}{{ icon('image') }}
+{%- elif 'galería' in t or 'galeria' in t or 'online' in t -%}{{ icon('image') }}
+{%- elif 'entrega' in t or 'descarga' in t or 'días' in t or 'dias' in t -%}{{ icon('download') }}
+{%- elif 'album' in t or 'álbum' in t or 'impres' in t -%}{{ icon('file') }}
+{%- elif 'save the date' in t or 'sesión' in t or 'sesion' in t -%}{{ icon('sparkle') }}
+{%- elif 'viático' in t or 'viatico' in t or 'hospedaje' in t or 'traslado' in t -%}{{ icon('pin') }}
+{%- elif 'pareja' in t or 'novi' in t or 'familia' in t or 'invitad' in t -%}{{ icon('users') }}
+{%- else -%}{{ icon('check-circle') }}
+{%- endif -%}
+{%- endmacro %}

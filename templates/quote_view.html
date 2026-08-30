@@ -282,7 +282,7 @@
         <div class="feature-group__title">Incluye</div>
         <ul class="feature-list feature-cols" style="display:grid;">
           {% for item in quote.incluye %}
-          <li>{{ ui.icon('check-circle') }}<span>{{ item }}</span></li>
+          <li>{{ ui.icon_feature(item) }}<span>{{ item }}</span></li>
           {% endfor %}
         </ul>
       </div>
@@ -372,7 +372,7 @@
             {% if g.title %}<div class="feature-group__title">{{ g.title }}</div>{% endif %}
             <ul class="feature-list">
               {% for item in g['items'] %}
-              <li>{{ ui.icon('check-circle') }}<span>{{ item }}</span></li>
+              <li>{{ ui.icon_feature(item) }}<span>{{ item }}</span></li>
               {% endfor %}
             </ul>
           </div>
@@ -382,7 +382,7 @@
         <div class="opt-body">
           <ul class="feature-list feature-cols" style="display:grid;">
             {% for item in opt.incluye %}
-            <li>{{ ui.icon('check-circle') }}<span>{{ item }}</span></li>
+            <li>{{ ui.icon_feature(item) }}<span>{{ item }}</span></li>
             {% endfor %}
           </ul>
         </div>

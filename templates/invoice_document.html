@@ -93,21 +93,14 @@
           {% endif %}
         </div>
 
-        {# Subtotal cierra la card de conceptos; lo cobrado y el saldo van
-           en su propia card debajo, como en la referencia: separa "que se
-           factura" de "como va el pago". #}
+        {# Subtotal / Pagado / Saldo cierran la MISMA card de conceptos,
+           como en la referencia: el desglose y su resultado se leen de
+           corrido, sin saltar a otra card. #}
         <div class="totals" style="margin-top:2px;">
           <div class="totals__row">
             <span class="totals__label">Subtotal</span>
             <span class="totals__value num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.total) }}</span>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card__body">
-        <div class="totals">
           <div class="totals__row totals__row--credit">
             <span class="totals__label">Pagado</span>
             <span class="totals__value num">− {{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.pagado) }}</span>

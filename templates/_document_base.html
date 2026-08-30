@@ -56,7 +56,10 @@ a { color: inherit; }
   font-family: var(--font-serif); font-weight: 400;
   font-size: clamp(30px, 4.4vw, 44px); letter-spacing: -0.02em; line-height: 1.08; margin: 0;
 }
-.doc-h2 { font-size: clamp(17px, 2vw, 19px); font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+.doc-h2 {
+  font-family: var(--font-serif); font-weight: 400;
+  font-size: clamp(19px, 2.2vw, 22px); letter-spacing: -0.015em; margin: 0;
+}
 .doc-h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
 .doc-text { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin: 0; }
 .doc-text--sm { font-size: 13px; }
@@ -242,7 +245,7 @@ a { color: inherit; }
 /* ============================================================
    Grid de dos columnas (conceptos + timeline)
    ============================================================ */
-.col-2 { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: clamp(10px, 1.3vw, 16px); align-items: start; }
+.col-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(10px, 1.3vw, 16px); align-items: start; }
 .col-2 > * { margin-bottom: 0; }
 @media (max-width: 900px) { .col-2 { grid-template-columns: 1fr; } }
 
@@ -270,13 +273,19 @@ a { color: inherit; }
 /* ============================================================
    Features -- inclusiones con icono, en columnas
    ============================================================ */
-.feature-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: clamp(20px, 2.6vw, 36px); }
+/* Tope de 4 columnas: es la retícula de la referencia y evita que con
+   muchos grupos las columnas se vuelvan tiras finitas. */
+.feature-cols {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: clamp(18px, 2.4vw, 34px);
+}
+@media (min-width: 900px) { .feature-cols { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .feature-group__title {
   font-size: 11px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase;
   color: var(--muted); margin-bottom: 12px;
 }
 .feature-list { list-style: none; margin: 0; padding: 0; }
-.feature-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; line-height: 1.5; padding: 5px 0; }
+.feature-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; line-height: 1.45; padding: 8px 0; }
 .feature-list li svg { width: 15px; height: 15px; color: var(--primary); flex-shrink: 0; margin-top: 2px; }
 
 /* ============================================================
@@ -302,7 +311,7 @@ a { color: inherit; }
    tiempo y no como filas sueltas. Se recorta en el primero y el ultimo. */
 .timeline__item::before {
   content: ''; position: absolute; left: 10px; top: 0; bottom: 0;
-  width: 1px; background: var(--border);
+  width: 0; border-left: 1.5px dashed var(--border-strong);
 }
 .timeline__item:first-child::before { top: 12px; }
 .timeline__item:last-child::before { bottom: calc(100% - 12px); }
