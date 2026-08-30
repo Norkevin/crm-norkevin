@@ -42,7 +42,7 @@ a { color: inherit; }
 /* ============================================================
    DocumentPage
    ============================================================ */
-.doc-page { max-width: 1180px; margin: 0 auto; padding: 0 clamp(14px, 2.6vw, 28px); }
+.doc-page { max-width: 1260px; margin: 0 auto; padding: 0 clamp(14px, 2.4vw, 26px); }
 .doc-body { padding-bottom: clamp(28px, 4vw, 44px); }
 
 /* ============================================================
@@ -67,8 +67,8 @@ a { color: inherit; }
    ============================================================ */
 .doc-topbar { background: var(--surface); border-bottom: 1px solid var(--border); }
 .doc-topbar-inner {
-  max-width: 1180px; margin: 0 auto;
-  padding: clamp(16px, 2.2vw, 22px) clamp(14px, 2.6vw, 28px);
+  max-width: 1260px; margin: 0 auto;
+  padding: clamp(13px, 1.7vw, 18px) clamp(14px, 2.4vw, 26px);
   display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
 }
 .doc-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
@@ -118,9 +118,9 @@ a { color: inherit; }
 .card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
-  margin-bottom: clamp(12px, 1.6vw, 18px);
+  margin-bottom: clamp(10px, 1.1vw, 14px);
 }
-.card__body { padding: clamp(18px, 2.4vw, 26px); }
+.card__body { padding: clamp(16px, 1.9vw, 22px); }
 .card__head {
   padding: clamp(16px, 2vw, 20px) clamp(18px, 2.4vw, 26px) 0;
 }
@@ -133,17 +133,32 @@ a { color: inherit; }
 .hero-card {
   position: relative; overflow: hidden;
   background: var(--surface-2); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); margin-bottom: clamp(12px, 1.6vw, 18px);
-  display: grid; grid-template-columns: 1fr; min-height: 190px;
+  border-radius: var(--radius-lg); margin-bottom: clamp(10px, 1.1vw, 14px);
+  display: grid; grid-template-columns: 1fr; min-height: 0;
 }
 .hero-card--with-image { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
-.hero-card__text { padding: clamp(22px, 3vw, 34px); align-self: center; }
-.hero-card__eyebrow { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; }
+.hero-card__text { padding: clamp(20px, 2.4vw, 28px); align-self: center; }
+.hero-card__eyebrow { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 6px; }
 .hero-card__name { margin: 0; }
 .hero-card__meta {
-  display: flex; flex-wrap: wrap; gap: clamp(20px, 3vw, 42px); margin-top: clamp(18px, 2.4vw, 26px);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: clamp(14px, 1.8vw, 22px); margin-top: clamp(16px, 2vw, 22px);
 }
-.hero-card__media { position: relative; min-height: 190px; background: var(--primary-soft); }
+/* Sin imagen el hero no puede quedar como un rectangulo medio vacio: el
+   texto se va a la izquierda y la metadata ocupa la derecha en columnas,
+   asi la card sigue viendose compuesta y no sobra ancho. */
+.hero-card--no-image .hero-card__text {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: clamp(20px, 3vw, 44px); align-items: center;
+}
+.hero-card--no-image .hero-card__meta {
+  margin-top: 0; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+@media (max-width: 720px) {
+  .hero-card--no-image .hero-card__text { grid-template-columns: 1fr; gap: 18px; }
+  .hero-card--no-image .hero-card__meta { margin-top: 0; }
+}
+.hero-card__media { position: relative; min-height: 175px; background: var(--primary-soft); }
 .hero-card__media img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
 @media (max-width: 720px) {
   .hero-card--with-image { grid-template-columns: 1fr; }
@@ -165,12 +180,12 @@ a { color: inherit; }
 /* ============================================================
    SummaryCards -- icono en cuadrito + label + cifra en color
    ============================================================ */
-.summary-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(10px, 1.4vw, 14px); margin-bottom: clamp(12px, 1.6vw, 18px); }
+.summary-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(10px, 1.2vw, 13px); margin-bottom: clamp(10px, 1.1vw, 14px); align-items: stretch; }
 .summary-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
-  padding: clamp(14px, 1.8vw, 20px);
-  display: flex; align-items: center; gap: 14px;
+  padding: clamp(13px, 1.5vw, 17px);
+  display: flex; align-items: center; gap: 13px; height: 100%;
 }
 .summary-card__icon {
   width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
@@ -191,7 +206,7 @@ a { color: inherit; }
 /* Card ancha destacada (proximo pago, descargar PDF, CTA) */
 .wide-card {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: clamp(16px, 2vw, 22px) clamp(18px, 2.4vw, 26px);
+  padding: clamp(14px, 1.7vw, 18px) clamp(16px, 1.9vw, 22px);
 }
 .wide-card__icon {
   width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
@@ -206,26 +221,29 @@ a { color: inherit; }
 /* ============================================================
    Grid de dos columnas (conceptos + timeline)
    ============================================================ */
-.col-2 { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: clamp(12px, 1.6vw, 18px); align-items: start; }
+.col-2 { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: clamp(10px, 1.3vw, 16px); align-items: start; }
 .col-2 > * { margin-bottom: 0; }
 @media (max-width: 900px) { .col-2 { grid-template-columns: 1fr; } }
 
 /* ============================================================
    LineItems -- conceptos como bloques
    ============================================================ */
-.line-item { padding: 16px 0; border-bottom: 1px solid var(--border); }
+.line-item { padding: 14px 0; border-bottom: 1px solid var(--border); }
 .line-item:first-child { padding-top: 0; }
 .line-item:last-of-type { border-bottom: none; }
 .line-item__top { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
-.line-item__name { font-size: 14.5px; font-weight: 550; letter-spacing: -0.01em; }
+.line-item__name { font-size: 14.5px; font-weight: 600; letter-spacing: -0.012em; }
 .line-item__amount { font-size: 14.5px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.line-item__sub { list-style: none; margin: 10px 0 0; padding: 0; }
+/* El detalle del concepto se lee como sub-informacion, no como otra lista
+   suelta: sangria clara, bullet chico y color secundario. */
+.line-item__sub { list-style: none; margin: 8px 0 0; padding: 0; }
 .line-item__sub li {
-  position: relative; padding-left: 15px; font-size: 13px; color: var(--text-secondary); line-height: 1.55; padding-bottom: 3px;
+  position: relative; padding-left: 14px; font-size: 12.5px;
+  color: var(--text-secondary); line-height: 1.5; padding-bottom: 2px;
 }
 .line-item__sub li::before {
-  content: ''; position: absolute; left: 0; top: 8px; width: 4px; height: 4px;
-  border-radius: 50%; background: var(--border-strong);
+  content: ''; position: absolute; left: 0; top: 7px; width: 3.5px; height: 3.5px;
+  border-radius: 50%; background: var(--muted);
 }
 
 /* ============================================================
@@ -243,7 +261,7 @@ a { color: inherit; }
 /* ============================================================
    Totales
    ============================================================ */
-.totals__row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 13px 0; font-size: 14.5px; }
+.totals__row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 10px 0; font-size: 14.5px; }
 .totals__row + .totals__row { border-top: 1px solid var(--border); }
 .totals__label { color: var(--text-primary); font-weight: 500; }
 .totals__value { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -257,20 +275,29 @@ a { color: inherit; }
 .timeline { list-style: none; margin: 0; padding: 0; }
 .timeline__item {
   position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto;
-  align-items: start; gap: 12px; padding: 12px 0;
+  align-items: start; gap: 12px; padding: 10px 0;
 }
-.timeline__item + .timeline__item { border-top: 1px solid var(--border); }
+/* Conexion vertical entre marcadores: hace que se lea como una linea de
+   tiempo y no como filas sueltas. Se recorta en el primero y el ultimo. */
+.timeline__item::before {
+  content: ''; position: absolute; left: 10px; top: 0; bottom: 0;
+  width: 1px; background: var(--border);
+}
+.timeline__item:first-child::before { top: 12px; }
+.timeline__item:last-child::before { bottom: calc(100% - 12px); }
 .timeline__dot {
+  position: relative; z-index: 1;
   width: 20px; height: 20px; border-radius: 50%; margin-top: 2px;
   display: grid; place-items: center; flex-shrink: 0;
   background: var(--surface-2); color: var(--muted);
+  box-shadow: 0 0 0 3px var(--surface);
 }
 .timeline__dot svg { width: 12px; height: 12px; }
 .timeline__item--paid .timeline__dot { background: var(--success); color: #fff; }
 .timeline__item--due .timeline__dot { background: var(--danger); color: #fff; }
 .timeline__item--next .timeline__dot { background: var(--primary); color: #fff; }
-.timeline__when { font-size: 13.5px; font-weight: 550; letter-spacing: -0.01em; }
-.timeline__pos { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.timeline__when { font-size: 14px; font-weight: 600; letter-spacing: -0.012em; }
+.timeline__pos { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
 .timeline__amount { font-size: 13.5px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* ============================================================
@@ -315,10 +342,10 @@ a { color: inherit; }
 /* ============================================================
    FooterBlock -- marca / contacto / mensaje
    ============================================================ */
-.doc-footer { border-top: 1px solid var(--border); background: var(--surface); margin-top: clamp(20px, 3vw, 32px); }
+.doc-footer { border-top: 1px solid var(--border); background: var(--surface); margin-top: clamp(16px, 2.2vw, 26px); }
 .doc-footer__inner {
-  max-width: 1180px; margin: 0 auto;
-  padding: clamp(24px, 3.2vw, 36px) clamp(14px, 2.6vw, 28px);
+  max-width: 1260px; margin: 0 auto;
+  padding: clamp(20px, 2.6vw, 30px) clamp(14px, 2.4vw, 26px);
   display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);
   gap: clamp(20px, 3vw, 40px); align-items: start;
 }

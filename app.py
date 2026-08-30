@@ -10903,7 +10903,9 @@ def _quote_theme_for_tenant(tenant_id):
         'success': '#159E63', 'success_soft': '#E7F6EE',
         'warning': '#D97706', 'warning_soft': '#FDF3E3',
         'danger': '#DC4E4E', 'danger_soft': '#FCEDED',
-        'radius_sm': '10px', 'radius_md': '14px', 'radius_lg': '20px',
+        # Radios en el rango del dashboard (Kevin pidio ~14-18px para las
+        # cards): mas chico se ve duro, mas grande empieza a verse blando.
+        'radius_sm': '9px', 'radius_md': '12px', 'radius_lg': '16px',
         # Sombras en dos capas (contacto + difusion). Reemplazan bordes:
         # dan profundidad real en vez de encajonar cada cosa.
         'shadow_card': '0 1px 2px rgba(18, 18, 26, .04), 0 8px 24px -12px rgba(18, 18, 26, .10)',
