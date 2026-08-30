@@ -1,33 +1,34 @@
 {#
-  ESTILOS BASE DEL SISTEMA DE DOCUMENTOS DE FLOW CRM (29-ago-2026)
+  SISTEMA DE DOCUMENTOS DE FLOW CRM -- BASE VISUAL (v2, 29-ago-2026)
 
-  Lo que cotizacion y factura comparten de verdad: reset, tipografia,
-  contenedores, encabezado de marca, secciones, badges de estado, filas de
-  totales, historial de pagos, botones, inputs y footer.
+  Construido contra la referencia visual que dio Kevin: documento como pila
+  de cards blancas sobre lienzo muy claro, acento morado del CRM, metadata
+  con iconos, summary cards con icono en cuadrito de color, timeline de
+  pagos con marcadores, y footer de tres zonas.
 
-  Se incluye DENTRO del <style> de cada documento, despues de
-  _document_tokens.html. Cada documento agrega despues SOLO lo suyo
-  (la comparacion de paquetes en la cotizacion, el desglose de conceptos en
-  la factura). Asi no hay dos sistemas visuales que mantener en paralelo.
+  Reglas del sistema:
+  - SANS de base (Inter). La serif es acento puntual: nombre del cliente,
+    nombre del paquete, marca. Nunca el sistema entero.
+  - Todo bloque de informacion vive en una card.
+  - Contenedores anchos y grids de 2 columnas en desktop: el problema a
+    resolver era la columna angosta con vacio muerto a los lados.
 
-  Deliberadamente NO se toca ninguna clase del CRM (--sn-*, .sn-card, etc.):
-  estas plantillas no extienden base.html y no comparten hoja de estilos con
-  el dashboard, asi que nada de aca puede filtrarse a las pantallas internas.
+  Se incluye dentro del <style> de cada documento, despues de
+  _document_tokens.html. Ningun documento extiende base.html ni comparte
+  hoja de estilos con el CRM, asi que nada de aca toca el dashboard.
 #}
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
   background: var(--background);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 15.5px;
-  line-height: 1.6;
+  font-size: 14.5px;
+  line-height: 1.55;
+  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Tracking levemente negativo en todo el cuerpo: es el ajuste que mas
-     hace por que un texto se lea "de producto actual" y no de plantilla. */
-  letter-spacing: -0.006em;
   overflow-x: hidden;
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
@@ -35,273 +36,347 @@ body {
 img { max-width: 100%; display: block; }
 button, input, select, textarea { font-family: inherit; }
 a { color: inherit; }
+.num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+.doc-noprint { }
 
-/* Cifras: tabular para que los montos de una columna queden alineados
-   digito con digito. En una factura eso no es un detalle estetico -- es lo
-   que hace que se puedan comparar de un vistazo. */
-.num, .doc-amount, .totals-value, .money {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: 'tnum' 1;
+/* ============================================================
+   DocumentPage
+   ============================================================ */
+.doc-page { max-width: 1180px; margin: 0 auto; padding: 0 clamp(14px, 2.6vw, 28px); }
+.doc-body { padding-bottom: clamp(28px, 4vw, 44px); }
+
+/* ============================================================
+   Tipografia
+   ============================================================ */
+.doc-label {
+  font-size: 11.5px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase;
+  color: var(--muted); margin: 0;
 }
-
-/* ---------- CONTENEDORES ---------- */
-.doc-wrap { max-width: 1180px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
-.doc-wrap-narrow { max-width: 860px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
-
-/* ---------- TIPOGRAFIA ----------
-   La escala tiene saltos grandes a proposito: un display enorme, un titulo
-   claramente menor y un cuerpo tranquilo. Cuando los tamaños son parecidos
-   entre si, la pagina se ve plana por mas espacio que tenga. */
-.doc-eyebrow {
-  font-size: 11px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase;
-  color: var(--muted);
-}
-.doc-title {
+.doc-h1 {
   font-family: var(--font-serif); font-weight: 400;
-  font-size: clamp(28px, 4.4vw, 40px); margin: 10px 0 0; line-height: 1.12;
-  letter-spacing: -0.02em;
+  font-size: clamp(30px, 4.4vw, 44px); letter-spacing: -0.02em; line-height: 1.08; margin: 0;
 }
-.doc-display {
-  font-family: var(--font-serif); font-weight: 400; line-height: 0.98;
-  font-size: clamp(40px, 8.5vw, 88px); margin: 0; word-break: break-word;
-  letter-spacing: -0.03em;
-}
-.doc-display em { font-style: italic; font-weight: 400; }
-.doc-lede { font-size: 15.5px; color: var(--text-secondary); max-width: 58ch; line-height: 1.65; }
+.doc-h2 { font-size: clamp(17px, 2vw, 19px); font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+.doc-h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+.doc-text { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin: 0; }
+.doc-text--sm { font-size: 13px; }
+.doc-serif { font-family: var(--font-serif); font-weight: 400; letter-spacing: -0.015em; }
 
-/* ---------- ENCABEZADO DE MARCA ---------- */
-.doc-header {
-  position: sticky; top: 0; z-index: 20;
-  /* Sin borde: el header se separa por un velo translucido con blur, que
-     es lo que hace que el contenido "pase por debajo" en vez de chocar
-     contra una linea. */
-  background: color-mix(in srgb, var(--background) 78%, transparent);
-  -webkit-backdrop-filter: saturate(180%) blur(14px);
-  backdrop-filter: saturate(180%) blur(14px);
-}
-/* Fallback para navegadores sin color-mix: color solido, sigue legible. */
-@supports not (background: color-mix(in srgb, red 50%, transparent)) {
-  .doc-header { background: var(--background); }
-}
-.doc-header-inner {
+/* ============================================================
+   BrandHeader (topbar)
+   ============================================================ */
+.doc-topbar { background: var(--surface); border-bottom: 1px solid var(--border); }
+.doc-topbar-inner {
   max-width: 1180px; margin: 0 auto;
-  padding: clamp(14px, 2.5vw, 20px) clamp(20px, 5vw, 48px);
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: clamp(16px, 2.2vw, 22px) clamp(14px, 2.6vw, 28px);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
 }
-.doc-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.doc-brand-logo { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; }
+.doc-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.doc-brand-logo { width: 32px; height: 32px; object-fit: contain; border-radius: 8px; flex-shrink: 0; }
 .doc-brand-name {
-  font-size: clamp(11px, 1.6vw, 12.5px); font-weight: 600;
-  letter-spacing: clamp(1.4px, 0.5vw, 2.8px); text-transform: uppercase;
+  font-family: var(--font-serif); font-size: clamp(15px, 1.8vw, 18px); font-weight: 400;
+  letter-spacing: 0.14em; text-transform: uppercase; line-height: 1.1;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .doc-brand-tag {
-  font-size: 11px; font-weight: 500; letter-spacing: 1.2px; text-transform: uppercase;
-  color: var(--text-secondary); text-align: right;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 10.5px; color: var(--muted); letter-spacing: 0.18em; text-transform: uppercase;
+  margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-@media (max-width: 640px) { .doc-brand-tag { display: none; } }
-
-/* ---------- SECCIONES ----------
-   Sin lineas divisorias: el aire separa. Es el cambio que mas "moderniza"
-   la pagina, y solo funciona si el espacio es de verdad generoso -- por eso
-   el salto entre secciones es grande, no timido. */
-.doc-section { padding: clamp(48px, 9vw, 104px) 0 0; }
-.doc-section:last-of-type { padding-bottom: clamp(48px, 9vw, 104px); }
-.doc-section-head { margin-bottom: clamp(24px, 5vw, 44px); }
-.doc-section-head.center { text-align: center; }
-.doc-section-head.center .doc-lede { margin-left: auto; margin-right: auto; }
-
-/* ---------- TARJETA ----------
-   Profundidad por sombra, no por borde. Un borde encajona; una sombra
-   apoya el elemento sobre la pagina. */
-.doc-card {
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  padding: clamp(22px, 4vw, 34px);
-}
-.doc-card.flush { padding: 0; overflow: hidden; }
-
-/* ---------- BADGES DE ESTADO ----------
-   Nunca solo color: cada badge lleva texto, y los criticos ademas un punto
-   con forma propia. Kevin: "no dependas solamente del color para comunicar
-   el estado". Asi tambien funciona impreso en blanco y negro y para quien
-   no distingue rojo/verde. */
-.doc-badge {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 6px 13px; border-radius: 999px;
-  font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none;
-  border: 1px solid transparent; white-space: nowrap;
-}
-.doc-badge::before {
-  content: ''; width: 7px; height: 7px; border-radius: 50%;
-  background: currentColor; flex-shrink: 0;
-}
-.doc-badge--neutral { background: var(--surface-2); color: var(--text-secondary); border-color: var(--border); }
-.doc-badge--info    { background: var(--primary-soft); color: var(--primary-dark); border-color: var(--primary-soft); }
-.doc-badge--success { background: var(--success-soft); color: var(--success); border-color: var(--success-soft); }
-.doc-badge--warning { background: var(--warning-soft); color: #92400E; border-color: var(--warning-soft); }
-.doc-badge--danger  { background: var(--danger-soft); color: #B42318; border-color: var(--danger-soft); }
-/* Vencida: ademas del color, el punto pasa a cuadrado -- una segunda señal
-   que no depende de ver el matiz. */
-.doc-badge--danger::before { border-radius: 2px; }
-/* Pagada: se siente resuelta, sin gritar. */
-.doc-badge--success::before { border-radius: 50%; }
-
-/* ---------- PARES ETIQUETA/VALOR ---------- */
-.doc-meta { display: flex; flex-wrap: wrap; gap: clamp(24px, 6vw, 56px); }
-.doc-meta-item { min-width: 0; max-width: 100%; }
-.doc-meta-value { font-size: 16px; font-weight: 500; overflow-wrap: break-word; letter-spacing: -0.01em; }
-.doc-meta-label {
-  font-size: 12.5px; color: var(--muted); letter-spacing: 0;
-  text-transform: none; margin-top: 5px;
-}
-@media (max-width: 620px) { .doc-meta { flex-direction: column; gap: 14px; } }
-
-/* ---------- FILAS ---------- */
-.doc-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 15px 0; border-bottom: 1px solid var(--border);
-}
-.doc-row:last-child { border-bottom: none; }
-.doc-row-title { font-size: 14.5px; font-weight: 500; }
-.doc-row-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
-.doc-amount { font-size: 15px; font-weight: 500; flex-shrink: 0; white-space: nowrap; }
-
-/* ---------- TOTALES ----------
-   La jerarquia que pidio Kevin: TOTAL / PAGADO / PENDIENTE inmediatamente
-   legibles. Pendiente es el numero que decide si el cliente tiene que
-   hacer algo, asi que es el que se lleva el peso visual. */
-.totals { display: grid; gap: 2px; }
-.totals-row {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
-  padding: 9px 0; font-size: 14.5px;
-}
-.totals-label { color: var(--text-secondary); }
-.totals-value { font-weight: 500; white-space: nowrap; }
-.totals-row--grand {
-  border-top: 1px solid var(--border); margin-top: 10px; padding-top: 22px;
-}
-.totals-row--grand .totals-label {
-  font-family: var(--font-serif); font-style: italic;
-  font-size: 22px; color: var(--text-primary); letter-spacing: -0.01em;
-}
-.totals-row--grand .totals-value {
-  font-family: var(--font-serif); font-weight: 400;
-  font-size: clamp(32px, 5vw, 44px); letter-spacing: -0.025em;
-}
-.totals-row--due .totals-value { color: var(--danger); font-weight: 600; }
-.totals-row--paid .totals-value { color: var(--success); }
-
-/* Tres cifras grandes lado a lado (total / pagado / pendiente) */
-/* Tres cifras: tarjetas separadas por espacio, sin rejilla de bordes.
-   La del saldo lleva una veladura de marca para que sea la que el ojo
-   busca primero. */
-.figure-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(10px, 1.6vw, 16px);
-}
-.figure-cell {
-  padding: clamp(20px, 3vw, 28px);
-  background: var(--surface); border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-}
-.figure-cell--due, .figure-cell--settled { background: var(--primary-tint); }
-.figure-label {
-  font-size: 12.5px; letter-spacing: 0; text-transform: none; color: var(--muted);
-}
-.figure-value {
-  font-family: var(--font-serif); font-weight: 400; letter-spacing: -0.025em;
-  font-size: clamp(26px, 4vw, 38px); margin-top: 8px; white-space: nowrap; line-height: 1.05;
-}
-.figure-cell--paid .figure-value { color: var(--success); }
-.figure-cell--due .figure-value { color: var(--danger); }
-.figure-cell--settled .figure-value { color: var(--success); }
-@media (max-width: 620px) {
-  .figure-grid { grid-template-columns: 1fr; }
+.doc-topbar-right { text-align: right; flex-shrink: 0; }
+.doc-ref { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.doc-topbar-right .badge { margin-top: 8px; }
+@media (max-width: 560px) {
+  .doc-topbar-inner { flex-direction: column; gap: 12px; }
+  .doc-topbar-right { text-align: left; }
+  .doc-topbar-right .badge { margin-top: 6px; }
 }
 
-/* ---------- BOTONES ---------- */
-.doc-btn {
+/* ============================================================
+   StatusBadge -- texto + punto con forma propia (no solo color)
+   ============================================================ */
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.7px; text-transform: uppercase;
+  white-space: nowrap; border: 1px solid transparent;
+}
+.badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.badge--neutral { background: var(--surface-2); color: var(--text-secondary); border-color: var(--border); }
+.badge--info    { background: var(--primary-soft); color: var(--primary-dark); }
+.badge--success { background: var(--success-soft); color: var(--success); }
+.badge--warning { background: var(--warning-soft); color: #92400E; }
+.badge--danger  { background: var(--danger-soft); color: #B42318; }
+.badge--danger::before { border-radius: 2px; }
+.badge--warning::before { border-radius: 2px; transform: rotate(45deg); }
+/* Variante sin punto, para etiquetas dentro del timeline */
+.badge--flat::before { display: none; }
+.badge--flat { padding: 3px 9px; font-size: 10.5px; letter-spacing: 0.5px; }
+
+/* ============================================================
+   Card
+   ============================================================ */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  margin-bottom: clamp(12px, 1.6vw, 18px);
+}
+.card__body { padding: clamp(18px, 2.4vw, 26px); }
+.card__head {
+  padding: clamp(16px, 2vw, 20px) clamp(18px, 2.4vw, 26px) 0;
+}
+.card--quiet { background: var(--surface-2); box-shadow: none; }
+.card--accent { background: var(--primary-tint); border-color: var(--primary-soft); }
+
+/* ============================================================
+   HeroCard -- solo cotizacion: texto a la izquierda, imagen a la derecha
+   ============================================================ */
+.hero-card {
+  position: relative; overflow: hidden;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); margin-bottom: clamp(12px, 1.6vw, 18px);
+  display: grid; grid-template-columns: 1fr; min-height: 190px;
+}
+.hero-card--with-image { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+.hero-card__text { padding: clamp(22px, 3vw, 34px); align-self: center; }
+.hero-card__eyebrow { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; }
+.hero-card__name { margin: 0; }
+.hero-card__meta {
+  display: flex; flex-wrap: wrap; gap: clamp(20px, 3vw, 42px); margin-top: clamp(18px, 2.4vw, 26px);
+}
+.hero-card__media { position: relative; min-height: 190px; background: var(--primary-soft); }
+.hero-card__media img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
+@media (max-width: 720px) {
+  .hero-card--with-image { grid-template-columns: 1fr; }
+  .hero-card__media { min-height: 150px; order: -1; }
+}
+
+/* ============================================================
+   MetaGrid + item con icono
+   ============================================================ */
+.meta-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: clamp(16px, 2.2vw, 30px);
+}
+.meta-item { min-width: 0; }
+.meta-label { font-size: 12.5px; color: var(--muted); margin-bottom: 5px; display: flex; align-items: center; gap: 7px; }
+.meta-label svg { width: 15px; height: 15px; color: var(--primary); flex-shrink: 0; }
+.meta-value { font-size: 14.5px; font-weight: 500; letter-spacing: -0.01em; overflow-wrap: break-word; }
+
+/* ============================================================
+   SummaryCards -- icono en cuadrito + label + cifra en color
+   ============================================================ */
+.summary-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(10px, 1.4vw, 14px); margin-bottom: clamp(12px, 1.6vw, 18px); }
+.summary-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  padding: clamp(14px, 1.8vw, 20px);
+  display: flex; align-items: center; gap: 14px;
+}
+.summary-card__icon {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: var(--primary-soft); color: var(--primary);
+}
+.summary-card__icon svg { width: 19px; height: 19px; }
+.summary-card--paid .summary-card__icon { background: var(--success-soft); color: var(--success); }
+.summary-card--due .summary-card__icon { background: var(--danger-soft); color: var(--danger); }
+.summary-card--settled .summary-card__icon { background: var(--success-soft); color: var(--success); }
+.summary-card__label { font-size: 10.5px; font-weight: 600; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); }
+.summary-card__value { font-size: clamp(19px, 2.2vw, 23px); font-weight: 600; letter-spacing: -0.025em; margin-top: 3px; white-space: nowrap; color: var(--primary); }
+.summary-card--paid .summary-card__value { color: var(--success); }
+.summary-card--due .summary-card__value { color: var(--danger); }
+.summary-card--settled .summary-card__value { color: var(--success); }
+@media (max-width: 760px) { .summary-cards { grid-template-columns: 1fr; } }
+
+/* Card ancha destacada (proximo pago, descargar PDF, CTA) */
+.wide-card {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: clamp(16px, 2vw, 22px) clamp(18px, 2.4vw, 26px);
+}
+.wide-card__icon {
+  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+  display: grid; place-items: center; background: var(--primary-soft); color: var(--primary);
+}
+.wide-card__icon svg { width: 20px; height: 20px; }
+.wide-card__text { flex: 1 1 220px; min-width: 0; }
+.wide-card__label { font-size: 10.5px; font-weight: 600; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); }
+.wide-card__value { font-size: clamp(17px, 2vw, 20px); font-weight: 600; letter-spacing: -0.02em; margin-top: 3px; }
+.wide-card__amount { font-size: clamp(19px, 2.2vw, 23px); font-weight: 600; letter-spacing: -0.025em; white-space: nowrap; }
+
+/* ============================================================
+   Grid de dos columnas (conceptos + timeline)
+   ============================================================ */
+.col-2 { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: clamp(12px, 1.6vw, 18px); align-items: start; }
+.col-2 > * { margin-bottom: 0; }
+@media (max-width: 900px) { .col-2 { grid-template-columns: 1fr; } }
+
+/* ============================================================
+   LineItems -- conceptos como bloques
+   ============================================================ */
+.line-item { padding: 16px 0; border-bottom: 1px solid var(--border); }
+.line-item:first-child { padding-top: 0; }
+.line-item:last-of-type { border-bottom: none; }
+.line-item__top { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.line-item__name { font-size: 14.5px; font-weight: 550; letter-spacing: -0.01em; }
+.line-item__amount { font-size: 14.5px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.line-item__sub { list-style: none; margin: 10px 0 0; padding: 0; }
+.line-item__sub li {
+  position: relative; padding-left: 15px; font-size: 13px; color: var(--text-secondary); line-height: 1.55; padding-bottom: 3px;
+}
+.line-item__sub li::before {
+  content: ''; position: absolute; left: 0; top: 8px; width: 4px; height: 4px;
+  border-radius: 50%; background: var(--border-strong);
+}
+
+/* ============================================================
+   Features -- inclusiones con icono, en columnas
+   ============================================================ */
+.feature-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: clamp(20px, 2.6vw, 36px); }
+.feature-group__title {
+  font-size: 11px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 12px;
+}
+.feature-list { list-style: none; margin: 0; padding: 0; }
+.feature-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; line-height: 1.5; padding: 5px 0; }
+.feature-list li svg { width: 15px; height: 15px; color: var(--primary); flex-shrink: 0; margin-top: 2px; }
+
+/* ============================================================
+   Totales
+   ============================================================ */
+.totals__row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 13px 0; font-size: 14.5px; }
+.totals__row + .totals__row { border-top: 1px solid var(--border); }
+.totals__label { color: var(--text-primary); font-weight: 500; }
+.totals__value { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.totals__row--credit .totals__value { color: var(--success); }
+.totals__row--due .totals__label { font-weight: 600; }
+.totals__row--due .totals__value { color: var(--danger); font-size: clamp(17px, 2vw, 20px); letter-spacing: -0.02em; }
+
+/* ============================================================
+   PaymentTimeline
+   ============================================================ */
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline__item {
+  position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: start; gap: 12px; padding: 12px 0;
+}
+.timeline__item + .timeline__item { border-top: 1px solid var(--border); }
+.timeline__dot {
+  width: 20px; height: 20px; border-radius: 50%; margin-top: 2px;
+  display: grid; place-items: center; flex-shrink: 0;
+  background: var(--surface-2); color: var(--muted);
+}
+.timeline__dot svg { width: 12px; height: 12px; }
+.timeline__item--paid .timeline__dot { background: var(--success); color: #fff; }
+.timeline__item--due .timeline__dot { background: var(--danger); color: #fff; }
+.timeline__item--next .timeline__dot { background: var(--primary); color: #fff; }
+.timeline__when { font-size: 13.5px; font-weight: 550; letter-spacing: -0.01em; }
+.timeline__pos { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.timeline__amount { font-size: 13.5px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   Botones / ActionBar
+   ============================================================ */
+.btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 52px; padding: 15px 28px;
+  min-height: 44px; padding: 12px 22px;
   border-radius: var(--radius-md); border: 1px solid transparent;
-  font-size: 14.5px; font-weight: 500; letter-spacing: -0.01em;
-  cursor: pointer; text-decoration: none;
-  transition: background-color .18s ease, border-color .18s ease,
-              color .18s ease, transform .18s ease, box-shadow .18s ease;
+  font-size: 14px; font-weight: 550; letter-spacing: -0.01em;
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease;
 }
-.doc-btn--primary {
-  background: var(--primary); color: #fff;
-  box-shadow: 0 1px 2px rgba(18,18,26,.10), 0 10px 24px -12px var(--primary);
-}
-.doc-btn--primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
-.doc-btn--primary:active { transform: translateY(0); }
-.doc-btn--primary:disabled { opacity: .38; cursor: not-allowed; box-shadow: none; transform: none; }
-.doc-btn--ghost { background: var(--surface); color: var(--text-secondary); box-shadow: var(--shadow-card); }
-.doc-btn--ghost:hover { color: var(--text-primary); transform: translateY(-1px); }
-.doc-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
-
-/* ---------- INPUTS ---------- */
-.doc-field { margin-bottom: 20px; }
-.doc-label {
-  display: block; font-size: 13px; font-weight: 500; letter-spacing: 0;
-  text-transform: none; color: var(--text-secondary); margin-bottom: 8px;
-}
-.doc-input {
-  width: 100%; padding: 14px 16px;
-  background: var(--surface); color: var(--text-primary);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  font-size: 15.5px; outline: none;
-  transition: border-color .16s ease, box-shadow .16s ease;
-}
-.doc-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-soft); }
-
-/* ---------- HISTORIAL DE PAGOS ---------- */
-.pay-list { display: grid; }
-.pay-item {
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
-  padding: 14px 0; border-bottom: 1px solid var(--border);
-}
-.pay-item:last-child { border-bottom: none; }
-.pay-dot {
-  width: 9px; height: 9px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0;
-}
-.pay-item--paid .pay-dot { background: var(--success); }
-.pay-item--due .pay-dot { background: var(--danger); border-radius: 2px; }
-.pay-item--next .pay-dot { background: var(--primary); }
-.pay-when { font-size: 14px; font-weight: 500; }
-.pay-note { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
-.pay-amount { font-size: 14.5px; font-weight: 500; white-space: nowrap; }
-@media (max-width: 480px) {
-  .pay-item { grid-template-columns: auto 1fr; row-gap: 4px; }
-  .pay-amount { grid-column: 2; justify-self: start; }
+.btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+.btn--primary { background: var(--primary); color: #fff; box-shadow: 0 1px 2px rgba(18,18,26,.08); }
+.btn--primary:hover { background: var(--primary-dark); }
+.btn--primary:disabled { opacity: .4; cursor: not-allowed; }
+.btn--secondary { background: var(--surface); color: var(--text-primary); border-color: var(--border-strong); }
+.btn--secondary:hover { background: var(--surface-2); }
+.btn--quiet { background: transparent; color: var(--text-secondary); }
+.btn--quiet:hover { color: var(--text-primary); background: var(--surface-2); }
+.btn--lg { min-height: 50px; padding: 14px 28px; font-size: 15px; }
+.btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.action-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+@media (max-width: 620px) {
+  .action-bar { flex-direction: column; align-items: stretch; }
+  .action-bar .btn { width: 100%; }
 }
 
-/* ---------- FOOTER ---------- */
-.doc-footer {
-  text-align: center; padding: clamp(48px, 8vw, 88px) 24px clamp(40px, 6vw, 64px);
+/* ============================================================
+   Inputs
+   ============================================================ */
+.field { margin-bottom: 16px; }
+.field__label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+.field__input {
+  width: 100%; padding: 12px 14px; background: var(--surface); color: var(--text-primary);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  font-size: 15px; outline: none; transition: border-color .16s ease, box-shadow .16s ease;
 }
-.doc-footer-name {
-  font-size: 12px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase;
-  color: var(--text-secondary);
-}
-.doc-footer-meta { font-size: 13px; color: var(--muted); margin-top: 10px; }
+.field__input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 
-/* ---------- WHATSAPP FLOTANTE ---------- */
+/* ============================================================
+   FooterBlock -- marca / contacto / mensaje
+   ============================================================ */
+.doc-footer { border-top: 1px solid var(--border); background: var(--surface); margin-top: clamp(20px, 3vw, 32px); }
+.doc-footer__inner {
+  max-width: 1180px; margin: 0 auto;
+  padding: clamp(24px, 3.2vw, 36px) clamp(14px, 2.6vw, 28px);
+  display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);
+  gap: clamp(20px, 3vw, 40px); align-items: start;
+}
+.doc-footer__brand { display: flex; align-items: center; gap: 12px; }
+.doc-footer__mark {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--primary-soft); color: var(--primary);
+  font-family: var(--font-serif); font-size: 17px;
+}
+.doc-footer__name { font-family: var(--font-serif); font-size: 15px; letter-spacing: 0.13em; text-transform: uppercase; line-height: 1.15; }
+.doc-footer__tag { font-size: 10px; color: var(--muted); letter-spacing: 0.17em; text-transform: uppercase; margin-top: 3px; }
+.doc-footer__contact { display: grid; gap: 8px; }
+.doc-footer__line { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--text-secondary); min-width: 0; }
+.doc-footer__line svg { width: 15px; height: 15px; color: var(--muted); flex-shrink: 0; }
+.doc-footer__line span { overflow: hidden; text-overflow: ellipsis; }
+.doc-footer__note { text-align: right; font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.doc-footer__note strong { display: block; color: var(--text-primary); font-weight: 550; }
+.doc-footer__heart { color: var(--primary); margin-top: 8px; display: inline-block; }
+@media (max-width: 820px) {
+  .doc-footer__inner { grid-template-columns: 1fr; }
+  .doc-footer__note { text-align: left; }
+}
+
+/* ============================================================
+   WhatsApp flotante
+   ============================================================ */
 .doc-wa {
-  position: fixed; right: 18px; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 30;
-  width: 50px; height: 50px; border-radius: 50%; background: #25D366;
+  position: fixed; right: 18px; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 40;
+  width: 48px; height: 48px; border-radius: 50%; background: #25D366;
   display: flex; align-items: center; justify-content: center;
   box-shadow: var(--shadow-raised); text-decoration: none;
   transition: opacity .2s, transform .2s;
 }
 .doc-wa.is-hidden { opacity: 0; transform: scale(.85); pointer-events: none; }
-.doc-wa svg { width: 24px; height: 24px; }
+.doc-wa svg { width: 23px; height: 23px; }
 
-/* ---------- IMPRESION ---------- */
+/* ============================================================
+   PRINT / PDF
+   Kevin: "no quiero una version web linda y una impresion fea".
+   Se conserva la jerarquia (cards, badges, timeline) y se prohiben los
+   cortes de pagina a mitad de una card o de una fila de pago.
+   ============================================================ */
 @media print {
-  .doc-header { position: static; }
-  .doc-wa, .doc-actions { display: none !important; }
-  body { background: #fff; }
+  @page { margin: 13mm; }
+  body { background: #fff; font-size: 10.5pt; }
+  .doc-topbar { background: #fff; }
+  .doc-wa, .action-bar, .doc-noprint { display: none !important; }
+  .doc-page, .doc-topbar-inner, .doc-footer__inner { max-width: none; padding-left: 0; padding-right: 0; }
+  .card, .summary-card, .hero-card { box-shadow: none; border: 1px solid #d9d9e0; break-inside: avoid; page-break-inside: avoid; }
+  .card--accent, .summary-card--due, .summary-card--settled, .card--quiet, .hero-card { background: #fff; }
+  .hero-card__media { display: none; }
+  .hero-card--with-image { grid-template-columns: 1fr; }
+  .line-item, .timeline__item, .meta-item, .feature-group { break-inside: avoid; page-break-inside: avoid; }
+  .doc-h1, .doc-h2, .doc-h3 { break-after: avoid; page-break-after: avoid; }
+  /* El estado tiene que entenderse igual impreso en blanco y negro. */
+  .badge { background: #fff !important; border: 1px solid #8a8a95; color: #000 !important; }
+  .summary-card__icon, .wide-card__icon, .timeline__dot { border: 1px solid #c9c9d2; }
+  .col-2 { grid-template-columns: 1fr; }
+  .doc-footer { background: #fff; }
+  a { text-decoration: none; }
 }

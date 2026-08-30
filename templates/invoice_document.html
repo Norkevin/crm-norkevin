@@ -1,23 +1,24 @@
 <!DOCTYPE html>
 <html lang="es">
 {#
-  FACTURA WEB -- documento hermano de la cotizacion (29-ago-2026).
+  FACTURA WEB -- documento hermano de la cotizacion (v2, 29-ago-2026).
 
-  Kevin: "no quiero que la experiencia principal sea un PDF... cotizacion y
-  factura deben sentirse como documentos hermanos. Mismo ADN, distinta
-  funcion". Por eso esta plantilla comparte con quote_view.html los tokens
-  (_document_tokens), la base visual (_document_base) y los componentes
-  (_document_parts): el parecido no es una coincidencia de estilos copiados,
-  es literalmente el mismo sistema.
+  Construida sobre el sistema compartido (_document_tokens / _document_base
+  / _document_parts): el parecido con la cotizacion no es una coincidencia
+  de estilos copiados, es literalmente el mismo sistema.
 
-  Es mas sobria que la cotizacion a proposito: una factura es informacion
-  financiera, no una propuesta comercial. Mismo ADN, menos ornamento.
+  Estructura (segun la referencia visual de Kevin):
+    topbar marca + Factura N.º + badge de estado
+    metadata en grid (cliente / evento / fecha / vence)
+    summary cards: Total / Pagado / Pendiente
+    proximo pago destacado
+    dos columnas: conceptos facturados | calendario de pagos
+    totales
+    descargar PDF
+    footer
 
-  Todo el contenido viene de _invoice_document() en app.py, que lo deduce
-  del modelo real de payments/quotes/jobs. Esta plantilla no calcula dinero.
-
-  `publico` = True cuando la abre el cliente por su enlace con token; en ese
-  caso no se muestran acciones internas.
+  Todo el contenido viene de _invoice_document() en app.py. Esta plantilla
+  no calcula dinero.
 #}
 <head>
 <meta charset="UTF-8">
@@ -31,172 +32,140 @@
 {% include '_document_tokens.html' %}
 }
 {% include '_document_base.html' %}
-
-.wrap { max-width: 980px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
-
-/* ---------- CABECERA DEL DOCUMENTO ---------- */
-.inv-head { padding: clamp(44px, 9vw, 96px) 0 clamp(28px, 5vw, 44px); }
-.inv-eyebrow { font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted); }
-.inv-number {
-  font-family: var(--font-serif); font-weight: 400; line-height: 1;
-  font-size: clamp(38px, 6.5vw, 64px); margin: 12px 0 0; word-break: break-word;
-  font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
-}
-.inv-status-row { margin-top: clamp(20px, 3vw, 26px); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.inv-status-note { font-size: 14.5px; color: var(--text-secondary); }
-/* El aire separa; nada de reglas horizontales. */
-.inv-divider { border: none; margin: clamp(28px, 5vw, 44px) 0 0; }
-
-/* ---------- CONCEPTOS ---------- */
-.inv-lines { border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-card); overflow: hidden; }
-.inv-line { padding: clamp(22px, 3vw, 30px); border-bottom: 1px solid var(--border); }
-.inv-line:last-child { border-bottom: none; }
-.inv-line-top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.inv-line-name { font-family: var(--font-serif); font-size: clamp(22px, 2.8vw, 27px); letter-spacing: -0.02em; }
-.inv-line-amount { font-size: 19px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.inv-line-list { list-style: none; margin: 16px 0 0; padding: 0; }
-.inv-line-list li { font-size: 14.5px; color: var(--text-secondary); padding: 4px 0; }
-
-/* ---------- NOTAS / CONDICIONES ---------- */
-.inv-note-box {
-  border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-card);
-  padding: clamp(22px, 3vw, 30px);
-  font-size: 14.5px; color: var(--text-secondary); line-height: 1.7;
-}
-
-/* ---------- ACCIONES ---------- */
-.doc-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: clamp(24px, 5vw, 32px); }
-@media (max-width: 620px) {
-  .doc-actions { flex-direction: column; }
-  .doc-actions .doc-btn { width: 100%; }
-}
 </style>
 </head>
 <body>
-{% import '_document_parts.html' as doc_ui with context %}
+{% import '_document_parts.html' as ui with context %}
 
-{{ doc_ui.brand_header(theme) }}
+{{ ui.topbar(theme, 'Factura', doc.invoice_id, doc.estado_label, doc.estado_tono) }}
 
-<div class="wrap inv-head">
-  <div class="inv-eyebrow">Factura</div>
-  <h1 class="inv-number">{{ doc.invoice_id }}</h1>
-  <div class="inv-status-row">
-    {{ doc_ui.status_badge(doc.estado_label, doc.estado_tono) }}
-    {% if doc.estado_detalle %}<span class="inv-status-note">{{ doc.estado_detalle }}</span>{% endif %}
-  </div>
+<div class="doc-page doc-body" style="padding-top: clamp(18px, 2.4vw, 26px);">
 
-  <hr class="inv-divider">
-
-  <div class="doc-meta">
-    {% if doc.cliente_nombre %}{{ doc_ui.meta_item(doc.cliente_nombre, 'Cliente') }}{% endif %}
-    {% if doc.job_nombre %}{{ doc_ui.meta_item(doc.job_nombre, 'Evento') }}{% endif %}
-    {% if doc.boda_fecha %}{{ doc_ui.meta_item(doc.boda_fecha, 'Fecha del evento') }}{% endif %}
-    {% if doc.emitida %}{{ doc_ui.meta_item(doc.emitida, 'Emitida') }}{% endif %}
-    {% if doc.vence %}{{ doc_ui.meta_item(doc.vence, 'Vence') }}{% endif %}
-  </div>
-</div>
-
-{# --- Las tres cifras primero: es lo que el cliente vino a ver --- #}
-<div class="wrap">
-  {{ doc_ui.figures(theme.currency_symbol, doc.total, doc.pagado, doc.pendiente) }}
-</div>
-
-{% if doc.proximo and doc.pendiente > 0 %}
-<div class="wrap" style="margin-top: 16px;">
-  <div class="doc-card" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-    <div>
-      <div class="doc-eyebrow">Proximo pago</div>
-      <div style="font-size:16px;font-weight:500;margin-top:4px;">{{ doc.proximo.cuando }}</div>
-    </div>
-    <div class="doc-amount num" style="font-size:20px;">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.proximo.monto) }}</div>
-  </div>
-</div>
-{% endif %}
-
-<div class="wrap doc-section">
-  <div class="doc-section-head">
-    <div class="doc-eyebrow">Detalle</div>
-    <h2 class="doc-title">Conceptos facturados</h2>
-  </div>
-  <div class="inv-lines">
-    <div class="inv-line">
-      <div class="inv-line-top">
-        <div class="inv-line-name">{{ doc.concepto }}</div>
-        <div class="inv-line-amount">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.total) }}</div>
+  {# ---------- Metadata del documento ---------- #}
+  <div class="card card--quiet">
+    <div class="card__body">
+      <div class="meta-grid">
+        {{ ui.meta_item('Cliente', doc.cliente_nombre) }}
+        {{ ui.meta_item('Evento', doc.job_nombre) }}
+        {{ ui.meta_item('Fecha del evento', doc.boda_fecha) }}
+        {{ ui.meta_item('Emitida', doc.emitida) }}
+        {{ ui.meta_item('Vence', doc.vence) }}
       </div>
-      {% if doc.incluye %}
-      <ul class="inv-line-list">
-        {% for item in doc.incluye %}<li>{{ item }}</li>{% endfor %}
-      </ul>
+      {% if doc.estado_detalle %}
+      <p class="doc-text doc-text--sm" style="margin-top:16px;">{{ doc.estado_detalle }}</p>
       {% endif %}
     </div>
   </div>
 
-  <div class="totals" style="margin-top: clamp(20px, 4vw, 28px);">
-    <div class="totals-row">
-      <span class="totals-label">Subtotal</span>
-      <span class="totals-value num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.total) }}</span>
-    </div>
-    <div class="totals-row totals-row--paid">
-      <span class="totals-label">Pagado</span>
-      <span class="totals-value num">− {{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.pagado) }}</span>
-    </div>
-    <div class="totals-row totals-row--grand {{ '' if doc.pendiente > 0 else 'totals-row--paid' }}">
-      <span class="totals-label">{{ 'Saldo pendiente' if doc.pendiente > 0 else 'Saldo' }}</span>
-      <span class="totals-value num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.pendiente) }}</span>
-    </div>
-  </div>
-</div>
+  {# ---------- Las tres cifras ---------- #}
+  {{ ui.summary_cards(theme.currency_symbol, doc.total, doc.pagado, doc.pendiente) }}
 
-{% if doc.filas_pago %}
-<div class="wrap doc-section">
-  <div class="doc-section-head">
-    <div class="doc-eyebrow">Pagos</div>
-    <h2 class="doc-title">{{ 'Calendario de pagos' if doc.filas_pago|length > 1 else 'Historial de pagos' }}</h2>
-  </div>
-  {{ doc_ui.payment_history(theme.currency_symbol, doc.filas_pago) }}
-</div>
-{% endif %}
+  {# ---------- Proximo pago ---------- #}
+  {% if doc.proximo and doc.pendiente > 0 %}
+  {{ ui.wide_card('calendar', 'Próximo pago', doc.proximo.cuando,
+                  simbolo=theme.currency_symbol, monto=doc.proximo.monto) }}
+  {% endif %}
 
-{% if doc.notas %}
-<div class="wrap doc-section">
-  <div class="doc-section-head">
-    <div class="doc-eyebrow">Notas</div>
-  </div>
-  <div class="inv-note-box">{{ doc.notas }}</div>
-</div>
-{% endif %}
+  {# ---------- Conceptos + calendario, lado a lado ---------- #}
+  <div class="col-2" style="margin-bottom: clamp(12px, 1.6vw, 18px);">
 
-{% if terms_blocks %}
-<div class="wrap doc-section">
-  <div class="doc-section-head">
-    <div class="doc-eyebrow">Informacion general</div>
-    <h2 class="doc-title">Condiciones</h2>
-  </div>
-  <div class="inv-note-box">
-    {% for b in terms_blocks %}
-    <div style="margin-bottom:14px;">
-      {% if b.title %}<div style="font-weight:600;color:var(--text-primary);margin-bottom:4px;">{{ b.title }}</div>{% endif %}
-      {% if b.body %}<div>{{ b.body }}</div>{% endif %}
+    <div class="card">
+      <div class="card__body">
+        <h2 class="doc-h2" style="margin-bottom:14px;">Conceptos facturados</h2>
+
+        <div class="line-item">
+          <div class="line-item__top">
+            <div class="line-item__name">{{ doc.concepto }}</div>
+            <div class="line-item__amount">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.total) }}</div>
+          </div>
+          {% if doc.incluye %}
+          <ul class="line-item__sub">
+            {% for item in doc.incluye[:8] %}<li>{{ item }}</li>{% endfor %}
+            {% if doc.incluye|length > 8 %}
+            <li>y {{ doc.incluye|length - 8 }} más</li>
+            {% endif %}
+          </ul>
+          {% endif %}
+        </div>
+
+        <div class="totals" style="margin-top:4px;">
+          <div class="totals__row">
+            <span class="totals__label">Subtotal</span>
+            <span class="totals__value num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.total) }}</span>
+          </div>
+          <div class="totals__row totals__row--credit">
+            <span class="totals__label">Pagado</span>
+            <span class="totals__value num">− {{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.pagado) }}</span>
+          </div>
+          <div class="totals__row totals__row--due">
+            <span class="totals__label">{{ 'Saldo pendiente' if doc.pendiente > 0 else 'Saldo' }}</span>
+            <span class="totals__value num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.pendiente) }}</span>
+          </div>
+        </div>
+      </div>
     </div>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
 
-<div class="wrap" style="padding-bottom: clamp(40px, 7vw, 64px);">
-  <div class="doc-actions">
-    {% if pdf_url %}
-    <a class="doc-btn doc-btn--ghost" href="{{ pdf_url }}">Descargar PDF</a>
+    {% if doc.filas_pago %}
+    <div class="card">
+      <div class="card__body">
+        <h2 class="doc-h2" style="margin-bottom:14px;">
+          {{ 'Calendario de pagos' if doc.filas_pago|length > 1 else 'Historial de pagos' }}
+        </h2>
+        {{ ui.payment_timeline(theme.currency_symbol, doc.filas_pago) }}
+      </div>
+    </div>
     {% endif %}
-    {% if pay_url %}
-    <a class="doc-btn doc-btn--primary" href="{{ pay_url }}">Pagar en linea</a>
-    {% endif %}
+
   </div>
+
+  {# ---------- Notas y condiciones ---------- #}
+  {% if doc.notas or terms_blocks %}
+  <div class="card">
+    <div class="card__body">
+      {% if doc.notas %}
+      <h2 class="doc-h2" style="margin-bottom:10px;">Notas</h2>
+      <p class="doc-text" style="margin-bottom: {{ '20px' if terms_blocks else '0' }};">{{ doc.notas }}</p>
+      {% endif %}
+      {% if terms_blocks %}
+      <h2 class="doc-h2" style="margin-bottom:14px;">Condiciones</h2>
+      <div class="feature-cols">
+        {% for b in terms_blocks %}
+        <div class="feature-group">
+          {% if b.title %}<div class="doc-h3" style="margin-bottom:6px;">{{ b.title }}</div>{% endif %}
+          {% if b.body %}<p class="doc-text doc-text--sm">{{ b.body }}</p>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ---------- Acciones ---------- #}
+  {% if pdf_url or pay_url %}
+  <div class="card doc-noprint">
+    <div class="wide-card">
+      <div class="wide-card__icon">{{ ui.icon('file') }}</div>
+      <div class="wide-card__text">
+        <div class="wide-card__value" style="font-size:15.5px;">Descargar factura en PDF</div>
+        <p class="doc-text doc-text--sm" style="margin-top:2px;">Guarda o imprime tu factura</p>
+      </div>
+      <div class="action-bar">
+        {% if pay_url %}<a class="btn btn--primary" href="{{ pay_url }}">Pagar en línea</a>{% endif %}
+        {% if pdf_url %}
+        <a class="btn {{ 'btn--secondary' if pay_url else 'btn--primary' }}" href="{{ pdf_url }}">
+          {{ ui.icon('download') }} Descargar PDF
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 
-{{ doc_ui.doc_footer(theme) }}
-{{ doc_ui.whatsapp_float(theme) }}
+{{ ui.doc_footer(theme, 'Gracias por tu confianza.', 'Estamos para servirte.') }}
+{{ ui.whatsapp_float(theme) }}
 
 </body>
 </html>

@@ -1,100 +1,209 @@
 {#
-  COMPONENTES COMPARTIDOS DEL SISTEMA DE DOCUMENTOS (29-ago-2026)
+  COMPONENTES COMPARTIDOS DEL SISTEMA DE DOCUMENTOS (v2, 29-ago-2026)
 
-  Macros Jinja que usan tanto la cotizacion como la factura, para no
-  mantener dos versiones del mismo encabezado/footer/badge/pagos.
-  Kevin pidio algo conceptualmente equivalente a BrandHeader,
-  DocumentStatus, PaymentSummary, PaymentHistory, DocumentFooter...
+  Kevin: "cotizacion y factura deben construirse sobre un sistema compartido
+  de componentes. No quiero duplicacion visual arbitraria".
 
-  Uso:  {% import '_document_parts.html' as doc with context %}
-        {{ doc.brand_header(theme) }}
+  Uso:  {% import '_document_parts.html' as ui with context %}
+        {{ ui.topbar(theme, 'Cotización', 'N.º LVEZ-1', 'Aceptada', 'success') }}
 
-  Todo sale del `theme` que resolvio _document_theme() -- ningun macro
-  conoce ninguna marca por nombre.
+  Ningun macro conoce ninguna marca por nombre: todo sale del `theme` que
+  resolvio _document_theme() en app.py.
 #}
 
-{# --- BrandHeader: barra superior, identica en los dos documentos --- #}
-{% macro brand_header(theme) %}
-<header class="doc-header">
-  <div class="doc-header-inner">
+{# ---------------- ICONOS (inline, sin dependencias) ---------------- #}
+{% macro icon(nombre) -%}
+{%- set paths = {
+  'calendar': '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  'pin': '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"/><circle cx="12" cy="10" r="3"/>',
+  'mail': '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
+  'phone': '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/>',
+  'wallet': '<path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5"/><path d="M16 12h.01"/>',
+  'check-circle': '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  'alert-circle': '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  'download': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  'file': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/>',
+  'camera': '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/>',
+  'image': '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+  'video': '<path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2"/>',
+  'users': '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9"/>',
+  'sparkle': '<path d="m12 3 1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4Z"/>',
+  'x-circle': '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>',
+  'dot': '<circle cx="12" cy="12" r="5"/>',
+  'heart': '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8Z"/>'
+} -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ paths.get(nombre, paths['dot'])|safe }}</svg>
+{%- endmacro %}
+
+{# Iconos rellenos (para los marcadores del timeline y el corazon) #}
+{% macro icon_solid(nombre) -%}
+{%- set paths = {
+  'check': '<path d="M20 6 9 17l-5-5" stroke-width="3"/>',
+  'x': '<path d="M18 6 6 18M6 6l12 12" stroke-width="3"/>',
+  'dot': '<circle cx="12" cy="12" r="6" fill="currentColor" stroke="none"/>',
+  'heart': '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8Z" fill="currentColor" stroke="none"/>'
+} -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ paths.get(nombre, paths['dot'])|safe }}</svg>
+{%- endmacro %}
+
+{# --------------------------------------------------------------
+   BrandHeader -- marca a la izquierda, referencia + estado a la derecha.
+   Identico en los dos documentos: es lo primero que hace que se vean
+   hermanos.
+   -------------------------------------------------------------- #}
+{% macro topbar(theme, tipo='', referencia='', estado_label='', estado_tono='neutral') %}
+<header class="doc-topbar">
+  <div class="doc-topbar-inner">
     <div class="doc-brand">
       {% if theme.logo_url %}<img class="doc-brand-logo" src="{{ theme.logo_url }}" alt="">{% endif %}
-      <div class="doc-brand-name">{{ theme.display_name }}</div>
+      <div style="min-width:0;">
+        <div class="doc-brand-name">{{ theme.display_name }}</div>
+        {% if theme.tagline %}<div class="doc-brand-tag">{{ theme.tagline }}</div>{% endif %}
+      </div>
     </div>
-    {% if theme.tagline %}<div class="doc-brand-tag">{{ theme.tagline }}</div>{% endif %}
+    <div class="doc-topbar-right">
+      {% if tipo %}
+      <div class="doc-ref">{{ tipo }}{% if referencia %} N.º {{ referencia }}{% endif %}</div>
+      {% endif %}
+      {% if estado_label %}{{ status_badge(estado_label, estado_tono) }}{% endif %}
+    </div>
   </div>
 </header>
 {% endmacro %}
 
-{# --- DocumentFooter --- #}
-{% macro doc_footer(theme) %}
-<footer class="doc-footer">
-  <div class="doc-footer-name">{{ theme.display_name }}</div>
-  <div class="doc-footer-meta">
-    {%- if theme.phone %}Tel: {{ theme.phone }}{% endif -%}
-    {%- if theme.phone and theme.email %} &middot; {% endif -%}
-    {%- if theme.email %}{{ theme.email }}{% endif -%}
+{# --- StatusBadge: texto + punto con forma, nunca solo color --- #}
+{% macro status_badge(label, tono='neutral', plano=False) %}
+<span class="badge badge--{{ tono }}{{ ' badge--flat' if plano else '' }}">{{ label }}</span>
+{% endmacro %}
+
+{# --- MetaGrid: etiqueta con icono arriba, valor con peso abajo --- #}
+{% macro meta_item(label, value, ico='') %}
+{% if value %}
+<div class="meta-item">
+  <div class="meta-label">{% if ico %}{{ icon(ico) }}{% endif %}{{ label }}</div>
+  <div class="meta-value">{{ value }}</div>
+</div>
+{% endif %}
+{% endmacro %}
+
+{# --------------------------------------------------------------
+   SummaryCards -- Total / Pagado / Pendiente, cada una con su icono.
+   La tercera cambia de tono segun si queda saldo: una factura saldada
+   tiene que sentirse resuelta, no en alerta.
+   -------------------------------------------------------------- #}
+{% macro summary_cards(simbolo, total, pagado, pendiente) %}
+<div class="summary-cards">
+  <div class="summary-card">
+    <div class="summary-card__icon">{{ icon('wallet') }}</div>
+    <div>
+      <div class="summary-card__label">Total</div>
+      <div class="summary-card__value num">{{ simbolo }}{{ '{:,.2f}'.format(total or 0) }}</div>
+    </div>
   </div>
-  {% if theme.footer_text %}<div class="doc-footer-meta">{{ theme.footer_text }}</div>{% endif %}
+  <div class="summary-card summary-card--paid">
+    <div class="summary-card__icon">{{ icon('check-circle') }}</div>
+    <div>
+      <div class="summary-card__label">Pagado</div>
+      <div class="summary-card__value num">{{ simbolo }}{{ '{:,.2f}'.format(pagado or 0) }}</div>
+    </div>
+  </div>
+  <div class="summary-card {{ 'summary-card--settled' if (pendiente or 0) <= 0 else 'summary-card--due' }}">
+    <div class="summary-card__icon">{{ icon('check-circle' if (pendiente or 0) <= 0 else 'alert-circle') }}</div>
+    <div>
+      <div class="summary-card__label">{{ 'Saldo' if (pendiente or 0) <= 0 else 'Pendiente' }}</div>
+      <div class="summary-card__value num">{{ simbolo }}{{ '{:,.2f}'.format(pendiente or 0) }}</div>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{# --------------------------------------------------------------
+   PaymentTimeline -- fecha, posicion en el plan, estado y monto.
+   `filas` viene armada desde Python; aca no se calcula nada.
+   -------------------------------------------------------------- #}
+{% macro payment_timeline(simbolo, filas) %}
+<ul class="timeline">
+  {% for f in filas %}
+  <li class="timeline__item timeline__item--{{ f.estado }}">
+    <span class="timeline__dot">
+      {%- if f.estado == 'paid' %}{{ icon_solid('check') }}
+      {%- elif f.estado == 'due' %}{{ icon_solid('x') }}
+      {%- else %}{{ icon_solid('dot') }}{% endif -%}
+    </span>
+    <div>
+      <div class="timeline__when">{{ f.cuando }}</div>
+      <div class="timeline__pos">{{ f.posicion }}{% if f.posicion and f.etiqueta %} &middot; {% endif %}{{ f.etiqueta }}</div>
+    </div>
+    <div class="timeline__amount num">{{ simbolo }}{{ '{:,.2f}'.format(f.monto or 0) }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% endmacro %}
+
+{# --------------------------------------------------------------
+   Card ancha destacada: proximo pago, descargar PDF, CTA.
+   -------------------------------------------------------------- #}
+{#
+  `monto` se formatea DENTRO del macro a proposito. Antes el llamador
+  armaba el HTML del importe y lo pasaba como string: Jinja lo autoescapaba
+  y el cliente veia el <div ...> crudo en vez de la cifra, justo en la
+  linea mas visible de la factura. Pasando el numero, el escapado deja de
+  ser un problema y no hace falta ningun |safe.
+#}
+{% macro wide_card(ico, label, valor, simbolo='', monto=None, acento=False) %}
+<div class="card {{ 'card--accent' if acento else '' }}">
+  <div class="wide-card">
+    <div class="wide-card__icon">{{ icon(ico) }}</div>
+    <div class="wide-card__text">
+      {% if label %}<div class="wide-card__label">{{ label }}</div>{% endif %}
+      <div class="wide-card__value">{{ valor }}</div>
+    </div>
+    {% if monto is not none %}
+    <div class="wide-card__amount num">{{ simbolo }}{{ '{:,.2f}'.format(monto) }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{# --------------------------------------------------------------
+   FooterBlock -- marca / contacto / mensaje de cierre
+   -------------------------------------------------------------- #}
+{% macro doc_footer(theme, mensaje='', firma='') %}
+<footer class="doc-footer">
+  <div class="doc-footer__inner">
+    <div class="doc-footer__brand">
+      {% if theme.logo_url %}
+        <img class="doc-brand-logo" src="{{ theme.logo_url }}" alt="" style="width:34px;height:34px;">
+      {% else %}
+        <div class="doc-footer__mark" aria-hidden="true">{{ (theme.display_name or '?')[:1]|upper }}</div>
+      {% endif %}
+      <div style="min-width:0;">
+        <div class="doc-footer__name">{{ theme.display_name }}</div>
+        {% if theme.tagline %}<div class="doc-footer__tag">{{ theme.tagline }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="doc-footer__contact">
+      {% if theme.email %}<div class="doc-footer__line">{{ icon('mail') }}<span>{{ theme.email }}</span></div>{% endif %}
+      {% if theme.phone %}<div class="doc-footer__line">{{ icon('phone') }}<span>{{ theme.phone }}</span></div>{% endif %}
+      {% if theme.footer_text %}<div class="doc-footer__line">{{ icon('pin') }}<span>{{ theme.footer_text }}</span></div>{% endif %}
+    </div>
+
+    <div class="doc-footer__note">
+      {% if mensaje %}{{ mensaje }}{% endif %}
+      {% if firma %}<strong>{{ firma }}</strong>{% endif %}
+      <span class="doc-footer__heart">{{ icon_solid('heart') }}</span>
+    </div>
+  </div>
 </footer>
 {% endmacro %}
 
-{# --- DocumentStatus: badge + texto, nunca solo color --- #}
-{% macro status_badge(label, tone) %}
-<span class="doc-badge doc-badge--{{ tone or 'neutral' }}">{{ label }}</span>
-{% endmacro %}
-
-{# --- ClientInformation / metadatos en fila --- #}
-{% macro meta_item(value, label) %}
-<div class="doc-meta-item">
-  <div class="doc-meta-value">{{ value }}</div>
-  <div class="doc-meta-label">{{ label }}</div>
-</div>
-{% endmacro %}
-
-{# --- PaymentSummary: las tres cifras que Kevin quiere ver de inmediato ---
-   `pendiente` decide el tono: si ya no se debe nada, la tercera celda se
-   presenta como resuelta (verde) en vez de como deuda (rojo). #}
-{% macro figures(simbolo, total, pagado, pendiente) %}
-<div class="figure-grid">
-  <div class="figure-cell">
-    <div class="figure-label">Total</div>
-    <div class="figure-value num">{{ simbolo }}{{ '{:,.2f}'.format(total or 0) }}</div>
-  </div>
-  <div class="figure-cell figure-cell--paid">
-    <div class="figure-label">Pagado</div>
-    <div class="figure-value num">{{ simbolo }}{{ '{:,.2f}'.format(pagado or 0) }}</div>
-  </div>
-  <div class="figure-cell {{ 'figure-cell--settled' if (pendiente or 0) <= 0 else 'figure-cell--due' }}">
-    <div class="figure-label">{{ 'Saldo' if (pendiente or 0) <= 0 else 'Pendiente' }}</div>
-    <div class="figure-value num">{{ simbolo }}{{ '{:,.2f}'.format(pendiente or 0) }}</div>
-  </div>
-</div>
-{% endmacro %}
-
-{# --- PaymentHistory: una fila por cuota real del CRM ---
-   `filas` viene ya preparada desde Python (no se calcula nada aca):
-   {estado: 'paid'|'due'|'next'|'scheduled', cuando, nota, monto} #}
-{% macro payment_history(simbolo, filas) %}
-<div class="pay-list">
-  {% for f in filas %}
-  <div class="pay-item pay-item--{{ f.estado }}">
-    <span class="pay-dot" aria-hidden="true"></span>
-    <div>
-      <div class="pay-when">{{ f.cuando }}</div>
-      {% if f.nota %}<div class="pay-note">{{ f.nota }}</div>{% endif %}
-    </div>
-    <div class="pay-amount num">{{ simbolo }}{{ '{:,.2f}'.format(f.monto or 0) }}</div>
-  </div>
-  {% endfor %}
-</div>
-{% endmacro %}
-
-{# --- DocumentActions: WhatsApp flotante del tenant --- #}
+{# --- WhatsApp flotante del tenant --- #}
 {% macro whatsapp_float(theme) %}
 {% if theme.whatsapp %}
 {% set _wa = theme.whatsapp | replace(' ','') | replace('-','') | replace('(','') | replace(')','') | replace('+','') %}
-<a class="doc-wa" id="doc-wa" href="https://wa.me/{{ _wa }}" target="_blank" rel="noopener"
+<a class="doc-wa doc-noprint" id="doc-wa" href="https://wa.me/{{ _wa }}" target="_blank" rel="noopener"
    aria-label="Escribinos por WhatsApp">
   <svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M17.47 14.38c-.29-.15-1.71-.85-1.98-.94-.27-.1-.46-.15-.65.15-.19.29-.75.94-.92 1.13-.17.19-.34.22-.63.07-.29-.15-1.22-.45-2.33-1.44-.86-.77-1.44-1.71-1.61-2-.17-.29-.02-.45.13-.6.13-.13.29-.34.44-.51.15-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.07-.15-.65-1.57-.89-2.15-.23-.56-.47-.48-.65-.49-.17-.01-.36-.01-.55-.01-.19 0-.51.07-.78.36-.27.29-1.02 1-1.02 2.43 0 1.43 1.04 2.82 1.19 3.01.15.19 2.05 3.13 4.96 4.39.69.3 1.23.48 1.65.61.69.22 1.32.19 1.82.11.55-.08 1.71-.7 1.95-1.38.24-.68.24-1.26.17-1.38-.07-.12-.26-.19-.55-.34z"/><path d="M12 2C6.48 2 2 6.48 2 12c0 1.98.58 3.83 1.58 5.39L2 22l4.75-1.53C8.26 21.44 10.08 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18.15c-1.7 0-3.36-.46-4.8-1.32l-.34-.2-3.05.98.99-2.97-.22-.35C3.63 14.9 3.15 13.47 3.15 12 3.15 7.13 7.13 3.15 12 3.15S20.85 7.13 20.85 12 16.87 20.85 12 20.85z"/></svg>
 </a>

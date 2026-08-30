@@ -4838,6 +4838,11 @@ def _invoice_document(invoice_id, *, tenant_id=None):
     hoy = date.today()
     filas = []
     proximo = None
+    # La moneda sale del tema de la cuenta, no escrita a mano: una cuenta
+    # que no facture en quetzales mostraria el simbolo equivocado.
+    simbolo_moneda = (_document_theme(
+        (job or {}).get('tenant_id') or (selected or {}).get('tenant_id')
+    ) or {}).get('currency_symbol') or 'Q'
     for fila in schedule:
         importe = _row_original_amount(fila)
         cobrado = _row_paid_amount(fila)
@@ -4863,21 +4868,36 @@ def _invoice_document(invoice_id, *, tenant_id=None):
         else:
             estado = 'scheduled'
 
-        cuota_txt = f"Pago {fila.get('cuota')}" if fila.get('cuota') else 'Pago'
+        # El timeline separa "posicion en el plan" (Pago 2/5) de "estado"
+        # (Pagado / Vencido / Proximo pago), en vez de mezclarlos en una
+        # sola cadena: asi el componente puede darle a cada uno su propio
+        # peso visual.
+        # OJO con el nombre de esta variable: `etiqueta` (sin sufijo) es el
+        # estado del DOCUMENTO, ya calculado arriba y devuelto como
+        # 'estado_label'. Llamar igual a la de cada cuota la pisaba en cada
+        # vuelta del bucle, y la factura terminaba mostrando en su badge la
+        # etiqueta de la ultima fila ("PAGADO", "PROGRAMADO", "CANCELADO")
+        # en vez de su propio estado. Por eso va con sufijo _fila.
+        posicion = f"Pago {fila.get('cuota')}" if fila.get('cuota') else 'Pago'
         if cancelada_fila:
             cuando = _format_date_es(vence) or vence or 'Sin fecha'
-            nota = f'{cuota_txt} · cancelado'
+            etiqueta_fila = 'Cancelado'
         elif pagada_completa:
             cuando = _format_date_es(fila.get('paid_date') or fila.get('fecha_pago') or vence) or vence or 'Sin fecha'
-            nota = f'{cuota_txt} · pagado'
+            etiqueta_fila = 'Pagado'
         else:
             cuando = _format_date_es(vence) or vence or 'Sin fecha'
-            nota = f'{cuota_txt} · vencido' if vencida else (
-                f'{cuota_txt} · proximo pago' if estado == 'next' else f'{cuota_txt} · programado')
+            etiqueta_fila = 'Vencido' if vencida else ('Próximo pago' if estado == 'next' else 'Programado')
             if cobrado > 0.005:
-                nota += f' (abonado Q{cobrado:,.2f})'
-        filas.append({'estado': estado, 'cuando': cuando, 'nota': nota,
-                      'monto': importe if pagada_completa else saldo})
+                etiqueta_fila += f' (abonado {simbolo_moneda}{cobrado:,.2f})'
+        filas.append({
+            'estado': estado, 'cuando': cuando,
+            'posicion': posicion, 'etiqueta': etiqueta_fila,
+            # 'nota' se conserva por compatibilidad con consumidores previos
+            # de esta estructura, en minusculas y sin acentos como estaba.
+            'nota': f'{posicion} · {etiqueta_fila.lower()}',
+            'monto': importe if pagada_completa else saldo,
+        })
 
     concepto = (quote.get('paquete_nombre') if quote else None) or selected.get('concepto') or 'Servicios'
     incluye = []
@@ -4893,8 +4913,12 @@ def _invoice_document(invoice_id, *, tenant_id=None):
         'total': total, 'pagado': pagado, 'pendiente': pendiente,
         'estado_label': etiqueta, 'estado_tono': tono, 'estado_detalle': detalle,
         'filas_pago': filas,
+        # El monto del proximo pago sale del saldo vivo, igual que el resto
+        # del documento: restar paid_amount del original ignora el credito
+        # trasladado por un sobrepago y le pediria al cliente mas de lo que
+        # debe.
         'proximo': ({'cuando': _format_date_es(proximo.get('due_date')) or proximo.get('due_date'),
-                     'monto': round(_row_original_amount(proximo) - _row_paid_amount(proximo), 2)}
+                     'monto': _row_saldo_vivo(proximo)}
                     if proximo else None),
         'concepto': concepto,
         'incluye': incluye or [],

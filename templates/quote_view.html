@@ -1,5 +1,26 @@
 <!DOCTYPE html>
 <html lang="es">
+{#
+  COTIZACION PUBLICA -- documento hermano de la factura (v2, 29-ago-2026).
+
+  Construida sobre el sistema compartido (_document_tokens / _document_base
+  / _document_parts). Estructura segun la referencia visual de Kevin:
+
+    topbar marca + Cotizacion N.º + badge de estado
+    hero card: "Cotización para" + nombre + metadata con iconos (+ imagen)
+    banner de estado si ya fue aceptada/rechazada
+    paquete(s): card con nombre, precio destacado e inclusiones como
+      features en columnas por grupo
+    extras / plan de pago / resumen (solo si sigue abierta)
+    portafolio
+    CTA
+    footer de tres zonas
+
+  IMPORTANTE: toda la parte funcional se conserva intacta -- ids,
+  data-attributes, roles ARIA, el form de aceptacion (option_id /
+  plan_pago / extra_ids) y el JS de seleccion. Este archivo cambia como se
+  ve, no que hace.
+#}
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -8,541 +29,537 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="{{ theme.google_fonts_href }}" rel="stylesheet">
 <style>
-/* Sistema de documentos de Flow CRM: los tokens y la base visual son los
-   MISMOS que usa la factura (templates/_document_*.html). Esta plantilla
-   solo agrega debajo lo que es propio de una cotizacion -- la comparacion
-   de paquetes, los extras y el portafolio. La disposicion y la jerarquia
-   de la cotizacion no cambiaron: lo que cambio es con que esta vestida. */
 :root {
 {% include '_document_tokens.html' %}
 }
 {% include '_document_base.html' %}
 
-.wrap { max-width: 1180px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
-.wrap-narrow { max-width: 860px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); }
-/* Etiquetas de seccion en caja baja: el uppercase con mucho tracking es
-   justo lo que envejece una pagina. El peso lo da el titulo, no la
-   etiqueta. */
-.eyebrow {
-  font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: none;
-  color: var(--muted);
-}
-.italic { font-style: italic; }
+/* ---------- Especifico de la cotizacion ---------- */
 
-/* ---------- HERO ---------- */
-.hero { padding: clamp(52px, 11vw, 120px) 0 clamp(40px, 8vw, 72px); }
-.hero-quotenum { font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted); margin-bottom: clamp(18px, 3vw, 28px); }
-.hero-names {
-  font-family: var(--font-serif); font-weight: 400; letter-spacing: -0.03em; line-height: 0.98;
-  font-size: clamp(46px, 9vw, 92px); margin: 0 0 clamp(32px, 6vw, 52px);
-  word-break: break-word;
-}
-.hero-names em { font-style: italic; font-weight: 400; }
-.hero-names .amp { font-size: 0.55em; color: var(--muted); padding: 0 0.06em; font-style: italic; }
-/* Sin regla horizontal: el espacio hace de separador. */
-.hero-divider { display: none; }
-.hero-meta { display: flex; flex-wrap: wrap; gap: clamp(32px, 7vw, 72px); }
-.hero-stat { min-width: 0; max-width: 100%; }
-.hero-stat .v { font-size: 16px; font-weight: 500; overflow-wrap: break-word; letter-spacing: -0.01em; }
-.hero-stat .l { font-size: 12.5px; color: var(--muted); letter-spacing: 0; text-transform: none; margin-top: 5px; }
-@media (max-width: 620px) {
-  .hero-meta { flex-direction: column; gap: 16px; }
-}
-
-/* ---------- SECTIONS ----------
-   El aire separa, no las lineas. */
-.section { padding: clamp(48px, 9vw, 104px) 0 0; }
-.section-head { margin-bottom: clamp(26px, 5vw, 44px); }
-.section-title {
-  font-family: var(--font-serif); font-weight: 400;
-  font-size: clamp(28px, 4.4vw, 40px); margin: 10px 0 0;
-  letter-spacing: -0.02em; line-height: 1.12;
-}
-.section-head.center { text-align: center; }
-.section-intro { font-size: 15.5px; color: var(--text-secondary); max-width: 58ch; margin: 14px 0 0; line-height: 1.65; }
-.section-head.center .section-intro { margin-left: auto; margin-right: auto; }
-
-/* ---------- STATUS BANNER ---------- */
-.status-banner {
-  border-radius: var(--radius-lg); background: var(--surface);
-  box-shadow: var(--shadow-card);
-  padding: 18px 22px; font-size: 15px;
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-}
-.status-banner.no { color: var(--text-secondary); }
-
-/* ---------- OPTIONS ---------- */
-/* Las opciones dejan de ser columnas pegadas separadas por lineas: ahora
-   son tarjetas con aire entre ellas y sombra en vez de borde. La
-   comparacion sigue siendo lado a lado, pero cada opcion respira. */
-.options-grid {
-  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(290px, 1fr);
-  gap: clamp(12px, 1.8vw, 20px);
-  overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin; padding: 4px;
-}
-.options-grid.single { grid-auto-flow: row; grid-auto-columns: unset; grid-template-columns: minmax(0,1fr); max-width: 640px; margin: 0 auto; }
+/* Opciones de paquete: una card por opcion. Cuando hay varias, se comparan
+   lado a lado; con una sola, ocupa el ancho como propuesta unica. */
+.options-grid { display: grid; gap: clamp(12px, 1.6vw, 18px); grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.options-grid.single { grid-template-columns: 1fr; }
 .opt {
-  padding: clamp(24px, 3vw, 32px);
-  scroll-snap-align: start; outline: none; cursor: pointer;
-  background: var(--surface); border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  transition: box-shadow .2s ease, transform .2s ease, background-color .2s ease;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  padding: clamp(18px, 2.4vw, 26px); cursor: pointer; outline: none;
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
 }
-.opt:hover { box-shadow: var(--shadow-raised); transform: translateY(-2px); }
-.opt:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
-/* Seleccionado: veladura de marca + anillo del propio color. Se nota sin
-   convertirse en un bloque de color plano. */
-.opt.selected {
-  background: var(--primary-tint);
-  box-shadow: 0 0 0 1.5px var(--primary), var(--shadow-raised);
-}
+.opt:hover { border-color: var(--border-strong); }
+.opt:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.opt.selected { border-color: var(--primary); background: var(--primary-tint); }
+.opt-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .opt-recommended {
-  display: inline-block; font-size: 12px; font-weight: 500; letter-spacing: 0;
-  color: var(--primary-dark);
-  background: var(--primary-soft); border-radius: 999px; padding: 5px 12px; margin-bottom: 14px;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.7px; text-transform: uppercase;
+  color: var(--primary-dark); background: var(--primary-soft);
+  border-radius: 999px; padding: 5px 11px; margin-bottom: 12px;
 }
-.opt-num { font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
-.opt-name {
-  font-family: var(--font-serif); font-weight: 400; font-size: clamp(24px, 3.2vw, 30px);
-  margin: 0; line-height: 1.1; letter-spacing: -0.02em;
-}
-.opt-subtitle { font-size: 14px; color: var(--text-secondary); margin-top: 6px; }
-.opt-price-wrap { margin-top: clamp(20px, 3vw, 28px); }
-.opt-price-old { font-size: 14px; color: var(--muted); text-decoration: line-through; }
-.opt-price {
-  font-family: var(--font-serif); font-weight: 400; font-size: clamp(38px, 5vw, 52px);
-  letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums;
-}
-.opt-price-currency { font-size: 12.5px; color: var(--muted); letter-spacing: 0; text-transform: none; margin-top: 6px; }
-.opt-desc { font-size: 14.5px; color: var(--text-secondary); margin: 20px 0 0; line-height: 1.6; }
-.opt-hours { font-size: 13px; color: var(--text-secondary); margin-top: 12px; }
-.opt-groups { margin-top: 26px; display: grid; gap: 22px; grid-template-columns: 1fr; }
-.opt-group-title {
-  font-size: 12.5px; font-weight: 500; letter-spacing: 0; text-transform: none;
-  color: var(--muted); margin-bottom: 10px;
-}
-.opt-list { list-style: none; margin: 0; padding: 0; }
-.opt-list li { font-size: 14.5px; padding: 4px 0; color: var(--text-primary); }
-.opt-note { font-size: 13.5px; color: var(--text-secondary); font-style: italic; margin-top: 18px; }
+.opt-num { font-size: 11.5px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.opt-name { font-family: var(--font-serif); font-weight: 400; font-size: clamp(22px, 2.6vw, 28px); letter-spacing: -0.02em; line-height: 1.1; margin: 0; }
+.opt-subtitle { font-size: 13.5px; color: var(--text-secondary); margin-top: 6px; }
+.opt-price-wrap { text-align: right; flex-shrink: 0; }
+.opt-price-label { font-size: 10.5px; font-weight: 600; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); }
+.opt-price-old { font-size: 13px; color: var(--muted); text-decoration: line-through; }
+.opt-price { font-size: clamp(24px, 3vw, 32px); font-weight: 600; letter-spacing: -0.03em; color: var(--primary); font-variant-numeric: tabular-nums; margin-top: 3px; }
+.opt-price-currency { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.opt-desc { font-size: 13.5px; color: var(--text-secondary); margin: 14px 0 0; line-height: 1.6; }
+.opt-body { margin-top: clamp(18px, 2.4vw, 24px); }
+.opt-note { font-size: 12.5px; color: var(--muted); font-style: italic; margin-top: 16px; }
 .opt-select {
-  margin-top: 26px; display: inline-flex; align-items: center; gap: 6px;
-  background: transparent; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  padding: 12px 20px; color: var(--text-primary);
-  font-family: var(--font-sans); font-size: 14px; font-weight: 500; letter-spacing: -0.01em;
-  transition: background-color .18s, color .18s, border-color .18s;
+  margin-top: 20px; display: inline-flex; align-items: center; gap: 7px;
+  background: transparent; border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  padding: 11px 20px; color: var(--text-primary);
+  font-family: var(--font-sans); font-size: 14px; font-weight: 550; letter-spacing: -0.01em;
+  transition: background-color .16s, color .16s, border-color .16s;
 }
 .opt.selected .opt-select { background: var(--primary); color: #fff; border-color: var(--primary); }
 .opt.selected .opt-select::before { content: '✓ '; }
 
-/* ---------- EXTRAS ---------- */
+/* Extras */
 .extra-row {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: clamp(18px, 2.4vw, 22px);
-  background: var(--surface); border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card); margin-bottom: 10px;
-  cursor: pointer; outline: none;
-  transition: box-shadow .18s ease, background-color .18s ease;
+  padding: 15px 0; border-bottom: 1px solid var(--border); cursor: pointer; outline: none;
 }
-.extra-row:last-child { margin-bottom: 0; }
-.extra-row:hover { box-shadow: var(--shadow-raised); }
-.extra-row.checked { background: var(--primary-tint); box-shadow: 0 0 0 1.5px var(--primary), var(--shadow-card); }
-.extra-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
-.extra-name { font-size: 15.5px; font-weight: 500; }
-.extra-desc { font-size: 13.5px; color: var(--text-secondary); margin-top: 4px; }
-.extra-right { display: flex; align-items: center; gap: 18px; flex-shrink: 0; }
-.extra-price { font-size: 15.5px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.extra-row:last-child { border-bottom: none; }
+.extra-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.extra-name { font-size: 14.5px; font-weight: 550; }
+.extra-desc { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+.extra-right { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.extra-price { font-size: 14.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .extra-action {
-  font-size: 13.5px; font-weight: 500; letter-spacing: -0.01em; color: var(--text-secondary);
+  font-size: 13px; font-weight: 550; color: var(--text-secondary);
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  padding: 10px 16px; min-width: 116px; text-align: center; background: transparent;
-  transition: background-color .18s, color .18s, border-color .18s;
+  padding: 9px 15px; min-width: 106px; text-align: center; background: var(--surface);
+  transition: background-color .16s, color .16s, border-color .16s;
 }
 .extra-row.checked .extra-action { background: var(--primary); color: #fff; border-color: var(--primary); }
+.extra-row.checked .extra-name { color: var(--primary-dark); }
 
-/* ---------- PLAN DE PAGO ---------- */
-.plan-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+/* Plan de pago */
+.plan-row { display: flex; flex-wrap: wrap; gap: 10px; }
 .plan-opt {
-  border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface);
-  padding: 14px 28px; cursor: pointer; outline: none;
-  font-size: 14.5px; font-weight: 500; color: var(--text-primary); letter-spacing: -0.01em;
-  transition: background-color .18s, color .18s, border-color .18s, transform .18s;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface);
+  padding: 12px 22px; cursor: pointer; outline: none;
+  font-size: 14px; font-weight: 550; color: var(--text-primary); letter-spacing: -0.01em;
+  transition: background-color .16s, color .16s, border-color .16s;
 }
-.plan-opt:hover { transform: translateY(-1px); }
-.plan-opt:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.plan-opt:hover { background: var(--surface-2); }
+.plan-opt:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .plan-opt.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
 
-/* ---------- SUMMARY ---------- */
-.summary-row { display: flex; justify-content: space-between; gap: 12px; font-size: 15.5px; padding: 10px 0; }
+/* Resumen */
+.summary-row { display: flex; justify-content: space-between; gap: 14px; font-size: 14.5px; padding: 11px 0; }
+.summary-row + .summary-row { border-top: 1px solid var(--border); }
 .summary-row .k { color: var(--text-secondary); }
-.summary-row .v { font-variant-numeric: tabular-nums; }
-.summary-row.total { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 22px; }
-.summary-row.total .k { font-family: var(--font-serif); font-size: 22px; color: var(--text-primary); font-style: italic; letter-spacing: -0.01em; }
-.summary-row.total .v { font-family: var(--font-serif); font-size: clamp(34px, 5vw, 46px); font-weight: 400; letter-spacing: -0.03em; }
-.summary-plan { margin-top: clamp(30px, 5vw, 44px); padding-top: clamp(22px, 4vw, 30px); border-top: 1px solid var(--border); }
-.summary-plan .plan-name { font-family: var(--font-serif); font-size: 22px; margin-top: 6px; letter-spacing: -0.01em; }
-.summary-schedule { margin-top: 14px; }
-.cta-row { margin-top: clamp(28px, 5vw, 40px); display: flex; flex-wrap: wrap; gap: 14px; }
+.summary-row .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+.summary-row.total { border-top: 1.5px solid var(--border-strong); margin-top: 4px; padding-top: 16px; }
+.summary-row.total .k { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.summary-row.total .v { font-size: clamp(22px, 2.6vw, 28px); letter-spacing: -0.03em; color: var(--primary); }
+.summary-plan { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
+.plan-name { font-size: 16px; font-weight: 600; margin-top: 4px; }
+.summary-schedule { margin-top: 12px; }
+.summary-hint { font-size: 12.5px; color: var(--muted); margin-top: 16px; }
 .btn-accept {
-  flex: 1 1 280px; background: var(--primary); color: #fff; border: none;
+  flex: 1 1 260px; background: var(--primary); color: #fff; border: none;
   border-radius: var(--radius-md); font-family: var(--font-sans);
-  font-size: 15.5px; font-weight: 500; letter-spacing: -0.01em; padding: 19px 28px; min-height: 58px;
-  cursor: pointer;
-  box-shadow: 0 1px 2px rgba(18,18,26,.10), 0 12px 28px -14px var(--primary);
-  transition: background-color .18s, transform .18s, opacity .18s;
+  font-size: 15px; font-weight: 550; letter-spacing: -0.01em; padding: 15px 28px; min-height: 50px;
+  cursor: pointer; box-shadow: 0 1px 2px rgba(18,18,26,.08);
+  transition: background-color .16s, opacity .16s;
 }
-.btn-accept:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-1px); }
-.btn-accept:active:not(:disabled) { transform: translateY(0); }
-.btn-accept:disabled { opacity: .38; cursor: not-allowed; box-shadow: none; }
+.btn-accept:hover:not(:disabled) { background: var(--primary-dark); }
+.btn-accept:disabled { opacity: .4; cursor: not-allowed; }
 .btn-decline {
-  background: transparent; color: var(--text-secondary);
+  background: var(--surface); color: var(--text-secondary);
   border: 1px solid var(--border-strong); border-radius: var(--radius-md); font-family: var(--font-sans);
-  font-size: 14.5px; font-weight: 500; padding: 19px 28px; min-height: 58px; cursor: pointer;
-  transition: border-color .18s, color .18s;
+  font-size: 14px; font-weight: 550; padding: 15px 24px; min-height: 50px; cursor: pointer;
+  transition: background-color .16s, color .16s;
 }
-.btn-decline:hover { color: var(--text-primary); }
-.summary-hint { font-size: 13.5px; color: var(--muted); margin-top: 20px; }
+.btn-decline:hover { background: var(--surface-2); color: var(--text-primary); }
+.cta-row { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 12px; }
+@media (max-width: 620px) { .cta-row { flex-direction: column; } .cta-row form { width: 100%; } .btn-decline { width: 100%; } }
 
-/* ---------- PORTFOLIO ---------- */
-.pf-video { margin-bottom: clamp(32px, 6vw, 48px); }
-.pf-video-frame {
-  position: relative; width: 100%; aspect-ratio: 16/9; background: var(--text-primary);
-  border-radius: var(--radius-lg); overflow: hidden;
-}
+/* Portafolio */
+.pf-video { margin-bottom: clamp(14px, 2vw, 20px); }
+.pf-video-frame { position: relative; width: 100%; aspect-ratio: 16/9; background: var(--surface-2); border-radius: var(--radius-md); overflow: hidden; }
 .pf-video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-.pf-list { display: flex; flex-direction: column; gap: 10px; }
+.pf-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: clamp(10px, 1.4vw, 14px); }
 .pf-row {
-  display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 20px; align-items: center;
-  padding: clamp(16px, 2.4vw, 20px);
-  background: var(--surface); border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  text-decoration: none; color: inherit;
-  transition: box-shadow .2s ease, transform .2s ease;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 14px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); text-decoration: none; color: inherit;
+  transition: border-color .16s ease;
 }
-.pf-list a.pf-row { cursor: pointer; }
-.pf-list a.pf-row:hover { box-shadow: var(--shadow-raised); transform: translateY(-2px); }
-.pf-thumb {
-  width: 92px; height: 92px; object-fit: cover; flex-shrink: 0;
-  background: var(--surface-2); border-radius: var(--radius-md);
-}
-.pf-row-main { display: flex; align-items: center; gap: 20px; min-width: 0; }
-.pf-names { font-family: var(--font-serif); font-size: clamp(22px, 2.6vw, 27px); letter-spacing: -0.02em; }
-.pf-loc { font-size: 13.5px; color: var(--text-secondary); margin-top: 4px; }
-.pf-arrow { font-size: 20px; color: var(--muted); flex-shrink: 0; }
-.pf-pass-wrap { margin-top: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.pf-pass-field {
-  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2);
-  font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 1.5px; font-size: 12.5px; padding: 8px 12px;
-}
+.pf-list a.pf-row:hover { border-color: var(--border-strong); }
+.pf-row-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.pf-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface-2); flex-shrink: 0; }
+.pf-names { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.pf-loc { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
+.pf-arrow { color: var(--muted); flex-shrink: 0; }
+.pf-arrow svg { width: 17px; height: 17px; }
+.pf-pass-wrap { margin-top: 9px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pf-pass-label { font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+.pf-pass-field { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 1px; font-size: 12px; padding: 6px 10px; }
 .pf-copy {
-  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
-  color: var(--text-secondary); font-size: 11.5px; font-weight: 600;
-  padding: 9px 14px; min-height: 38px; cursor: pointer;
-  transition: border-color .16s, color .16s;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface);
+  color: var(--text-secondary); font-size: 12px; font-weight: 550; padding: 7px 12px; cursor: pointer;
 }
-.pf-copy:hover { border-color: var(--border-strong); color: var(--text-primary); }
-
-/* ---------- CONDICIONES ---------- */
-/* Condiciones: columnas separadas por aire, sin rejilla de bordes. */
-.terms-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: clamp(24px, 4vw, 44px) clamp(28px, 4vw, 56px);
-}
-.term-cell { padding: 0; }
-.term-title { font-size: 15px; font-weight: 500; margin-bottom: 8px; letter-spacing: -0.01em; }
-.term-body { font-size: 14.5px; color: var(--text-secondary); line-height: 1.7; }
-
-/* ---------- FORMA DE PAGO (intro) ---------- */
-.payment-intro { text-align: center; max-width: 60ch; margin: 0 auto clamp(28px, 5vw, 40px); }
-.payment-intro p { font-size: 14.5px; color: var(--text-secondary); line-height: 1.65; margin: 10px 0 0; }
-
-/* ---------- CONFIRM TOAST (extras) ---------- */
-.copied-flash { color: var(--primary); }
-
-/* ---------- RESPONSIVE: TABLET ---------- */
-@media (max-width: 900px) {
-  .options-grid:not(.single) { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); overflow-x: visible; }
-  .options-grid:not(.single) > .opt { border-left: 1px solid var(--border); border-top: 1px solid var(--border); }
-}
-
-/* ---------- RESPONSIVE: MOBILE ---------- */
-@media (max-width: 620px) {
-  .options-grid:not(.single) { grid-template-columns: 1fr; }
-  .options-grid:not(.single) > .opt { border-left: none; }
-  .cta-row { flex-direction: column; }
-  .pf-row { grid-template-columns: 1fr; }
-  .pf-arrow { display: none; }
-  .terms-grid { grid-template-columns: 1fr; }
-}
+.pf-copy:hover { background: var(--surface-2); color: var(--text-primary); }
 </style>
 </head>
 <body>
-{% import '_document_parts.html' as doc with context %}
+{% import '_document_parts.html' as ui with context %}
 
-{{ doc.brand_header(theme) }}
+{% set _estado = quote.status %}
+{# El badge solo se muestra cuando dice algo que al CLIENTE le sirve. El
+   estado interno del CRM ('Enviada', 'Borrador', 'Superada'...) no es
+   asunto suyo, y ademas un status desconocido caia en "BORRADOR" sobre una
+   cotizacion perfectamente viva. #}
+{% set _estado_label = 'Aceptada' if _estado == 'Aceptada' else ('Rechazada' if _estado == 'Rechazada' else '') %}
+{% set _estado_tono = 'success' if _estado == 'Aceptada' else 'neutral' %}
 
-<div class="wrap hero">
-  <div class="hero-quotenum">Cotización {{ quote.number or ('N.º ' + quote.id[-6:]|upper) }}</div>
-  {% set _nombre = lead.nombre or '' %}
-  {% if ' & ' in _nombre %}
-    {% set _partes = _nombre.split(' & ', 1) %}
-    <h1 class="hero-names">{{ _partes[0] }}<span class="amp"> &amp; </span><em>{{ _partes[1] }}</em></h1>
-  {% elif ' y ' in _nombre %}
-    {% set _partes = _nombre.split(' y ', 1) %}
-    <h1 class="hero-names">{{ _partes[0] }}<span class="amp"> y </span><em>{{ _partes[1] }}</em></h1>
-  {% else %}
-    <h1 class="hero-names">{{ _nombre }}</h1>
-  {% endif %}
-  <hr class="hero-divider">
-  <div class="hero-meta">
-    {% if lead.fecha_tentativa %}<div class="hero-stat"><div class="v">{{ lead.fecha_tentativa }}</div><div class="l">Fecha de la boda</div></div>{% endif %}
-    {% if lead.locacion %}<div class="hero-stat"><div class="v">{{ lead.locacion }}</div><div class="l">Ubicación</div></div>{% endif %}
-    {% if options|length > 1 and quote.status not in ('Aceptada', 'Rechazada') %}
-    <div class="hero-stat"><div class="v">{{ options|length }} opciones</div><div class="l">Modalidades disponibles</div></div>
+{{ ui.topbar(theme, 'Cotización', quote.number or quote.id[-6:]|upper, _estado_label, _estado_tono) }}
+
+<div class="doc-page doc-body" style="padding-top: clamp(18px, 2.4vw, 26px);">
+
+  {# ---------- Hero: para quien es, cuando y donde ---------- #}
+  {% set _hero_img = (portfolio[0].image_url if portfolio and portfolio[0].image_url else '') %}
+  <div class="hero-card{{ ' hero-card--with-image' if _hero_img else '' }}">
+    <div class="hero-card__text">
+      <div class="hero-card__eyebrow">Cotización para</div>
+      {% set _nombre = lead.nombre or '' %}
+      {% if ' & ' in _nombre %}
+        {% set _p = _nombre.split(' & ', 1) %}
+        <h1 class="doc-h1 hero-card__name">{{ _p[0] }} &amp; {{ _p[1] }}</h1>
+      {% elif ' y ' in _nombre %}
+        {% set _p = _nombre.split(' y ', 1) %}
+        <h1 class="doc-h1 hero-card__name">{{ _p[0] }} y {{ _p[1] }}</h1>
+      {% else %}
+        <h1 class="doc-h1 hero-card__name">{{ _nombre }}</h1>
+      {% endif %}
+      <div class="hero-card__meta">
+        {{ ui.meta_item('Fecha de la boda', lead.fecha_tentativa, 'calendar') }}
+        {{ ui.meta_item('Ubicación', lead.locacion, 'pin') }}
+        {% if options|length > 1 and _estado not in ('Aceptada', 'Rechazada') %}
+        {{ ui.meta_item('Modalidades', options|length ~ ' opciones', 'sparkle') }}
+        {% endif %}
+      </div>
+    </div>
+    {% if _hero_img %}
+    <div class="hero-card__media"><img src="{{ _hero_img }}" alt="" loading="lazy"></div>
     {% endif %}
   </div>
-</div>
 
-{# La fecha puede no existir: las cotizaciones importadas de Studio Ninja
-   entran ya como 'Aceptada' sin fecha de aceptacion, y antes eso dejaba en
-   pantalla un "Cotización aceptada el ." colgando. Sin fecha, la frase se
-   cierra sola. `estado_fecha` viene formateada en español desde quote_view(). #}
-{% if quote.status == 'Aceptada' %}
-<div class="wrap">
-  <div class="status-banner">
-    <span class="doc-badge doc-badge--success">Aceptada</span>
-    <span>{% if estado_fecha %}Confirmada el {{ estado_fecha }}.{% else %}Esta cotización ya fue aceptada.{% endif %}</span>
+  {# ---------- Estado del documento ----------
+     La fecha puede no existir: las cotizaciones importadas de Studio Ninja
+     entran ya como 'Aceptada' sin fecha, y antes eso dejaba en pantalla un
+     "aceptada el ." colgando. Sin fecha, la frase se cierra sola. #}
+  {% if _estado == 'Aceptada' %}
+  <div class="card card--accent">
+    <div class="wide-card">
+      <div class="wide-card__icon">{{ ui.icon('check-circle') }}</div>
+      <div class="wide-card__text">
+        <div class="wide-card__value" style="font-size:15.5px;">
+          {% if estado_fecha %}Cotización aceptada el {{ estado_fecha }}{% else %}Esta cotización ya fue aceptada{% endif %}
+        </div>
+        <p class="doc-text doc-text--sm" style="margin-top:2px;">¡Gracias por confiar en nuestro trabajo!</p>
+      </div>
+    </div>
   </div>
-</div>
-{% elif quote.status == 'Rechazada' %}
-<div class="wrap">
-  <div class="status-banner no">
-    <span class="doc-badge doc-badge--neutral">Rechazada</span>
-    <span>{% if estado_fecha %}Rechazada el {{ estado_fecha }}.{% endif %} Escribinos si querés revisar otras opciones.</span>
+  {% elif _estado == 'Rechazada' %}
+  <div class="card">
+    <div class="wide-card">
+      <div class="wide-card__icon" style="background:var(--surface-2);color:var(--muted);">{{ ui.icon('x-circle') }}</div>
+      <div class="wide-card__text">
+        <div class="wide-card__value" style="font-size:15.5px;">
+          {% if estado_fecha %}Cotización rechazada el {{ estado_fecha }}{% else %}Esta cotización fue rechazada{% endif %}
+        </div>
+        <p class="doc-text doc-text--sm" style="margin-top:2px;">Escribinos si querés revisar otras opciones.</p>
+      </div>
+    </div>
   </div>
-</div>
-{% endif %}
-
-{% if quote.status == 'Aceptada' %}
-<div class="wrap section">
-  <div class="section-head"><div class="eyebrow">Paquete contratado</div><h2 class="section-title">{{ quote.paquete_nombre }}</h2></div>
-  {% if quote.selected_extras %}
-  <div class="extra-row" style="cursor:default;">
-    <div class="extra-name">{{ quote.paquete_nombre }}</div>
-    <div class="extra-price">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.paquete_precio_base or 0) }}</div>
-  </div>
-  {% for ex in quote.selected_extras %}
-  <div class="extra-row" style="cursor:default;">
-    <div class="extra-name">{{ ex.name }}</div>
-    <div class="extra-price">+{{ theme.currency_symbol }}{{ '{:,.2f}'.format(ex.price or 0) }}</div>
-  </div>
-  {% endfor %}
-  <div class="summary-row total" style="margin-top:14px;"><span class="k">Total</span><span class="v">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.precio_total or 0) }}</span></div>
-  {% else %}
-  <div class="opt-price">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
   {% endif %}
-  {% if quote.incluye %}
-  <ul class="opt-list" style="margin-top:22px;">
-    {% for item in quote.incluye %}
-    <li>— {{ item }}</li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-</div>
-{% if quote.plan_pago and quote.plan_pago > 1 %}
-<div class="wrap section">
-  <div class="section-head"><div class="eyebrow">Plan de pago</div><h2 class="section-title">{{ quote.plan_pago }} pagos</h2></div>
-  {% for p in payment_schedule %}
-  <div class="extra-row" style="cursor:default;">
-    <div><div class="extra-name">Pago {{ p.cuota }} &middot; {{ p.due_date }}</div></div>
-    <div class="extra-price">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(p.amount or 0) }}{% if p.status == 'Pagado' %} &middot; pagado{% endif %}</div>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
 
-{% elif quote.status == 'Rechazada' %}
-<div class="wrap section">
-  <div class="section-head"><div class="eyebrow">Paquete</div><h2 class="section-title">{{ quote.paquete_nombre }}</h2></div>
-  <div class="opt-price">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
-</div>
+{% if _estado == 'Aceptada' %}
+  {# ================= PAQUETE CONTRATADO ================= #}
+  <div class="card">
+    <div class="card__body">
+      <div class="opt-head">
+        <div>
+          <div class="opt-num">Paquete contratado</div>
+          <h2 class="opt-name">{{ quote.paquete_nombre }}</h2>
+        </div>
+        <div class="opt-price-wrap">
+          <div class="opt-price-label">Total</div>
+          <div class="opt-price num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
+        </div>
+      </div>
+
+      {% if quote.selected_extras %}
+      <div class="opt-body">
+        <div class="line-item">
+          <div class="line-item__top">
+            <div class="line-item__name">{{ quote.paquete_nombre }}</div>
+            <div class="line-item__amount num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.paquete_precio_base or 0) }}</div>
+          </div>
+        </div>
+        {% for ex in quote.selected_extras %}
+        <div class="line-item">
+          <div class="line-item__top">
+            <div class="line-item__name">{{ ex.name }}</div>
+            <div class="line-item__amount num">+{{ theme.currency_symbol }}{{ '{:,.2f}'.format(ex.price or 0) }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if quote.incluye %}
+      <div class="opt-body">
+        <div class="feature-group__title">Incluye</div>
+        <ul class="feature-list feature-cols" style="display:grid;">
+          {% for item in quote.incluye %}
+          <li>{{ ui.icon('check-circle') }}<span>{{ item }}</span></li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if quote.plan_pago and quote.plan_pago > 1 and payment_schedule %}
+  <div class="card">
+    <div class="card__body">
+      <h2 class="doc-h2" style="margin-bottom:14px;">Calendario de pagos · {{ quote.plan_pago }} pagos</h2>
+      <ul class="timeline">
+        {% for p in payment_schedule %}
+        <li class="timeline__item timeline__item--{{ 'paid' if p.status == 'Pagado' else 'scheduled' }}">
+          <span class="timeline__dot">{{ ui.icon_solid('check' if p.status == 'Pagado' else 'dot') }}</span>
+          <div>
+            <div class="timeline__when">{{ p.due_date }}</div>
+            <div class="timeline__pos">Pago {{ p.cuota }}{% if p.status == 'Pagado' %} &middot; Pagado{% endif %}</div>
+          </div>
+          <div class="timeline__amount num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(p.amount or 0) }}</div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
+
+{% elif _estado == 'Rechazada' %}
+  <div class="card">
+    <div class="card__body">
+      <div class="opt-head">
+        <div>
+          <div class="opt-num">Paquete</div>
+          <h2 class="opt-name">{{ quote.paquete_nombre }}</h2>
+        </div>
+        <div class="opt-price-wrap">
+          <div class="opt-price-label">Total</div>
+          <div class="opt-price num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
 {% else %}
-<div class="wrap section">
-  <div class="section-head">
-    <div class="eyebrow">{{ 'Elegí tu modalidad' if options|length > 1 else 'Tu propuesta' }}</div>
-    <h2 class="section-title">Opciones</h2>
-  </div>
-  <div id="pkg-options" class="options-grid{{ ' single' if options|length <= 1 else '' }}" role="radiogroup" aria-label="Opciones de paquete">
-    {% for opt in options %}
-    <div class="opt" role="radio" aria-checked="false" tabindex="0"
-         data-option-id="{{ opt.id }}" data-price="{{ opt.precio_total or 0 }}" data-name="{{ opt.name }}">
-      {% if opt.label %}<div class="opt-recommended">{{ opt.label }}</div>{% endif %}
-      {% if options|length > 1 %}<div class="opt-num">{{ '%02d'|format(loop.index) }} / Opción</div>{% endif %}
-      <h3 class="opt-name">{{ opt.name }}</h3>
-      {% if opt.subtitle %}<div class="opt-subtitle">{{ opt.subtitle }}</div>{% endif %}
-      <div class="opt-price-wrap">
-        {% if opt.precio_anterior and opt.precio_anterior|float > (opt.precio_total or 0)|float %}
-        <div class="opt-price-old">{{ theme.currency_symbol }}{{ '{:,.0f}'.format(opt.precio_anterior|float) }}</div>
+  {# ================= OPCIONES ================= #}
+  <div style="margin-bottom: clamp(12px, 1.6vw, 18px);">
+    <div class="section__head" style="margin-bottom:14px;">
+      <div>
+        <h2 class="doc-h2">{{ 'Elegí tu modalidad' if options|length > 1 else 'Tu propuesta' }}</h2>
+        {% if options|length > 1 %}
+        <p class="doc-text doc-text--sm" style="margin-top:6px;">Compará las opciones y elegí la que mejor se adapte a tu boda.</p>
         {% endif %}
-        <div class="opt-price">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(opt.precio_total or 0) }}</div>
-        <div class="opt-price-currency">{{ theme.currency_label }}</div>
       </div>
-      {% if opt.description %}<p class="opt-desc">{{ opt.description }}</p>{% endif %}
-      {% if opt.horas %}<div class="opt-hours">{{ opt.horas|int }} horas continuas de cobertura</div>{% endif %}
-      {% if opt.groups %}
-      <div class="opt-groups">
-        {% for g in opt.groups %}
-        <div>
-          {% if g.title %}<div class="opt-group-title">{{ g.title }}</div>{% endif %}
-          <ul class="opt-list">
-            {% for item in g['items'] %}
-            <li>{{ item }}</li>
+    </div>
+    <div id="pkg-options" class="options-grid{{ ' single' if options|length <= 1 else '' }}" role="radiogroup" aria-label="Opciones de paquete">
+      {% for opt in options %}
+      <div class="opt" role="radio" aria-checked="false" tabindex="0"
+           data-option-id="{{ opt.id }}" data-price="{{ opt.precio_total or 0 }}" data-name="{{ opt.name }}">
+        {% if opt.label %}<div class="opt-recommended">{{ ui.icon('sparkle') }}{{ opt.label }}</div>{% endif %}
+        <div class="opt-head">
+          <div>
+            {% if options|length > 1 %}<div class="opt-num">{{ '%02d'|format(loop.index) }} / Opción</div>{% endif %}
+            <h3 class="opt-name">{{ opt.name }}</h3>
+            {% if opt.subtitle %}<div class="opt-subtitle">{{ opt.subtitle }}</div>{% endif %}
+          </div>
+          <div class="opt-price-wrap">
+            <div class="opt-price-label">Total</div>
+            {% if opt.precio_anterior and opt.precio_anterior|float > (opt.precio_total or 0)|float %}
+            <div class="opt-price-old num">{{ theme.currency_symbol }}{{ '{:,.0f}'.format(opt.precio_anterior|float) }}</div>
+            {% endif %}
+            <div class="opt-price num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(opt.precio_total or 0) }}</div>
+            <div class="opt-price-currency">{{ theme.currency_label }}</div>
+          </div>
+        </div>
+
+        {% if opt.description %}<p class="opt-desc">{{ opt.description }}</p>{% endif %}
+        {% if opt.horas %}
+        <div class="chip-row" style="margin-top:12px;">
+          <span class="chip">{{ opt.horas|int }} horas continuas de cobertura</span>
+        </div>
+        {% endif %}
+
+        {% if opt.groups %}
+        <div class="opt-body feature-cols">
+          {% for g in opt.groups %}
+          <div class="feature-group">
+            {% if g.title %}<div class="feature-group__title">{{ g.title }}</div>{% endif %}
+            <ul class="feature-list">
+              {% for item in g['items'] %}
+              <li>{{ ui.icon('check-circle') }}<span>{{ item }}</span></li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endfor %}
+        </div>
+        {% elif opt.incluye %}
+        <div class="opt-body">
+          <ul class="feature-list feature-cols" style="display:grid;">
+            {% for item in opt.incluye %}
+            <li>{{ ui.icon('check-circle') }}<span>{{ item }}</span></li>
             {% endfor %}
           </ul>
         </div>
+        {% endif %}
+
+        {% if opt.notas %}<div class="opt-note">{{ opt.notas }}</div>{% endif %}
+        <button type="button" class="opt-select" tabindex="-1" aria-hidden="true">Elegir esta opción</button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ================= EXTRAS ================= #}
+  {% if quote.extras_catalog %}
+  <div class="card" id="extras-section" style="display:none;">
+    <div class="card__body">
+      <div class="section__head" style="margin-bottom:6px;">
+        <div>
+          <h2 class="doc-h2">Personalizá tu cobertura</h2>
+          <p class="doc-text doc-text--sm" style="margin-top:6px;">Agregá lo que quieras sumar a tu paquete.</p>
+        </div>
+      </div>
+      <div id="extras-list">
+        {% for ex in quote.extras_catalog %}
+        <div class="extra-row" role="checkbox" aria-checked="false" tabindex="0" data-extra-id="{{ ex.id }}" data-price="{{ ex.price or 0 }}">
+          <div>
+            <div class="extra-name">{{ ex.name }}</div>
+            {% if ex.description %}<div class="extra-desc">{{ ex.description }}</div>{% endif %}
+          </div>
+          <div class="extra-right">
+            <div class="extra-price num">+{{ theme.currency_symbol }}{{ '{:,.0f}'.format(ex.price or 0) }}</div>
+            <div class="extra-action">Agregar</div>
+          </div>
+        </div>
         {% endfor %}
       </div>
-      {% elif opt.incluye %}
-      <ul class="opt-list" style="margin-top:18px;">
-        {% for item in opt.incluye %}
-        <li>{{ item }}</li>
-        {% endfor %}
-      </ul>
-      {% endif %}
-      {% if opt.notas %}<div class="opt-note">{{ opt.notas }}</div>{% endif %}
-      <button type="button" class="opt-select" tabindex="-1" aria-hidden="true">Elegir esta opción</button>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-
-{% if quote.extras_catalog %}
-<div class="wrap section" id="extras-section" style="display:none;">
-  <div class="section-head"><div class="eyebrow">Personalizá</div><h2 class="section-title">Tu cobertura</h2></div>
-  <div id="extras-list">
-    {% for ex in quote.extras_catalog %}
-    <div class="extra-row" role="checkbox" aria-checked="false" tabindex="0" data-extra-id="{{ ex.id }}" data-price="{{ ex.price or 0 }}">
-      <div>
-        <div class="extra-name">{{ ex.name }}</div>
-        {% if ex.description %}<div class="extra-desc">{{ ex.description }}</div>{% endif %}
-      </div>
-      <div class="extra-right">
-        <div class="extra-price">+{{ theme.currency_symbol }}{{ '{:,.0f}'.format(ex.price or 0) }}</div>
-        <div class="extra-action">Agregar</div>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
-<div class="wrap section">
-  <div class="section-head center">
-    <div class="eyebrow">Forma de pago</div>
-    <h2 class="section-title">¿En cuántos pagos?</h2>
-    <div class="payment-intro">
-      <p>La contratación puede dividirse en las cuotas que se muestran abajo. El primer pago reserva la fecha; los siguientes se programan durante los meses previos al evento.</p>
-    </div>
-  </div>
-  <div class="plan-row" id="plan-options" role="radiogroup" aria-label="Plan de pago">
-    {% for n in plan_choices %}
-    <div class="plan-opt" role="radio" aria-checked="false" tabindex="0" data-plan="{{ n }}">{{ 'Pago único' if n == 1 else (n|string + ' pagos') }}</div>
-    {% endfor %}
-  </div>
-</div>
-
-<div class="wrap-narrow section">
-  <div class="section-head"><div class="eyebrow">Tu selección</div><h2 class="section-title">Resumen</h2></div>
-  <div class="summary-row"><span class="k">Modalidad</span><span id="sum-package">Elegí una opción arriba</span></div>
-  <div class="summary-row" id="sum-extras-row" style="display:none;"><span class="k">Extras</span><span id="sum-extras">{{ theme.currency_symbol }}0</span></div>
-  <div class="summary-row total"><span class="k">Total</span><span class="v" id="sum-total">{{ theme.currency_symbol }}0.00</span></div>
-  <div class="summary-plan">
-    <div class="eyebrow">Plan elegido</div>
-    <div class="plan-name" id="sum-plan">—</div>
-    <div class="summary-schedule" id="sum-schedule"></div>
-  </div>
-  <div class="cta-row">
-    <form method="POST" action="{{ public_base }}/accept" id="accept-form" style="flex:1 1 260px;">
-      <input type="hidden" name="option_id" id="accept-option-id">
-      <input type="hidden" name="plan_pago" id="accept-plan-pago">
-      <input type="hidden" name="extra_ids" id="accept-extra-ids">
-      <button type="submit" class="btn-accept" id="accept-btn" disabled style="width:100%;">{{ theme.cta_text }}</button>
-    </form>
-    <form method="POST" action="{{ public_base }}/decline" onsubmit="return confirm('¿Rechazar esta cotización?');">
-      <button type="submit" class="btn-decline">Rechazar</button>
-    </form>
-  </div>
-  <div class="summary-hint">Elegí tu opción y plan de pago. Al aceptar, generamos automáticamente tu calendario de pagos.</div>
-</div>
-{% if quote.notas %}
-<div class="wrap section"><div class="section-head"><div class="eyebrow">Notas</div></div><p class="opt-desc" style="font-style:normal;">{{ quote.notas }}</p></div>
-{% endif %}
-{% endif %}
-
-{% if portfolio %}
-<div class="wrap section">
-  <div class="section-head">
-    <div class="eyebrow">Portafolio</div>
-    <h2 class="section-title">Bodas completas</h2>
-    <p class="section-intro">Algunas bodas reales donde podés ver el estilo, la narrativa y el resultado final del trabajo.</p>
-  </div>
-  {% if theme.featured_video_embed %}
-  <div class="pf-video">
-    <div class="pf-video-frame">
-      <iframe src="{{ theme.featured_video_embed }}" title="Video destacado" loading="lazy"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowfullscreen></iframe>
     </div>
   </div>
   {% endif %}
-  <div class="pf-list">
-    {% for p in portfolio %}
-    {% if p.external_url %}<a class="pf-row" href="{{ p.external_url }}" target="_blank" rel="noopener">{% else %}<div class="pf-row">{% endif %}
-      <div class="pf-row-main">
-        {% if p.image_url %}<img class="pf-thumb" src="{{ p.image_url }}" alt="{{ p.couple_names or p.title }}" loading="lazy">{% endif %}
-        <div>
-          <div class="pf-names">{{ p.couple_names or p.title }}</div>
-          {% if p.couple_names and p.title and p.title != p.couple_names and p.location %}
-          <div class="pf-loc">{{ p.title }} &middot; {{ p.location }}</div>
-          {% elif p.couple_names and p.title and p.title != p.couple_names %}
-          <div class="pf-loc">{{ p.title }}</div>
-          {% elif p.location %}
-          <div class="pf-loc">{{ p.location }}</div>
-          {% endif %}
-          {% if p.blurb %}<div class="pf-loc">{{ p.blurb }}</div>{% endif %}
-          {% if p.password %}
-          <div class="pf-pass-wrap" onclick="event.stopPropagation();">
-            <span class="eyebrow">Contraseña</span>
-            <span class="pf-pass-field" id="pf-pass-{{ loop.index }}">{{ p.password }}</span>
-            <button type="button" class="pf-copy" onclick="copyText('pf-pass-{{ loop.index }}', this)">Copiar</button>
-          </div>
-          {% endif %}
+
+  {# ================= PLAN + RESUMEN ================= #}
+  <div class="col-2" style="margin-bottom: clamp(12px, 1.6vw, 18px);">
+    <div class="card">
+      <div class="card__body">
+        <h2 class="doc-h2" style="margin-bottom:8px;">¿En cuántos pagos?</h2>
+        <p class="doc-text doc-text--sm" style="margin-bottom:16px;">
+          El primer pago reserva la fecha; los siguientes se programan durante los meses previos al evento.
+        </p>
+        <div class="plan-row" id="plan-options" role="radiogroup" aria-label="Plan de pago">
+          {% for n in plan_choices %}
+          <div class="plan-opt" role="radio" aria-checked="false" tabindex="0" data-plan="{{ n }}">{{ 'Pago único' if n == 1 else (n|string + ' pagos') }}</div>
+          {% endfor %}
         </div>
       </div>
-      {% if p.external_url %}<span class="pf-arrow">→</span>{% endif %}
-    {% if p.external_url %}</a>{% else %}</div>{% endif %}
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
-{% if terms_blocks %}
-<div class="wrap section">
-  <div class="section-head"><div class="eyebrow">Información general</div><h2 class="section-title">Detalles a tener en cuenta</h2></div>
-  <div class="terms-grid">
-    {% for b in terms_blocks %}
-    <div class="term-cell">
-      {% if b.title %}<div class="term-title">{{ b.title }}</div>{% endif %}
-      {% if b.body %}<div class="term-body">{{ b.body }}</div>{% endif %}
     </div>
-    {% endfor %}
+
+    <div class="card">
+      <div class="card__body">
+        <h2 class="doc-h2" style="margin-bottom:14px;">Tu selección</h2>
+        <div class="summary-row"><span class="k">Modalidad</span><span id="sum-package">Elegí una opción arriba</span></div>
+        <div class="summary-row" id="sum-extras-row" style="display:none;"><span class="k">Extras</span><span class="v" id="sum-extras">{{ theme.currency_symbol }}0</span></div>
+        <div class="summary-row total"><span class="k">Total</span><span class="v num" id="sum-total">{{ theme.currency_symbol }}0.00</span></div>
+        <div class="summary-plan">
+          <div class="doc-label">Plan elegido</div>
+          <div class="plan-name" id="sum-plan">—</div>
+          <div class="summary-schedule" id="sum-schedule"></div>
+        </div>
+      </div>
+    </div>
   </div>
-</div>
+
+  {# ================= CTA ================= #}
+  <div class="card card--accent doc-noprint">
+    <div class="card__body">
+      <div class="wide-card" style="padding:0;">
+        <div class="wide-card__icon">{{ ui.icon('sparkle') }}</div>
+        <div class="wide-card__text">
+          <div class="wide-card__value" style="font-size:16px;">¿Continuamos?</div>
+          <p class="doc-text doc-text--sm" style="margin-top:2px;">Elegí tu opción y plan de pago. Al aceptar, generamos tu calendario de pagos.</p>
+        </div>
+      </div>
+      <div class="cta-row">
+        <form method="POST" action="{{ public_base }}/accept" id="accept-form" style="flex:1 1 260px;">
+          <input type="hidden" name="option_id" id="accept-option-id">
+          <input type="hidden" name="plan_pago" id="accept-plan-pago">
+          <input type="hidden" name="extra_ids" id="accept-extra-ids">
+          <button type="submit" class="btn-accept" id="accept-btn" disabled style="width:100%;">{{ theme.cta_text }}</button>
+        </form>
+        <form method="POST" action="{{ public_base }}/decline" onsubmit="return confirm('¿Rechazar esta cotización?');">
+          <button type="submit" class="btn-decline">Rechazar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if quote.notas %}
+  <div class="card">
+    <div class="card__body">
+      <h2 class="doc-h2" style="margin-bottom:8px;">Notas</h2>
+      <p class="doc-text">{{ quote.notas }}</p>
+    </div>
+  </div>
+  {% endif %}
 {% endif %}
 
-{{ doc.doc_footer(theme) }}
-{{ doc.whatsapp_float(theme) }}
+  {# ================= PORTAFOLIO ================= #}
+  {% if portfolio %}
+  <div class="card">
+    <div class="card__body">
+      <div class="section__head" style="margin-bottom:16px;">
+        <div>
+          <h2 class="doc-h2">Bodas completas</h2>
+          <p class="doc-text doc-text--sm" style="margin-top:6px;">Algunas bodas reales donde podés ver el estilo y el resultado final del trabajo.</p>
+        </div>
+      </div>
+      {% if theme.featured_video_embed %}
+      <div class="pf-video">
+        <div class="pf-video-frame">
+          <iframe src="{{ theme.featured_video_embed }}" title="Video destacado" loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowfullscreen></iframe>
+        </div>
+      </div>
+      {% endif %}
+      <div class="pf-list">
+        {% for p in portfolio %}
+        {% if p.external_url %}<a class="pf-row" href="{{ p.external_url }}" target="_blank" rel="noopener">{% else %}<div class="pf-row">{% endif %}
+          <div class="pf-row-main">
+            {% if p.image_url %}<img class="pf-thumb" src="{{ p.image_url }}" alt="{{ p.couple_names or p.title }}" loading="lazy">{% endif %}
+            <div style="min-width:0;">
+              <div class="pf-names">{{ p.couple_names or p.title }}</div>
+              {% if p.couple_names and p.title and p.title != p.couple_names and p.location %}
+              <div class="pf-loc">{{ p.title }} &middot; {{ p.location }}</div>
+              {% elif p.couple_names and p.title and p.title != p.couple_names %}
+              <div class="pf-loc">{{ p.title }}</div>
+              {% elif p.location %}
+              <div class="pf-loc">{{ p.location }}</div>
+              {% endif %}
+              {% if p.blurb %}<div class="pf-loc">{{ p.blurb }}</div>{% endif %}
+              {% if p.password %}
+              <div class="pf-pass-wrap" onclick="event.stopPropagation();">
+                <span class="pf-pass-label">Contraseña</span>
+                <span class="pf-pass-field" id="pf-pass-{{ loop.index }}">{{ p.password }}</span>
+                <button type="button" class="pf-copy" onclick="copyText('pf-pass-{{ loop.index }}', this)">Copiar</button>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% if p.external_url %}<span class="pf-arrow">{{ ui.icon('sparkle') }}</span>{% endif %}
+        {% if p.external_url %}</a>{% else %}</div>{% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ================= CONDICIONES ================= #}
+  {% if terms_blocks %}
+  <div class="card">
+    <div class="card__body">
+      <div class="section__head" style="margin-bottom:16px;">
+        <div><h2 class="doc-h2">Detalles a tener en cuenta</h2></div>
+      </div>
+      <div class="feature-cols">
+        {% for b in terms_blocks %}
+        <div class="feature-group">
+          {% if b.title %}<div class="doc-h3" style="margin-bottom:6px;">{{ b.title }}</div>{% endif %}
+          {% if b.body %}<p class="doc-text doc-text--sm">{{ b.body }}</p>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{{ ui.doc_footer(theme, 'Gracias por permitirnos ser', 'parte de tu historia.') }}
+{{ ui.whatsapp_float(theme) }}
 
 <script>
 var OPTIONS = {{ options|tojson }};
@@ -671,7 +688,12 @@ document.addEventListener('DOMContentLoaded', function() {
     onActivate(el, function() { selectPlan(Number(el.dataset.plan)); });
   });
 
-  if (OPTIONS.length === 1) { selectPackage(OPTIONS[0].id); }
+  // El chequeo de #pkg-options no es decorativo: en una cotizacion ya
+  // aceptada o rechazada esa seccion no se renderiza, y auto-seleccionar
+  // reventaba con un TypeError que abortaba el resto de este handler.
+  if (OPTIONS.length === 1 && document.getElementById('pkg-options')) {
+    selectPackage(OPTIONS[0].id);
+  }
   var planEls = Array.prototype.slice.call(document.querySelectorAll('#plan-options .plan-opt'));
   if (planEls.length) {
     var plans = planEls.map(function(el) { return Number(el.dataset.plan); });
