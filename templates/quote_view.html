@@ -43,29 +43,38 @@
 .opt {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
-  padding: clamp(17px, 2vw, 23px); cursor: pointer; outline: none;
+  padding: clamp(18px, 2vw, 24px); cursor: pointer; outline: none;
   transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
 }
 .opt:hover { border-color: var(--border-strong); }
 .opt:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .opt.selected { border-color: var(--primary); background: var(--primary-tint); }
-.opt-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+/* Header interno del paquete: identidad a la izquierda, precio a la
+   derecha, alineados por la parte de arriba y separados del cuerpo por un
+   divider. Es la jerarquia que pidio Kevin: label chico, nombre grande,
+   descripcion breve | label chico, precio grande morado. */
+.opt-head { display: flex; align-items: flex-start; justify-content: space-between; gap: clamp(18px, 3vw, 40px); flex-wrap: wrap; }
+/* 200px, no 300: con tres paquetes lado a lado un basis alto forzaba el
+   salto del precio a su propia linea, donde space-between lo alineaba a la
+   izquierda y el text-align:right dejaba de aplicar. */
+.opt-head > div:first-child { flex: 1 1 200px; min-width: 0; }
+.opt-price-wrap { margin-left: auto; }
 .opt-recommended {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 11px; font-weight: 600; letter-spacing: 0.7px; text-transform: uppercase;
   color: var(--primary-dark); background: var(--primary-soft);
   border-radius: 999px; padding: 5px 11px; margin-bottom: 12px;
 }
-.opt-num { font-size: 11.5px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-.opt-name { font-family: var(--font-serif); font-weight: 400; font-size: clamp(22px, 2.6vw, 28px); letter-spacing: -0.02em; line-height: 1.1; margin: 0; }
-.opt-subtitle { font-size: 13.5px; color: var(--text-secondary); margin-top: 6px; }
+.opt-num { font-size: 10.5px; font-weight: 650; letter-spacing: 1.15px; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
+.opt-name { font-family: var(--font-serif); font-weight: 400; font-size: clamp(23px, 2.7vw, 29px); letter-spacing: -0.02em; line-height: 1.08; margin: 0; }
+.opt-subtitle { font-size: 13.5px; color: var(--text-secondary); margin-top: 7px; line-height: 1.5; max-width: 52ch; }
 .opt-price-wrap { text-align: right; flex-shrink: 0; }
-.opt-price-label { font-size: 10.5px; font-weight: 600; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted); }
+.opt-price-label { font-size: 10px; font-weight: 650; letter-spacing: 1.05px; text-transform: uppercase; color: var(--muted); line-height: 1; }
 .opt-price-old { font-size: 13px; color: var(--muted); text-decoration: line-through; }
-.opt-price { font-size: clamp(26px, 3.2vw, 34px); font-weight: 600; letter-spacing: -0.03em; color: var(--primary); font-variant-numeric: tabular-nums; margin-top: 2px; line-height: 1.05; }
+.opt-price { font-size: clamp(27px, 3.3vw, 35px); font-weight: 650; letter-spacing: -0.035em; color: var(--primary); font-variant-numeric: tabular-nums; margin-top: 7px; line-height: 1; }
 .opt-price-currency { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
-.opt-desc { font-size: 13.5px; color: var(--text-secondary); margin: 12px 0 0; line-height: 1.55; }
-.opt-body { margin-top: clamp(16px, 2vw, 20px); padding-top: clamp(16px, 2vw, 20px); border-top: 1px solid var(--border); }
+.opt-desc { font-size: 13.5px; color: var(--text-secondary); margin: 11px 0 0; line-height: 1.55; max-width: 60ch; }
+.opt-body { margin-top: clamp(17px, 2vw, 21px); padding-top: clamp(17px, 2vw, 21px); border-top: 1px solid var(--border); }
 .opt-note { font-size: 12.5px; color: var(--muted); font-style: italic; margin-top: 16px; }
 .opt-select {
   margin-top: 18px; display: inline-flex; align-items: center; gap: 7px;
@@ -116,11 +125,10 @@
 .summary-row .v { font-weight: 600; font-variant-numeric: tabular-nums; }
 .summary-row.total { border-top: 1.5px solid var(--border-strong); margin-top: 4px; padding-top: 16px; }
 .summary-row.total .k { font-size: 16px; font-weight: 600; color: var(--text-primary); }
-.summary-row.total .v { font-size: clamp(22px, 2.6vw, 28px); letter-spacing: -0.03em; color: var(--primary); }
+.summary-row.total .v { font-size: clamp(23px, 2.7vw, 29px); font-weight: 650; letter-spacing: -0.035em; color: var(--primary); }
 .summary-plan { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
 .plan-name { font-size: 16px; font-weight: 600; margin-top: 4px; }
 .summary-schedule { margin-top: 12px; }
-.summary-hint { font-size: 12.5px; color: var(--muted); margin-top: 16px; }
 .btn-accept {
   flex: 1 1 260px; background: var(--primary); color: #fff; border: none;
   border-radius: var(--radius-md); font-family: var(--font-sans);
@@ -222,10 +230,11 @@
     <div class="wide-card">
       <div class="wide-card__icon wide-card__icon--solid">{{ ui.icon_solid('check') }}</div>
       <div class="wide-card__text">
-        <div class="wide-card__value" style="font-size:15.5px;">
+        <div class="wide-card__label">Estado</div>
+        <div class="wide-card__value">
           {% if estado_fecha %}Cotización aceptada el {{ estado_fecha }}{% else %}Esta cotización ya fue aceptada{% endif %}
         </div>
-        <p class="doc-text doc-text--sm" style="margin-top:2px;">¡Gracias por confiar en nuestro trabajo!</p>
+        <p class="doc-text doc-text--sm" style="margin-top:3px;">¡Gracias por confiar en nuestro trabajo!</p>
       </div>
     </div>
   </div>
@@ -234,10 +243,11 @@
     <div class="wide-card">
       <div class="wide-card__icon" style="background:var(--surface-2);color:var(--muted);">{{ ui.icon('x-circle') }}</div>
       <div class="wide-card__text">
-        <div class="wide-card__value" style="font-size:15.5px;">
+        <div class="wide-card__label">Estado</div>
+        <div class="wide-card__value">
           {% if estado_fecha %}Cotización rechazada el {{ estado_fecha }}{% else %}Esta cotización fue rechazada{% endif %}
         </div>
-        <p class="doc-text doc-text--sm" style="margin-top:2px;">Escribinos si querés revisar otras opciones.</p>
+        <p class="doc-text doc-text--sm" style="margin-top:3px;">Escribinos si querés revisar otras opciones.</p>
       </div>
     </div>
   </div>
@@ -280,11 +290,7 @@
       {% if quote.incluye %}
       <div class="opt-body">
         <div class="feature-group__title">Incluye</div>
-        <ul class="feature-list feature-cols" style="display:grid;">
-          {% for item in quote.incluye %}
-          <li>{{ ui.icon_feature(item) }}<span>{{ item }}</span></li>
-          {% endfor %}
-        </ul>
+        {{ ui.feature_flow(quote.incluye) }}
       </div>
       {% endif %}
     </div>
@@ -380,11 +386,7 @@
         </div>
         {% elif opt.incluye %}
         <div class="opt-body">
-          <ul class="feature-list feature-cols" style="display:grid;">
-            {% for item in opt.incluye %}
-            <li>{{ ui.icon_feature(item) }}<span>{{ item }}</span></li>
-            {% endfor %}
-          </ul>
+          {{ ui.feature_flow(opt.incluye) }}
         </div>
         {% endif %}
 
@@ -460,8 +462,9 @@
       <div class="wide-card" style="padding:0;">
         <div class="wide-card__icon">{{ ui.icon('sparkle') }}</div>
         <div class="wide-card__text">
-          <div class="wide-card__value" style="font-size:16px;">¿Continuamos?</div>
-          <p class="doc-text doc-text--sm" style="margin-top:2px;">Elegí tu opción y plan de pago. Al aceptar, generamos tu calendario de pagos.</p>
+          <div class="wide-card__label">Siguiente paso</div>
+          <div class="wide-card__value">¿Continuamos?</div>
+          <p class="doc-text doc-text--sm" style="margin-top:3px;">Elegí tu opción y plan de pago. Al aceptar, generamos tu calendario de pagos.</p>
         </div>
       </div>
       <div class="cta-row">

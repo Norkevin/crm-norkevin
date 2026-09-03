@@ -235,3 +235,69 @@
 {%- else -%}{{ icon('check-circle') }}
 {%- endif -%}
 {%- endmacro %}
+
+{# --------------------------------------------------------------
+   FeatureFlow -- inclusiones SIN grupos declarados.
+
+   Kevin: "no quiero todo puesto en una grid y ya". El grid plano reparte
+   por filas, deja la ultima columna coja y hace que quince inclusiones se
+   lean como un volcado. Aca el reparto es multi-columna, que balancea las
+   alturas solo y mantiene el orden de lectura vertical.
+
+   El numero de columnas es un TOPE, no un valor fijo: el CSS usa
+   `columns: <ancho minimo> <tope>`, asi que dentro de una card angosta
+   (comparativa de 3 paquetes) el navegador baja solo a menos columnas en
+   vez de exprimir el texto a 40px de ancho.
+
+   Una inclusion compuesta ("Galeria online: entrega en 30 dias") se parte
+   en concepto + detalle. Pero hay que distinguirla del caso en que la
+   cotizacion viene del editor por grupos: ahi _flatten_option_groups
+   entrega TODAS las inclusiones como "Titulo del grupo: item", y partir
+   dejaria el titulo repetido en negrita y la inclusion real -- lo que el
+   cliente compra -- degradada a texto secundario. Al reves de lo que se
+   busca. Dos señales lo separan: si todas las lineas traen separador es
+   un aplanado de grupos (no se parte ninguna), y si el prefijo se repite
+   es un titulo, no un concepto.
+
+   No se inventa ni se reordena nada: el texto y el orden son los que puso
+   el fotografo en el CRM.
+   -------------------------------------------------------------- #}
+{% macro feature_flow(items) -%}
+{#- Guarda: el macro es compartido y no puede tumbar la pagina si le llega
+    None, un Undefined o un string suelto de datos legacy. -#}
+{%- set lista = items if (items is iterable and items is not string and items is not mapping) else [] -%}
+{%- if lista -%}
+{%- set n = lista|length -%}
+{%- set cols = 1 if n <= 3 else (2 if n <= 6 else (3 if n <= 11 else 4)) -%}
+{#- Prefijos, para distinguir un detalle real de un titulo de grupo. -#}
+{%- set ns = namespace(prefijos=[], con_corte=0) -%}
+{%- for it in lista -%}
+  {%- set t = it|string -%}
+  {%- set c = ': ' if ': ' in t else (' — ' if ' — ' in t else '') -%}
+  {%- set ns.prefijos = ns.prefijos + [ t.split(c)[0] if c else '' ] -%}
+  {%- if c %}{% set ns.con_corte = ns.con_corte + 1 %}{% endif -%}
+{%- endfor -%}
+{#- Todas con separador y mas de una linea: es un aplanado de grupos. -#}
+{%- set aplanado = (n > 1 and ns.con_corte == n) -%}
+<ul class="feature-list feature-flow cols-{{ cols }}">
+  {%- for item in lista %}
+  {%- set texto = item|string -%}
+  {%- set corte = ': ' if ': ' in texto else (' — ' if ' — ' in texto else '') -%}
+  {%- set concepto = texto.split(corte)[0] if corte else '' -%}
+  {%- set detalle = texto.split(corte, 1)[1] if corte else '' -%}
+  {%- set partir = corte and concepto and detalle
+                   and not aplanado
+                   and concepto|length <= 42
+                   and ns.prefijos.count(concepto) == 1 -%}
+  <li>{{ icon_feature(texto) }}<span>
+    {%- if partir -%}
+      <span class="feature-main">{{ concepto }}</span>
+      <span class="feature-sub">{{ detalle }}</span>
+    {%- else -%}
+      {{ texto }}
+    {%- endif -%}
+  </span></li>
+  {%- endfor %}
+</ul>
+{%- endif -%}
+{%- endmacro %}

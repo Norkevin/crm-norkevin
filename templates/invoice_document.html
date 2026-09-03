@@ -52,7 +52,7 @@
         {{ ui.meta_item('Vence', doc.vence, 'clock') }}
       </div>
       {% if doc.estado_detalle %}
-      <p class="doc-text doc-text--sm" style="margin-top:16px;">{{ doc.estado_detalle }}</p>
+      <p class="meta-support">{{ doc.estado_detalle }}</p>
       {% endif %}
     </div>
   </div>
@@ -76,18 +76,28 @@
     <div>
     <div class="card">
       <div class="card__body">
-        <h2 class="doc-h2" style="margin-bottom:14px;">Conceptos facturados</h2>
+        <div class="section-head">
+          <h2 class="doc-h2">Conceptos facturados</h2>
+          <span class="section-head__meta">{{ theme.currency_label }}</span>
+        </div>
 
         <div class="line-item">
           <div class="line-item__top">
             <div class="line-item__name">{{ doc.concepto }}</div>
             <div class="line-item__amount">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.total) }}</div>
           </div>
+          {# El detalle del concepto se reparte en dos columnas cuando hay
+             varias lineas, para que no se lea como una pared de texto. Con
+             muchas inclusiones se muestran las primeras y el resto se
+             resume: la factura documenta el cobro, el detalle completo vive
+             en la cotizacion. #}
           {% if doc.incluye %}
-          <ul class="line-item__sub">
-            {% for item in doc.incluye[:8] %}<li>{{ item }}</li>{% endfor %}
-            {% if doc.incluye|length > 8 %}
-            <li>y {{ doc.incluye|length - 8 }} más</li>
+          {% set _visibles = doc.incluye[:6] %}
+          <ul class="line-item__sub{{ ' line-item__sub--single' if _visibles|length < 3 else '' }}">
+            {% for item in _visibles %}<li>{{ item }}</li>{% endfor %}
+            {% if doc.incluye|length > 6 %}
+            {% set _resto = doc.incluye|length - 6 %}
+            <li class="line-item__more">y {{ _resto }} concepto{{ 's' if _resto != 1 else '' }} más incluido{{ 's' if _resto != 1 else '' }}</li>
             {% endif %}
           </ul>
           {% endif %}
@@ -96,7 +106,7 @@
         {# Subtotal / Pagado / Saldo cierran la MISMA card de conceptos,
            como en la referencia: el desglose y su resultado se leen de
            corrido, sin saltar a otra card. #}
-        <div class="totals" style="margin-top:2px;">
+        <div class="totals">
           <div class="totals__row">
             <span class="totals__label">Subtotal</span>
             <span class="totals__value num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.total) }}</span>
@@ -105,7 +115,7 @@
             <span class="totals__label">Pagado</span>
             <span class="totals__value num">− {{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.pagado) }}</span>
           </div>
-          <div class="totals__row totals__row--due">
+          <div class="totals__row totals__row--due{{ ' totals__row--settled' if doc.pendiente <= 0 else '' }}">
             <span class="totals__label">{{ 'Saldo pendiente' if doc.pendiente > 0 else 'Saldo' }}</span>
             <span class="totals__value num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.pendiente) }}</span>
           </div>
@@ -117,9 +127,13 @@
     {% if doc.filas_pago %}
     <div class="card">
       <div class="card__body">
-        <h2 class="doc-h2" style="margin-bottom:14px;">
-          {{ 'Calendario de pagos' if doc.filas_pago|length > 1 else 'Historial de pagos' }}
-        </h2>
+        <div class="section-head">
+          <h2 class="doc-h2">{{ 'Calendario de pagos' if doc.filas_pago|length > 1 else 'Historial de pagos' }}</h2>
+          {% set _vigentes = doc.filas_pago|rejectattr('estado', 'equalto', 'cancelled')|list|length %}
+          {% if _vigentes > 1 %}
+          <span class="section-head__meta">{{ _vigentes }} pagos</span>
+          {% endif %}
+        </div>
         {{ ui.payment_timeline(theme.currency_symbol, doc.filas_pago) }}
       </div>
     </div>
@@ -156,8 +170,9 @@
     <div class="wide-card">
       <div class="wide-card__icon">{{ ui.icon('file') }}</div>
       <div class="wide-card__text">
-        <div class="wide-card__value" style="font-size:15.5px;">Descargar factura en PDF</div>
-        <p class="doc-text doc-text--sm" style="margin-top:2px;">Guarda o imprime tu factura</p>
+        <div class="wide-card__label">Documento</div>
+        <div class="wide-card__value">Descargar factura en PDF</div>
+        <p class="doc-text doc-text--sm" style="margin-top:3px;">Guarda o imprime tu factura</p>
       </div>
       <div class="action-bar">
         {% if pay_url %}<a class="btn btn--primary" href="{{ pay_url }}">Pagar en línea</a>{% endif %}
