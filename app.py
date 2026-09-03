@@ -11255,6 +11255,104 @@ def quotes_list():
                           total_sent=total_sent, total_accepted=total_accepted, total_value=total_value)
 
 
+@app.route('/quotes/<quote_id>/diagnostico')
+def quote_diagnostico(quote_id):
+    """DIAGNOSTICO interno: que conceptos ve la cotizacion y que ve la
+    factura, para la MISMA cotizacion, con los datos reales.
+
+    Existe porque "la cotizacion muestra menos que la factura" no se puede
+    depurar sin ver los datos: en local reproduce igual en los dos lados.
+    Esto imprime las dos listas, la fuente de la que salio cada una y los
+    campos crudos del quote, para poder senalar exactamente donde se
+    pierde la informacion.
+
+    Es una pagina interna (requiere sesion, como el resto de /quotes) y no
+    muestra nada al cliente. Solo LEE.
+    """
+    quote = store.get('quotes', quote_id)
+    if not quote:
+        abort(404)
+
+    snap = _snapshot_comercial(quote)
+    grupos_cot = _quote_grupos_display(snap or {})
+    conceptos_cot = [s['texto'] for g in grupos_cot for s in g['servicios']]
+
+    # Las facturas que nacieron de esta cotizacion
+    facturas = []
+    for pago in _visible_billable_payments():
+        if pago.get('quote_id') != quote_id:
+            continue
+        inv = pago.get('invoice_id') or pago.get('id')
+        if any(f['invoice_id'] == inv for f in facturas):
+            continue
+        doc = _invoice_document(inv)
+        if not doc:
+            continue
+        facturas.append({
+            'invoice_id': inv,
+            'fuente': doc.get('fuente_conceptos'),
+            'concepto': doc.get('concepto'),
+            'total': doc.get('total'),
+            'conceptos': [s['texto'] for g in (doc.get('grupos') or [])
+                          for s in g['servicios']],
+        })
+
+    lineas = []
+    A = lineas.append
+    A(f'DIAGNOSTICO DE CONCEPTOS -- cotizacion {quote_id}')
+    A('=' * 72)
+    A('')
+    A(f"estado           : {quote.get('status')}")
+    A(f"paquete_nombre   : {quote.get('paquete_nombre')!r}")
+    A(f"precio_total     : {quote.get('precio_total')}")
+    A(f"tenant_id        : {quote.get('tenant_id')!r}")
+    A('')
+    A('CAMPOS CRUDOS DEL QUOTE (de aca sale todo):')
+    A(f"  snapshot_aceptado : {'SI' if quote.get('snapshot_aceptado') else 'no'}")
+    A(f"  servicios (raiz)  : {len(quote.get('servicios') or [])} items")
+    A(f"  groups (raiz)     : {len(quote.get('groups') or [])} grupos")
+    A(f"  incluye (raiz)    : {len(quote.get('incluye') or [])} lineas")
+    A(f"  options           : {len(quote.get('options') or [])}")
+    for i, o in enumerate(quote.get('options') or []):
+        A(f"      opcion {i} id={o.get('id')!r} name={o.get('name')!r} "
+          f"servicios={len(o.get('servicios') or [])} "
+          f"groups={len(o.get('groups') or [])} "
+          f"incluye={len(o.get('incluye') or [])}")
+    A(f"  selected_option_id: {quote.get('selected_option_id')!r}")
+    A(f"  selected_extras   : {len(quote.get('selected_extras') or [])}")
+    A('')
+    A(f"FUENTE QUE ELIGIO _snapshot_comercial: {(snap or {}).get('fuente')}")
+    A('')
+    A(f'LA COTIZACION MUESTRA ({len(conceptos_cot)} conceptos):')
+    for t in conceptos_cot:
+        A(f'    - {t}')
+    if not conceptos_cot:
+        A('    (ninguno -- por eso se ve vacia)')
+    A('')
+    if not facturas:
+        A('No hay facturas asociadas a esta cotizacion.')
+    for f in facturas:
+        A(f"FACTURA {f['invoice_id']} MUESTRA ({len(f['conceptos'])} conceptos):")
+        A(f"    fuente   : {f['fuente']}")
+        A(f"    concepto : {f['concepto']!r}")
+        A(f"    total    : {f['total']}")
+        for t in f['conceptos']:
+            A(f'    - {t}')
+        iguales = f['conceptos'] == conceptos_cot
+        A('')
+        A(f"    ¿COINCIDE CON LA COTIZACION? {'SI' if iguales else 'NO'}")
+        if not iguales:
+            solo_f = [t for t in f['conceptos'] if t not in conceptos_cot]
+            solo_c = [t for t in conceptos_cot if t not in f['conceptos']]
+            for t in solo_f:
+                A(f'      solo en la FACTURA    : {t}')
+            for t in solo_c:
+                A(f'      solo en la COTIZACION : {t}')
+        A('')
+    from flask import Response
+    return Response('\n'.join(lineas), mimetype='text/plain; charset=utf-8')
+
+
 @app.route('/quotes/<quote_id>')
 def quote_view(quote_id):
     """Vista de una cotizacion (que el cliente ve)."""
