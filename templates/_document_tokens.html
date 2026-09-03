@@ -68,13 +68,13 @@
   --space-8: 64px;
 
   /* ---- tipografia ----
-     Sans = la misma del CRM (Inter), para que el parentesco con el
-     dashboard sea inmediato. Serif solo para titulos y cifras grandes:
-     es lo que le da al documento el aire editorial que Kevin pidio
-     conservar de las cotizaciones. Las dos salen del tema, asi que una
-     marca futura puede cambiarlas sin tocar plantillas. */
+     UNA sola familia en todo el sistema documental: la misma del CRM.
+     Ya no hay serif en ninguna parte, tampoco en el wordmark. */
+  {# Una sola familia en todo el sistema documental. El valor llega ya
+     saneado por _css_font_stack() y SIN comillas: una comilla aca se emite
+     como &#39; dentro del <style>, no se decodifica, y rompe la variable
+     entera -- que es exactamente por que el documento se veia en Times. #}
   --font-sans: {{ theme.sans_font }};
-  --font-serif: {{ theme.serif_font }};
 
   /* ---- fondo heredado (nombres viejos que siguen usando snapshots) ---- */
   --bg: {{ theme.background }};
@@ -83,5 +83,4 @@
   --ink: {{ theme.text_primary }};
   --ink-soft: {{ theme.text_secondary }};
   --line: {{ theme.border }};
-  --serif: {{ theme.serif_font }};
   --sans: {{ theme.sans_font }};

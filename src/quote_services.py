@@ -524,3 +524,117 @@ def informe_migracion(inclusiones):
         'detalle_reconocidas': reconocidas,
         'detalle_sin_reconocer': [t for t, _ in sin_reconocer],
     }
+
+
+# ============================================================
+# NORMALIZACION DE ITEMS LEGACY  (3-sep-2026)
+# ============================================================
+# Kevin: "8 horas de cobertura + 1 hora" / "extra" no pueden aparecer como
+# dos conceptos. Esos fragmentos vienen de cotizaciones historicas donde el
+# texto se partio al importarse o al escribirse en un textarea. El dato
+# guardado NO se toca -- es lo que el cliente acepto. Esto es una capa de
+# PRESENTACION que vuelve a unir lo que evidentemente era una sola frase.
+#
+# Regla de oro: ante la duda, no se une. Un concepto mal fusionado cambia
+# lo que dice un documento comercial; uno partido solo se ve feo.
+
+# Un fragmento es continuacion del anterior si el anterior quedo
+# claramente inconcluso.
+_ABIERTO = (
+    re.compile(r'\+\s*\d+\s*\w*$'),        # "... + 1 hora"
+    re.compile(r'\($[^)]*$'),               # parentesis sin cerrar
+    re.compile(r'[,;]$'),                   # coma o punto y coma al final
+    re.compile(r'\b(?:de|del|la|el|los|las|y|o|con|sin|para|por|en)$', re.I),
+)
+
+# Encabezados que se colaron como items ("Eventos:", "Incluye:").
+_ES_ENCABEZADO = re.compile(r'^[A-ZÁÉÍÓÚÑ][\wáéíóúñ\s]{2,28}:$')
+
+
+def _parentesis_abierto(texto):
+    return texto.count('(') > texto.count(')')
+
+
+def _quedo_abierto(texto):
+    t = (texto or '').rstrip()
+    if not t:
+        return False
+    if _parentesis_abierto(t):
+        return True
+    if t.endswith(('+', '-', '·', '—', '–')):
+        return True
+    for patron in _ABIERTO:
+        if patron.search(t):
+            return True
+    return False
+
+
+def _empieza_continuando(texto):
+    """El fragmento parece la cola de la frase anterior: empieza en
+    minuscula, o cierra un parentesis, o es una palabra suelta corta."""
+    t = (texto or '').lstrip()
+    if not t:
+        return False
+    if t[0].islower():
+        return True
+    if t.startswith(')') or ')' in t and '(' not in t:
+        return True
+    return False
+
+
+def normalizar_items_legacy(items):
+    """Une fragmentos que evidentemente eran una sola frase y separa los
+    encabezados que se guardaron como items.
+
+    Devuelve [{'texto', 'nota', 'es_encabezado', 'original'}]:
+      texto         -- lo que se muestra
+      nota          -- aclaracion entre parentesis, mostrada como
+                       sub-informacion en vez de ensuciar la linea
+      es_encabezado -- "Eventos:" y similares, para pintarlos como titulo
+      original      -- los fragmentos tal cual estaban guardados
+
+    Ejemplos reales:
+      ["8 horas de cobertura + 1 hora", "extra"]
+        -> "8 horas de cobertura + 1 hora extra"
+      ["7 horas de cobertura (horas extra", "ya pagadas)"]
+        -> "7 horas de cobertura" + nota "horas extra ya pagadas"
+      ["Alimentación (no incluye la cena", "de la boda)"]
+        -> "Alimentación" + nota "no incluye la cena de la boda"
+      ["Eventos:"]
+        -> encabezado, no un bullet
+    """
+    if not isinstance(items, list):
+        return []
+
+    crudos = [str(x).strip() for x in items if str(x or '').strip()]
+    unidos, buffer_, origen = [], '', []
+
+    for texto in crudos:
+        if buffer_ and (_quedo_abierto(buffer_) or _empieza_continuando(texto)):
+            # Continuacion: se pega con un espacio, sin inventar puntuacion.
+            buffer_ = f'{buffer_} {texto}'.strip()
+            origen.append(texto)
+            continue
+        if buffer_:
+            unidos.append((buffer_, origen))
+        buffer_, origen = texto, [texto]
+    if buffer_:
+        unidos.append((buffer_, origen))
+
+    salida = []
+    for texto, fragmentos in unidos:
+        if _ES_ENCABEZADO.match(texto):
+            salida.append({'texto': texto.rstrip(':'), 'nota': '',
+                           'es_encabezado': True, 'original': fragmentos})
+            continue
+        # Una aclaracion entre parentesis baja a sub-informacion: la linea
+        # principal se lee limpia y no se pierde nada.
+        nota = ''
+        m = re.match(r'^(.*?)\s*\(([^()]*)\)\s*$', texto)
+        if m and m.group(1).strip() and len(m.group(2)) > 3:
+            texto, nota = m.group(1).strip(), m.group(2).strip()
+            if nota[:1].islower():
+                nota = nota[0].upper() + nota[1:]
+        salida.append({'texto': texto, 'nota': nota,
+                       'es_encabezado': False, 'original': fragmentos})
+    return salida

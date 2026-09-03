@@ -211,7 +211,7 @@
       {% endif %}
       </div>
       <div class="hero-card__meta">
-        {{ ui.meta_item('Fecha de la boda', lead.fecha_tentativa, 'calendar') }}
+        {{ ui.meta_item('Fecha de la boda', lead.fecha_tentativa|fecha_es, 'calendar') }}
         {{ ui.meta_item('Ubicación', lead.locacion, 'pin') }}
         {% if options|length > 1 and _estado not in ('Aceptada', 'Rechazada') %}
         {{ ui.meta_item('Modalidades', options|length ~ ' opciones', 'sparkle') }}
@@ -299,10 +299,10 @@
       {% if grupos_aceptada %}
       <div class="opt-body">
         {# sum(attribute=...) sobre listas arranca en 0 y revienta: se cuentan las longitudes. #}
-        {% set _n = grupos_aceptada | map(attribute='servicios') | map('length') | sum %}
+        {# Sin contador: "35 conceptos" es informacion interna del
+           software, no algo que le sirva al cliente. Kevin pidio quitarlo. #}
         <div class="section-head">
           <h2 class="doc-h2">Qué incluye</h2>
-          {% if _n %}<span class="section-head__meta">{{ _n }} conceptos</span>{% endif %}
         </div>
         {{ ui.service_groups(grupos_aceptada) }}
       </div>
@@ -322,7 +322,7 @@
         <li class="timeline__item timeline__item--{{ 'paid' if p.status == 'Pagado' else 'scheduled' }}">
           <span class="timeline__dot">{{ ui.icon_solid('check' if p.status == 'Pagado' else 'dot') }}</span>
           <div>
-            <div class="timeline__when">{{ p.due_date }}</div>
+            <div class="timeline__when">{{ p.due_date|fecha_es }}</div>
             <div class="timeline__pos">Pago {{ p.cuota }}{% if p.status == 'Pagado' %} &middot; Pagado{% endif %}</div>
           </div>
           <div class="timeline__amount num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(p.amount or 0) }}</div>

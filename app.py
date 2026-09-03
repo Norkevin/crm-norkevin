@@ -61,6 +61,7 @@ def _format_date_es(value):
     return f"{day.day} {MONTH_NAMES_ES.get(day.month, '')} {day.year}"
 
 
+
 def _log_storage_safety_status():
     status = store.status()
     if os.environ.get('RENDER') and not status['is_render_persistent_path']:
@@ -108,6 +109,16 @@ _bootstrap_default_email_templates()
 _bootstrap_seed_table('packages')
 
 app = Flask(__name__)
+
+# Filtro Jinja compartido: cualquier plantilla puede escribir
+# `{{ fecha|fecha_es }}` y obtener "28 noviembre 2026" en vez de la fecha
+# ISO con la que se guarda. Registrarlo como filtro -- y no depender de que
+# cada vista precalcule un campo *_display -- es lo que garantiza que no se
+# vuelva a colar un "2026-11-28" en un documento que ve el cliente: si
+# alguien agrega una fecha nueva y olvida el filtro, se nota enseguida, y
+# si la usa, funciona sin tocar Python.
+app.jinja_env.filters['fecha_es'] = lambda v: _format_date_es(v) or (v or '')
+
 app.secret_key = os.environ.get('FLASK_SECRET', 'norkevin-crm-dev-secret-change-me')
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.jinja_env.auto_reload = True
@@ -10781,9 +10792,28 @@ def _quote_grupos_display(opcion):
 
     incluye = opcion.get('incluye') or []
     if incluye:
-        return [{'clave': '', 'titulo': '',
-                 'servicios': [{'texto': str(x), 'icono': qsvc.icono_para_texto_legacy(str(x))}
-                               for x in incluye if str(x).strip()]}]
+        # Los items legacy pasan por la capa de normalizacion ANTES de
+        # pintarse: vuelve a unir fragmentos que evidentemente eran una
+        # sola frase ("8 horas de cobertura + 1 hora" / "extra"), baja las
+        # aclaraciones entre parentesis a sub-informacion, y convierte en
+        # titulo lo que se guardo como "Eventos:". El dato almacenado no se
+        # toca -- esto es presentacion.
+        normalizados = qsvc.normalizar_items_legacy(incluye)
+        grupos, actual = [], None
+        for item in normalizados:
+            if item['es_encabezado']:
+                actual = {'clave': '', 'titulo': item['texto'], 'servicios': []}
+                grupos.append(actual)
+                continue
+            if actual is None:
+                actual = {'clave': '', 'titulo': '', 'servicios': []}
+                grupos.append(actual)
+            actual['servicios'].append({
+                'texto': item['texto'],
+                'nota': item['nota'],
+                'icono': qsvc.icono_para_texto_legacy(item['texto']),
+            })
+        return [g for g in grupos if g['servicios']]
     return []
 
 
@@ -11009,21 +11039,18 @@ def _quote_theme_for_tenant(tenant_id):
         # completa del <link> a cargar -- si una cuenta algun dia necesita
         # otra tipografia, alcanza con cambiar estos tres campos aca.
         'currency_symbol': 'Q', 'currency_label': 'Quetzales (GTQ)', 'featured_video_url': '',
-        # Sans: Inter con los mismos fallbacks que declara base.html. El
-        # documento es interfaz, no papeleria: nombre del cliente, montos,
-        # conceptos, fechas, estados y labels van todos en la sans del CRM.
+        # Inter en TODO el sistema documental, sin excepciones -- tampoco
+        # en el wordmark de la marca. Kevin: "si no es un logo grafico
+        # real, tambien debe usar Inter; no quiero conservar serif solo
+        # porque se ve elegante".
         #
-        # serif_font queda declarada pero su unico uso permitido es el
-        # wordmark de la marca en el topbar y el footer -- ahi es identidad
-        # visual del fotografo, no tipografia de interfaz. Cualquier otro
-        # uso rompe el criterio de que el documento se sienta parte del
-        # mismo producto que el dashboard.
-        'sans_font': "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        'serif_font': "'Instrument Serif', Georgia, 'Times New Roman', serif",
+        # SIN COMILLAS a proposito. Ver _css_font_stack(): una comilla en
+        # este valor se convierte en &#39; al emitirse dentro del <style> y
+        # rompe la variable entera. "Segoe UI" sin comillas es CSS valido.
+        'sans_font': 'Inter, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
         'google_fonts_href': (
             'https://fonts.googleapis.com/css2?'
-            'family=Instrument+Serif'
-            '&family=Inter:wght@400;500;600;700&display=swap'
+            'family=Inter:wght@400;450;500;600;700&display=swap'
         ),
     }
     theme = {**defaults, **theme_saved}
@@ -11036,6 +11063,41 @@ def _quote_theme_for_tenant(tenant_id):
     # congelado dentro de theme_snapshot igual que el resto del tema.
     theme['featured_video_embed'] = _video_embed_url(theme.get('featured_video_url'))
     return theme
+
+
+def _css_font_stack(valor, respaldo='Inter, system-ui, -apple-system, sans-serif'):
+    """Devuelve una font-family segura para emitir DENTRO de un <style>.
+
+    BUG ENCONTRADO (3-sep-2026). El documento se veia entero en Times pese
+    a declarar Inter. La causa no era el CSS: era el escapado. Jinja
+    autoescapa las comillas simples a &#39;, y dentro de un <style> las
+    entidades HTML NO se decodifican -- ese contenido no es markup. Asi que
+    el navegador leia
+
+        --font-sans: Inter, ..., &#39;Segoe UI&#39;, sans-serif;
+
+    que es un valor invalido. La variable no resolvia, `font-family:
+    var(--font-sans)` se ignoraba, y todo el documento caia a la fuente por
+    defecto del navegador, que es una serif. Ironicamente Inter SI se
+    descargaba: el <link> de Google Fonts esta fuera del <style>, donde las
+    entidades si se decodifican. Se bajaba la fuente y nunca se aplicaba.
+
+    La solucion es no necesitar comillas: en CSS un nombre de familia con
+    espacios es valido sin comillas mientras cada palabra sea un
+    identificador ("Segoe UI" -> Segoe UI). Aca se quitan las comillas y se
+    valida el resto con una whitelist, porque este valor es EDITABLE por el
+    tenant desde Settings > Cotizaciones: sin la whitelist seria una via de
+    inyeccion de CSS. Si el valor no pasa, se usa el respaldo.
+    """
+    texto = (valor or '').replace('"', '').replace("'", '').strip()
+    if not texto:
+        return respaldo
+    # Letras, numeros, espacios, comas, guiones y puntos. Nada de ; { } ( )
+    # ni caracteres que permitan cerrar la declaracion y escribir CSS nuevo.
+    if not re.match(r'^[A-Za-z0-9 ,._-]+$', texto):
+        return respaldo
+    partes = [p.strip() for p in texto.split(',') if p.strip()]
+    return ', '.join(partes) if partes else respaldo
 
 
 def _document_theme(tenant_id, snapshot=None):
@@ -11064,6 +11126,9 @@ def _document_theme(tenant_id, snapshot=None):
     # marca equivocada mostrada a un cliente (el incidente de agosto).
     for campo in ('display_name', 'tagline', 'email', 'phone'):
         tema[campo] = base.get(campo, '')
+    # Las font-family se sanean SIEMPRE, tanto las del default como las que
+    # pudiera traer un snapshot o la config del tenant. Ver _css_font_stack.
+    tema['sans_font'] = _css_font_stack(tema.get('sans_font'))
     return tema
 
 
@@ -11145,6 +11210,13 @@ def quote_view(quote_id):
             [p for p in store.list('payments') if p.get('quote_id') == quote_id],
             key=lambda p: p.get('due_date') or ''
         )
+        # El due_date se guarda en ISO (2026-11-28) porque asi se ordena y
+        # se compara. Pero un documento que ve el cliente no puede mostrar
+        # una fecha de base de datos: se agrega el valor ya formateado y la
+        # plantilla usa ese. El campo original queda intacto -- lo usan el
+        # motor de pagos y el ordenamiento de arriba.
+        for _p in payment_schedule:
+            _p['due_date_display'] = _format_date_es(_p.get('due_date')) or _p.get('due_date') or ''
 
     # La cotizacion no siempre tiene su propio tenant_id en registros viejos;
     # el job (cuando existe) es la fuente mas confiable, igual que en

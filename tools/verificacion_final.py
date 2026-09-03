@@ -47,6 +47,11 @@ check(f'{n_py} modulos .py compilan', not malos, str(malos[:3]))
 try:
     from jinja2 import Environment, FileSystemLoader
     env = Environment(loader=FileSystemLoader('templates'))
+    # Los filtros que app.py registra en Flask hay que declararlos aca
+    # tambien, si no el validador reporta como rota una plantilla que en
+    # produccion funciona. Solo se necesita que EXISTAN para parsear.
+    for _f in ('fecha_es',):
+        env.filters[_f] = lambda v: v
     rotas, n_tpl = [], 0
     for p in sorted(glob.glob('templates/**/*.html', recursive=True)):
         n_tpl += 1

@@ -329,7 +329,11 @@
     {% if g.titulo %}<div class="feature-group__title">{{ g.titulo }}</div>{% endif %}
     <ul class="feature-list">
       {%- for s in g.servicios %}
-      <li>{{ icon(s.icono) }}<span>{{ s.texto }}</span></li>
+      <li>{{ icon(s.icono) }}<span>
+        {%- if s.nota -%}
+          <span class="feature-main">{{ s.texto }}</span><span class="feature-sub">{{ s.nota }}</span>
+        {%- else -%}{{ s.texto }}{%- endif -%}
+      </span></li>
       {%- endfor %}
     </ul>
   </div>
@@ -343,7 +347,11 @@
 {%- set n = planos|length -%}
 <ul class="feature-list feature-flow cols-{{ 1 if n <= 4 else 2 }}">
   {%- for s in planos %}
-  <li>{{ icon(s.icono) }}<span>{{ s.texto }}</span></li>
+  <li>{{ icon(s.icono) }}<span>
+    {%- if s.nota -%}
+      <span class="feature-main">{{ s.texto }}</span><span class="feature-sub">{{ s.nota }}</span>
+    {%- else -%}{{ s.texto }}{%- endif -%}
+  </span></li>
   {%- endfor %}
 </ul>
 {%- endif -%}
