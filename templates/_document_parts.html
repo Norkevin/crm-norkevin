@@ -306,3 +306,46 @@
 </ul>
 {%- endif -%}
 {%- endmacro %}
+
+{# --------------------------------------------------------------
+   ServiceGroups -- desglose a partir de servicios ESTRUCTURADOS.
+
+   Recibe grupos ya resueltos por _quote_grupos_display() en app.py:
+   [{titulo, servicios: [{texto, icono}]}]. La plantilla no clasifica, no
+   adivina iconos y no decide el orden: solo pinta lo que el modelo ya
+   decidio. Ese es el punto -- el fotografo ingresa informacion y el
+   sistema resuelve la presentacion.
+
+   Un grupo sin titulo (cotizacion vieja, sin categorias) se pinta igual,
+   sin cabecera: nunca se inventa una categoria que el dato no tiene.
+   -------------------------------------------------------------- #}
+{% macro service_groups(grupos) -%}
+{%- if grupos -%}
+{%- set con_titulo = grupos|selectattr('titulo')|list -%}
+{%- if con_titulo -%}
+<div class="feature-cols">
+  {%- for g in grupos %}{% if g.servicios %}
+  <div class="feature-group">
+    {% if g.titulo %}<div class="feature-group__title">{{ g.titulo }}</div>{% endif %}
+    <ul class="feature-list">
+      {%- for s in g.servicios %}
+      <li>{{ icon(s.icono) }}<span>{{ s.texto }}</span></li>
+      {%- endfor %}
+    </ul>
+  </div>
+  {% endif %}{%- endfor %}
+</div>
+{%- else -%}
+{#- Sin categorias: una sola lista, con el mismo reparto en columnas que
+    usa el resto del documento. -#}
+{%- set planos = [] -%}
+{%- for g in grupos %}{% for s in g.servicios %}{% set _ = planos.append(s) %}{% endfor %}{% endfor -%}
+{%- set n = planos|length -%}
+<ul class="feature-list feature-flow cols-{{ 1 if n <= 4 else 2 }}">
+  {%- for s in planos %}
+  <li>{{ icon(s.icono) }}<span>{{ s.texto }}</span></li>
+  {%- endfor %}
+</ul>
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}

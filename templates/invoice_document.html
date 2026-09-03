@@ -88,17 +88,13 @@
           </div>
         </div>
 
-        {# El desglose usa EL MISMO macro que la cotizacion (feature_flow),
-           no una lista propia. Antes la factura lo pintaba con bullets
-           grises y recortado a 6 lineas, y la cotizacion con iconos en
-           columnas: el mismo dato con dos caras distintas, que es
-           justamente lo que hacia que no parecieran el mismo documento.
-           Tampoco se recorta: lo que el cliente acepto es lo que se le
-           cobra, y tiene que poder verificarlo aca. #}
-        {% if doc.incluye %}
+        {# El desglose sale del MISMO macro y de la MISMA funcion que la
+           cotizacion. Lo que el cliente acepto es lo que se le cobra, y
+           tiene que poder verificarlo aca: no se recorta. #}
+        {% if doc.grupos %}
         <div class="line-item-detail">
           <div class="feature-group__title">Incluye</div>
-          {{ ui.feature_flow(doc.incluye) }}
+          {{ ui.service_groups(doc.grupos) }}
         </div>
         {% endif %}
 

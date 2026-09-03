@@ -6,6 +6,34 @@
 <title>Editar cotizacion - {{ display_name }} · {{ brand.display_name }}</title>
 {% include "_document_style.html" %}
 <style>
+/* --- Servicios estructurados del Quote Builder --- */
+.svc-hint { font-size: 12px; color: var(--sn-muted); margin: 0 0 10px; line-height: 1.5; }
+.svc-list { display: grid; gap: 6px; margin-bottom: 10px; }
+.svc-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; background: var(--sn-white);
+  border: 1px solid var(--sn-line); border-radius: var(--sn-radius-sm);
+}
+.svc-row__cat {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase;
+  color: var(--sn-muted); min-width: 82px;
+}
+.svc-row__txt { flex: 1; font-size: 13px; min-width: 0; }
+.svc-row__del {
+  border: 0; background: none; cursor: pointer; color: var(--sn-muted);
+  font-size: 17px; line-height: 1; padding: 0 4px;
+}
+.svc-row__del:hover { color: var(--sn-red); }
+.svc-add { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.svc-select, .svc-num, .svc-texto {
+  padding: 8px 10px; border: 1px solid var(--sn-line); border-radius: var(--sn-radius-sm);
+  background: var(--sn-white); font: inherit; font-size: 13px;
+}
+.svc-num { width: 84px; }
+.svc-texto { flex: 1; min-width: 180px; }
+.svc-unidad { font-size: 12px; color: var(--sn-muted); }
+.svc-vacio { font-size: 12.5px; color: var(--sn-muted); padding: 6px 2px; }
+
   .opt-card { border: 1px solid var(--doc-line); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; position: relative; }
   .opt-card .opt-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
   .opt-card .opt-name { font-size: 15px; font-weight: 600; }
@@ -185,7 +213,42 @@
             <textarea id="opt-description-input" style="min-height:50px;" placeholder="Una o dos frases sobre este paquete"></textarea>
           </div>
           <div class="opt-field">
-            <label>Incluye (una linea por item) &mdash; se usa si no armas grupos abajo</label>
+            <label>Servicios incluidos</label>
+            <p class="svc-hint">
+              Elegí lo que incluye el paquete. El icono, el orden, la agrupación
+              y la redacción (1&nbsp;fotógrafo / 2&nbsp;fotógrafos) los resuelve
+              Flow: acá solo se ingresa la información.
+            </p>
+            <div id="svc-list" class="svc-list"></div>
+            <div class="svc-add">
+              <select id="svc-tipo" class="svc-select" onchange="svcTipoCambio()">
+                <option value="">+ Agregar servicio…</option>
+                {% for clave, titulo, tipos in catalogo_servicios %}
+                <optgroup label="{{ titulo }}">
+                  {% for tipo, etq, ico, pide_cant, unidad in tipos %}
+                  <option value="{{ tipo }}"
+                          data-cantidad="{{ 1 if pide_cant else 0 }}"
+                          data-unidad="{{ unidad }}">{{ etq }}</option>
+                  {% endfor %}
+                </optgroup>
+                {% endfor %}
+              </select>
+              <input id="svc-cantidad" class="svc-num" type="number" min="1" step="1"
+                     placeholder="Cant." style="display:none;">
+              <span id="svc-unidad" class="svc-unidad"></span>
+              <input id="svc-texto" class="svc-texto" placeholder="Describí el concepto"
+                     style="display:none;">
+              <select id="svc-categoria" class="svc-select" style="display:none;max-width:150px;">
+                {% for clave, titulo, tipos in catalogo_servicios %}
+                <option value="{{ clave }}">{{ titulo }}</option>
+                {% endfor %}
+              </select>
+              <button type="button" class="doc-btn outline" onclick="svcAgregar()">Agregar</button>
+            </div>
+          </div>
+
+          <div class="opt-field">
+            <label>Incluye (texto libre) &mdash; solo si no usás los servicios de arriba</label>
             <textarea id="opt-includes-input" placeholder="8 horas de cobertura&#10;300 fotografias editadas&#10;Galeria online privada"></textarea>
           </div>
           <div class="opt-field">
@@ -322,6 +385,7 @@ function openOptionForm(opt) {
   document.getElementById('opt-discount-input').value = opt && opt.descuento != null ? opt.descuento : '';
   document.getElementById('opt-description-input').value = opt && opt.description ? opt.description : '';
   document.getElementById('opt-includes-input').value = opt && opt.incluye ? opt.incluye.join('\n') : '';
+  svcCargar(opt);
   document.getElementById('opt-groups-list').innerHTML = '';
   if (opt && opt.groups && opt.groups.length) {
     opt.groups.forEach(function(g) { addGroupRow(g.title, (g.items || []).join('\n')); });
@@ -336,6 +400,116 @@ function closeOptionForm() {
 
 function _escHtml(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ---------- SERVICIOS ESTRUCTURADOS ----------
+// El builder guarda DATOS: {tipo, cantidad} o {tipo:'personalizado', texto,
+// categoria}. Nunca texto con icono adentro, ni HTML, ni emojis. Como el
+// tipo es la clave, el documento publico resuelve solo el icono, el orden,
+// la agrupacion y la concordancia de numero.
+var svcActuales = [];
+
+// Espejo del catalogo, para poder previsualizar el texto sin ir al server.
+var SVC_META = {
+{% for clave, titulo, tipos in catalogo_servicios %}{% for tipo, etq, ico, pide_cant, unidad in tipos %}  '{{ tipo }}': {etiqueta: {{ etq|tojson }}, categoria: {{ titulo|tojson }}, cantidad: {{ 'true' if pide_cant else 'false' }}, unidad: {{ unidad|tojson }}},
+{% endfor %}{% endfor %}};
+
+function svcTipoCambio() {
+  var tipo = document.getElementById('svc-tipo').value;
+  var meta = SVC_META[tipo] || {};
+  var esLibre = (tipo === 'personalizado');
+  document.getElementById('svc-cantidad').style.display = (meta.cantidad && !esLibre) ? '' : 'none';
+  document.getElementById('svc-unidad').textContent = meta.unidad || '';
+  document.getElementById('svc-texto').style.display = esLibre ? '' : 'none';
+  document.getElementById('svc-categoria').style.display = esLibre ? '' : 'none';
+}
+
+function svcTextoPreview(s) {
+  // Vista aproximada para el editor. El texto DEFINITIVO lo produce
+  // formatear_servicio() en Python: aca no se duplica esa logica, solo se
+  // muestra algo reconocible mientras se arma la cotizacion.
+  var meta = SVC_META[s.tipo] || {};
+  if (s.tipo === 'personalizado') return s.texto || '';
+  if (!meta.cantidad) return meta.etiqueta || s.tipo;
+  var n = s.cantidad;
+  var etq = meta.etiqueta || s.tipo;
+  if (meta.unidad) return n + ' ' + meta.unidad + ' · ' + etq;
+  return n + ' × ' + etq;
+}
+
+function svcRender() {
+  var cont = document.getElementById('svc-list');
+  if (!cont) return;
+  if (!svcActuales.length) {
+    cont.innerHTML = '<div class="svc-vacio">Todavía no agregaste servicios.</div>';
+    return;
+  }
+  cont.innerHTML = svcActuales.map(function(s, i) {
+    var meta = SVC_META[s.tipo] || {};
+    var cat = (s.tipo === 'personalizado') ? (s.categoriaLabel || 'Otros') : (meta.categoria || '');
+    return '<div class="svc-row">' +
+      '<span class="svc-row__cat">' + cat + '</span>' +
+      '<span class="svc-row__txt"></span>' +
+      '<button type="button" class="svc-row__del" title="Quitar" ' +
+        'onclick="svcQuitar(' + i + ')">&times;</button>' +
+      '</div>';
+  }).join('');
+  // El texto se inyecta como TEXTO, no como HTML: un concepto
+  // personalizado lo escribe el usuario y no puede inyectar markup.
+  var celdas = cont.querySelectorAll('.svc-row__txt');
+  svcActuales.forEach(function(s, i) {
+    if (celdas[i]) celdas[i].textContent = svcTextoPreview(s);
+  });
+}
+
+function svcAgregar() {
+  var sel = document.getElementById('svc-tipo');
+  var tipo = sel.value;
+  if (!tipo) return;
+  var meta = SVC_META[tipo] || {};
+  var s = {tipo: tipo};
+  if (tipo === 'personalizado') {
+    var txt = (document.getElementById('svc-texto').value || '').trim();
+    if (!txt) { alert('Escribí el concepto'); return; }
+    var catSel = document.getElementById('svc-categoria');
+    s.texto = txt;
+    s.categoria = catSel.value;
+    s.categoriaLabel = catSel.options[catSel.selectedIndex].text;
+  } else if (meta.cantidad) {
+    var n = parseFloat(document.getElementById('svc-cantidad').value);
+    if (!(n > 0)) { alert('Indicá la cantidad'); return; }
+    s.cantidad = n;
+  }
+  svcActuales.push(s);
+  sel.value = '';
+  document.getElementById('svc-cantidad').value = '';
+  document.getElementById('svc-texto').value = '';
+  svcTipoCambio();
+  svcRender();
+}
+
+function svcQuitar(i) { svcActuales.splice(i, 1); svcRender(); }
+
+function svcCargar(opt) {
+  svcActuales = (opt && opt.servicios ? opt.servicios : []).map(function(s) {
+    var copia = JSON.parse(JSON.stringify(s));
+    if (copia.tipo === 'personalizado' && copia.categoria) {
+      var op = document.querySelector('#svc-categoria option[value="' + copia.categoria + '"]');
+      copia.categoriaLabel = op ? op.text : 'Otros';
+    }
+    return copia;
+  });
+  svcRender();
+}
+
+function svcParaGuardar() {
+  return svcActuales.map(function(s) {
+    var out = {tipo: s.tipo};
+    if (s.cantidad != null) out.cantidad = s.cantidad;
+    if (s.texto) out.texto = s.texto;
+    if (s.categoria) out.categoria = s.categoria;
+    return out;
+  });
 }
 
 function addGroupRow(title, itemsText) {
@@ -376,7 +550,8 @@ function saveOption() {
       descuento: document.getElementById('opt-discount-input').value || null,
       description: document.getElementById('opt-description-input').value,
       incluye: document.getElementById('opt-includes-input').value,
-      groups: collectGroups()
+      groups: collectGroups(),
+      servicios: svcParaGuardar()
     })
   })
     .then(function(r) { return r.json(); })

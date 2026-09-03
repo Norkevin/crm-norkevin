@@ -4922,6 +4922,16 @@ def _invoice_document(invoice_id, *, tenant_id=None):
                     if proximo else None),
         'concepto': concepto,
         'incluye': incluye or [],
+        # Desglose resuelto por el mismo camino que la cotizacion: si el
+        # paquete tiene servicios estructurados salen agrupados y con icono
+        # por tipo; si es una cotizacion vieja, clasificacion legacy
+        # conservadora. La factura y la cotizacion muestran lo mismo porque
+        # lo resuelven con la misma funcion, no con dos plantillas parecidas.
+        'grupos': _quote_grupos_display({
+            'servicios': (quote or {}).get('servicios'),
+            'groups': (quote or {}).get('groups'),
+            'incluye': incluye or [],
+        }),
         'emitida': _format_date_es(selected.get('created') or selected.get('issued_date')),
         # AUDITORIA 3-sep-2026 (Kevin: "de donde sale 'Vence'"). El dato es
         # el due_date de la cuota REPRESENTATIVA -- la primera del plan --
@@ -10738,6 +10748,45 @@ def _normalize_quote_options(quote):
     }]
 
 
+def _quote_grupos_display(opcion):
+    """Grupos listos para pintar: [{titulo, servicios:[{texto, icono}]}].
+
+    Tres caminos, en orden de calidad del dato:
+
+      1. servicios[] estructurados -> agrupacion, iconos y pluralizacion
+         resueltos por tipo. Es el camino de las cotizaciones nuevas.
+      2. groups[] escritos a mano (modelo intermedio) -> se respetan los
+         titulos del fotografo y el icono se deduce del texto.
+      3. incluye[] plano (cotizaciones viejas) -> un solo bloque sin titulo.
+
+    En 2 y 3 el icono sale de clasificar_legacy(), que solo reconoce
+    patrones inequivocos ("2 fotografos", "Galeria online") y ante la duda
+    devuelve el neutro. Nunca se adivina de mas: un icono generico es un
+    detalle estetico, uno equivocado le dice al cliente algo que no es.
+    """
+    if not isinstance(opcion, dict):
+        return []
+
+    servicios = opcion.get('servicios')
+    if servicios:
+        return qsvc.agrupar(servicios)
+
+    grupos = opcion.get('groups') or []
+    if grupos:
+        return [{
+            'clave': '', 'titulo': (g.get('title') or '').strip(),
+            'servicios': [{'texto': str(x), 'icono': qsvc.icono_para_texto_legacy(str(x))}
+                          for x in (g.get('items') or []) if str(x).strip()],
+        } for g in grupos if isinstance(g, dict) and (g.get('items') or [])]
+
+    incluye = opcion.get('incluye') or []
+    if incluye:
+        return [{'clave': '', 'titulo': '',
+                 'servicios': [{'texto': str(x), 'icono': qsvc.icono_para_texto_legacy(str(x))}
+                               for x in incluye if str(x).strip()]}]
+    return []
+
+
 def _resolve_quote_package(quote):
     """Nombre + descripcion (incluye) del paquete de una cotizacion, ya sea
     que este ya aceptada (campos planos materializados) o siga pendiente
@@ -11136,11 +11185,28 @@ def quote_view(quote_id):
     else:
         public_base = f'/quotes/{quote_id}'
 
+    # Cada opcion llega a la plantilla con sus grupos ya resueltos (texto +
+    # nombre de icono). La plantilla no clasifica ni adivina nada: pinta.
+    # Es la separacion que pidio Kevin -- los datos deciden que dice el
+    # documento, el renderer decide como se ve.
+    opciones = _normalize_quote_options(quote)
+    for _o in opciones:
+        if isinstance(_o, dict):
+            _o['grupos_display'] = _quote_grupos_display(_o)
+    # La cotizacion ya aceptada muestra los campos planos materializados,
+    # asi que su desglose se resuelve aparte, por el mismo camino.
+    grupos_aceptada = _quote_grupos_display({
+        'servicios': quote.get('servicios'),
+        'groups': quote.get('groups'),
+        'incluye': quote.get('incluye'),
+    })
+
     return render_template(
         'quote_view.html',
         quote=quote,
         lead=lead,
-        options=_normalize_quote_options(quote),
+        grupos_aceptada=grupos_aceptada,
+        options=opciones,
         plan_choices=_quote_plan_choices(quote),
         payment_schedule=payment_schedule,
         brand=brand,
@@ -11192,6 +11258,12 @@ def quote_edit(quote_id):
         extras_catalog=quote.get('extras_catalog') or [],
         selected_portfolio_ids=quote.get('portfolio_ids') or [],
         selected_terms_template_id=quote.get('terms_template_id') or '',
+        # QUOTE BUILDER (3-sep-2026): el catalogo de servicios que el
+        # fotografo puede agregar. Son DATOS -- tipo, etiqueta, si pide
+        # cantidad y con que unidad -- agrupados por categoria. El icono, la
+        # pluralizacion, el orden y la agrupacion en el documento los
+        # resuelve el sistema; aca no se elige ninguno de los cuatro.
+        catalogo_servicios=qsvc.catalogo_para_selector(),
     )
 
 
@@ -11276,6 +11348,14 @@ def api_quote_option_save(quote_id):
     except (TypeError, ValueError):
         horas = None
 
+    # SERVICIOS ESTRUCTURADOS (3-sep-2026). La fuente de verdad nueva: cada
+    # inclusion es un dato ({'tipo': 'fotografos', 'cantidad': 2}), no un
+    # string. De ahi salen el icono, la pluralizacion, la agrupacion y el
+    # orden, sin que nadie tenga que elegirlos. `groups` e `incluye` se
+    # DERIVAN de aca, asi que el PDF y cualquier vista vieja siguen leyendo
+    # lo mismo de siempre y no se enteran del cambio.
+    servicios = qsvc.normalizar_servicios(data.get('servicios'))
+
     groups = data.get('groups')
     if not isinstance(groups, list):
         groups = []
@@ -11283,12 +11363,18 @@ def api_quote_option_save(quote_id):
         'title': (g.get('title') or '').strip(),
         'items': [str(x).strip() for x in (g.get('items') or []) if str(x).strip()],
     } for g in groups if isinstance(g, dict)]
+    if servicios:
+        # Los servicios mandan sobre los grupos escritos a mano: si vienen
+        # ambos, `groups` se regenera para que no puedan contradecirse.
+        groups = qsvc.derivar_groups(servicios)
 
     incluye = data.get('incluye')
     if isinstance(incluye, str):
         incluye = [line.strip() for line in incluye.split('\n') if line.strip()]
     incluye = incluye or []
-    if groups:
+    if servicios:
+        incluye = qsvc.derivar_incluye(servicios)
+    elif groups:
         # Groups es la fuente estructurada nueva; si se manda, 'incluye'
         # (plano) se deriva de ahi para que PDF/vistas viejas sigan
         # mostrando lo mismo sin tener que saber que existen los grupos.
@@ -11318,6 +11404,7 @@ def api_quote_option_save(quote_id):
         'order': data.get('order') if isinstance(data.get('order'), int) else len(options),
         'incluye': incluye,
         'groups': groups,
+        'servicios': servicios,
         'products': products,
         'photos': photos,
         'notas': data.get('notas') or '',
@@ -12042,6 +12129,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 from src.pdf_generator import generate_quote_pdf, generate_contract_pdf, generate_invoice_pdf, contract_terms, resolve_pdf_brand
 from src.pdf_invoice import render_invoice_pdf
+import src.quote_services as qsvc
 
 
 @app.route('/quotes/<quote_id>/pdf')

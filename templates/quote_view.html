@@ -292,18 +292,19 @@
       {# Mismo bloque y mismo macro que usa la factura para el desglose:
          el cliente ve exactamente lo mismo antes de aceptar y despues, al
          momento de pagar. #}
-      {% if quote.incluye %}
+      {# El desglose llega YA RESUELTO desde app.py (_quote_grupos_display):
+         servicios estructurados si la cotizacion los tiene, clasificacion
+         legacy conservadora si es vieja. La plantilla no elige iconos, no
+         agrupa y no decide el orden -- solo pinta. #}
+      {% if grupos_aceptada %}
       <div class="opt-body">
-        {# El contador solo sale si `incluye` es una secuencia de verdad:
-           con un string suelto de datos legacy contaria caracteres, y con
-           un numero |length lanza TypeError y tumba la pagina. Misma guarda
-           que usa feature_flow internamente. #}
-        {% set _lista = quote.incluye is iterable and quote.incluye is not string and quote.incluye is not mapping %}
+        {# sum(attribute=...) sobre listas arranca en 0 y revienta: se cuentan las longitudes. #}
+        {% set _n = grupos_aceptada | map(attribute='servicios') | map('length') | sum %}
         <div class="section-head">
           <h2 class="doc-h2">Qué incluye</h2>
-          {% if _lista %}<span class="section-head__meta">{{ quote.incluye|length }} conceptos</span>{% endif %}
+          {% if _n %}<span class="section-head__meta">{{ _n }} conceptos</span>{% endif %}
         </div>
-        {{ ui.feature_flow(quote.incluye) }}
+        {{ ui.service_groups(grupos_aceptada) }}
       </div>
       {% endif %}
     </div>
@@ -387,22 +388,12 @@
         </div>
         {% endif %}
 
-        {% if opt.groups %}
-        <div class="opt-body feature-cols">
-          {% for g in opt.groups %}
-          <div class="feature-group">
-            {% if g.title %}<div class="feature-group__title">{{ g.title }}</div>{% endif %}
-            <ul class="feature-list">
-              {% for item in g['items'] %}
-              <li>{{ ui.icon_feature(item) }}<span>{{ item }}</span></li>
-              {% endfor %}
-            </ul>
-          </div>
-          {% endfor %}
-        </div>
-        {% elif opt.incluye %}
+        {# Mismo camino que el paquete contratado: un solo macro, un solo
+           criterio. Antes esta rama adivinaba el icono leyendo el texto y
+           la otra usaba feature_flow: dos presentaciones del mismo dato. #}
+        {% if opt.grupos_display %}
         <div class="opt-body">
-          {{ ui.feature_flow(opt.incluye) }}
+          {{ ui.service_groups(opt.grupos_display) }}
         </div>
         {% endif %}
 
