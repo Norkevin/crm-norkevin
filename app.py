@@ -4923,7 +4923,18 @@ def _invoice_document(invoice_id, *, tenant_id=None):
         'concepto': concepto,
         'incluye': incluye or [],
         'emitida': _format_date_es(selected.get('created') or selected.get('issued_date')),
+        # AUDITORIA 3-sep-2026 (Kevin: "de donde sale 'Vence'"). El dato es
+        # el due_date de la cuota REPRESENTATIVA -- la primera del plan --
+        # no un vencimiento del documento completo, que no existe en el
+        # modelo. Con una sola cuota las dos cosas coinciden y "Vence" es
+        # correcto. Con un plan de varias, mostrar "Vence: 22 julio 2025"
+        # arriba de un calendario cuyo ultimo pago es de noviembre de 2026
+        # se lee como una contradiccion. No se cambia el dato ni la logica:
+        # se cambia la ETIQUETA para que describa lo que el dato realmente
+        # es. El vencimiento de cada cuota sigue estando en el calendario.
         'vence': _format_date_es(selected.get('due_date')),
+        'vence_label': ('Vence' if len([f for f in filas if f.get('estado') != 'cancelled']) <= 1
+                        else 'Primer vencimiento'),
         'cliente_nombre': _client_name(client=client, lead=lead, job=job),
         'job_nombre': (job or {}).get('nombre') or '',
         'boda_fecha': _format_date_es((job or {}).get('boda_date')),
@@ -12030,6 +12041,7 @@ def public_invoice_pdf(token):
 import sys
 sys.path.insert(0, os.path.dirname(__file__))
 from src.pdf_generator import generate_quote_pdf, generate_contract_pdf, generate_invoice_pdf, contract_terms, resolve_pdf_brand
+from src.pdf_invoice import render_invoice_pdf
 
 
 @app.route('/quotes/<quote_id>/pdf')
@@ -12156,10 +12168,23 @@ def invoice_pdf(invoice_id):
         schedule = [pay]
         package_name = job.get('package')
 
-    brand = resolve_pdf_brand(job.get('tenant_id') or pay.get('tenant_id'))
-    pdf_bytes = generate_invoice_pdf(pay, job, client, schedule=schedule,
-                                      package_name=package_name, package_incluye=package_incluye,
-                                      brand=brand)
+    tenant_id = job.get('tenant_id') or pay.get('tenant_id')
+    brand = resolve_pdf_brand(tenant_id)
+    # El PDF se dibuja desde el MISMO dict que consume invoice_document.html.
+    # Antes tenia su propio armado de datos y su propio diseño, y por eso la
+    # web y el PDF se separaron: cada mejora de una dejaba a la otra atras.
+    # Ahora comparten la fuente de datos (_invoice_document) y los tokens
+    # (src.pdf_document_system, espejo de _document_tokens.html), asi que no
+    # pueden mostrar cifras ni conceptos distintos.
+    doc = _invoice_document(invoice_id, tenant_id=tenant_id)
+    if not doc:
+        abort(404)
+    theme = _document_theme(tenant_id)
+    pdf_bytes = render_invoice_pdf(
+        doc, brand,
+        simbolo=theme.get('currency_symbol') or 'Q',
+        generado_el=_format_date_es(datetime.now().strftime('%Y-%m-%d')),
+    )
     return Response(pdf_bytes, mimetype='application/pdf', headers={
         'Content-Disposition': f'inline; filename="factura-{invoice_id}.pdf"'
     })

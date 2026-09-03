@@ -378,26 +378,25 @@ a { color: inherit; }
 /* ============================================================
    Features -- inclusiones con icono, en columnas
    ============================================================ */
-/* Grupos con titulo (Fotografia / Video / Extras / Entregables): grid de
-   hasta 4 columnas, que es la reticula de la referencia. */
-.feature-cols {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: clamp(18px, 2.2vw, 30px);
-}
-@media (min-width: 900px) { .feature-cols { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* Grupos con titulo (Fotografia / Video / Extras / Entregables): dos
+   columnas como maximo, por la misma razon que .feature-flow -- a cuatro,
+   los textos se parten en pedazos que parecen conceptos sueltos. */
+.feature-cols { display: grid; grid-template-columns: 1fr; gap: 10px 32px; }
+@media (min-width: 760px) { .feature-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-/* Inclusiones SIN grupos: multi-columna en vez de grid. El grid reparte
-   por filas y deja la ultima columna coja; multi-column balancea las
-   alturas solo y mantiene el orden de lectura vertical. El numero de
-   columnas lo decide la plantilla segun cuantas inclusiones haya, para no
-   terminar con columnas de un solo item. */
-.feature-flow { column-gap: clamp(20px, 2.4vw, 34px); }
+/* Inclusiones SIN grupos: multi-columna, con TOPE DE DOS.
+   Con cuatro columnas el texto queda tan angosto que una inclusion como
+   "8 horas de cobertura + 1 hora extra" se parte y deja "extra" solo en la
+   linea siguiente. Al cliente eso se le lee como un concepto suelto y hace
+   que el documento parezca un volcado de base de datos -- que es justo lo
+   que Kevin reporto. No era un problema de los datos: los paquetes traen
+   las inclusiones enteras y bien escritas. Era el ancho de columna.
+   La legibilidad manda sobre meter todo en menos altura. */
+.feature-flow { column-gap: 32px; }
 .feature-flow.cols-1 { columns: 1; }
-.feature-flow.cols-2 { columns: 215px 2; }
-.feature-flow.cols-3 { columns: 200px 3; }
-.feature-flow.cols-4 { columns: 190px 4; }
+.feature-flow.cols-2 { columns: 260px 2; }
 .feature-flow > li { break-inside: avoid; -webkit-column-break-inside: avoid; }
-@media (max-width: 560px) { .feature-flow { columns: 1 !important; } }
+@media (max-width: 700px) { .feature-flow { columns: 1 !important; } }
 .feature-group__title {
   font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase;
   color: var(--text-secondary); margin-bottom: 11px;
@@ -576,7 +575,7 @@ a { color: inherit; }
   .col-2 { grid-template-columns: 1fr; }
   /* La impresion hereda la misma jerarquia: multi-columna acotada para que
      no queden lineas huerfanas al cortar la pagina. */
-  .feature-flow.cols-3, .feature-flow.cols-4 { columns: 3; }
+  .feature-flow.cols-2 { columns: 2; }
   .card, .hero-card { margin-bottom: 10px; }
   .card__body { padding: 14px 16px; }
   .doc-topbar-inner { padding-top: 0; }

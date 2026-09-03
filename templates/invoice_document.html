@@ -49,7 +49,7 @@
         {{ ui.meta_item('Evento', doc.job_nombre, 'sparkle') }}
         {{ ui.meta_item('Fecha del evento', doc.boda_fecha, 'calendar') }}
         {{ ui.meta_item('Emitida', doc.emitida, 'file') }}
-        {{ ui.meta_item('Vence', doc.vence, 'clock') }}
+        {{ ui.meta_item(doc.vence_label or 'Vence', doc.vence, 'clock') }}
       </div>
       {% if doc.estado_detalle %}
       <p class="meta-support">{{ doc.estado_detalle }}</p>

@@ -325,7 +325,8 @@ check('scheduler de recordatorios apagado por defecto',
 # Los tests nuevos estan en el runner
 for t in ['test_uso_diario_clientes', 'test_uso_diario_workflows_calendario',
           'test_navegacion_diaria', 'test_paginas_de_error_y_marca',
-          'test_rendimiento_vistas', 'test_responsive_movil']:
+          'test_rendimiento_vistas', 'test_responsive_movil',
+          'test_documento_web_pdf_paridad']:
     check(f'{t}.py incluido en el runner', t in runner)
 
 
