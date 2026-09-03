@@ -104,9 +104,17 @@ LINE_SOFT = HexColor('#F4F5F9')  # surface-2
 GOLD = HexColor('#7357F6')       # primary (el acento del producto; el nombre
                                  # de la constante se conserva para no tocar
                                  # las ~40 referencias que ya la usan)
-EMERALD = HexColor('#2FB66D')    # success
-ROSE = HexColor('#EF5B5B')       # danger
-AMBER = HexColor('#F59E0B')      # warning
+EMERALD = HexColor('#2FB66D')    # success -- rellenos y marcadores
+ROSE = HexColor('#EF5B5B')       # danger  -- rellenos y marcadores
+AMBER = HexColor('#F59E0B')      # warning -- rellenos y marcadores
+# Variantes para TEXTO. Los tres de arriba son colores de superficie: sobre
+# papel blanco dan 2.6:1, 3.3:1 y 2.2:1, muy por debajo del minimo legible,
+# y un PDF se imprime. Mismo tono, oscurecido hasta pasar 4.5:1. Es la misma
+# distincion que hace base.html entre --sn-success y el color de texto de
+# .badge-success.
+EMERALD_TEXT = HexColor('#158048')
+ROSE_TEXT = HexColor('#C93636')
+AMBER_TEXT = HexColor('#97620C')
 
 
 def _draw_hero(c, width, height, doc_type, doc_id, total=None, brand=None):
@@ -600,13 +608,13 @@ def generate_invoice_pdf(invoice, job, client, schedule=None, package_name=None,
 
     # Estado general
     if paid_amount >= total_amount and total_amount > 0:
-        c.setFillColor(EMERALD)
+        c.setFillColor(EMERALD_TEXT)
         overall_status = "FACTURA PAGADA EN SU TOTALIDAD"
     elif paid_amount > 0:
-        c.setFillColor(AMBER)
+        c.setFillColor(AMBER_TEXT)
         overall_status = "PAGO PARCIAL RECIBIDO"
     else:
-        c.setFillColor(AMBER)
+        c.setFillColor(AMBER_TEXT)
         overall_status = "PENDIENTE DE PAGO"
     c.setFont("Helvetica-Bold", 10)
     c.drawString(15*mm, y, overall_status)

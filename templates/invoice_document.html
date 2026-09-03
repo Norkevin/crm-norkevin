@@ -86,22 +86,21 @@
             <div class="line-item__name">{{ doc.concepto }}</div>
             <div class="line-item__amount">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(doc.total) }}</div>
           </div>
-          {# El detalle del concepto se reparte en dos columnas cuando hay
-             varias lineas, para que no se lea como una pared de texto. Con
-             muchas inclusiones se muestran las primeras y el resto se
-             resume: la factura documenta el cobro, el detalle completo vive
-             en la cotizacion. #}
-          {% if doc.incluye %}
-          {% set _visibles = doc.incluye[:6] %}
-          <ul class="line-item__sub{{ ' line-item__sub--single' if _visibles|length < 3 else '' }}">
-            {% for item in _visibles %}<li>{{ item }}</li>{% endfor %}
-            {% if doc.incluye|length > 6 %}
-            {% set _resto = doc.incluye|length - 6 %}
-            <li class="line-item__more">y {{ _resto }} concepto{{ 's' if _resto != 1 else '' }} más incluido{{ 's' if _resto != 1 else '' }}</li>
-            {% endif %}
-          </ul>
-          {% endif %}
         </div>
+
+        {# El desglose usa EL MISMO macro que la cotizacion (feature_flow),
+           no una lista propia. Antes la factura lo pintaba con bullets
+           grises y recortado a 6 lineas, y la cotizacion con iconos en
+           columnas: el mismo dato con dos caras distintas, que es
+           justamente lo que hacia que no parecieran el mismo documento.
+           Tampoco se recorta: lo que el cliente acepto es lo que se le
+           cobra, y tiene que poder verificarlo aca. #}
+        {% if doc.incluye %}
+        <div class="line-item-detail">
+          <div class="feature-group__title">Incluye</div>
+          {{ ui.feature_flow(doc.incluye) }}
+        </div>
+        {% endif %}
 
         {# Subtotal / Pagado / Saldo cierran la MISMA card de conceptos,
            como en la referencia: el desglose y su resultado se leen de

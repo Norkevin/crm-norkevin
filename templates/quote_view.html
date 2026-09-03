@@ -61,26 +61,28 @@
 .opt-price-wrap { margin-left: auto; }
 .opt-recommended {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 600; letter-spacing: 0.7px; text-transform: uppercase;
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0; text-transform: none;
   color: var(--primary-dark); background: var(--primary-soft);
-  border-radius: 999px; padding: 5px 11px; margin-bottom: 12px;
+  border-radius: 360px; padding: 4px 10px; margin-bottom: 12px;
 }
-.opt-num { font-size: 10.5px; font-weight: 650; letter-spacing: 1.15px; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
-.opt-name { font-family: var(--font-serif); font-weight: 400; font-size: clamp(23px, 2.7vw, 29px); letter-spacing: -0.02em; line-height: 1.08; margin: 0; }
+.opt-num { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 8px; }
+/* Titulo de paquete: 22-26px / 600, sans. Antes era serif y era una de
+   las cosas que hacia ver el documento como papeleria. */
+.opt-name { font-size: clamp(20px, 2.3vw, 25px); font-weight: 600; letter-spacing: -0.018em; line-height: 1.25; margin: 0; }
 .opt-subtitle { font-size: 13.5px; color: var(--text-secondary); margin-top: 7px; line-height: 1.5; max-width: 52ch; }
 .opt-price-wrap { text-align: right; flex-shrink: 0; }
-.opt-price-label { font-size: 10px; font-weight: 650; letter-spacing: 1.05px; text-transform: uppercase; color: var(--muted); line-height: 1; }
+.opt-price-label { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-secondary); line-height: 1.3; }
 .opt-price-old { font-size: 13px; color: var(--muted); text-decoration: line-through; }
-.opt-price { font-size: clamp(27px, 3.3vw, 35px); font-weight: 650; letter-spacing: -0.035em; color: var(--primary); font-variant-numeric: tabular-nums; margin-top: 7px; line-height: 1; }
-.opt-price-currency { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.opt-price { font-size: clamp(24px, 2.8vw, 30px); font-weight: 700; letter-spacing: -0.025em; color: var(--primary); margin-top: 7px; line-height: 1.15; }
+.opt-price-currency { font-size: 11.5px; font-weight: 400; color: var(--text-secondary); margin-top: 4px; }
 .opt-desc { font-size: 13.5px; color: var(--text-secondary); margin: 11px 0 0; line-height: 1.55; max-width: 60ch; }
 .opt-body { margin-top: clamp(17px, 2vw, 21px); padding-top: clamp(17px, 2vw, 21px); border-top: 1px solid var(--border); }
-.opt-note { font-size: 12.5px; color: var(--muted); font-style: italic; margin-top: 16px; }
+.opt-note { font-size: 12.5px; color: var(--text-secondary); font-style: italic; margin-top: 16px; }
 .opt-select {
   margin-top: 18px; display: inline-flex; align-items: center; gap: 7px;
   background: transparent; border: 1px solid var(--border-strong); border-radius: var(--radius-md);
   padding: 11px 20px; color: var(--text-primary);
-  font-family: var(--font-sans); font-size: 14px; font-weight: 550; letter-spacing: -0.01em;
+  font-family: var(--font-sans); font-size: 14px; font-weight: 600; letter-spacing: -0.008em;
   transition: background-color .16s, color .16s, border-color .16s;
 }
 .opt.selected .opt-select { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -93,12 +95,12 @@
 }
 .extra-row:last-child { border-bottom: none; }
 .extra-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.extra-name { font-size: 14.5px; font-weight: 550; }
+.extra-name { font-size: 14.5px; font-weight: 600; letter-spacing: -0.008em; }
 .extra-desc { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
 .extra-right { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
-.extra-price { font-size: 14.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.extra-price { font-size: 14.5px; font-weight: 600; }
 .extra-action {
-  font-size: 13px; font-weight: 550; color: var(--text-secondary);
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
   padding: 9px 15px; min-width: 106px; text-align: center; background: var(--surface);
   transition: background-color .16s, color .16s, border-color .16s;
@@ -111,7 +113,7 @@
 .plan-opt {
   border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface);
   padding: 12px 22px; cursor: pointer; outline: none;
-  font-size: 14px; font-weight: 550; color: var(--text-primary); letter-spacing: -0.01em;
+  font-size: 14px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.008em;
   transition: background-color .16s, color .16s, border-color .16s;
 }
 .plan-opt:hover { background: var(--surface-2); }
@@ -122,17 +124,17 @@
 .summary-row { display: flex; justify-content: space-between; gap: 14px; font-size: 14.5px; padding: 9px 0; }
 .summary-row + .summary-row { border-top: 1px solid var(--border); }
 .summary-row .k { color: var(--text-secondary); }
-.summary-row .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+.summary-row .v { font-weight: 600; }
 .summary-row.total { border-top: 1.5px solid var(--border-strong); margin-top: 4px; padding-top: 16px; }
-.summary-row.total .k { font-size: 16px; font-weight: 600; color: var(--text-primary); }
-.summary-row.total .v { font-size: clamp(23px, 2.7vw, 29px); font-weight: 650; letter-spacing: -0.035em; color: var(--primary); }
+.summary-row.total .k { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.summary-row.total .v { font-size: clamp(24px, 2.8vw, 30px); font-weight: 700; letter-spacing: -0.025em; color: var(--primary); }
 .summary-plan { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
-.plan-name { font-size: 16px; font-weight: 600; margin-top: 4px; }
+.plan-name { font-size: 15px; font-weight: 600; margin-top: 5px; }
 .summary-schedule { margin-top: 12px; }
 .btn-accept {
   flex: 1 1 260px; background: var(--primary); color: #fff; border: none;
   border-radius: var(--radius-md); font-family: var(--font-sans);
-  font-size: 15px; font-weight: 550; letter-spacing: -0.01em; padding: 15px 28px; min-height: 50px;
+  font-size: 15px; font-weight: 600; letter-spacing: -0.008em; padding: 15px 28px; min-height: 50px;
   cursor: pointer; box-shadow: 0 1px 2px rgba(18,18,26,.08);
   transition: background-color .16s, opacity .16s;
 }
@@ -287,9 +289,20 @@
       </div>
       {% endif %}
 
+      {# Mismo bloque y mismo macro que usa la factura para el desglose:
+         el cliente ve exactamente lo mismo antes de aceptar y despues, al
+         momento de pagar. #}
       {% if quote.incluye %}
       <div class="opt-body">
-        <div class="feature-group__title">Incluye</div>
+        {# El contador solo sale si `incluye` es una secuencia de verdad:
+           con un string suelto de datos legacy contaria caracteres, y con
+           un numero |length lanza TypeError y tumba la pagina. Misma guarda
+           que usa feature_flow internamente. #}
+        {% set _lista = quote.incluye is iterable and quote.incluye is not string and quote.incluye is not mapping %}
+        <div class="section-head">
+          <h2 class="doc-h2">Qué incluye</h2>
+          {% if _lista %}<span class="section-head__meta">{{ quote.incluye|length }} conceptos</span>{% endif %}
+        </div>
         {{ ui.feature_flow(quote.incluye) }}
       </div>
       {% endif %}
@@ -299,7 +312,10 @@
   {% if quote.plan_pago and quote.plan_pago > 1 and payment_schedule %}
   <div class="card">
     <div class="card__body">
-      <h2 class="doc-h2" style="margin-bottom:14px;">Calendario de pagos · {{ quote.plan_pago }} pagos</h2>
+      <div class="section-head">
+        <h2 class="doc-h2">Calendario de pagos</h2>
+        <span class="section-head__meta">{{ quote.plan_pago }} pagos</span>
+      </div>
       <ul class="timeline">
         {% for p in payment_schedule %}
         <li class="timeline__item timeline__item--{{ 'paid' if p.status == 'Pagado' else 'scheduled' }}">

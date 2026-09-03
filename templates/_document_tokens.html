@@ -40,6 +40,11 @@
   /* ---- estados ---- */
   --success: {{ theme.success }};
   --success-soft: {{ theme.success_soft }};
+  {# Variantes de texto: el verde y el rojo de superficie no tienen
+     contraste suficiente como color de letra. Fallback al color de
+     superficie para los theme_snapshot viejos, que no traen estas claves. #}
+  --success-text: {{ theme.success_text or theme.success }};
+  --danger-text: {{ theme.danger_text or theme.danger }};
   --warning: {{ theme.warning }};
   --warning-soft: {{ theme.warning_soft }};
   --danger: {{ theme.danger }};

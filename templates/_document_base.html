@@ -1,5 +1,34 @@
 {#
-  SISTEMA DE DOCUMENTOS DE FLOW CRM -- BASE VISUAL (v2, 29-ago-2026)
+  SISTEMA DE DOCUMENTOS DE FLOW CRM -- BASE VISUAL (v3, 3-sep-2026)
+
+  MINI DESIGN SYSTEM COMPARTIDO. Cotizacion y factura son dos estados del
+  mismo documento: propuesta y cobro. Comparten tokens, componentes,
+  espaciado y criterios. Nada de esto se duplica en las plantillas.
+
+  Componentes (equivalencia con los nombres que pidio Kevin):
+    document-shell           -> .doc-page
+    document-header          -> .doc-topbar        (macro ui.topbar)
+    document-status-badge    -> .badge             (macro ui.status_badge)
+    document-hero            -> .hero-card
+    document-meta-item       -> .meta-item         (macro ui.meta_item)
+    document-section         -> .card / .card__body
+    document-section-title   -> .doc-h2 / .section-head
+    document-label           -> .doc-label
+    document-value           -> .meta-value
+    document-amount          -> .amount / .summary-card__value
+    document-line-items      -> .line-item         (macro no aplica)
+    document-inclusions      -> .feature-list      (macro ui.feature_flow)
+    document-summary         -> .totals
+    document-payment-schedule-> .timeline          (macro ui.payment_timeline)
+    document-footer          -> .doc-footer        (macro ui.doc_footer)
+
+  TIPOGRAFIA: Inter, la del CRM. La serif tiene UN solo uso permitido, el
+  wordmark de la marca (.doc-brand-name / .doc-footer__name); es identidad
+  del fotografo, no tipografia de interfaz. Nombre del cliente, montos,
+  conceptos, fechas, estados y labels van todos en sans.
+
+  Los colores, radios y sombras NO son una paleta propia: son los tokens
+  --sn-* de templates/base.html. Ver el mapeo en _quote_theme_for_tenant().
 
   Construido contra la referencia visual que dio Kevin: documento como pila
   de cards blancas sobre lienzo muy claro, acento morado del CRM, metadata
@@ -24,9 +53,12 @@ body {
   background: var(--background);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 14.5px;
-  line-height: 1.55;
-  letter-spacing: -0.006em;
+  /* base.html declara 14px/1.45 para el CRM; el documento sube medio punto
+     porque se lee a mas distancia que un dashboard, pero conserva el mismo
+     tracking (0) y la misma familia. */
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
@@ -36,38 +68,52 @@ body {
 img { max-width: 100%; display: block; }
 button, input, select, textarea { font-family: inherit; }
 a { color: inherit; }
-.num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
 .doc-noprint { }
 
 /* ============================================================
    DocumentPage
    ============================================================ */
-.doc-page { max-width: 1260px; margin: 0 auto; padding: 0 clamp(14px, 2.4vw, 26px); }
+/* document-shell. base.html define --content-readable: 1180px para
+   "lectura (documentos/formularios)". Es el ancho del propio CRM para esto,
+   no un numero elegido aparte. */
+.doc-page { max-width: 1180px; margin: 0 auto; padding: 0 clamp(16px, 2.4vw, 28px); }
 .doc-body { padding-bottom: clamp(28px, 4vw, 44px); }
 
 /* ============================================================
    Tipografia
    ============================================================ */
+/* ---- Escala. Anclada en la del CRM (.page-title 21/600, .kpi-value
+   26/600, .kpi-label y .form-label 11/600). Sin tracking exagerado ni
+   mayusculas de papeleria. ---- */
+
+/* document-label: label pequeño, tracking leve, color secundario. */
 .doc-label {
-  font-size: 11.5px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase;
-  color: var(--muted); margin: 0;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase;
+  color: var(--text-secondary); margin: 0; line-height: 1.3;
 }
-/* Serif SOLO aca (nombre del cliente) y en el nombre del paquete. Es el
-   unico lugar donde aporta: el resto del documento es sans. */
+/* Titulo principal (nombre del cliente / evento): 30-34px, weight 600.
+   Sans, como el resto de la interfaz. */
 .doc-h1 {
-  font-family: var(--font-serif); font-weight: 400;
-  font-size: clamp(29px, 3.9vw, 40px); letter-spacing: -0.02em; line-height: 1.06; margin: 0;
-  overflow-wrap: break-word; text-wrap: balance; max-width: 18ch;
+  font-size: clamp(26px, 3vw, 33px); font-weight: 600;
+  letter-spacing: -0.022em; line-height: 1.18; margin: 0;
+  overflow-wrap: break-word; text-wrap: balance; max-width: 20ch;
 }
 .hero-card--with-image .doc-h1 { max-width: 14ch; }
 @media (max-width: 720px) { .doc-h1, .hero-card--with-image .doc-h1 { max-width: none; } }
-.doc-h2 {
-  font-size: clamp(16px, 1.8vw, 17.5px); font-weight: 650;
-  letter-spacing: -0.02em; margin: 0; line-height: 1.3;
+/* Titulo de seccion: 18-20px, weight 600. */
+.doc-h2 { font-size: clamp(17px, 1.9vw, 19px); font-weight: 600; letter-spacing: -0.016em; margin: 0; line-height: 1.3; }
+/* Subtitulo dentro de una seccion. */
+.doc-h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.008em; margin: 0; line-height: 1.4; }
+/* Texto secundario: 13-14px, weight 400. */
+.doc-text { font-size: 13.5px; font-weight: 400; color: var(--text-secondary); line-height: 1.55; margin: 0; }
+.doc-text--sm { font-size: 13px; }
+
+/* document-amount: montos con cifras de ancho fijo, para que las columnas
+   de precios alineen y no bailen al cambiar de digito. */
+.amount, .num, .summary-card__value, .wide-card__amount, .totals__value,
+.line-item__amount, .timeline__amount, .opt-price, .extra-price {
+  font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1, 'lnum' 1;
 }
-.doc-h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
-.doc-text { font-size: 13.5px; color: var(--text-secondary); line-height: 1.6; margin: 0; }
-.doc-text--sm { font-size: 12.5px; }
 
 /* Cabecera de seccion: titulo a la izquierda, dato de apoyo a la derecha.
    Da una linea de anclaje arriba de cada card y evita el titulo suelto. */
@@ -76,8 +122,8 @@ a { color: inherit; }
   gap: 14px; margin-bottom: 14px;
 }
 .section-head__meta {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase;
-  color: var(--muted); white-space: nowrap;
+  font-size: 11.5px; font-weight: 500; letter-spacing: 0;
+  color: var(--text-secondary); white-space: nowrap;
 }
 
 /* Texto de apoyo bajo la metadata (ej. "1 pago vencido por Q281.25"):
@@ -89,32 +135,37 @@ a { color: inherit; }
   font-size: 12.5px; color: var(--text-secondary); line-height: 1.5;
 }
 
-/* Resumen de "y N mas": cierra la lista sin pretender ser otro concepto. */
-.line-item__more { color: var(--muted) !important; font-style: italic; }
-.line-item__more::before { display: none; }
+/* Bloque de desglose bajo el concepto: separado por una regla fina para
+   que se lea como "que incluye esto" y no como otro concepto cobrable. */
+.line-item-detail { padding-top: 15px; margin-top: 2px; border-top: 1px solid var(--border); }
+.line-item-detail .feature-group { min-width: 0; }
+.feature-group__title { margin-bottom: 9px; }
 
 /* ============================================================
    BrandHeader (topbar)
    ============================================================ */
 .doc-topbar { background: var(--surface); border-bottom: 1px solid var(--border); }
 .doc-topbar-inner {
-  max-width: 1260px; margin: 0 auto;
-  padding: clamp(12px, 1.4vw, 15px) clamp(14px, 2.4vw, 26px);
+  max-width: 1180px; margin: 0 auto;
+  padding: clamp(13px, 1.5vw, 16px) clamp(16px, 2.4vw, 28px);
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
 }
 .doc-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .doc-brand-logo { width: 32px; height: 32px; object-fit: contain; border-radius: 8px; flex-shrink: 0; }
+/* Wordmark de la marca: UNICO uso de serif en todo el sistema. Es la
+   identidad del fotografo, no tipografia de interfaz. Controlado: tamaño
+   contenido y tracking moderado. */
 .doc-brand-name {
-  font-family: var(--font-serif); font-size: clamp(14.5px, 1.6vw, 16.5px); font-weight: 400;
-  letter-spacing: 0.11em; text-transform: uppercase; line-height: 1.15;
+  font-family: var(--font-serif); font-size: clamp(15px, 1.6vw, 17px); font-weight: 400;
+  letter-spacing: 0.1em; text-transform: uppercase; line-height: 1.15;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .doc-brand-tag {
-  font-size: 10px; color: var(--muted); letter-spacing: 0.16em; text-transform: uppercase;
+  font-size: 10.5px; color: var(--text-secondary); letter-spacing: 0.1em; text-transform: uppercase;
   margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .doc-topbar-right { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; }
-.doc-ref { font-size: 12.5px; font-weight: 500; color: var(--text-secondary); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.doc-ref { font-size: 13px; font-weight: 500; color: var(--text-secondary); font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .doc-topbar-right .badge { margin-top: 7px; }
 @media (max-width: 560px) {
   .doc-topbar-inner { flex-direction: column; gap: 12px; }
@@ -125,23 +176,40 @@ a { color: inherit; }
 /* ============================================================
    StatusBadge -- texto + punto con forma propia (no solo color)
    ============================================================ */
+/* document-status-badge. base.html: font-size 10, weight 500,
+   text-transform none, letter-spacing 0, radio 360px. Se sube a 11.5/600
+   porque el documento se lee mas lejos, pero se respeta lo importante: sin
+   mayusculas ni tracking de papeleria. */
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 11px; border-radius: 999px;
-  font-size: 11px; font-weight: 600; letter-spacing: 0.7px; text-transform: uppercase;
-  white-space: nowrap; border: 1px solid transparent;
+  padding: 4px 10px; border-radius: 360px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0; text-transform: none;
+  white-space: nowrap; border: 1px solid transparent; line-height: 1.5;
 }
 .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .badge--neutral { background: var(--surface-2); color: var(--text-secondary); border-color: var(--border); }
 .badge--info    { background: var(--primary-soft); color: var(--primary-dark); }
-.badge--success { background: var(--success-soft); color: var(--success); }
+.badge--success { background: var(--success-soft); color: var(--success-text); }
 .badge--warning { background: var(--warning-soft); color: #92400E; }
-.badge--danger  { background: var(--danger-soft); color: #B42318; }
+.badge--danger  { background: var(--danger-soft); color: var(--danger-text); }
 .badge--danger::before { border-radius: 2px; }
 .badge--warning::before { border-radius: 2px; transform: rotate(45deg); }
+/* Chips de datos del paquete (horas de cobertura, etc.). Mismo patron que
+   .sn-chip de base.html: pildora chica, sin mayusculas ni tracking.
+   Estaban en uso en la cotizacion sin ningun CSS que las respaldara. */
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 360px;
+  background: var(--surface-2); color: var(--text-secondary);
+  font-size: 11.5px; font-weight: 500; line-height: 1.5;
+  letter-spacing: 0; white-space: nowrap;
+}
+.opt.selected .chip { background: var(--primary-soft); color: var(--primary-dark); }
+
 /* Variante sin punto, para etiquetas dentro del timeline */
 .badge--flat::before { display: none; }
-.badge--flat { padding: 3px 9px; font-size: 10.5px; letter-spacing: 0.5px; }
+.badge--flat { padding: 2px 8px; font-size: 11px; letter-spacing: 0; }
 
 /* ============================================================
    Card
@@ -151,7 +219,8 @@ a { color: inherit; }
   border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
   margin-bottom: clamp(14px, 1.6vw, 20px);
 }
-.card__body { padding: clamp(18px, 2vw, 24px); }
+/* document-section. base.html usa padding 20px en .card. */
+.card__body { padding: clamp(18px, 2vw, 22px); }
 .card__head {
   padding: clamp(16px, 2vw, 20px) clamp(18px, 2.4vw, 26px) 0;
 }
@@ -170,8 +239,8 @@ a { color: inherit; }
 .hero-card--with-image { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
 .hero-card__text { padding: clamp(22px, 2.5vw, 30px); align-self: center; }
 .hero-card__eyebrow {
-  font-size: 10.5px; font-weight: 650; letter-spacing: 1.15px; text-transform: uppercase;
-  color: var(--muted); margin-bottom: 9px; line-height: 1;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase;
+  color: var(--text-secondary); margin-bottom: 10px; line-height: 1.3;
 }
 .hero-card__name { margin: 0; }
 /* La metadata se separa del nombre con una regla fina: le da un piso a la
@@ -226,7 +295,7 @@ a { color: inherit; }
   gap: clamp(16px, 2.2vw, 30px);
 }
 .meta-item { min-width: 0; }
-.meta-label { font-size: 12.5px; color: var(--muted); margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+.meta-label { font-size: 12.5px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
 /* El icono vive dentro de un cuadrito lavanda: es lo que le da a la
    metadata el aire de producto en vez de texto con un simbolo al lado. */
 .meta-ico {
@@ -235,7 +304,8 @@ a { color: inherit; }
   background: var(--primary-soft); color: var(--primary);
 }
 .meta-ico svg { width: 13px; height: 13px; }
-.meta-value { font-size: 14.5px; font-weight: 550; letter-spacing: -0.01em; overflow-wrap: break-word; }
+/* document-value */
+.meta-value { font-size: 14.5px; font-weight: 600; letter-spacing: -0.008em; line-height: 1.4; overflow-wrap: break-word; }
 
 /* ============================================================
    SummaryCards -- icono en cuadrito + label + cifra en color
@@ -253,14 +323,14 @@ a { color: inherit; }
   background: var(--primary-soft); color: var(--primary);
 }
 .summary-card__icon svg { width: 19px; height: 19px; }
-.summary-card--paid .summary-card__icon { background: var(--success-soft); color: var(--success); }
-.summary-card--due .summary-card__icon { background: var(--danger-soft); color: var(--danger); }
-.summary-card--settled .summary-card__icon { background: var(--success-soft); color: var(--success); }
-.summary-card__label { font-size: 10px; font-weight: 600; letter-spacing: 1.05px; text-transform: uppercase; color: var(--muted); line-height: 1; }
-.summary-card__value { font-size: clamp(20px, 2.3vw, 25px); font-weight: 650; letter-spacing: -0.03em; margin-top: 7px; white-space: nowrap; color: var(--primary); line-height: 1; }
-.summary-card--paid .summary-card__value { color: var(--success); }
-.summary-card--due .summary-card__value { color: var(--danger); }
-.summary-card--settled .summary-card__value { color: var(--success); }
+.summary-card--paid .summary-card__icon { background: var(--success-soft); color: var(--success-text); }
+.summary-card--due .summary-card__icon { background: var(--danger-soft); color: var(--danger-text); }
+.summary-card--settled .summary-card__icon { background: var(--success-soft); color: var(--success-text); }
+.summary-card__label { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-secondary); line-height: 1.3; }
+.summary-card__value { font-size: clamp(22px, 2.4vw, 27px); font-weight: 700; letter-spacing: -0.025em; margin-top: 7px; white-space: nowrap; color: var(--primary); line-height: 1.15; }
+.summary-card--paid .summary-card__value { color: var(--success-text); }
+.summary-card--due .summary-card__value { color: var(--danger-text); }
+.summary-card--settled .summary-card__value { color: var(--success-text); }
 @media (max-width: 900px) { .summary-cards { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
 @media (max-width: 620px) { .summary-cards { grid-template-columns: 1fr; } }
 /* En pantallas medianas las tres cifras siguen en fila pero mas compactas,
@@ -284,9 +354,9 @@ a { color: inherit; }
    morado lleno con el icono en blanco. */
 .wide-card__icon--solid { border-radius: 50%; background: var(--primary); color: #fff; }
 .wide-card__text { flex: 1 1 220px; min-width: 0; }
-.wide-card__label { font-size: 10px; font-weight: 600; letter-spacing: 1.05px; text-transform: uppercase; color: var(--muted); line-height: 1; }
-.wide-card__value { font-size: clamp(16px, 1.8vw, 18px); font-weight: 650; letter-spacing: -0.02em; margin-top: 6px; line-height: 1.2; }
-.wide-card__amount { font-size: clamp(20px, 2.3vw, 25px); font-weight: 650; letter-spacing: -0.03em; white-space: nowrap; line-height: 1; }
+.wide-card__label { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-secondary); line-height: 1.3; }
+.wide-card__value { font-size: clamp(15.5px, 1.7vw, 17px); font-weight: 600; letter-spacing: -0.012em; margin-top: 5px; line-height: 1.35; }
+.wide-card__amount { font-size: clamp(22px, 2.4vw, 27px); font-weight: 700; letter-spacing: -0.025em; white-space: nowrap; line-height: 1.15; }
 
 /* ============================================================
    Grid de dos columnas (conceptos + timeline)
@@ -303,26 +373,8 @@ a { color: inherit; }
 .line-item:first-child { padding-top: 0; }
 .line-item:last-of-type { border-bottom: none; }
 .line-item__top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-.line-item__name { font-size: 14.5px; font-weight: 620; letter-spacing: -0.015em; line-height: 1.35; }
-.line-item__amount { font-size: 14.5px; font-weight: 620; white-space: nowrap; font-variant-numeric: tabular-nums; letter-spacing: -0.015em; }
-/* El detalle del concepto se lee como sub-informacion, no como otra lista
-   suelta: sangria clara, bullet chico y color secundario. */
-.line-item__sub {
-  list-style: none; margin: 9px 0 0; padding: 0;
-  columns: 2; column-gap: 22px;
-}
-.line-item__sub--single { columns: 1; }
-@media (max-width: 620px) { .line-item__sub { columns: 1; } }
-.line-item__sub li {
-  position: relative; padding-left: 13px; font-size: 12.5px;
-  color: var(--text-secondary); line-height: 1.55; padding-bottom: 3px;
-  break-inside: avoid;
-}
-.line-item__sub li::before {
-  content: ''; position: absolute; left: 0; top: 7px; width: 3.5px; height: 3.5px;
-  border-radius: 50%; background: var(--muted);
-}
-
+.line-item__name { font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.4; }
+.line-item__amount { font-size: 14.5px; font-weight: 600; white-space: nowrap; letter-spacing: -0.01em; }
 /* ============================================================
    Features -- inclusiones con icono, en columnas
    ============================================================ */
@@ -347,8 +399,8 @@ a { color: inherit; }
 .feature-flow > li { break-inside: avoid; -webkit-column-break-inside: avoid; }
 @media (max-width: 560px) { .feature-flow { columns: 1 !important; } }
 .feature-group__title {
-  font-size: 10.5px; font-weight: 650; letter-spacing: 1.15px; text-transform: uppercase;
-  color: var(--muted); margin-bottom: 11px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase;
+  color: var(--text-secondary); margin-bottom: 11px;
 }
 .feature-list { list-style: none; margin: 0; padding: 0; }
 /* Icono y texto armonizados: el icono se alinea con la primera linea del
@@ -369,16 +421,16 @@ a { color: inherit; }
 .totals__row + .totals__row { border-top: 1px solid var(--border); }
 .totals__label { color: var(--text-secondary); font-weight: 500; }
 .totals__value { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.totals__row--credit .totals__value { color: var(--success); }
+.totals__row--credit .totals__value { color: var(--success-text); }
 /* El saldo cierra el bloque: mas peso, mas aire arriba y borde algo mas
    marcado, para que sea lo ultimo que se lee y lo que queda. */
 .totals__row--due {
   border-top: 1.5px solid var(--border-strong) !important;
   margin-top: 2px; padding-top: 14px; align-items: center;
 }
-.totals__row--due .totals__label { font-weight: 620; color: var(--text-primary); font-size: 14.5px; }
-.totals__row--due .totals__value { color: var(--danger); font-size: clamp(19px, 2.2vw, 23px); font-weight: 650; letter-spacing: -0.03em; }
-.totals__row--settled .totals__value { color: var(--success); }
+.totals__row--due .totals__label { font-weight: 600; color: var(--text-primary); font-size: 14.5px; }
+.totals__row--due .totals__value { color: var(--danger-text); font-size: clamp(20px, 2.2vw, 24px); font-weight: 700; letter-spacing: -0.025em; }
+.totals__row--settled .totals__value { color: var(--success-text); }
 
 /* ============================================================
    PaymentTimeline
@@ -406,13 +458,16 @@ a { color: inherit; }
   box-shadow: 0 0 0 3px var(--surface);
 }
 .timeline__dot svg { width: 11px; height: 11px; }
-.timeline__item--paid .timeline__dot { background: var(--success); color: #fff; }
-.timeline__item--due .timeline__dot { background: var(--danger); color: #fff; }
+/* Los marcadores llevan un icono BLANCO encima, asi que usan la variante
+   de texto: sobre el verde de superficie el check queda a 2.6:1 y no se
+   distingue. Con esta el icono se lee, y el tono sigue siendo el mismo. */
+.timeline__item--paid .timeline__dot { background: var(--success-text); color: #fff; }
+.timeline__item--due .timeline__dot { background: var(--danger-text); color: #fff; }
 .timeline__item--next .timeline__dot { background: var(--primary); color: #fff; }
-.timeline__when { font-size: 14px; font-weight: 620; letter-spacing: -0.015em; line-height: 1.3; }
-.timeline__pos { font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.3; }
-.timeline__amount { font-size: 14px; font-weight: 620; white-space: nowrap; font-variant-numeric: tabular-nums; letter-spacing: -0.015em; margin-top: 1px; }
-.timeline__item--due .timeline__amount { color: var(--danger); }
+.timeline__when { font-size: 14px; font-weight: 600; letter-spacing: -0.008em; line-height: 1.35; }
+.timeline__pos { font-size: 12.5px; font-weight: 400; color: var(--text-secondary); margin-top: 3px; line-height: 1.35; }
+.timeline__amount { font-size: 14px; font-weight: 600; white-space: nowrap; letter-spacing: -0.008em; margin-top: 1px; }
+.timeline__item--due .timeline__amount { color: var(--danger-text); }
 
 /* ============================================================
    Botones / ActionBar
@@ -421,7 +476,7 @@ a { color: inherit; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 44px; padding: 12px 22px;
   border-radius: var(--radius-md); border: 1px solid transparent;
-  font-size: 14px; font-weight: 550; letter-spacing: -0.01em;
+  font-size: 14px; font-weight: 600; letter-spacing: -0.008em;
   cursor: pointer; text-decoration: none; white-space: nowrap;
   transition: background-color .16s ease, border-color .16s ease, color .16s ease;
 }
@@ -458,8 +513,8 @@ a { color: inherit; }
    ============================================================ */
 .doc-footer { border-top: 1px solid var(--border); background: var(--surface); margin-top: clamp(16px, 2.2vw, 26px); }
 .doc-footer__inner {
-  max-width: 1260px; margin: 0 auto;
-  padding: clamp(20px, 2.4vw, 26px) clamp(14px, 2.4vw, 26px);
+  max-width: 1180px; margin: 0 auto;
+  padding: clamp(20px, 2.4vw, 26px) clamp(16px, 2.4vw, 28px);
   display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);
   gap: clamp(20px, 2.6vw, 34px); align-items: center;
 }
@@ -470,10 +525,10 @@ a { color: inherit; }
   font-family: var(--font-serif); font-size: 16px;
 }
 .doc-footer__name { font-family: var(--font-serif); font-size: 13.5px; letter-spacing: 0.11em; text-transform: uppercase; line-height: 1.2; }
-.doc-footer__tag { font-size: 10px; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; margin-top: 3px; }
+.doc-footer__tag { font-size: 10.5px; color: var(--text-secondary); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 3px; }
 .doc-footer__contact { display: grid; gap: 7px; }
 .doc-footer__line { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-secondary); min-width: 0; }
-.doc-footer__line svg { width: 14px; height: 14px; color: var(--muted); flex-shrink: 0; }
+.doc-footer__line svg { width: 14px; height: 14px; color: var(--text-secondary); flex-shrink: 0; }
 .doc-footer__line span { overflow: hidden; text-overflow: ellipsis; }
 .doc-footer__note { text-align: right; font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; }
 .doc-footer__note strong { display: block; color: var(--text-primary); font-weight: 600; }
@@ -522,8 +577,6 @@ a { color: inherit; }
   /* La impresion hereda la misma jerarquia: multi-columna acotada para que
      no queden lineas huerfanas al cortar la pagina. */
   .feature-flow.cols-3, .feature-flow.cols-4 { columns: 3; }
-  .line-item__sub { columns: 2; }
-  .line-item__sub--single { columns: 1; }
   .card, .hero-card { margin-bottom: 10px; }
   .card__body { padding: 14px 16px; }
   .doc-topbar-inner { padding-top: 0; }

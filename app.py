@@ -10881,35 +10881,58 @@ def _quote_theme_for_tenant(tenant_id):
         #
         # Todo esto es por cuenta: una marca futura puede cambiar su primary
         # sin tocar una sola plantilla.
-        'primary': '#6D4AF2',        # accion principal (violeta del CRM, un
-                                     # punto mas saturado para que el acento
-                                     # se lea como intencion y no como gris)
-        'primary_dark': '#5B36E0',   # hover/pressed
-        'primary_soft': '#F1EDFE',   # realce suave
-        'primary_tint': '#FAF8FF',   # veladura casi imperceptible de marca
-        # Fondos con temperatura, no gris neutro: un lienzo levemente calido
-        # se lee como papel y da profundidad sin agregar un solo borde.
-        'background': '#FBFAFC',
+        # ------------------------------------------------------------------
+        # Estos valores NO son una paleta inventada para los documentos: son
+        # los tokens --sn-* de templates/base.html, copiados uno a uno. El
+        # criterio de Kevin es que al pasar del CRM a la cotizacion no se
+        # note el salto, y para eso el morado, los grises, las lineas y los
+        # radios tienen que ser literalmente los mismos, no parecidos.
+        #   --sn-green         -> primary          #7357F6
+        #   --sn-green-dark    -> primary_dark     #6447EE
+        #   --sn-mint          -> primary_soft     #F0EDFF
+        #   --sn-mint-soft     -> primary_tint     #F7F5FF
+        #   --sn-canvas        -> background       #F7F8FC
+        #   --sn-surface-2     -> surface_2        #F4F5F9
+        #   --sn-ink           -> text_primary     #111827
+        #   --sn-muted         -> text_secondary   #667085
+        #   --sn-soft          -> muted            #98A2B3
+        #   --sn-line          -> border           #E7EAF0
+        #   --sn-line-dark     -> border_strong    #D7DCE5
+        #   --sn-success       -> success          #2FB66D
+        #   --sn-yellow        -> warning          #F59E0B
+        #   --sn-red           -> danger           #EF5B5B
+        #   --sn-radius-*      -> radius_sm/md/lg  8 / 12 / 16
+        #   --sn-shadow-resting-> shadow_card
+        # Si algun dia cambian en base.html, hay que cambiarlos aca tambien.
+        # ------------------------------------------------------------------
+        'primary': '#7357F6',
+        'primary_dark': '#6447EE',
+        'primary_soft': '#F0EDFF',
+        'primary_tint': '#F7F5FF',
+        'background': '#F7F8FC',
         'surface': '#FFFFFF',
-        'surface_2': '#F6F5F9',
-        # Texto en escala real (no dos grises casi iguales): esto es la mitad
-        # de lo que hace que una pagina se vea ordenada.
-        'text_primary': '#12121A',
-        'text_secondary': '#5B5B6B',
-        'muted': '#8E8EA0',
-        # Bordes mas suaves: cuando hay que usarlos, que casi no se vean.
-        'border': '#ECECF2',
-        'border_strong': '#DEDEE8',
-        'success': '#159E63', 'success_soft': '#E7F6EE',
-        'warning': '#D97706', 'warning_soft': '#FDF3E3',
-        'danger': '#DC4E4E', 'danger_soft': '#FCEDED',
-        # Radios en el rango del dashboard (Kevin pidio ~14-18px para las
-        # cards): mas chico se ve duro, mas grande empieza a verse blando.
-        'radius_sm': '9px', 'radius_md': '12px', 'radius_lg': '16px',
-        # Sombras en dos capas (contacto + difusion). Reemplazan bordes:
-        # dan profundidad real en vez de encajonar cada cosa.
-        'shadow_card': '0 1px 2px rgba(18, 18, 26, .04), 0 8px 24px -12px rgba(18, 18, 26, .10)',
-        'shadow_raised': '0 2px 4px rgba(18, 18, 26, .04), 0 16px 40px -16px rgba(18, 18, 26, .16)',
+        'surface_2': '#F4F5F9',
+        'text_primary': '#111827',
+        'text_secondary': '#667085',
+        'muted': '#98A2B3',
+        'border': '#E7EAF0',
+        'border_strong': '#D7DCE5',
+        'success': '#2FB66D', 'success_soft': '#EAF8F0',
+        'warning': '#F59E0B', 'warning_soft': '#FFF5DF',
+        'danger': '#EF5B5B', 'danger_soft': '#FEEEEE',
+        # Variantes de TEXTO. El propio CRM ya hace esta distincion: usa
+        # --sn-success (#2FB66D) para superficies y marcadores, pero un
+        # verde mas oscuro (#17864F en .badge-success) cuando el color es
+        # texto. Aca hace mas falta todavia, porque el cliente lee estos
+        # montos en su telefono y puede imprimirlos: #2FB66D sobre blanco
+        # da 2.6:1, por debajo del minimo de WCAG incluso para texto
+        # grande. Estos llegan a 4.9:1 sobre blanco y 4.5:1 sobre su propio
+        # fondo suave, asi que sirven tambien dentro de los badges.
+        'success_text': '#158048',
+        'danger_text': '#C93636',
+        'radius_sm': '8px', 'radius_md': '12px', 'radius_lg': '16px',
+        'shadow_card': '0 1px 2px rgba(16, 24, 40, .03), 0 3px 10px rgba(16, 24, 40, .04)',
+        'shadow_raised': '0 8px 24px rgba(16, 24, 40, .045)',
         # ------------------------------------------------------------------
         # Compatibilidad: los nombres viejos siguen existiendo porque los
         # theme_snapshot ya guardados los traen y porque Settings >
@@ -10926,19 +10949,20 @@ def _quote_theme_for_tenant(tenant_id):
         # completa del <link> a cargar -- si una cuenta algun dia necesita
         # otra tipografia, alcanza con cambiar estos tres campos aca.
         'currency_symbol': 'Q', 'currency_label': 'Quetzales (GTQ)', 'featured_video_url': '',
-        # Serif de display: Instrument Serif. Alto contraste y formas
-        # afiladas -- se lee cara y actual en tamaños grandes, que es donde
-        # se usa (nombres, precios, titulos). Fraunces, la anterior, tiene
-        # formas mas blandas y a tamaño grande se veia mas antigua que
-        # elegante.
-        # Sans: Inter, la misma del CRM. No se cambia a proposito: es lo que
-        # mantiene el parentesco con el dashboard, y en textos chicos es
-        # mejor que cualquier alternativa "de moda".
+        # Sans: Inter con los mismos fallbacks que declara base.html. El
+        # documento es interfaz, no papeleria: nombre del cliente, montos,
+        # conceptos, fechas, estados y labels van todos en la sans del CRM.
+        #
+        # serif_font queda declarada pero su unico uso permitido es el
+        # wordmark de la marca en el topbar y el footer -- ahi es identidad
+        # visual del fotografo, no tipografia de interfaz. Cualquier otro
+        # uso rompe el criterio de que el documento se sienta parte del
+        # mismo producto que el dashboard.
+        'sans_font': "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         'serif_font': "'Instrument Serif', Georgia, 'Times New Roman', serif",
-        'sans_font': "'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
         'google_fonts_href': (
             'https://fonts.googleapis.com/css2?'
-            'family=Instrument+Serif:ital@0;1'
+            'family=Instrument+Serif'
             '&family=Inter:wght@400;500;600;700&display=swap'
         ),
     }
