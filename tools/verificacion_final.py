@@ -331,7 +331,8 @@ check('scheduler de recordatorios apagado por defecto',
 for t in ['test_uso_diario_clientes', 'test_uso_diario_workflows_calendario',
           'test_navegacion_diaria', 'test_paginas_de_error_y_marca',
           'test_rendimiento_vistas', 'test_responsive_movil',
-          'test_documento_web_pdf_paridad', 'test_quote_services']:
+          'test_documento_web_pdf_paridad', 'test_quote_services',
+          'test_snapshot_comercial']:
     check(f'{t}.py incluido en el runner', t in runner)
 
 

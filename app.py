@@ -4910,11 +4910,12 @@ def _invoice_document(invoice_id, *, tenant_id=None):
             'monto': importe if pagada_completa else saldo,
         })
 
-    concepto = (quote.get('paquete_nombre') if quote else None) or selected.get('concepto') or 'Servicios'
-    incluye = []
-    if quote:
-        _nombre_paq, incluye = _resolve_quote_package(quote)
-        concepto = _nombre_paq or concepto
+    # El desglose de la factura sale del SNAPSHOT COMERCIAL de la cotizacion
+    # aceptada, no de la plantilla ni del job. Ver _snapshot_comercial: una
+    # factura representa un acuerdo, no lo reconstruye.
+    snapshot = _snapshot_comercial(quote)
+    concepto = (snapshot or {}).get('nombre') or selected.get('concepto') or 'Servicios'
+    incluye = (snapshot or {}).get('incluye') or []
 
     return {
         'invoice_id': selected.get('invoice_id') or selected.get('id'),
@@ -4938,11 +4939,14 @@ def _invoice_document(invoice_id, *, tenant_id=None):
         # por tipo; si es una cotizacion vieja, clasificacion legacy
         # conservadora. La factura y la cotizacion muestran lo mismo porque
         # lo resuelven con la misma funcion, no con dos plantillas parecidas.
-        'grupos': _quote_grupos_display({
-            'servicios': (quote or {}).get('servicios'),
-            'groups': (quote or {}).get('groups'),
-            'incluye': incluye or [],
-        }),
+        # Los grupos salen del MISMO snapshot que consume la cotizacion.
+        # Es lo que garantiza que "Que incluye" e "Incluye" no puedan
+        # divergir: no son dos lecturas parecidas, es la misma.
+        'grupos': _quote_grupos_display(snapshot or {}),
+        # Trazabilidad interna (no se muestra al cliente): de donde salio
+        # este desglose. Sirve para el reporte de reconciliacion.
+        'fuente_conceptos': (snapshot or {}).get('fuente') or 'sin_cotizacion',
+        'source_quote_id': (quote or {}).get('id') or '',
         'emitida': _format_date_es(selected.get('created') or selected.get('issued_date')),
         # AUDITORIA 3-sep-2026 (Kevin: "de donde sale 'Vence'"). El dato es
         # el due_date de la cuota REPRESENTATIVA -- la primera del plan --
@@ -10759,6 +10763,76 @@ def _normalize_quote_options(quote):
     }]
 
 
+def _snapshot_comercial(quote):
+    """Fuente UNICA del desglose comercial de una cotizacion.
+
+    La regla del sistema, y el motivo de que esta funcion exista:
+
+        QUOTE TEMPLATE           plantilla reutilizable (packages.json)
+        QUOTE DRAFT              propuesta editable
+        SNAPSHOT ACEPTADO        el acuerdo comercial, congelado
+        JOB                      ejecucion operativa
+        INVOICE                  representacion financiera de ese acuerdo
+
+    Una factura NO reconstruye el paquete: lee el acuerdo. Si el fotografo
+    cambia la plantilla Silver de 8 a 12 horas, la factura de un cliente
+    que acepto 8 sigue diciendo 8. La plantilla es reutilizable; una
+    cotizacion aceptada es historica.
+
+    Prioridad de fuentes, de mas fiel a menos:
+      1. snapshot_aceptado  -- congelado al aceptar (cotizaciones nuevas)
+      2. campos planos del quote materializados al aceptar (servicios /
+         groups / incluye) -- cotizaciones aceptadas antes del snapshot
+      3. la opcion seleccionada, si todavia no se materializo
+      4. la primera opcion, solo si no hay ninguna seleccion
+    NUNCA la plantilla actual: eso es lo que producia la divergencia.
+
+    Devuelve None si no hay cotizacion.
+    """
+    if not quote:
+        return None
+
+    snap = quote.get('snapshot_aceptado')
+    if isinstance(snap, dict) and (snap.get('servicios') or snap.get('groups') or snap.get('incluye')):
+        return {
+            'nombre': snap.get('name') or quote.get('paquete_nombre') or 'Servicios',
+            'servicios': snap.get('servicios') or [],
+            'groups': snap.get('groups') or [],
+            'incluye': snap.get('incluye') or [],
+            'total': snap.get('total'),
+            'extras': snap.get('extras') or [],
+            'fuente': 'snapshot_aceptado',
+        }
+
+    # Aceptada antes de que existiera el snapshot: los campos planos ya
+    # fueron materializados por quote_accept y son historicos igual.
+    if quote.get('paquete_nombre'):
+        return {
+            'nombre': quote.get('paquete_nombre'),
+            'servicios': quote.get('servicios') or [],
+            'groups': quote.get('groups') or [],
+            'incluye': quote.get('incluye') or [],
+            'total': quote.get('precio_total'),
+            'extras': quote.get('selected_extras') or [],
+            'fuente': 'campos_materializados',
+        }
+
+    # Todavia no aceptada: la opcion elegida, o la primera propuesta.
+    opciones = _normalize_quote_options(quote)
+    elegida = next((o for o in opciones if o.get('id') == quote.get('selected_option_id')), None)
+    fuente = 'opcion_seleccionada' if elegida else 'primera_opcion'
+    elegida = elegida or (opciones[0] if opciones else {})
+    return {
+        'nombre': elegida.get('name') or 'Servicios',
+        'servicios': elegida.get('servicios') or [],
+        'groups': elegida.get('groups') or [],
+        'incluye': elegida.get('incluye') or [],
+        'total': elegida.get('precio_total'),
+        'extras': quote.get('selected_extras') or [],
+        'fuente': fuente,
+    }
+
+
 def _quote_grupos_display(opcion):
     """Grupos listos para pintar: [{titulo, servicios:[{texto, icono}]}].
 
@@ -11267,11 +11341,9 @@ def quote_view(quote_id):
             _o['grupos_display'] = _quote_grupos_display(_o)
     # La cotizacion ya aceptada muestra los campos planos materializados,
     # asi que su desglose se resuelve aparte, por el mismo camino.
-    grupos_aceptada = _quote_grupos_display({
-        'servicios': quote.get('servicios'),
-        'groups': quote.get('groups'),
-        'incluye': quote.get('incluye'),
-    })
+    # Mismo snapshot que consume la factura. Si estos dos divergen, es que
+    # alguien dejo de usar _snapshot_comercial en algun lado.
+    grupos_aceptada = _quote_grupos_display(_snapshot_comercial(quote) or {})
 
     return render_template(
         'quote_view.html',
@@ -11898,6 +11970,31 @@ def quote_accept(quote_id):
         quote['precio_total'] = base_price + extras_total
         quote['incluye'] = chosen.get('incluye')
         quote['items'] = chosen.get('items', [])
+        # SNAPSHOT COMERCIAL (3-sep-2026). Antes aca solo se congelaban
+        # `incluye` (strings) e `items`, pero NO los `servicios`
+        # estructurados ni los `groups` de la opcion elegida. Como la
+        # cotizacion y la factura leen esos campos desde la RAIZ del quote,
+        # y la raiz podia tener los grupos de otra opcion (o ninguno), los
+        # dos documentos podian mostrar desgloses distintos del mismo
+        # acuerdo. Ahora se congela lo que el cliente acepto, completo:
+        # lo que se cotizo = lo que se acepto = lo que se factura.
+        quote['servicios'] = chosen.get('servicios') or []
+        quote['groups'] = chosen.get('groups') or []
+        quote['snapshot_aceptado'] = {
+            'option_id': chosen.get('id'),
+            'name': chosen.get('name'),
+            'subtitle': chosen.get('subtitle') or '',
+            'description': chosen.get('description') or '',
+            'servicios': chosen.get('servicios') or [],
+            'groups': chosen.get('groups') or [],
+            'incluye': chosen.get('incluye') or [],
+            'precio_base': base_price,
+            'extras': selected_extras,
+            'extras_total': extras_total,
+            'total': base_price + extras_total,
+            'plan_pago': selected_plan,
+            'aceptado_en': date.today().isoformat(),
+        }
         quote['selected_plan_pago'] = selected_plan
         quote['plan_pago'] = selected_plan
         quote['cuota_monto'] = round(float(quote.get('precio_total') or 0) / selected_plan, 2)
