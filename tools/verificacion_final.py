@@ -119,7 +119,15 @@ if 'pytest' not in sys.modules:
                 return fn
             return deco
 
+    def _importorskip(nombre, *a, **k):
+        import importlib
+        try:
+            return importlib.import_module(nombre)
+        except ImportError:
+            raise _Skipped(nombre)
+
     _stub.skip = _skip
+    _stub.importorskip = _importorskip
     _stub.mark = _Marca()
     _stub.Skipped = _Skipped
     sys.modules['pytest'] = _stub
@@ -131,6 +139,26 @@ try:
     check('sin N+1 ni relecturas de JSON en las 9 vistas diarias', True)
 except AssertionError as e:
     check('sin N+1 ni relecturas de JSON en las 9 vistas diarias', False, str(e)[:200])
+
+# --- Render real de los documentos que ve el cliente ---
+# get_template() solo PARSEA. Un `select('match', ...)` (test que no existe
+# en Jinja) parsea perfecto y revienta al renderizar: el contrato habria
+# devuelto 500 en el momento de firmar y este validador decia TODO VERDE.
+# Desde ahora los documentos cliente-facing se renderizan de verdad.
+try:
+    import test_contrato_documento as tcd
+    _rotos = []
+    for _n in sorted(n for n in dir(tcd) if n.startswith('test_')):
+        try:
+            getattr(tcd, _n)()
+        except sys.modules['pytest'].Skipped:
+            pass
+        except Exception as e:
+            _rotos.append(f'{_n}: {str(e)[:80]}')
+    check(f'contrato: {sum(1 for n in dir(tcd) if n.startswith("test_"))} '
+          f'checks de render real', not _rotos, str(_rotos[:3]))
+except Exception as e:
+    check('contrato: checks de render real', False, f'no se pudo cargar: {str(e)[:120]}')
 
 # --- Logica financiera duplicada ---
 # Toda la plata sale de _job_payment_summary. Una resta de saldo escrita a

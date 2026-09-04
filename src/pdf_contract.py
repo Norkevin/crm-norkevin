@@ -166,36 +166,85 @@ def _resumen(L, simbolo, evento, fecha, valor):
     L.bajar(8 * mm)
 
 
-def _seccion(L, titulo):
-    L.asegurar(16 * mm)
+def _seccion(L, titulo, necesita=0):
+    """Cabecera de seccion.
+
+    `necesita` es el alto del bloque que viene INMEDIATAMENTE despues. Sin
+    eso, el titulo cabe al pie de la pagina, el contenido no, y queda un
+    encabezado huerfano colgando -- que es justo lo que se ve mal. Con eso,
+    titulo y primer contenido saltan juntos.
+    """
+    L.asegurar(16 * mm + necesita)
     texto(L.c, L.x0, L.y, titulo, tam='seccion', peso='bold', color='text')
     L.bajar(5 * mm)
     regla(L.c, L.x0, L.y, L.x1)
     L.bajar(6 * mm)
 
 
+def _partir_titulo(titulo):
+    """"3. Responsabilidades del Cliente" -> ("3", "Responsabilidades...").
+
+    El numero de clausula se pinta aparte, como indice, para que el
+    contrato se pueda citar sin que el numero compita con el texto. Si el
+    titulo no viene numerado, se devuelve entero.
+    """
+    partes = str(titulo or '').split('. ', 1)
+    if len(partes) == 2 and partes[0].strip().isdigit():
+        return partes[0].strip(), partes[1].strip()
+    return '', str(titulo or '').strip()
+
+
 def _terminos(L, terms):
     """Los terminos pueden ser largos. Se parten por LINEA, no por bloque:
     aplicar 'no cortar' a un termino entero dejaria media pagina vacia. Lo
     que si se garantiza es que un titulo nunca quede solo al pie -- se exige
-    espacio para el titulo mas las dos primeras lineas."""
-    c = L.c
-    for titulo, cuerpo in terms:
-        lineas = []
-        for parrafo in str(cuerpo or '').split('\n'):
-            lineas.extend(envolver(parrafo, L.util, tam='apoyo') if parrafo.strip() else [''])
+    espacio para el titulo mas las dos primeras lineas.
 
-        L.asegurar(6 * mm + min(len(lineas), 2) * 4.6 * mm + 4 * mm)
-        if titulo:
-            texto(c, L.x0, L.y, titulo, tam='cuerpo', peso='bold', color='text')
-            L.bajar(5.5 * mm)
-        for ln in lineas:
-            if L.espacio_libre() < 6 * mm:
-                L.nueva_pagina()
-            if ln:
-                texto(c, L.x0, L.y, ln, tam='apoyo', color='text_secondary')
-            L.bajar(4.6 * mm)
-        L.bajar(4 * mm)
+    Una linea que empieza con "* " es un item de lista, no un parrafo con un
+    asterisco adelante: se pinta con su marcador y su sangria, igual que en
+    la web. El texto guardado no cambia.
+    """
+    c = L.c
+    sangria = 9 * mm       # el cuerpo alinea con el titulo, no con el numero
+    for titulo, cuerpo in terms:
+        num, titulo_limpio = _partir_titulo(titulo)
+        x_texto = L.x0 + (sangria if num else 0)
+        ancho = L.x1 - x_texto
+
+        # Cada linea se resuelve a (es_item, lineas_envueltas)
+        bloques = []
+        for parrafo in str(cuerpo or '').split('\n'):
+            crudo = parrafo.strip()
+            if not crudo:
+                continue
+            item = crudo.startswith('*')
+            limpio = crudo.lstrip('*').strip() if item else crudo
+            bloques.append((item, envolver(limpio, ancho - (5 * mm if item else 0),
+                                           tam='apoyo')))
+
+        primeras = sum(len(b[1]) for b in bloques[:1]) or 1
+        L.asegurar(6 * mm + min(primeras, 2) * 4.6 * mm + 5 * mm)
+
+        if titulo_limpio:
+            if num:
+                texto(c, L.x0, L.y, num, tam='apoyo', peso='bold', color='primary')
+            texto(c, x_texto, L.y, titulo_limpio, tam='cuerpo', peso='bold', color='text')
+            L.bajar(6 * mm)
+
+        for item, lineas in bloques:
+            for i, ln in enumerate(lineas):
+                if L.espacio_libre() < 6 * mm:
+                    L.nueva_pagina()
+                if item and i == 0:
+                    c.setFillColor(COLOR['primary'])
+                    c.circle(x_texto + 1.2 * mm, L.y + 1.2 * mm, 0.7 * mm,
+                             fill=True, stroke=False)
+                texto(c, x_texto + (5 * mm if item else 0), L.y, ln,
+                      tam='apoyo', color='text_secondary')
+                L.bajar(4.6 * mm)
+            if item:
+                L.bajar(0.8 * mm)
+        L.bajar(4.5 * mm)
 
 
 def _firmas(L, contrato, cliente, marca, firmas_es):
@@ -287,10 +336,10 @@ def render_contract_pdf(contrato, job, cliente, marca, *, terms=None,
              (job or {}).get('price_total'))
 
     if terms:
-        _seccion(L, 'Términos y condiciones')
+        _seccion(L, 'Términos y condiciones', necesita=18 * mm)
         _terminos(L, terms)
 
-    _seccion(L, 'Firmas')
+    _seccion(L, 'Firmas', necesita=48 * mm)
     _firmas(L, contrato, cliente, marca, firmas_es or {})
 
     L.pie()

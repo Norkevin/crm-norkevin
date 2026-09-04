@@ -33,14 +33,35 @@
 
 /* ---------- Especifico del contrato ---------- */
 
-/* Un termino es un bloque de lectura, no un bullet: titulo con peso y
-   cuerpo respirado. white-space: pre-line respeta los saltos que el
-   fotografo escribio en sus condiciones. */
-.term { padding: 15px 0; border-bottom: 1px solid var(--border); }
+/* Un termino es un bloque de lectura. El numero de clausula sale del
+   titulo y se pinta como un indice discreto a la izquierda: se puede citar
+   ("segun la clausula 5") sin que el numero compita con el texto. */
+.term { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 0 10px;
+        padding: 16px 0; border-bottom: 1px solid var(--border); }
 .term:first-child { padding-top: 0; }
 .term:last-child { border-bottom: none; }
-.term__title { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 5px; }
-.term__body { font-size: 13.5px; color: var(--text-secondary); line-height: 1.6; white-space: pre-line; }
+.term__num {
+  font-size: 12.5px; font-weight: 600; color: var(--primary);
+  font-variant-numeric: tabular-nums; line-height: 1.5; padding-top: 1px;
+}
+.term__title { font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.4; }
+.term__body { grid-column: 2; font-size: 13.5px; color: var(--text-secondary);
+              line-height: 1.65; white-space: pre-line; margin-top: 5px; }
+.term--sin-num { grid-template-columns: 1fr; }
+.term--sin-num .term__body { grid-column: 1; }
+
+/* Las obligaciones vienen como lista. Se pintan como lista de verdad, con
+   su marcador, en vez de dejar el asterisco crudo del texto. */
+.term__lista { grid-column: 2; list-style: none; margin: 7px 0 0; padding: 0; }
+.term__lista li {
+  position: relative; padding-left: 16px; font-size: 13.5px;
+  color: var(--text-secondary); line-height: 1.55; padding-bottom: 6px;
+}
+.term__lista li:last-child { padding-bottom: 0; }
+.term__lista li::before {
+  content: ''; position: absolute; left: 3px; top: 8px;
+  width: 4px; height: 4px; border-radius: 50%; background: var(--primary);
+}
 
 /* Firmas: dos tarjetas iguales, una por parte. */
 .firmas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(12px, 1.5vw, 18px); }
@@ -77,7 +98,7 @@
 }
 .sig-input {
   width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  padding: 11px 13px; font: inherit; font-size: 15px; outline: none;
+  padding: 11px 13px; font: inherit; font-size: 16px; outline: none;
 }
 .sig-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 /* La firma escrita SI es cursiva: es una rubrica, no interfaz. */
@@ -88,6 +109,15 @@
   min-height: 92px; display: flex; align-items: center; justify-content: center;
 }
 .sig-actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+
+/* Movil: los campos se quedan en 16px a proposito. Por debajo de eso iOS
+   hace zoom al enfocar y el cliente pierde de vista el boton de guardar
+   justo cuando esta firmando. */
+@media (max-width: 620px) {
+  .sig-input { font-size: 16px; }
+  .sig-modal { padding: 18px; }
+  .sig-actions .btn { flex: 1 1 100%; }
+}
 .sig-actions .btn { flex: 1 1 auto; }
 </style>
 </head>
@@ -145,9 +175,35 @@
         <h2 class="doc-h2">Términos y condiciones</h2>
       </div>
       {% for title, body in terms %}
-      <div class="term">
-        {% if title %}<div class="term__title">{{ title }}</div>{% endif %}
-        {% if body %}<div class="term__body">{{ body }}</div>{% endif %}
+      {# El titulo llega como "3. Responsabilidades del Cliente": el numero
+         se separa para pintarlo como indice. Si no trae numero, el termino
+         ocupa todo el ancho y no queda una sangria vacia. #}
+      {% set _partes = (title or '').split('. ', 1) %}
+      {% set _num = _partes[0] if _partes|length == 2 and _partes[0].isdigit() else '' %}
+      {% set _titulo = _partes[1] if _num else (title or '') %}
+      {# Un cuerpo cuyas lineas empiezan con "*" es una lista, no un parrafo
+         con asteriscos. Se clasifica linea por linea porque una clausula
+         puede traer una frase de entrada Y DESPUES los items; si se filtrara
+         solo por los bullets, esa frase se perderia del contrato. #}
+      {% set _intro = [] %}
+      {% set _bullets = [] %}
+      {% for _ln in (body or '').split('\n') %}
+        {% set _t = _ln.strip() %}
+        {% if _t.startswith('*') %}
+          {% set _ = _bullets.append(_t[1:].strip()) %}
+        {% elif _t %}
+          {% set _ = _intro.append(_t) %}
+        {% endif %}
+      {% endfor %}
+      <div class="term{{ '' if _num else ' term--sin-num' }}">
+        {% if _num %}<div class="term__num">{{ _num }}</div>{% endif %}
+        {% if _titulo %}<div class="term__title">{{ _titulo }}</div>{% endif %}
+        {% if _intro %}<div class="term__body">{{ _intro | join('\n') }}</div>{% endif %}
+        {% if _bullets %}
+        <ul class="term__lista">
+          {% for _b in _bullets %}<li>{{ _b }}</li>{% endfor %}
+        </ul>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
@@ -225,7 +281,12 @@
 
 {{ ui.doc_footer(theme, 'Gracias por confiar en nosotros.', 'Estamos para servirte.') }}
 
-{# ---------- Modal de firma (funcionalmente identico al anterior) ---------- #}
+{# ---------- Modal de firma (funcionalmente identico al anterior) ----------
+   Solo se emite si el contrato NO esta firmado. Un contrato ya firmado no
+   tiene por que seguir cargando el canvas ni el fetch a /sign. El modal y
+   su <script> viajan juntos: el DOMContentLoaded busca #sig-canvas sin
+   guarda, asi que dejar uno sin el otro tira un error de JS. #}
+{% if not contract.signed %}
 <div class="sig-modal-overlay" id="sig-modal-overlay">
   <div class="sig-modal">
     <h2 class="sig-modal__title">Firmar contrato</h2>
@@ -325,6 +386,7 @@ function endDraw() { sigDrawing = false; }
 
 document.addEventListener('DOMContentLoaded', function() {
   var cv = document.getElementById('sig-canvas');
+  if (!cv) return;
   cv.addEventListener('mousedown', startDraw);
   cv.addEventListener('mousemove', draw);
   cv.addEventListener('mouseup', endDraw);
@@ -361,6 +423,7 @@ async function saveSig() {
     .catch(function() { alert('Error de red'); });
 }
 </script>
+{% endif %}
 
 </body>
 </html>
