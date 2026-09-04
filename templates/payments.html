@@ -336,7 +336,10 @@ function openPaymentActions(event, paymentId, invoiceId, jobId, clientId, status
   openActionMenu(event, [
     jobId ? { label: 'View Job', href: '/jobs/' + jobId } : null,
     clientId ? { label: 'View Client', href: '/clients/' + clientId } : null,
-    invoiceId ? { label: 'View Invoice', href: '/invoices/' + invoiceId } : null,
+    // Se enlaza con paymentId (el id de la fila, unico) y no con invoiceId:
+    // el invoice_id puede repetirse entre bodas y mandaba a la factura de
+    // otro cliente. invoiceId sigue sirviendo para MOSTRAR el numero.
+    invoiceId ? { label: 'View Invoice', href: '/invoices/' + paymentId } : null,
     { divider: true },
     { label: 'Send Invoice', action: function() { sendPayment(paymentId); } },
     status !== 'Pagado' ? { label: 'Generar link de pago', action: function() { createPaymentLink(paymentId); } } : null,

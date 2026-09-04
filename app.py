@@ -5,6 +5,7 @@ Arquitectura: Notion-first. SQLite solo para cache de sesión.
 import os
 import re
 import hmac
+import hashlib
 import time
 import threading
 import logging
@@ -4408,6 +4409,10 @@ def job_detail(job_id):
         group = invoice_groups_map.setdefault(group_key, {
             'id': group_key,
             'invoice_id': p.get('invoice_id') or p.get('id'),
+            # Llave para ENLAZAR. invoice_id sirve para mostrar, pero puede
+            # estar repetido entre bodas; el id de la fila es unico, asi que
+            # /invoices/<enlace> siempre cae en esta boda y no en otra.
+            'enlace': p.get('id'),
             'title': quote.get('paquete_nombre') or quote.get('title') or p.get('concepto') or p.get('invoice_id') or 'Invoice',
             'quote': quote,
             'payments': [],
@@ -4621,12 +4626,17 @@ def invoices_list():
 
     invoice_groups_map = {}
     for p in sorted(payments_all, key=lambda row: (row.get('quote_id') or row.get('invoice_id') or '', row.get('due_date') or '', row.get('cuota') or 0)):
-        group_key = p.get('quote_id') or p.get('invoice_id') or p.get('id')
+        # El job_id entra en la llave: esta lista cruza TODAS las bodas, y un
+        # invoice_id repetido entre clientes (import viejo) fusionaba dos
+        # facturas distintas en una fila, sumando montos de gente distinta.
+        group_key = (p.get('job_id') or '',
+                     p.get('quote_id') or p.get('invoice_id') or p.get('id'))
         quote = quotes_by_id.get(p.get('quote_id')) or {}
         job = jobs.get(p.get('job_id'))
         client = clients.get(p.get('client_id'))
         group = invoice_groups_map.setdefault(group_key, {
             'invoice_id': p.get('invoice_id') or p.get('id'),
+            'enlace': p.get('id'),
             'title': quote.get('paquete_nombre') or p.get('concepto') or p.get('invoice_id') or 'Invoice',
             'client_name': f"{client['first_name']} {client['last_name']}" if client else 'Sin cliente',
             'job_name': job.get('nombre') if job else 'Sin job',
@@ -4789,6 +4799,42 @@ def _invoice_estado(total, pagado, pendiente, schedule, *, cancelada=False):
     return 'Pendiente', 'info', 'Todavia no se ha recibido ningun pago.'
 
 
+def _fila_de_factura(payments_all, clave):
+    """La fila de pago que identifica una factura, sin ambiguedad.
+
+    invoice_id NO es una llave unica confiable. El importador de Studio
+    Ninja lo derivaba de slug[:8] ('job_20270123_keller-zapote' ->
+    'JOB20270'), asi que 19 bodas quedaron con 5 invoice_id distintos: siete
+    clientes distintos comparten 'INV-SN-JOB20270-1'. Resolver por
+    invoice_id con next() devolvia SIEMPRE la primera fila -- por eso
+    cualquier job llevaba a la factura de Keller Zapote, y por eso el enlace
+    publico de un cliente podia mostrar la factura de otro.
+
+    El id de la fila (pay-...) si es unico. Se busca por id primero y solo
+    despues por invoice_id, para que un enlace que ya trae el id resuelva
+    exacto aunque los datos historicos sigan chuecos.
+    """
+    if not clave:
+        return None
+    exacta = next((p for p in payments_all if p.get('id') == clave), None)
+    if exacta:
+        return exacta
+    return next((p for p in payments_all if p.get('invoice_id') == clave), None)
+
+
+def _facturas_ambiguas(payments_all=None):
+    """Los invoice_id que apuntan a mas de un job. Solo diagnostico: no
+    corrige nada. Una factura pertenece a UN job -- si aparece aca, esos
+    datos vienen mal de un import viejo."""
+    filas = payments_all if payments_all is not None else _visible_billable_payments()
+    porid = {}
+    for p in filas:
+        iid = p.get('invoice_id')
+        if iid:
+            porid.setdefault(iid, set()).add(p.get('job_id'))
+    return {k: sorted(v) for k, v in porid.items() if len(v) > 1}
+
+
 def _invoice_document(invoice_id, *, tenant_id=None):
     """Arma TODO lo que necesita un documento de factura (web o PDF) a
     partir del modelo real: payments agrupados por invoice_id, su quote, su
@@ -4802,8 +4848,7 @@ def _invoice_document(invoice_id, *, tenant_id=None):
     Devuelve None si no existe (el llamador decide el 404).
     """
     payments_all = _visible_billable_payments(tenant_id)
-    selected = next((p for p in payments_all
-                     if p.get('invoice_id') == invoice_id or p.get('id') == invoice_id), None)
+    selected = _fila_de_factura(payments_all, invoice_id)
     if not selected:
         return None
 
@@ -4815,7 +4860,13 @@ def _invoice_document(invoice_id, *, tenant_id=None):
         # Sin cotizacion, la factura es el conjunto de filas que comparten
         # invoice_id (asi se agrupan las cuotas desde el importador y desde
         # la creacion manual de facturas).
-        mismo = [p for p in payments_all if p.get('invoice_id') and p.get('invoice_id') == selected.get('invoice_id')]
+        # El job_id es obligatorio en el filtro: una factura pertenece a UN
+        # job. Sin eso, un invoice_id repetido entre bodas (los que dejo el
+        # import viejo) mezclaba cuotas de clientes distintos en el mismo
+        # documento.
+        mismo = [p for p in payments_all
+                 if p.get('invoice_id') and p.get('invoice_id') == selected.get('invoice_id')
+                 and p.get('job_id') == selected.get('job_id')]
         schedule = mismo or [selected]
     schedule.sort(key=lambda p: (p.get('due_date') or '', str(p.get('cuota') or ''), p.get('id') or ''))
 
@@ -4998,7 +5049,7 @@ def invoice_document_preview(invoice_id):
 def invoice_view(invoice_id):
     """Vista interna de factura con calendario de pago."""
     payments_all = _visible_billable_payments()
-    selected = next((p for p in payments_all if p.get('invoice_id') == invoice_id or p.get('id') == invoice_id), None)
+    selected = _fila_de_factura(payments_all, invoice_id)
     if not selected:
         abort(404)
 
@@ -5556,7 +5607,17 @@ def api_admin_import_studio_ninja():
             if accepted_quote_id is None:
                 accepted_quote_id = quote_id
 
-            invoice_id = 'INV-SN-' + slug.upper().replace('-', '')[:8] + f'-{qi + 1}'
+            # ORIGEN DEL BUG (corregido el 4-sep-2026): antes era
+            # slug.upper().replace('-','')[:8], y como los slugs son
+            # 'job_20270123_keller-zapote', los primeros 8 caracteres son
+            # 'JOB20270' para TODAS las bodas de ese ano. 19 bodas quedaron
+            # con 5 invoice_id: siete clientes distintos compartiendo
+            # 'INV-SN-JOB20270-1'. Cualquier pantalla que resolviera por
+            # invoice_id caia siempre en la primera fila.
+            # El hash del slug COMPLETO es unico y sigue siendo
+            # deterministico, que es lo que hace idempotente al importador.
+            firma_slug = hashlib.sha1(slug.encode('utf-8')).hexdigest()[:8].upper()
+            invoice_id = f'INV-SN-{firma_slug}-{qi + 1}'
             num_cuotas = len(q['cuotas'])
             for ci, cuota in enumerate(q['cuotas']):
                 original_amount = round(cuota['amount'], 2)
@@ -12347,10 +12408,14 @@ def _emitir_token_de_factura(invoice_id, tenant_id=None, *, rotar=False):
 
 
 def _resolve_invoice_by_token(token):
+    """El token identifica UNA fila exacta. Se devuelve su id, no su
+    invoice_id: el invoice_id puede estar repetido entre bodas (import
+    viejo) y degradar la llave aca hacia que el enlace de un cliente
+    terminara mostrando la factura de otro."""
     fila = public_tokens.buscar_por_token(store.list('payments'), token)
     if not fila:
         return None
-    return fila.get('invoice_id') or fila.get('id')
+    return fila.get('id') or fila.get('invoice_id')
 
 
 @app.route('/i/<token>')
@@ -12523,7 +12588,7 @@ def invoice_pdf(invoice_id):
     se genera UNA sola factura con el desglose de todos los pagos adentro."""
     from flask import Response
     payments_all = _visible_billable_payments()
-    pay = next((p for p in payments_all if p.get('invoice_id') == invoice_id), None)
+    pay = _fila_de_factura(payments_all, invoice_id)
     if not pay:
         abort(404)
     job = get_job(pay.get('job_id', ''))

@@ -72,7 +72,7 @@
       </thead>
       <tbody>
         {% for inv in invoices %}
-        <tr class="sn-table-row" data-text="{{ ((inv.title or '') ~ ' ' ~ (inv.client_name or '') ~ ' ' ~ (inv.job_name or '') ~ ' ' ~ (inv.invoice_id or ''))|lower }}" onclick="window.location.href='/invoices/{{ inv.invoice_id }}'">
+        <tr class="sn-table-row" data-text="{{ ((inv.title or '') ~ ' ' ~ (inv.client_name or '') ~ ' ' ~ (inv.job_name or '') ~ ' ' ~ (inv.invoice_id or ''))|lower }}" onclick="window.location.href='/invoices/{{ inv.enlace or inv.invoice_id }}'">
           <td class="sn-ellipsis stack-full" data-label="Factura">
             <div style="display:flex;align-items:center;gap:10px;min-width:0;">
               <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (inv.client_name or '?')[:1]|upper }}</span>

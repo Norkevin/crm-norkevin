@@ -504,7 +504,10 @@
               {% endfor %}
             </div>
             <div class="sn-list-actions">
-              <a class="sn-btn sn-btn-sm" href="/invoices/{{ g.invoice_id }}">View</a>
+              {# Se enlaza con g.enlace (id de la fila, unico), no con
+                 g.invoice_id: el invoice_id puede repetirse entre bodas y
+                 mandaba a la factura de otro cliente. #}
+              <a class="sn-btn sn-btn-sm" href="/invoices/{{ g.enlace or g.invoice_id }}">View</a>
               <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ g.payments[0].id }}')">Enviar</button>
               {% if g.balance > 0 %}<button class="sn-btn sn-btn-sm" type="button" onclick="openRecordPayment('{{ g.payments[0].id }}', '{{ g.payments[0].amount or 0 }}')">Record Payment</button>{% endif %}
             </div>
@@ -1566,8 +1569,8 @@ async function renderPhotogTypedSig() {
   cv.width = 800;
   cv.height = 220;
   var c = cv.getContext('2d');
-  c.fillStyle = '#fff';
-  c.fillRect(0, 0, cv.width, cv.height);
+  // Sin fondo pintado: el PNG guarda solo el trazo. Con fondo blanco la
+  // firma se veia como un recuadro pegado sobre el contrato.
   c.fillStyle = '#18181b';
   c.font = "90px 'Great Vibes', 'Dancing Script', cursive";
   c.textAlign = 'center';

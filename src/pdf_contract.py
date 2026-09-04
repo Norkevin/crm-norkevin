@@ -247,6 +247,53 @@ def _terminos(L, terms):
         L.bajar(4.5 * mm)
 
 
+# Recorta del PDF todo lo casi blanco. El trazo es casi negro (#0A0E1A),
+# asi que nunca cae dentro del rango.
+_MASCARA_BLANCO = [236, 255, 236, 255, 236, 255]
+
+
+def _trazo_legible(png):
+    """La firma, lista para dibujarse sin recuadro de fondo.
+
+    Hay dos generaciones de firmas guardadas y las dos fallan distinto:
+
+      - Las de antes del 4-sep-2026 traen un fondo blanco PINTADO. Sobre la
+        card gris se ven como un recuadro pegado encima.
+      - Las nuevas son transparentes. reportlab aplana el alfa sobre NEGRO,
+        asi que salen como un rectangulo negro -- peor todavia.
+
+    Las dos se arreglan igual: aplanar sobre blanco aca (control nuestro, no
+    de reportlab) y despues recortar el blanco con _MASCARA_BLANCO. Queda
+    solo el trazo, sobre cualquier fondo.
+
+    Los datos guardados NO se tocan: esto es solo presentacion.
+
+    Devuelve None si el PNG no se puede leer: una firma corrupta dibuja la
+    linea para firmar a mano, pero nunca impide descargar el contrato.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        # Sin PIL no se puede aplanar. Mejor la firma con su fondo que
+        # ninguna firma.
+        try:
+            return ImageReader(io.BytesIO(png))
+        except Exception:
+            return None
+    try:
+        im = Image.open(io.BytesIO(png))
+        if im.mode in ('RGBA', 'LA', 'P'):
+            im = im.convert('RGBA')
+            fondo = Image.new('RGB', im.size, (255, 255, 255))
+            fondo.paste(im, mask=im.split()[-1])
+            im = fondo
+        else:
+            im = im.convert('RGB')
+        return ImageReader(im)
+    except Exception:
+        return None
+
+
 def _firmas(L, contrato, cliente, marca, firmas_es):
     """Dos recuadros con el trazo cuando existe. Si falta, una linea para
     firmar a mano: un contrato impreso sin firmar tiene que poder firmarse
@@ -282,11 +329,13 @@ def _firmas(L, contrato, cliente, marca, firmas_es):
             try:
                 import base64
                 cabecera, datos = str(trazo).split(',', 1)
-                img = ImageReader(io.BytesIO(base64.b64decode(datos)))
-                c.drawImage(img, x + 6 * mm, y_trazo, width=ancho_col - 12 * mm,
-                            height=12 * mm, preserveAspectRatio=True,
-                            anchor='sw', mask='auto')
-                dibujado = True
+                img = _trazo_legible(base64.b64decode(datos))
+                if img is not None:
+                    c.drawImage(img, x + 6 * mm, y_trazo,
+                                width=ancho_col - 12 * mm, height=12 * mm,
+                                preserveAspectRatio=True, anchor='sw',
+                                mask=_MASCARA_BLANCO)
+                    dibujado = True
             except Exception:
                 # Una firma corrupta no puede tumbar la descarga del contrato.
                 dibujado = False

@@ -72,7 +72,16 @@
 }
 .firma__rol { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-secondary); }
 .firma__quien { font-size: 14.5px; font-weight: 600; letter-spacing: -0.008em; margin-top: 5px; }
-.firma__trazo { max-height: 54px; margin: 12px auto 10px; display: block; }
+/* La firma escrita se generaba con un fillRect blanco de fondo, asi que el
+   PNG llegaba opaco y se veia como un recuadro blanco pegado sobre la card
+   gris. Las firmas NUEVAS ya salen transparentes (ver renderTypedSig), pero
+   las que ya estan guardadas no se pueden cambiar sin tocar datos firmados:
+   'multiply' hace que el blanco desaparezca contra cualquier fondo claro y
+   deja solo el trazo. Arregla las viejas sin reescribir ni una. */
+.firma__trazo {
+  max-height: 54px; max-width: 100%; margin: 12px auto 10px;
+  display: block; object-fit: contain; mix-blend-mode: multiply;
+}
 .firma__hueco {
   height: 54px; margin: 12px 0 10px; border-bottom: 1px dashed var(--border-strong);
 }
@@ -352,8 +361,9 @@ async function renderTypedSig() {
   cv.width = 800;
   cv.height = 220;
   var c = cv.getContext('2d');
-  c.fillStyle = '#fff';
-  c.fillRect(0, 0, cv.width, cv.height);
+  // Sin fondo: el canvas nace transparente y el PNG guarda solo el trazo.
+  // Antes se pintaba blanco y la firma se veia como un recuadro pegado
+  // encima de la card, no como una firma sobre el documento.
   c.fillStyle = '#0A0E1A';
   c.font = "90px 'Great Vibes', 'Dancing Script', cursive";
   c.textAlign = 'center';

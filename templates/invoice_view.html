@@ -172,11 +172,11 @@
          vista web real, hermana de la cotizacion. Esta es la MISMA pagina
          que ve el cliente, abierta desde adentro -- no emite ni rota el
          enlace publico, solo la muestra. #}
-      <a class="sn-btn" href="/invoices/{{ invoice.invoice_id }}/documento" target="_blank">
+      <a class="sn-btn" href="/invoices/{{ invoice.id or invoice.invoice_id }}/documento" target="_blank">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
         Ver como el cliente
       </a>
-      <a class="sn-btn" href="/invoices/{{ invoice.invoice_id }}/pdf" target="_blank">
+      <a class="sn-btn" href="/invoices/{{ invoice.id or invoice.invoice_id }}/pdf" target="_blank">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 2h9l5 5v15H6zM14 2v6h6M9 15h6"/></svg>
         PDF
       </a>

@@ -115,7 +115,7 @@ if 'pytest' not in sys.modules:
     class _Marca:
         def parametrize(self, argnames, argvalues):
             def deco(fn):
-                fn._params = getattr(fn, '_params', []) + [(argnames, argvalues)]
+                fn._params = list(argvalues)
                 return fn
             return deco
 
@@ -145,20 +145,31 @@ except AssertionError as e:
 # en Jinja) parsea perfecto y revienta al renderizar: el contrato habria
 # devuelto 500 en el momento de firmar y este validador decia TODO VERDE.
 # Desde ahora los documentos cliente-facing se renderizan de verdad.
-try:
-    import test_contrato_documento as tcd
-    _rotos = []
-    for _n in sorted(n for n in dir(tcd) if n.startswith('test_')):
-        try:
-            getattr(tcd, _n)()
-        except sys.modules['pytest'].Skipped:
-            pass
-        except Exception as e:
-            _rotos.append(f'{_n}: {str(e)[:80]}')
-    check(f'contrato: {sum(1 for n in dir(tcd) if n.startswith("test_"))} '
-          f'checks de render real', not _rotos, str(_rotos[:3]))
-except Exception as e:
-    check('contrato: checks de render real', False, f'no se pudo cargar: {str(e)[:120]}')
+def _correr_modulo(nombre, etiqueta):
+    """Corre los test_* de un modulo sin pytest. Los parametrizados llevan
+    sus casos en fn._params (el stub de arriba los guarda ahi)."""
+    try:
+        mod = __import__(nombre)
+    except Exception as e:
+        check(etiqueta, False, f'no se pudo cargar: {str(e)[:120]}')
+        return
+    rotos, corridos = [], 0
+    for n in sorted(x for x in dir(mod) if x.startswith('test_')):
+        fn = getattr(mod, n)
+        for caso in (getattr(fn, '_params', None) or [()]):
+            args = caso if isinstance(caso, (tuple, list)) else (caso,)
+            corridos += 1
+            try:
+                fn(*args)
+            except sys.modules['pytest'].Skipped:
+                pass
+            except Exception as e:
+                rotos.append(f'{n}: {str(e)[:80]}')
+    check(f'{etiqueta} ({corridos} checks)', not rotos, str(rotos[:3]))
+
+
+_correr_modulo('test_contrato_documento', 'contrato: render real')
+_correr_modulo('test_factura_id_ambiguo', 'factura: invoice_id no ambiguo')
 
 # --- Logica financiera duplicada ---
 # Toda la plata sale de _job_payment_summary. Una resta de saldo escrita a

@@ -160,6 +160,60 @@ def test_el_contrato_no_usa_ninguna_serif():
         assert palabra not in css.replace('sans-serif', ''), palabra
 
 
+def test_ninguna_puerta_de_firma_pinta_fondo_blanco():
+    """Kevin: 'se ve este recuadro feo con la firma'.
+
+    La firma escrita se generaba con un fillRect blanco, asi que el PNG
+    llegaba opaco y sobre la card gris parecia un recuadro pegado. Son TRES
+    puertas -- contrato publico, portal del cliente y el CRM -- y arreglar
+    solo una deja el problema entrando por las otras dos.
+    """
+    for plantilla in ('contract_view.html', 'client_portal.html', 'job_detail.html'):
+        js = open(os.path.join(RAIZ, 'templates', plantilla), encoding='utf-8').read()
+        for bloque in re.findall(r'function \w*[Tt]yped\w*\([^)]*\)\s*\{(.*?)\n\}', js, re.S):
+            assert 'fillRect' not in bloque, f'{plantilla} pinta fondo en la firma'
+
+
+def test_las_firmas_viejas_no_muestran_su_recuadro_en_la_web():
+    """Las ya guardadas traen el blanco adentro y no se pueden reescribir
+    sin tocar datos firmados: 'multiply' lo hace desaparecer."""
+    css = open(os.path.join(RAIZ, 'templates', 'contract_view.html'),
+               encoding='utf-8').read().split('</style>')[0]
+    bloque = re.search(r'\.firma__trazo\s*\{([^}]*)\}', css)
+    assert bloque and 'mix-blend-mode: multiply' in bloque.group(1)
+
+
+def test_el_pdf_deja_la_firma_sin_fondo_en_las_dos_generaciones():
+    """reportlab aplana el alfa sobre NEGRO, asi que una firma transparente
+    sale como un rectangulo negro -- peor que el blanco. Las dos se aplanan
+    sobre blanco antes de dibujar y se recortan por color."""
+    Image = pytest.importorskip('PIL.Image')
+    import io as _io
+    from src.pdf_contract import _trazo_legible, _MASCARA_BLANCO
+
+    for con_alfa in (True, False):
+        base = Image.new('RGBA', (40, 20),
+                         (0, 0, 0, 0) if con_alfa else (255, 255, 255, 255))
+        base.putpixel((20, 10), (10, 14, 26, 255))  # el trazo
+        buf = _io.BytesIO()
+        base.save(buf, 'PNG')
+        lector = _trazo_legible(buf.getvalue())
+        assert lector is not None
+        plano = lector._image
+        assert plano.mode == 'RGB', f'quedo alfa (con_alfa={con_alfa})'
+        fondo = plano.getpixel((0, 0))
+        assert fondo == (255, 255, 255), f'el fondo no quedo blanco: {fondo}'
+        assert fondo[0] >= _MASCARA_BLANCO[0], 'el fondo cae fuera de la mascara'
+        assert plano.getpixel((20, 10))[0] < _MASCARA_BLANCO[0], \
+            'el trazo cae DENTRO de la mascara y se borraria'
+
+
+def test_una_firma_corrupta_no_tumba_la_descarga_del_contrato():
+    """Devuelve None y el PDF dibuja la linea para firmar a mano."""
+    from src.pdf_contract import _trazo_legible
+    assert _trazo_legible(b'esto no es un png') is None
+
+
 def test_la_web_y_el_pdf_parten_las_vinetas_igual():
     """Un item en la web tiene que ser un item en el PDF. Si divergen, el
     documento que el cliente lee y el que se archiva no dicen lo mismo."""
