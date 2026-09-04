@@ -12396,6 +12396,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 from src.pdf_generator import generate_quote_pdf, generate_contract_pdf, generate_invoice_pdf, contract_terms, resolve_pdf_brand
 from src.pdf_invoice import render_invoice_pdf
+from src.pdf_contract import render_contract_pdf
 import src.quote_services as qsvc
 
 
@@ -12466,6 +12467,9 @@ def contract_view(contract_id):
     # lo tienen -- ver STABILIZATION_EXECUTION_REPORT.md); job.tenant_id
     # es la fuente primaria.
     brand = resolve_pdf_brand(job.get('tenant_id') or contract.get('tenant_id'))
+    # El contrato usa el MISMO sistema de documentos que la cotizacion y la
+    # factura, asi que necesita el theme resuelto igual que ellas. `brand`
+    # se conserva por si alguna vista vieja todavia lo espera.
     return render_template(
         'contract_view.html',
         contract=contract,
@@ -12473,6 +12477,7 @@ def contract_view(contract_id):
         client=client,
         terms=contract_terms(job, brand=brand),
         brand=brand,
+        theme=_document_theme(job.get('tenant_id') or contract.get('tenant_id')),
     )
 
 
@@ -12488,8 +12493,25 @@ def contract_pdf(contract_id):
     if not job or not client:
         abort(404)
 
-    brand = resolve_pdf_brand(job.get('tenant_id') or contract.get('tenant_id'))
-    pdf_bytes = generate_contract_pdf(contract, job, client, brand=brand)
+    tenant_id = job.get('tenant_id') or contract.get('tenant_id')
+    brand = resolve_pdf_brand(tenant_id)
+    theme = _document_theme(tenant_id)
+    # Mismo sistema que el contrato web y que la factura PDF. Se le pasa el
+    # cliente ya resuelto para que el renderer no tenga que saber como se
+    # arma un nombre en el CRM.
+    pdf_bytes = render_contract_pdf(
+        contract, job,
+        {'nombre': f"{client.get('first_name','')} {client.get('last_name','')}".strip(),
+         'contacto': [x for x in (client.get('email'), client.get('phone')) if x]},
+        brand,
+        terms=contract_terms(job, brand=brand),
+        simbolo=theme.get('currency_symbol') or 'Q',
+        fecha_evento=_format_date_es(job.get('boda_date')),
+        firmas_es={
+            'estudio': _format_date_es((contract.get('photographer_signed_at') or '')[:10]),
+            'cliente': _format_date_es((contract.get('signed_at') or '')[:10]),
+        },
+    )
     return Response(pdf_bytes, mimetype='application/pdf', headers={
         'Content-Disposition': f'inline; filename="contrato-{contract_id}.pdf"'
     })
