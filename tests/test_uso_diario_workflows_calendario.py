@@ -264,11 +264,11 @@ def test_colision_de_subject_id_con_tenant_id_no_cruza_instancias(auth_client):
         login_as_tenant(auth_client, tenant_id, email=f'{tenant_id}@example.invalid')
 
         seguras = app_module._workflow_instances_seguras(
-            subject_type='job', subject_id=subject_id_colisionado)
+            subject_type='job', subject_id=subject_id_colisionado, tenant_id=tenant_id)
         assert len(seguras) == 1, f'{tenant_id} deberia ver exactamente 1 instancia, no {len(seguras)}'
         assert seguras[0].id == instancias[tenant_id].id
 
-        encontrada = app_module._workflow_instance_for('job', subject_id_colisionado)
+        encontrada = app_module._workflow_instance_for('job', subject_id_colisionado, tenant_id=tenant_id)
         assert encontrada is not None and encontrada.id == instancias[tenant_id].id
         assert encontrada.id != instancias[otro].id, \
             f'{tenant_id} encontro la instancia de {otro} -- fuga entre marcas'
@@ -277,7 +277,10 @@ def test_colision_de_subject_id_con_tenant_id_no_cruza_instancias(auth_client):
     # en la sesion de Astral no puede tocar la instancia de Norkevin.
     login_as_tenant(auth_client, ASTRAL, email=f'{ASTRAL}@example.invalid')
     job_astral = {'id': subject_id_colisionado, 'tenant_id': ASTRAL, 'nombre': 'Juan y Maria (Astral)'}
-    resultado = app_module._complete_job_workflow_step(job_astral, 'job_accepted')
+    with app_module.app.test_request_context('/'):
+        from flask import session
+        session['tenant_id'] = ASTRAL
+        resultado = app_module._complete_job_workflow_step(job_astral, 'job_accepted')
     assert resultado['completed'] is True
 
     assert instancias[ASTRAL].step_states.get('job_accepted') == app_module.StepStatus.DONE
@@ -288,7 +291,7 @@ def test_colision_de_subject_id_con_tenant_id_no_cruza_instancias(auth_client):
     # viendo ese step como pending, no como done.
     login_as_tenant(auth_client, NORKEVIN, email=f'{NORKEVIN}@example.invalid')
     job_norkevin = {'id': subject_id_colisionado, 'tenant_id': NORKEVIN, 'nombre': 'Juan y Maria (Norkevin)'}
-    steps, _, _ = app_module.compute_workflow_steps_for_job(job_norkevin)
+    steps, _, _ = app_module.compute_workflow_steps_for_job(job_norkevin, tenant_id=NORKEVIN)
     step_job_accepted = next(s for s in steps if s['id'] == 'job_accepted')
     assert step_job_accepted['status'] != 'done', \
         'Norkevin ve el step de Astral como completado -- fuga entre marcas'

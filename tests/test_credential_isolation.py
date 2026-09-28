@@ -27,7 +27,7 @@ NORKEVIN = 'tenant-norkevin-photography'
 
 def test_el_id_tenant_norkevin_es_en_realidad_astral():
     """Fija el mapeo id -> empresa para que no se 'corrija' al reves."""
-    with open('data/tenants.json', encoding='utf-8') as fh:
+    with open('tests/fixtures/tenants.json', encoding='utf-8') as fh:
         tenants = {t['id']: t for t in json.load(fh)}
 
     assert tenants[ASTRAL]['name'] == 'ASTRAL WEDDINGS'

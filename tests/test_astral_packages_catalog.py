@@ -11,7 +11,7 @@ def _load_json(relative_path):
 
 
 def test_astral_wedding_packages_match_confirmed_catalog():
-    packages = _load_json("data/packages.json")
+    packages = _load_json("data/seeds/packages.default.json")
     prices = {package["name"]: package["price"] for package in packages}
 
     expected_prices = {
@@ -33,7 +33,7 @@ def test_astral_wedding_packages_match_confirmed_catalog():
 
 
 def test_send_packages_template_uses_public_catalog_link():
-    templates = _load_json("data/email_templates.json")
+    templates = _load_json("data/seeds/email_templates.default.json")
     package_template = next(template for template in templates if template["id"] == "tpl-paquetes")
 
     assert PACKAGES_LINK in package_template["cuerpo"]
@@ -43,16 +43,18 @@ def test_send_packages_template_uses_public_catalog_link():
     assert "Paquete Deluxe" not in package_template["cuerpo"]
 
 
-def test_seed_send_packages_template_matches_active_template():
-    active = next(template for template in _load_json("data/email_templates.json") if template["id"] == "tpl-paquetes")
-    seeded = next(template for template in _load_json("data/seeds/email_templates.default.json") if template["id"] == "tpl-paquetes")
-
-    assert seeded["cuerpo"] == active["cuerpo"]
-    assert seeded["adjuntos"] == active["adjuntos"]
-
-
 def test_quote_builder_shows_astral_catalog(auth_client):
     import app as app_module
+    import uuid
+
+    # El catalogo semilla no tiene tenant_id; el JsonStore
+    # correctamente no lo muestra en una cuenta. Crear filas de la cuenta.
+    for name in ('PHOTO GOLD', 'GOLD MIX'):
+        package = next(p for p in _load_json('data/seeds/packages.default.json') if p['name'] == name)
+        app_module.store.upsert('packages', {
+            **package, 'id': f"catalog-test-{uuid.uuid4().hex[:8]}",
+            'tenant_id': 'tenant-norkevin',
+        })
 
     client_id = "client-quote-builder-astral"
     job_id = "job-quote-builder-astral"

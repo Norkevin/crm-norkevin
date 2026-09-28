@@ -79,6 +79,9 @@ def test_auto_fire_queues_due_questionnaire_step_and_waits_for_approval(auth_cli
         'boda_date': '2020-01-01', 'status': 'Confirmado',
         'created': '2019-01-01T00:00:00', 'tenant_id': 'tenant-norkevin',
     })
+    app_module.trigger_workflow_for_quote_accepted(
+        None, 'Boda Fire Test', job_id, tenant_id='tenant-norkevin',
+    )
     # Pre-crear el draft como haria _convert_lead_to_job.
     app_module.store.upsert('questionnaires', {
         'id': 'questionnaire-predraft', 'job_id': job_id, 'client_id': client_id,
@@ -98,10 +101,12 @@ def test_auto_fire_queues_due_questionnaire_step_and_waits_for_approval(auth_cli
     assert len(questionnaires) == 1
     qid = questionnaires[0]['id']
 
-    pendientes = [p for p in app_module.store.list('pending_emails') if p.get('job_id') == job_id]
+    key = f'jobquestionnaire:{qid}:notify'
+    pendientes = [p for p in app_module.store.list('pending_emails')
+                  if p.get('job_id') == job_id and p.get('idempotency_key') == key]
     assert pendientes, 'debe haber quedado un correo esperando aprobacion en pending_emails'
     assert pendientes[0]['status'] == 'pending'
-    assert pendientes[0]['idempotency_key'] == f'jobquestionnaire:{qid}:notify'
+    assert pendientes[0]['idempotency_key'] == key
 
     # El step NO se marca done solo por haberse encolado.
     instances = app_module.workflow_engine.list_instances(subject_id=job_id, subject_type='job')
@@ -113,7 +118,8 @@ def test_auto_fire_queues_due_questionnaire_step_and_waits_for_approval(auth_cli
     # exactamente el escenario que motivo el dedup de queue_email() por
     # idempotency_key en estado 'pending'/'sending'.
     app_module._auto_fire_due_job_steps()
-    pendientes_2 = [p for p in app_module.store.list('pending_emails') if p.get('job_id') == job_id]
+    pendientes_2 = [p for p in app_module.store.list('pending_emails')
+                    if p.get('job_id') == job_id and p.get('idempotency_key') == key]
     assert len(pendientes_2) == 1, 'una segunda pasada no debe duplicar el pendiente sin revisar'
 
 

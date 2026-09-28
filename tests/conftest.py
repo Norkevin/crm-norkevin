@@ -35,13 +35,16 @@ def pytest_configure(config):
     importar el orden de coleccion ni lo que cada archivo haga a nivel de
     modulo (parametrize, etc)."""
     global _TMP_DATA_DIR
-    real_data_dir = os.path.join(REPO_ROOT, 'data')
     tmp_dir = tempfile.mkdtemp(prefix='crm_test_data_')
-    if os.path.isdir(real_data_dir):
-        for name in os.listdir(real_data_dir):
-            src = os.path.join(real_data_dir, name)
-            if os.path.isfile(src) and name.endswith('.json'):
-                shutil.copy2(src, os.path.join(tmp_dir, name))
+    # Usar fixtures versionados, nunca una copia de data/*.json de la
+    # maquina: en un checkout limpio esos archivos no existen y en una
+    # instalacion real pueden contener datos privados o estado cambiante.
+    for source, target in (
+        ('tests/fixtures/tenants.json', 'tenants.json'),
+        ('data/seeds/packages.default.json', 'packages.json'),
+        ('data/seeds/email_templates.default.json', 'email_templates.json'),
+    ):
+        shutil.copy2(os.path.join(REPO_ROOT, source), os.path.join(tmp_dir, target))
 
     os.environ['CRM_DATA_DIR'] = tmp_dir
     os.environ['RECURRENTE_SECRET_KEY'] = ''

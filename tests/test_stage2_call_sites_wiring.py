@@ -19,6 +19,7 @@ switch global sigue siendo la ultima palabra incluso para un pendiente que
 ya paso por aprobacion.
 """
 import uuid
+from contextlib import contextmanager
 from datetime import date, timedelta
 
 import pytest
@@ -31,12 +32,12 @@ NORKEVIN = 'tenant-norkevin-photography'
 RAMIRO = 'tenant-ramiro-cruz'
 
 
+@contextmanager
 def _ctx(app_module, tenant_id):
-    ctx = app_module.app.test_request_context('/')
-    ctx.push()
     from flask import session
-    session['tenant_id'] = tenant_id
-    return ctx
+    with app_module.app.test_request_context('/'):
+        session['tenant_id'] = tenant_id
+        yield
 
 
 def _make_job_with_client(app_module, tenant_id, suffix, email='wiring@example.com'):
@@ -273,13 +274,14 @@ def test_two_manual_reminder_clicks_same_day_share_one_pending(auth_client):
 
 def test_ramiro_pending_emails_isolated_from_astral_and_norkevin(client):
     import app as app_module
+    from src.mail_tracker import get_tracker
 
     login_as_tenant(client, RAMIRO, email='ramiro-wiring@example.com')
     with _ctx(app_module, RAMIRO):
         app_module.store.upsert('jobs', {
             'id': 'job-ramiro-wiring', 'nombre': 'Boda Ramiro', 'tenant_id': RAMIRO,
         })
-        pendiente_ramiro = app_module.get_tracker().queue_email(
+        pendiente_ramiro = get_tracker().queue_email(
             'cliente@example.com', 'Solo Ramiro', 'cuerpo',
             job_id='job-ramiro-wiring', tenant_id=RAMIRO, source='test',
         )
@@ -309,6 +311,7 @@ def test_kill_switch_prevails_even_through_full_approval_cycle(monkeypatch):
     (ausente por default en pytest_configure), ni un pendiente 100%
     aprobado y sin ningun problema de identidad debe terminar 'sent'."""
     import app as app_module
+    from src.mail_tracker import get_tracker
 
     monkeypatch.delenv('OUTBOUND_EMAIL_ENABLED', raising=False)
     monkeypatch.delenv('DISABLE_OUTBOUND_EMAIL', raising=False)
@@ -317,13 +320,13 @@ def test_kill_switch_prevails_even_through_full_approval_cycle(monkeypatch):
         app_module.store.upsert('jobs', {
             'id': 'job-killswitch-wiring', 'nombre': 'Boda Killswitch', 'tenant_id': ASTRAL,
         })
-        pendiente = app_module.get_tracker().queue_email(
+        pendiente = get_tracker().queue_email(
             'cliente@example.com', 'Prueba kill switch', 'cuerpo',
             job_id='job-killswitch-wiring', tenant_id=ASTRAL, source='test',
         )
         assert pendiente['status'] == 'pending'
 
-        resultado = app_module.get_tracker().approve_and_send(pendiente['id'], sender_tenant_id=ASTRAL)
+        resultado = get_tracker().approve_and_send(pendiente['id'], sender_tenant_id=ASTRAL)
 
     assert resultado['ok'] is False, 'sin el kill switch en 1, nada deberia poder marcarse enviado'
     assert resultado['pendiente']['status'] == 'failed', (

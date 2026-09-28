@@ -54,12 +54,21 @@ def test_send_reminder_respects_edited_text_instead_of_regenerating(auth_client,
     send_email (para capturar el envio real) ya no aplica aca; lo que
     hay que revisar es el pendiente que quedo encolado."""
     import app as app_module
+    import uuid
 
-    payments = app_module.store.list('payments')
-    pending = next((p for p in payments if p.get('status') in ('Pendiente', 'Late') and p.get('client_id')), None)
-    assert pending, 'necesita al menos un payment pendiente con client_id en los datos de prueba'
+    suffix = uuid.uuid4().hex[:8]
+    client_id = f'client-reminder-{suffix}'
+    payment_id = f'pay-reminder-{suffix}'
+    app_module.store.upsert('clients', {
+        'id': client_id, 'first_name': 'Reminder', 'email': 'reminder@example.com',
+        'tenant_id': 'tenant-norkevin',
+    })
+    app_module.store.upsert('payments', {
+        'id': payment_id, 'client_id': client_id, 'amount': 1000,
+        'status': 'Pendiente', 'due_date': '2027-01-01', 'tenant_id': 'tenant-norkevin',
+    })
 
-    resp = auth_client.post(f'/api/payments/{pending["id"]}/send-reminder', json={
+    resp = auth_client.post(f'/api/payments/{payment_id}/send-reminder', json={
         'to_email': 'override@example.com',
         'subject': '[EDITADO] Asunto de prueba',
         'body': 'Cuerpo editado a mano por Kevin, no debe regenerarse.',

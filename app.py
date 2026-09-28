@@ -1174,7 +1174,10 @@ def _accept_quote_for_existing_job(quote):
 
 
 def _ensure_production_workflow_for_job(lead, job):
-    existing = _workflow_instances_seguras(subject_type='job', subject_id=job['id'])
+    existing = _workflow_instances_seguras(
+        subject_type='job', subject_id=job['id'],
+        tenant_id=job.get('tenant_id') or lead.get('tenant_id'),
+    )
     if existing:
         return existing[0].id, False
     instance = trigger_workflow_for_quote_accepted(
@@ -1185,7 +1188,9 @@ def _ensure_production_workflow_for_job(lead, job):
 
 
 def _complete_original_lead_workflow(lead, job):
-    instance = _workflow_instance_for('lead', lead.get('id', ''))
+    instance = _workflow_instance_for(
+        'lead', lead.get('id', ''), tenant_id=lead.get('tenant_id'),
+    )
     if not instance:
         return
 
@@ -1199,7 +1204,9 @@ def _complete_original_lead_workflow(lead, job):
 
 
 def _activate_job_workflow_start(job):
-    instance = _workflow_instance_for('job', job.get('id', ''))
+    instance = _workflow_instance_for(
+        'job', job.get('id', ''), tenant_id=job.get('tenant_id'),
+    )
     if not instance:
         return
 
@@ -1401,7 +1408,10 @@ def _build_recent_notifications(tenant_id):
     try:
         latest_leads = sorted(
             _open_leads(tenant_id),
-            key=lambda lead: str(lead.get('created') or lead.get('updated') or ''),
+            key=lambda lead: (
+                str(lead.get('created') or lead.get('updated') or ''),
+                str(lead.get('created_time') or ''),
+            ),
             reverse=True
         )[:3]
         for lead in latest_leads:
@@ -4678,9 +4688,9 @@ def payments_list():
 
     for p in payments_all:
         c = clients.get(p.get('client_id', ''))
-        p['client_name'] = f"{c['first_name']} {c['last_name']}" if c else '—'
+        p['client_name'] = _client_name(client=c) if c else '—'
         j = jobs.get(p.get('job_id', ''))
-        p['job_name'] = j['nombre'] if j else '—'
+        p['job_name'] = (j.get('nombre') or '—') if j else '—'
 
         # Calcular days_ago
         try:
@@ -4701,7 +4711,7 @@ def payments_list():
         0 if p.get('status') == 'Late' else
         1 if p.get('status') == 'Pendiente' else
         2,
-        p.get('due_date', '')
+        p.get('due_date') or ''
     ))
 
     # Totales
@@ -10101,6 +10111,7 @@ def crear_lead_publico():
 
     import uuid
     lead_id = 'lead-' + uuid.uuid4().hex[:8]
+    created_at = datetime.now()
     lead = {
         'id': lead_id,
         'nombre': f"{nombre} {apellido}".strip(),
@@ -10113,7 +10124,8 @@ def crear_lead_publico():
         'locacion': f"{ubicacion + ', ' if ubicacion else ''}{pais}",
         'presupuesto': data.get('presupuesto', ''),
         'notes': notas_texto,
-        'created': datetime.now().isoformat()[:10],
+        'created': created_at.date().isoformat(),
+        'created_time': created_at.isoformat(),
         'is_new': True,
         'next_task': 'Pendiente de contacto',
         'mail_status': 'ENVIADO',

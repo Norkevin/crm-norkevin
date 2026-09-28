@@ -15,6 +15,7 @@ específica -- son asserts sobre JSON y sobre presencia de texto -- así que
 siguen valiendo sin cambios con el nuevo template). Este archivo no repite
 esas pruebas; solo agrega lo que es nuevo o lo que cambió de forma real."""
 import uuid
+import re
 
 from conftest import login_as_tenant
 
@@ -51,13 +52,16 @@ def _enviar(auth_client, quote_id):
 
 
 def _quote_publica_minima(app_module, tenant_id, *, extra_theme=None, suffix=''):
+    from flask import session
     lead_id = 'lead-min-' + suffix + uuid.uuid4().hex[:6]
     quote_id = 'quote-min-' + suffix + uuid.uuid4().hex[:6]
-    app_module.store.upsert('leads', {'id': lead_id, 'nombre': 'Cliente Min', 'tenant_id': tenant_id, 'status': 'Nuevo'})
-    app_module.store.upsert('quotes', {
-        'id': quote_id, 'lead_id': lead_id, 'tenant_id': tenant_id, 'status': 'Enviada',
-        'options': [{'id': 'op1', 'name': 'Paquete', 'precio_total': 1000}],
-    })
+    with app_module.app.test_request_context('/'):
+        session['tenant_id'] = tenant_id
+        app_module.store.upsert('leads', {'id': lead_id, 'nombre': 'Cliente Min', 'tenant_id': tenant_id, 'status': 'Nuevo'})
+        app_module.store.upsert('quotes', {
+            'id': quote_id, 'lead_id': lead_id, 'tenant_id': tenant_id, 'status': 'Enviada',
+            'options': [{'id': 'op1', 'name': 'Paquete', 'precio_total': 1000}],
+        })
     return quote_id
 
 
@@ -105,7 +109,7 @@ def test_opciones_multiples_forman_un_radiogroup_accesible_por_teclado(auth_clie
     assert 'tabindex="0"' in html
     # 'Recomendada' (opt.label) solo debe aparecer marcada para la opcion
     # que la tiene -- no en la que no la tiene.
-    assert 'opt-recommended">Recomendada' in html
+    assert re.search(r'<div class="opt-recommended">.*?Recomendada</div>', html, re.S)
 
 
 def test_opcion_sin_label_no_muestra_recomendada(auth_client):
@@ -115,7 +119,7 @@ def test_opcion_sin_label_no_muestra_recomendada(auth_client):
     quote_id = _crear_borrador_con_opcion(auth_client, app_module, ASTRAL, precio_total=9000)
     token = _enviar(auth_client, quote_id)
     r = auth_client.get(f'/q/{token}')
-    assert 'opt-recommended' not in r.get_data(as_text=True)
+    assert '<div class="opt-recommended">' not in r.get_data(as_text=True)
 
 
 def test_extras_siguen_conectados_al_form_de_aceptar(auth_client):
@@ -189,6 +193,7 @@ def test_video_destacado_solo_aparece_si_el_link_es_reconocible(client):
         'featured_video_url': 'https://www.youtube.com/watch?v=abcDEF1234',
     })
     assert r.status_code == 200
+    assert app_module._quote_theme_for_tenant(NORKEVIN)['featured_video_embed'] == 'https://www.youtube.com/embed/abcDEF1234'
 
     quote_id = _quote_publica_minima(app_module, NORKEVIN, suffix='vid')
     r = client.get(f'/quotes/{quote_id}')

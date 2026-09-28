@@ -1,0 +1,23 @@
+[
+  {
+    "id": "tenant-norkevin",
+    "slug": "astral-weddings",
+    "name": "ASTRAL WEDDINGS",
+    "login_email": "astralweddingsgt@gmail.com",
+    "active": true
+  },
+  {
+    "id": "tenant-norkevin-photography",
+    "slug": "norkevin-photography",
+    "name": "Norkevin Photography",
+    "login_email": "norkevinfoto@gmail.com",
+    "active": true
+  },
+  {
+    "id": "tenant-ramiro-cruz",
+    "slug": "ramiro-cruz-photo",
+    "name": "Ramiro Cruz Photo",
+    "login_email": "ramirocruz10x@gmail.com",
+    "active": true
+  }
+]

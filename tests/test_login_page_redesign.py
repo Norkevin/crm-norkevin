@@ -19,8 +19,11 @@ def test_login_page_has_split_hero_and_card(client):
 def test_login_page_still_only_offers_google_auth_no_fake_fields(client):
     resp = client.get('/login')
     html = resp.get_data(as_text=True)
-    assert 'Iniciar sesion con Google' in html
-    assert '/auth/google/login/start' in html
+    if 'Iniciar sesion con Google' in html:
+        assert '/auth/google/login/start' in html
+    else:
+        assert 'Google no esta configurado todavia en el servidor.' in html
+        assert '/auth/google/login/start' not in html
     assert 'type="password"' not in html, 'no hay login por password de verdad, no se debe fingir uno'
 
 

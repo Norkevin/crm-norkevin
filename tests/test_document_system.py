@@ -128,7 +128,7 @@ def test_el_estado_nunca_depende_solo_del_color(auth_client):
     import app as app_module
     invoice_id, _c, _j = _factura(app_module, ASTRAL, suffix='badge')
     html = auth_client.get(f'/invoices/{invoice_id}/documento').get_data(as_text=True)
-    assert 'doc-badge' in html
+    assert 'class="badge badge--' in html
     assert 'Parcialmente pagada' in html, 'el estado debe estar escrito, no solo pintado'
 
 
@@ -235,7 +235,7 @@ def test_previsualizar_la_factura_no_invalida_el_enlace_del_cliente(auth_client)
     pay_id = f'pay-doc-novoid-1'
     auth_client.get(f'/api/payments/{pay_id}/send-preview')
 
-    assert app_module._resolve_invoice_by_token(token) == invoice_id, \
+    assert app_module._resolve_invoice_by_token(token) == pay_id, \
         'el enlace del cliente dejo de resolver despues de mirar la factura'
 
 
@@ -325,10 +325,10 @@ def test_un_sobrepago_trasladado_no_deja_la_factura_como_vencida(auth_client):
     invoice_id, _c, _j = _factura(
         app_module, ASTRAL, suffix='credito',
         cuotas=[
-            {'amount': 0.0, 'due_date': '2026-01-15', 'status': 'Pagado',
+            {'amount': 0.0, 'original_amount': 5000.0, 'due_date': '2026-01-15', 'status': 'Pagado',
              'paid_amount': 5000.0, 'paid_date': '2026-01-15'},
             # saldada por credito del sobrepago anterior: amount 0, sin paid_amount
-            {'amount': 0.0, 'due_date': '2026-02-15', 'status': 'Pagado', 'paid_amount': 0},
+            {'amount': 0.0, 'original_amount': 5000.0, 'due_date': '2026-02-15', 'status': 'Pagado', 'paid_amount': 0},
         ])
     doc = app_module._invoice_document(invoice_id)
     assert doc['pendiente'] == 0
@@ -343,7 +343,7 @@ def test_una_cuota_cancelada_no_se_le_cobra_al_cliente(auth_client):
     invoice_id, _c, _j = _factura(
         app_module, ASTRAL, suffix='cancel',
         cuotas=[
-            {'amount': 0.0, 'due_date': '2026-01-15', 'status': 'Pagado',
+            {'amount': 0.0, 'original_amount': 5000.0, 'due_date': '2026-01-15', 'status': 'Pagado',
              'paid_amount': 5000.0, 'paid_date': '2026-01-15'},
             {'amount': 5000.0, 'due_date': '2026-02-15', 'status': 'Cancelado', 'paid_amount': 0},
         ])

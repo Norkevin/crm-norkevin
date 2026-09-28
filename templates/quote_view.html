@@ -171,6 +171,7 @@
 .pf-pass-wrap { margin-top: 9px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pf-pass-label { font-size: 10.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
 .pf-pass-field { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: 1px; font-size: 12px; padding: 6px 10px; }
+@media (max-width: 620px) { .pf-pass-field { font-size: 16px; } }
 .pf-copy {
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface);
   color: var(--text-secondary); font-size: 12px; font-weight: 550; padding: 7px 12px; cursor: pointer;
@@ -499,7 +500,7 @@
 {% endif %}
 
   {# ================= PORTAFOLIO ================= #}
-  {% if portfolio %}
+  {% if portfolio or theme.featured_video_embed %}
   <div class="card">
     <div class="card__body">
       <div class="section__head" style="margin-bottom:16px;">
@@ -517,7 +518,7 @@
         </div>
       </div>
       {% endif %}
-      <div class="pf-list">
+      {% if portfolio %}<div class="pf-list">
         {% for p in portfolio %}
         {% if p.external_url %}<a class="pf-row" href="{{ p.external_url }}" target="_blank" rel="noopener">{% else %}<div class="pf-row">{% endif %}
           <div class="pf-row-main">
@@ -544,7 +545,7 @@
           {% if p.external_url %}<span class="pf-arrow">{{ ui.icon('sparkle') }}</span>{% endif %}
         {% if p.external_url %}</a>{% else %}</div>{% endif %}
         {% endfor %}
-      </div>
+      </div>{% endif %}
     </div>
   </div>
   {% endif %}

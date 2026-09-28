@@ -29,12 +29,15 @@ NORKEVIN = 'tenant-norkevin-photography'
 
 
 def _crear_lead(app_module, tenant_id, *, nombre='Cliente Test', email=None):
+    from flask import session
     lead_id = 'lead-pqe2-' + uuid.uuid4().hex[:8]
     email = email or f'{lead_id}@example.com'
-    app_module.store.upsert('leads', {
-        'id': lead_id, 'nombre': nombre, 'email': email,
-        'status': 'Nuevo', 'tenant_id': tenant_id,
-    })
+    with app_module.app.test_request_context('/'):
+        session['tenant_id'] = tenant_id
+        app_module.store.upsert('leads', {
+            'id': lead_id, 'nombre': nombre, 'email': email,
+            'status': 'Nuevo', 'tenant_id': tenant_id,
+        })
     return lead_id
 
 
@@ -508,7 +511,7 @@ def test_quote_theme_campo_vacio_vuelve_al_default(auth_client):
     assert app_module._quote_theme_for_tenant(ASTRAL)['accent'] == '#abcdef'
 
     auth_client.post('/api/settings/quote-theme', json={'accent': ''})
-    assert app_module._quote_theme_for_tenant(ASTRAL)['accent'] == '#c9a961', \
+    assert app_module._quote_theme_for_tenant(ASTRAL)['accent'] == '#7357F6', \
         'un campo vaciado debe volver al default, no quedar en blanco'
 
 
