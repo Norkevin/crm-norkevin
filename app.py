@@ -13256,7 +13256,7 @@ def api_workflow_step():
                 'ok': True,
                 'disponible': True,
                 'fecha': fecha,
-                'recomendacion': 'Enviar paquetes de Astral',
+                'recomendacion': 'Enviar paquetes',
                 'message': f'Fecha {fecha} esta LIBRE'
             })
         else:
@@ -13266,11 +13266,17 @@ def api_workflow_step():
                 'disponible': False,
                 'fecha': fecha,
                 'conflicts': [{'job_id': c['id'], 'client': c.get('nombre', '')} for c in conflicts],
-                'recomendacion': 'Enviar email de Astral Films',
+                'recomendacion': 'Enviar correo sobre disponibilidad',
                 'message': f'Fecha {fecha} NO esta disponible. Recomendar Astral Films.'
             })
     if not template_id:
         return jsonify({'ok': False, 'error': 'Este step no tiene email template configurado'}), 400
+
+    tpl = _get_email_template(template_id)
+    if not tpl or not (tpl.get('cuerpo') or '').strip():
+        return jsonify({'ok': False, 'error': 'Este step necesita una plantilla con mensaje antes de completarse'}), 400
+    if not lead.get('email'):
+        return jsonify({'ok': False, 'error': 'Este lead no tiene email'}), 400
 
     # Disparar workflow engine
     instances = _workflow_instances_seguras(subject_type='lead', subject_id=lead_id)
@@ -13278,15 +13284,9 @@ def api_workflow_step():
         return jsonify({'ok': False, 'error': 'No hay workflow activo'}), 400
     instance = instances[0]
 
-    # Marcar como done
-    instance.step_states[step_id] = StepStatus.DONE
-    instance.step_results[step_id] = f"EMAIL sent: {step_id}"
-
     # Registrar email
     tracker = get_tracker()
-    templates_list = store.list('email_templates')
-    tpl = next((t for t in templates_list if t.get('id') == template_id), None)
-    subject = tpl.get('asunto', step_id) if tpl else step_id
+    subject = tpl.get('asunto') or step_id
 
     # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega inmediata.
     # Clave estable: el step ya se marco DONE arriba (linea 12120-12121),
@@ -13295,7 +13295,7 @@ def api_workflow_step():
     mail = tracker.queue_email(
         to_email=lead.get('email', ''),
         subject=subject,
-        body=tpl.get('cuerpo', '') if tpl else '',
+        body=tpl.get('cuerpo') or '',
         template_id=template_id,
         lead_id=lead_id,
         client_id=lead.get('client_id') or None,
@@ -13310,7 +13310,12 @@ def api_workflow_step():
         idempotency_key=f'leadstep:{lead_id}:{step_id}',
     )
 
-    workflow_engine._log(instance, 'step.manual', f'{step_id}: enviado')
+    if mail.get('status') not in ('pending', 'sent'):
+        return jsonify({'ok': False, 'error': mail.get('blocked_reason') or 'No se pudo poner el correo en cola'}), 400
+    instance.step_states[step_id] = StepStatus.DONE
+    instance.step_results[step_id] = f"EMAIL queued: {step_id}"
+
+    workflow_engine._log(instance, 'step.manual', f'{step_id}: en cola')
     workflow_engine._save_to_storage()
 
     return jsonify({
@@ -13358,20 +13363,19 @@ def api_job_production_step(job_id):
         return jsonify({'ok': False, 'error': 'No hay workflow activo'}), 400
     instance = instances[0]
 
-    # Marcar como done
-    instance.step_states[step_id] = StepStatus.DONE
-    instance.step_results[step_id] = f"PRODUCTION step: {step_id}"
-
     mail_id = None
     if template_id:
-        templates_list = store.list('email_templates')
-        tpl = next((t for t in templates_list if t.get('id') == template_id), None)
-        subject = tpl.get('asunto', step_id) if tpl else step_id
+        tpl = _get_email_template(template_id)
+        if not tpl or not (tpl.get('cuerpo') or '').strip():
+            return jsonify({'ok': False, 'error': 'Este step necesita una plantilla con mensaje antes de completarse'}), 400
+        subject = tpl.get('asunto') or step_id
 
         tracker = get_tracker()
         # Buscar el lead del job para obtener email
         lead = get_lead(job.get('lead_id', ''))
         to_email = lead.get('email', '') if lead else ''
+        if not to_email:
+            return jsonify({'ok': False, 'error': 'Este job no tiene email de cliente'}), 400
 
         # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
         # inmediata. Clave estable: el step ya se marco DONE arriba, este
@@ -13379,7 +13383,7 @@ def api_job_production_step(job_id):
         mail = tracker.queue_email(
             to_email=to_email,
             subject=subject,
-            body=tpl.get('cuerpo', '') if tpl else '',
+            body=tpl.get('cuerpo') or '',
             template_id=template_id,
             job_id=job_id,
             lead_id=job.get('lead_id', ''),
@@ -13395,9 +13399,13 @@ def api_job_production_step(job_id):
             # asi que es el mismo step logico visto por dos rutas distintas.
             idempotency_key=f'jobstep:{job_id}:{step_id}',
         )
+        if mail.get('status') not in ('pending', 'sent'):
+            return jsonify({'ok': False, 'error': mail.get('blocked_reason') or 'No se pudo poner el correo en cola'}), 400
         mail_id = mail.get('id')
 
-    workflow_engine._log(instance, 'step.manual', f'{step_id}: enviado')
+    instance.step_states[step_id] = StepStatus.DONE
+    instance.step_results[step_id] = f"PRODUCTION step: {step_id}"
+    workflow_engine._log(instance, 'step.manual', f'{step_id}: en cola' if mail_id else f'{step_id}: completado')
     workflow_engine._save_to_storage()
 
     return jsonify({

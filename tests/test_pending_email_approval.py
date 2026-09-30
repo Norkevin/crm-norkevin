@@ -7,6 +7,7 @@ cross-company bloqueaba el 100% de los envios y eso solo se vio por tener el
 caso positivo.
 """
 import uuid
+from types import SimpleNamespace
 
 from src.mail_tracker import MailTracker, MailStatus
 
@@ -143,6 +144,43 @@ def test_job_sin_plantilla_no_encola_correo_vacio(client):
 
     assert 'no tiene mensaje' in resultado['error']
     assert despues == antes
+
+
+def test_lead_step_sin_plantilla_no_se_marca_completado(auth_client, monkeypatch):
+    import app as app_module
+
+    lead = _seed(app_module, 'leads', ASTRAL,
+                 nombre='Cliente', email='cliente@ejemplo.com')
+    step = next(s for s in app_module.LEAD_WORKFLOW().steps
+                if s.email_template_id and s.id != 'validar_disponibilidad')
+    monkeypatch.setattr(app_module, '_get_email_template', lambda _id: None)
+    antes = len(app_module.store.list('pending_emails'))
+
+    resp = auth_client.post('/api/workflow/step', json={
+        'lead_id': lead['id'], 'step_id': step.id,
+    })
+
+    assert resp.status_code == 400
+    assert 'plantilla con mensaje' in resp.get_json()['error']
+    assert len(app_module.store.list('pending_emails')) == antes
+
+
+def test_production_step_sin_plantilla_no_se_marca_completado(auth_client, monkeypatch):
+    import app as app_module
+
+    job = _seed(app_module, 'jobs', ASTRAL, nombre='Boda de prueba')
+    instance = SimpleNamespace(step_states={}, step_results={})
+    monkeypatch.setattr(app_module, '_workflow_instances_seguras', lambda **_k: [instance])
+    monkeypatch.setattr(app_module, '_get_email_template', lambda _id: None)
+    antes = len(app_module.store.list('pending_emails'))
+
+    resp = auth_client.post(f"/api/jobs/{job['id']}/production-step",
+                            json={'step_id': 'reserva_confirmada'})
+
+    assert resp.status_code == 400
+    assert 'plantilla con mensaje' in resp.get_json()['error']
+    assert instance.step_states == {}
+    assert len(app_module.store.list('pending_emails')) == antes
 
 
 def test_no_se_puede_aprobar_un_pendiente_de_otra_cuenta(client):
