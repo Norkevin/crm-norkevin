@@ -682,6 +682,8 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
             subject_override or (template or {}).get('asunto') or step.name, lead=lead)
         body = _render_message_template(
             body_override or (template or {}).get('cuerpo') or '', lead=lead)
+        if not body.strip():
+            return {'completed': False, 'warning': 'Este paso no tiene mensaje. Vincula una plantilla antes de completarlo.'}
         from src.mail_tracker import get_tracker
         # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
         # inmediata. Clave estable: la logica de arriba (linea 605-606) ya
@@ -7028,6 +7030,8 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
     rendered_body = body or (template or {}).get('cuerpo') or ''
     rendered_subject = _render_message_template(rendered_subject, client=client, lead=lead, job=job)
     rendered_body = _render_message_template(rendered_body, client=client, lead=lead, job=job)
+    if not rendered_body.strip():
+        return {'error': 'Este correo no tiene mensaje. Escribe uno o vincula una plantilla.'}
 
     idempotency_key = (
         f"jobstep:{job.get('id')}:{step_id}" if (auto_fire and step_id)

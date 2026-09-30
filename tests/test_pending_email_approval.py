@@ -103,6 +103,48 @@ def test_aprobar_envia_el_correo(client, monkeypatch):
     assert resultado['mail']['status'] == MailStatus.SENT.value
 
 
+def test_no_se_envia_un_correo_sin_mensaje(client, monkeypatch):
+    """Un workflow sin plantilla no debe entregar un correo en blanco."""
+    import app as app_module
+
+    enviados = []
+    monkeypatch.setattr('src.mail_tracker.send_email',
+                        lambda *a, **k: enviados.append(a))
+
+    ctx = _ctx(app_module, ASTRAL)
+    try:
+        job = _seed(app_module, 'jobs', ASTRAL, nombre='Boda de prueba')
+        tracker = MailTracker()
+        pendiente = tracker.queue_email('cliente@ejemplo.com', 'Asunto', '', job_id=job['id'])
+        resultado = tracker.approve_and_send(pendiente['id'])
+    finally:
+        ctx.pop()
+
+    assert resultado['ok'] is False
+    assert resultado['pendiente']['status'] == 'blocked'
+    assert 'no tiene mensaje' in resultado['error']
+    assert enviados == []
+
+
+def test_job_sin_plantilla_no_encola_correo_vacio(client):
+    import app as app_module
+
+    ctx = _ctx(app_module, ASTRAL)
+    try:
+        cliente = _seed(app_module, 'clients', ASTRAL,
+                        first_name='Cliente', email='cliente@ejemplo.com')
+        job = _seed(app_module, 'jobs', ASTRAL, nombre='Boda de prueba',
+                    client_id=cliente['id'])
+        antes = len(app_module.store.list('pending_emails'))
+        resultado = app_module._send_job_template_email(job, template_id='inexistente')
+        despues = len(app_module.store.list('pending_emails'))
+    finally:
+        ctx.pop()
+
+    assert 'no tiene mensaje' in resultado['error']
+    assert despues == antes
+
+
 def test_no_se_puede_aprobar_un_pendiente_de_otra_cuenta(client):
     """Un pendiente de Astral no debe poder aprobarse desde Norkevin."""
     import app as app_module
