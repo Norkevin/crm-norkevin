@@ -433,10 +433,11 @@ class MailTracker:
                                cuenta_del_registro=pendiente.get('tenant_id'))
             return {'ok': False, 'error': 'No encontrado'}
 
-        motivo = check_same_tenant(actual,
-                                   lead_id=pendiente.get('lead_id'),
-                                   job_id=pendiente.get('job_id'),
-                                   template_id=pendiente.get('template_id'))
+        motivo = ('el correo no tiene mensaje' if not (pendiente.get('body') or '').strip()
+                  else check_same_tenant(actual,
+                                         lead_id=pendiente.get('lead_id'),
+                                         job_id=pendiente.get('job_id'),
+                                         template_id=pendiente.get('template_id')))
         # Identidad del destinatario, tambien AL ENVIAR: entre que se genero
         # el pendiente y que se aprueba, el cliente pudo reasignarse a la
         # otra empresa sin que cambiara ni una letra de la direccion.

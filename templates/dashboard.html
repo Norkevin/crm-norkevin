@@ -4,7 +4,8 @@
 {% block topbar_title %}Dashboard{% endblock %}
 
 {% block content %}
-{% set collected_pct = ((total_paid / (total_paid + total_pending) * 100) if (total_paid + total_pending) else 100) %}
+{% set collected_total = total_paid + total_pending %}
+{% set collected_pct = (total_paid / collected_total * 100) if collected_total else 0 %}
 <style>
 .dashboard-greeting {
   display: flex;
@@ -841,8 +842,8 @@
     </div>
     <div class="dashboard-ring" style="background: conic-gradient(var(--sn-green) 0% {{ collected_pct }}%, var(--sn-line) {{ collected_pct }}% 100%);">
       <div class="dashboard-ring-hole">
-        <span class="dashboard-ring-value">{{ collected_pct|round|int }}%</span>
-        <span class="dashboard-ring-label">Cobrado</span>
+        <span class="dashboard-ring-value">{{ (collected_pct|round|int ~ '%') if collected_total else '—' }}</span>
+        <span class="dashboard-ring-label">{{ 'Cobrado' if collected_total else 'Sin pagos' }}</span>
       </div>
     </div>
   </div>

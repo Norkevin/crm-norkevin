@@ -11,7 +11,7 @@
 <div class="sn-page-head">
   <div>
     <h1 class="sn-page-title">Plantillas de Workflow</h1>
-    <div class="sn-breadcrumbs">Secuencias automaticas que se disparan segun cada evento.</div>
+    <div class="sn-breadcrumbs">Pasos del workflow. Los correos generados esperan aprobacion en Emails.</div>
   </div>
 </div>
 
@@ -175,7 +175,7 @@
                 <div class="wfe-tpl-preview-body">{{ (linked_tpl.cuerpo or '')|truncate(160) }}</div>
               </div>
               {% elif action_key in ['send_email', 'send_contract', 'send_questionnaire', 'send_gallery'] %}
-              <div class="wfe-tpl-missing">Sin plantilla vinculada -- este step no enviara texto real</div>
+              <div class="wfe-tpl-missing">Sin plantilla vinculada. Revisa el contenido antes de aprobar cualquier correo.</div>
               {% endif %}
             </div>
 

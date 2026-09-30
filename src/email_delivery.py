@@ -229,10 +229,16 @@ def send_email(to_email, subject, body='', *, attachments=None, metadata=None):
     tenant_id = (metadata or {}).get('tenant_id')
     if gmail_delivery.is_connected(tenant_id=tenant_id):
         return _send_gmail(to_email, subject, body, attachments=attachments, metadata=metadata)
+    if gmail_delivery.load_token(tenant_id=tenant_id):
+        return DeliveryResult(ok=False, provider='blocked', status='blocked',
+                              error='La cuenta Gmail guardada no corresponde a esta empresa')
 
     mode = os.environ.get('EMAIL_DELIVERY_MODE', 'test').lower()
     provider = os.environ.get('EMAIL_PROVIDER', 'local_outbox').lower()
     if mode != 'real':
+        if os.environ.get('RENDER'):
+            return DeliveryResult(ok=False, provider='blocked', status='blocked',
+                                  error='Gmail no conectado y el modo de prueba no entrega correos en produccion')
         return _send_local(to_email, subject, body, attachments=attachments, metadata=metadata)
     if provider == 'smtp':
         return _send_smtp(to_email, subject, body, attachments=attachments, metadata=metadata)

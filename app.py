@@ -682,6 +682,8 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
             subject_override or (template or {}).get('asunto') or step.name, lead=lead)
         body = _render_message_template(
             body_override or (template or {}).get('cuerpo') or '', lead=lead)
+        if not body.strip():
+            return {'completed': False, 'warning': 'Este paso no tiene mensaje. Vincula una plantilla antes de completarlo.'}
         from src.mail_tracker import get_tracker
         # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
         # inmediata. Clave estable: la logica de arriba (linea 605-606) ya
@@ -5137,9 +5139,8 @@ def auth_google_start():
 
     redirect_uri = _google_redirect_uri()
     state = secrets.token_urlsafe(16)
-    session_store = store.get_dict('google_oauth_state')
-    session_store['state'] = state
-    store.save_dict('google_oauth_state', session_store)
+    session['gmail_oauth_state'] = state
+    session['gmail_oauth_tenant_id'] = get_current_tenant_id()
     return redirect(gmail_delivery.build_authorization_url(redirect_uri, state))
 
 
@@ -5154,13 +5155,15 @@ def auth_google_callback():
 
     code = request.args.get('code')
     state = request.args.get('state')
-    expected_state = store.get_dict('google_oauth_state').get('state')
-    if not code or not state or state != expected_state:
+    expected_state = session.pop('gmail_oauth_state', None)
+    expected_tenant_id = session.pop('gmail_oauth_tenant_id', None)
+    if (not code or not state or state != expected_state or
+            expected_tenant_id != get_current_tenant_id()):
         return redirect(url_for('settings', google_status='error', google_msg='state invalido'))
 
     redirect_uri = _google_redirect_uri()
     try:
-        token = gmail_delivery.exchange_code_for_token(code, redirect_uri)
+        token = gmail_delivery.exchange_code_for_token(code, redirect_uri, tenant_id=expected_tenant_id)
         return redirect(url_for('settings', google_status='connected', google_email=token.get('email', '')))
     except Exception as exc:
         return redirect(url_for('settings', google_status='error', google_msg=str(exc)))
@@ -5243,7 +5246,7 @@ def settings():
         'total_instances': len([i for i in _workflow_instances_del_tenant() if i.status.value == 'active']),
     }
 
-    from src import gmail_delivery, recurrente
+    from src import email_delivery, gmail_delivery, recurrente
     redirect_uri = _google_redirect_uri()
 
     return render_template('settings.html',
@@ -5264,6 +5267,7 @@ def settings():
                           gmail_configured=gmail_delivery.is_configured(),
                           gmail_connected=gmail_delivery.is_connected(),
                           gmail_email=gmail_delivery.connected_email(),
+                          outbound_email_enabled=email_delivery.outbound_email_enabled(),
                           gmail_redirect_uri=redirect_uri,
                           recurrente_configured=recurrente.is_configured(),
                           recurrente_test_mode=recurrente.is_test_mode(),
@@ -7026,6 +7030,8 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
     rendered_body = body or (template or {}).get('cuerpo') or ''
     rendered_subject = _render_message_template(rendered_subject, client=client, lead=lead, job=job)
     rendered_body = _render_message_template(rendered_body, client=client, lead=lead, job=job)
+    if not rendered_body.strip():
+        return {'error': 'Este correo no tiene mensaje. Escribe uno o vincula una plantilla.'}
 
     idempotency_key = (
         f"jobstep:{job.get('id')}:{step_id}" if (auto_fire and step_id)
@@ -13250,7 +13256,7 @@ def api_workflow_step():
                 'ok': True,
                 'disponible': True,
                 'fecha': fecha,
-                'recomendacion': 'Enviar paquetes de Astral',
+                'recomendacion': 'Enviar paquetes',
                 'message': f'Fecha {fecha} esta LIBRE'
             })
         else:
@@ -13260,11 +13266,17 @@ def api_workflow_step():
                 'disponible': False,
                 'fecha': fecha,
                 'conflicts': [{'job_id': c['id'], 'client': c.get('nombre', '')} for c in conflicts],
-                'recomendacion': 'Enviar email de Astral Films',
+                'recomendacion': 'Enviar correo sobre disponibilidad',
                 'message': f'Fecha {fecha} NO esta disponible. Recomendar Astral Films.'
             })
     if not template_id:
         return jsonify({'ok': False, 'error': 'Este step no tiene email template configurado'}), 400
+
+    tpl = _get_email_template(template_id)
+    if not tpl or not (tpl.get('cuerpo') or '').strip():
+        return jsonify({'ok': False, 'error': 'Este step necesita una plantilla con mensaje antes de completarse'}), 400
+    if not lead.get('email'):
+        return jsonify({'ok': False, 'error': 'Este lead no tiene email'}), 400
 
     # Disparar workflow engine
     instances = _workflow_instances_seguras(subject_type='lead', subject_id=lead_id)
@@ -13272,15 +13284,9 @@ def api_workflow_step():
         return jsonify({'ok': False, 'error': 'No hay workflow activo'}), 400
     instance = instances[0]
 
-    # Marcar como done
-    instance.step_states[step_id] = StepStatus.DONE
-    instance.step_results[step_id] = f"EMAIL sent: {step_id}"
-
     # Registrar email
     tracker = get_tracker()
-    templates_list = store.list('email_templates')
-    tpl = next((t for t in templates_list if t.get('id') == template_id), None)
-    subject = tpl.get('asunto', step_id) if tpl else step_id
+    subject = tpl.get('asunto') or step_id
 
     # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega inmediata.
     # Clave estable: el step ya se marco DONE arriba (linea 12120-12121),
@@ -13289,7 +13295,7 @@ def api_workflow_step():
     mail = tracker.queue_email(
         to_email=lead.get('email', ''),
         subject=subject,
-        body=tpl.get('cuerpo', '') if tpl else '',
+        body=tpl.get('cuerpo') or '',
         template_id=template_id,
         lead_id=lead_id,
         client_id=lead.get('client_id') or None,
@@ -13304,7 +13310,12 @@ def api_workflow_step():
         idempotency_key=f'leadstep:{lead_id}:{step_id}',
     )
 
-    workflow_engine._log(instance, 'step.manual', f'{step_id}: enviado')
+    if mail.get('status') not in ('pending', 'sent'):
+        return jsonify({'ok': False, 'error': mail.get('blocked_reason') or 'No se pudo poner el correo en cola'}), 400
+    instance.step_states[step_id] = StepStatus.DONE
+    instance.step_results[step_id] = f"EMAIL queued: {step_id}"
+
+    workflow_engine._log(instance, 'step.manual', f'{step_id}: en cola')
     workflow_engine._save_to_storage()
 
     return jsonify({
@@ -13352,20 +13363,19 @@ def api_job_production_step(job_id):
         return jsonify({'ok': False, 'error': 'No hay workflow activo'}), 400
     instance = instances[0]
 
-    # Marcar como done
-    instance.step_states[step_id] = StepStatus.DONE
-    instance.step_results[step_id] = f"PRODUCTION step: {step_id}"
-
     mail_id = None
     if template_id:
-        templates_list = store.list('email_templates')
-        tpl = next((t for t in templates_list if t.get('id') == template_id), None)
-        subject = tpl.get('asunto', step_id) if tpl else step_id
+        tpl = _get_email_template(template_id)
+        if not tpl or not (tpl.get('cuerpo') or '').strip():
+            return jsonify({'ok': False, 'error': 'Este step necesita una plantilla con mensaje antes de completarse'}), 400
+        subject = tpl.get('asunto') or step_id
 
         tracker = get_tracker()
         # Buscar el lead del job para obtener email
         lead = get_lead(job.get('lead_id', ''))
         to_email = lead.get('email', '') if lead else ''
+        if not to_email:
+            return jsonify({'ok': False, 'error': 'Este job no tiene email de cliente'}), 400
 
         # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
         # inmediata. Clave estable: el step ya se marco DONE arriba, este
@@ -13373,7 +13383,7 @@ def api_job_production_step(job_id):
         mail = tracker.queue_email(
             to_email=to_email,
             subject=subject,
-            body=tpl.get('cuerpo', '') if tpl else '',
+            body=tpl.get('cuerpo') or '',
             template_id=template_id,
             job_id=job_id,
             lead_id=job.get('lead_id', ''),
@@ -13389,9 +13399,13 @@ def api_job_production_step(job_id):
             # asi que es el mismo step logico visto por dos rutas distintas.
             idempotency_key=f'jobstep:{job_id}:{step_id}',
         )
+        if mail.get('status') not in ('pending', 'sent'):
+            return jsonify({'ok': False, 'error': mail.get('blocked_reason') or 'No se pudo poner el correo en cola'}), 400
         mail_id = mail.get('id')
 
-    workflow_engine._log(instance, 'step.manual', f'{step_id}: enviado')
+    instance.step_states[step_id] = StepStatus.DONE
+    instance.step_results[step_id] = f"PRODUCTION step: {step_id}"
+    workflow_engine._log(instance, 'step.manual', f'{step_id}: en cola' if mail_id else f'{step_id}: completado')
     workflow_engine._save_to_storage()
 
     return jsonify({

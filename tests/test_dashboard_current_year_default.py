@@ -20,6 +20,22 @@ def test_dashboard_passes_current_year_to_the_template(auth_client):
     assert int(match.group(1)) == date.today().year
 
 
+def test_dashboard_does_not_report_100_percent_collected_without_payments(auth_client, monkeypatch):
+    import app as app_module
+
+    original_list = app_module.store.list
+    monkeypatch.setattr(app_module.store, 'list',
+                        lambda table, *a, **k: [] if table == 'payments'
+                        else original_list(table, *a, **k))
+
+    resp = auth_client.get('/dashboard')
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    ring = re.search(r'class="dashboard-ring-value">([^<]+)</span>\s*'
+                     r'<span class="dashboard-ring-label">([^<]+)</span>', html)
+    assert ring and ring.groups() == ('—', 'Sin pagos')
+
+
 def test_dashboard_hides_non_current_years_by_default(auth_client):
     import app as app_module
     current_year = date.today().year
