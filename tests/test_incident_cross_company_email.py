@@ -179,7 +179,7 @@ def test_desconectar_gmail_sobrevive_un_reinicio(monkeypatch, tmp_path):
     monkeypatch.setattr(gd, 'tenant_resolver', lambda: None)
 
     # 1-2. Conectada y en condiciones de enviar.
-    gd.save_token({'access_token': 'a', 'refresh_token': 'r', 'email': 'astral@x.com'},
+    gd.save_token({'access_token': 'a', 'refresh_token': 'r', 'email': 'astralweddingsgt@gmail.com'},
                   tenant_id=ASTRAL)
     assert gd.is_connected(tenant_id=ASTRAL) is True
 

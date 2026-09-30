@@ -27,13 +27,12 @@ NORKEVIN = 'tenant-norkevin-photography'
 
 def test_el_id_tenant_norkevin_es_en_realidad_astral():
     """Fija el mapeo id -> empresa para que no se 'corrija' al reves."""
-    with open('data/tenants.json', encoding='utf-8') as fh:
-        tenants = {t['id']: t for t in json.load(fh)}
+    from src.tenant_brand_map import resolve_brand
 
-    assert tenants[ASTRAL]['name'] == 'ASTRAL WEDDINGS'
-    assert tenants[ASTRAL]['login_email'] == 'astralweddingsgt@gmail.com'
-    assert tenants[NORKEVIN]['name'] == 'Norkevin Photography'
-    assert tenants[NORKEVIN]['login_email'] == 'norkevinfoto@gmail.com'
+    assert resolve_brand(ASTRAL).display_name == 'Astral Weddings'
+    assert resolve_brand(ASTRAL).sender_email == 'astralweddingsgt@gmail.com'
+    assert resolve_brand(NORKEVIN).display_name == 'Norkevin Photography'
+    assert resolve_brand(NORKEVIN).sender_email == 'norkevinfoto@gmail.com'
 
 
 @pytest.fixture
@@ -47,20 +46,20 @@ def gmail_aislado(monkeypatch, tmp_path):
 
 def test_cada_empresa_guarda_su_credencial_por_separado(gmail_aislado):
     gd = gmail_aislado
-    gd.save_token({'access_token': 'a1', 'refresh_token': 'r1', 'email': 'astral@x.com'},
+    gd.save_token({'access_token': 'a1', 'refresh_token': 'r1', 'email': 'astralweddingsgt@gmail.com'},
                   tenant_id=ASTRAL)
-    gd.save_token({'access_token': 'a2', 'refresh_token': 'r2', 'email': 'norkevin@x.com'},
+    gd.save_token({'access_token': 'a2', 'refresh_token': 'r2', 'email': 'norkevinfoto@gmail.com'},
                   tenant_id=NORKEVIN)
 
-    assert gd.connected_email(tenant_id=ASTRAL) == 'astral@x.com'
-    assert gd.connected_email(tenant_id=NORKEVIN) == 'norkevin@x.com'
+    assert gd.connected_email(tenant_id=ASTRAL) == 'astralweddingsgt@gmail.com'
+    assert gd.connected_email(tenant_id=NORKEVIN) == 'norkevinfoto@gmail.com'
     assert gd._token_path(tenant_id=ASTRAL) != gd._token_path(tenant_id=NORKEVIN)
 
 
 def test_norkevin_nunca_usa_la_credencial_de_astral(gmail_aislado):
     """Solo Astral conectada: Norkevin NO debe poder enviar por prestamo."""
     gd = gmail_aislado
-    gd.save_token({'access_token': 'a1', 'refresh_token': 'r1', 'email': 'astral@x.com'},
+    gd.save_token({'access_token': 'a1', 'refresh_token': 'r1', 'email': 'astralweddingsgt@gmail.com'},
                   tenant_id=ASTRAL)
 
     assert gd.is_connected(tenant_id=ASTRAL) is True
@@ -71,7 +70,7 @@ def test_norkevin_nunca_usa_la_credencial_de_astral(gmail_aislado):
 def test_astral_nunca_usa_la_credencial_de_norkevin(gmail_aislado):
     """El caso simetrico: tampoco al reves."""
     gd = gmail_aislado
-    gd.save_token({'access_token': 'a2', 'refresh_token': 'r2', 'email': 'norkevin@x.com'},
+    gd.save_token({'access_token': 'a2', 'refresh_token': 'r2', 'email': 'norkevinfoto@gmail.com'},
                   tenant_id=NORKEVIN)
 
     assert gd.is_connected(tenant_id=NORKEVIN) is True
@@ -100,9 +99,9 @@ def test_una_credencial_legacy_en_disco_no_se_presta_a_nadie(gmail_aislado, tmp_
 def test_sin_sesion_no_hay_credencial_aunque_ambas_esten_conectadas(gmail_aislado):
     """El worker fuera de request es el contexto donde ocurrio el incidente."""
     gd = gmail_aislado
-    gd.save_token({'access_token': 'a1', 'refresh_token': 'r1', 'email': 'astral@x.com'},
+    gd.save_token({'access_token': 'a1', 'refresh_token': 'r1', 'email': 'astralweddingsgt@gmail.com'},
                   tenant_id=ASTRAL)
-    gd.save_token({'access_token': 'a2', 'refresh_token': 'r2', 'email': 'norkevin@x.com'},
+    gd.save_token({'access_token': 'a2', 'refresh_token': 'r2', 'email': 'norkevinfoto@gmail.com'},
                   tenant_id=NORKEVIN)
 
     assert gd.is_connected() is False, \
@@ -111,9 +110,9 @@ def test_sin_sesion_no_hay_credencial_aunque_ambas_esten_conectadas(gmail_aislad
 
 def test_desconectar_una_empresa_no_afecta_a_la_otra(gmail_aislado):
     gd = gmail_aislado
-    gd.save_token({'access_token': 'a1', 'refresh_token': 'r1', 'email': 'astral@x.com'},
+    gd.save_token({'access_token': 'a1', 'refresh_token': 'r1', 'email': 'astralweddingsgt@gmail.com'},
                   tenant_id=ASTRAL)
-    gd.save_token({'access_token': 'a2', 'refresh_token': 'r2', 'email': 'norkevin@x.com'},
+    gd.save_token({'access_token': 'a2', 'refresh_token': 'r2', 'email': 'norkevinfoto@gmail.com'},
                   tenant_id=NORKEVIN)
 
     gd.disconnect(tenant_id=ASTRAL)

@@ -55,7 +55,7 @@
       </div>
       <div>
         <h2 style="font-size:17px;font-weight:600;margin:0;">{{ company.name or current_tenant.name or 'CRM' }}</h2>
-        <p class="sn-muted text-xs" style="margin-top:2px;">{{ company.email or 'Sin email configurado' }} &middot; {{ company.currency or 'GTQ' }}</p>
+        <p class="sn-muted text-xs" style="margin-top:2px;">{{ company.email or 'Correo publico de la empresa sin configurar' }} &middot; {{ company.currency or 'GTQ' }}</p>
       </div>
     </div>
     <button class="sn-btn sn-btn-primary" type="button" onclick="openEditCompanyModal()">
@@ -104,14 +104,15 @@
       <h4>Configuracion de correo</h4>
       {% if gmail_connected %}
         <p style="color:var(--sn-green);font-weight:600;">Gmail conectado: {{ gmail_email }}</p>
+        {% if not outbound_email_enabled %}<p>El envio de correo esta desactivado en el servidor. Para enviar manualmente, configura <code>OUTBOUND_EMAIL_ENABLED=1</code> y <code>DISABLE_OUTBOUND_EMAIL=0</code>, y revisa la bandeja de correos.</p>{% endif %}
         <button class="sn-btn sn-btn-sm mt-2" type="button" onclick="disconnectGmail()">Desconectar</button>
       {% elif gmail_configured %}
-        <p>No conectado. Usando modo prueba (local outbox).</p>
+        <p>Gmail no conectado. Conecta la cuenta de esta empresa para enviar.</p>
         <a class="sn-btn sn-btn-primary sn-btn-sm mt-2" href="/auth/google/start">Conectar Gmail</a>
       {% else %}
         <p>Falta configurar <code>GOOGLE_CLIENT_ID</code> / <code>GOOGLE_CLIENT_SECRET</code> en el <code>.env</code>.</p>
-        <p class="sn-muted" style="margin-top:6px;font-size:10px;">Redirect URI a autorizar en Google Cloud Console:<br><code>{{ gmail_redirect_uri }}</code></p>
       {% endif %}
+      <p class="sn-muted" style="margin-top:6px;font-size:10px;">Redirect URI a autorizar en Google Cloud Console:<br><code>{{ gmail_redirect_uri }}</code></p>
     </div>
     <div class="settings-tile clickable" style="cursor:default;">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>

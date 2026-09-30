@@ -23,6 +23,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from urllib import request as urlrequest, parse as urlparse
 from urllib.error import HTTPError, URLError
+from .tenant_brand_map import sender_email_for_tenant, UnresolvedBrandError
 
 SCOPE = 'https://www.googleapis.com/auth/gmail.send'
 AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -113,7 +114,12 @@ def disconnect(tenant_id=None):
 
 def is_connected(tenant_id=None):
     tok = load_token(tenant_id=tenant_id)
-    return bool(tok and tok.get('refresh_token'))
+    try:
+        expected = sender_email_for_tenant(tenant_id or _current_tenant_id())
+    except UnresolvedBrandError:
+        return False
+    return bool(tok and tok.get('refresh_token') and
+                (tok.get('email') or '').strip().lower() == expected.lower())
 
 
 def connected_email(tenant_id=None):
@@ -143,11 +149,13 @@ def _post_form(url, fields):
         return json.loads(response.read().decode('utf-8') or '{}')
 
 
-def exchange_code_for_token(code, redirect_uri):
+def exchange_code_for_token(code, redirect_uri, tenant_id=None):
     """Intercambia el 'code' del callback por access_token + refresh_token.
     Se guarda para el tenant de la sesion activa (resolver ambiente) --
     esto siempre corre dentro de un request autenticado (el connect flow
     exige estar logueado)."""
+    resolved_tenant = tenant_id or _current_tenant_id()
+    expected_email = sender_email_for_tenant(resolved_tenant)
     payload = _post_form(TOKEN_URL, {
         'code': code,
         'client_id': os.environ.get('GOOGLE_CLIENT_ID', ''),
@@ -156,13 +164,17 @@ def exchange_code_for_token(code, redirect_uri):
         'grant_type': 'authorization_code',
     })
     email = _fetch_email(payload.get('access_token', ''))
+    if email.strip().lower() != expected_email.lower():
+        raise ValueError(f'Conecta {expected_email} para esta empresa. La cuenta elegida no coincide.')
+    if not payload.get('refresh_token'):
+        raise ValueError('Google no devolvio un token de acceso permanente. Vuelve a conectar Gmail.')
     token = {
         'access_token': payload.get('access_token'),
         'refresh_token': payload.get('refresh_token'),
         'expires_at': time.time() + int(payload.get('expires_in', 3600)) - 60,
         'email': email,
     }
-    save_token(token)
+    save_token(token, tenant_id=resolved_tenant)
     return token
 
 
@@ -208,7 +220,7 @@ def send_gmail(to_email, subject, body, *, from_name='Flow CRM', tenant_id=None)
     Devuelve (ok, message_id_or_error).
     """
     token = load_token(tenant_id=tenant_id)
-    if not token or not token.get('refresh_token'):
+    if not is_connected(tenant_id=tenant_id):
         return False, 'Gmail no esta conectado para esta cuenta. Ve a Settings > Email Settings.'
 
     try:

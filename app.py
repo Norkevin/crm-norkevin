@@ -5137,9 +5137,8 @@ def auth_google_start():
 
     redirect_uri = _google_redirect_uri()
     state = secrets.token_urlsafe(16)
-    session_store = store.get_dict('google_oauth_state')
-    session_store['state'] = state
-    store.save_dict('google_oauth_state', session_store)
+    session['gmail_oauth_state'] = state
+    session['gmail_oauth_tenant_id'] = get_current_tenant_id()
     return redirect(gmail_delivery.build_authorization_url(redirect_uri, state))
 
 
@@ -5154,13 +5153,15 @@ def auth_google_callback():
 
     code = request.args.get('code')
     state = request.args.get('state')
-    expected_state = store.get_dict('google_oauth_state').get('state')
-    if not code or not state or state != expected_state:
+    expected_state = session.pop('gmail_oauth_state', None)
+    expected_tenant_id = session.pop('gmail_oauth_tenant_id', None)
+    if (not code or not state or state != expected_state or
+            expected_tenant_id != get_current_tenant_id()):
         return redirect(url_for('settings', google_status='error', google_msg='state invalido'))
 
     redirect_uri = _google_redirect_uri()
     try:
-        token = gmail_delivery.exchange_code_for_token(code, redirect_uri)
+        token = gmail_delivery.exchange_code_for_token(code, redirect_uri, tenant_id=expected_tenant_id)
         return redirect(url_for('settings', google_status='connected', google_email=token.get('email', '')))
     except Exception as exc:
         return redirect(url_for('settings', google_status='error', google_msg=str(exc)))
@@ -5243,7 +5244,7 @@ def settings():
         'total_instances': len([i for i in _workflow_instances_del_tenant() if i.status.value == 'active']),
     }
 
-    from src import gmail_delivery, recurrente
+    from src import email_delivery, gmail_delivery, recurrente
     redirect_uri = _google_redirect_uri()
 
     return render_template('settings.html',
@@ -5264,6 +5265,7 @@ def settings():
                           gmail_configured=gmail_delivery.is_configured(),
                           gmail_connected=gmail_delivery.is_connected(),
                           gmail_email=gmail_delivery.connected_email(),
+                          outbound_email_enabled=email_delivery.outbound_email_enabled(),
                           gmail_redirect_uri=redirect_uri,
                           recurrente_configured=recurrente.is_configured(),
                           recurrente_test_mode=recurrente.is_test_mode(),
