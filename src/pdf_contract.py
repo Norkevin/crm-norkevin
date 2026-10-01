@@ -27,7 +27,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from src.pdf_document_system import (
-    COLOR, TIPO, MARGEN,
+    encabezado_documento, COLOR, TIPO, MARGEN,
     registrar_fuente_documental, texto, label, regla, card, badge,
     recortar, envolver, moneda,
 )
@@ -99,26 +99,7 @@ class _Lienzo:
 
 
 def _encabezado(L, estado_label, estado_tono):
-    c, m = L.c, L.marca
-    texto(c, L.x0, L.y - 5 * mm,
-          recortar(m['display_name'], L.util * 0.55, tam='subtitulo', peso='bold'),
-          tam='subtitulo', peso='bold', color='text')
-    if m.get('tagline'):
-        texto(c, L.x0, L.y - 10 * mm, recortar(m['tagline'], L.util * 0.5, tam='apoyo'),
-              tam='apoyo', color='text_secondary')
-
-    label(c, L.x1, L.y - 4 * mm, 'Contrato', ancla='right')
-    texto(c, L.x1, L.y - 9.5 * mm, L.referencia, tam='cuerpo', peso='medium',
-          color='text', ancla='right')
-    if estado_label:
-        from reportlab.pdfbase import pdfmetrics
-        f = registrar_fuente_documental()
-        ancho = pdfmetrics.stringWidth(estado_label, f['medium'], TIPO['apoyo']) + 4.8 * mm
-        badge(c, L.x1 - ancho, L.y - 16 * mm, estado_label, estado_tono)
-
-    L.bajar(22 * mm)
-    regla(c, L.x0, L.y, L.x1)
-    L.bajar(9 * mm)
+    encabezado_documento(L, 'Contrato', estado_label, estado_tono)
 
 
 def _partes(L, cliente, marca):
@@ -220,16 +201,26 @@ def _terminos(L, terms):
             item = crudo.startswith('*')
             limpio = crudo.lstrip('*').strip() if item else crudo
             bloques.append((item, envolver(limpio, ancho - (5 * mm if item else 0),
-                                           tam='apoyo')))
+                                           tam='cuerpo')))
 
+        titulos = envolver(titulo_limpio, ancho, tam='cuerpo', peso='bold')
         primeras = sum(len(b[1]) for b in bloques[:1]) or 1
-        L.asegurar(6 * mm + min(primeras, 2) * 4.6 * mm + 5 * mm)
+        alto_titulo = len(titulos) * 5 * mm + 1 * mm
+        alto_cuerpo = sum(len(lineas) * 4.6 * mm + (0.8 * mm if item else 0)
+                          for item, lineas in bloques)
+        # Las cláusulas cortas permanecen juntas; las largas pueden continuar.
+        necesario = alto_titulo + alto_cuerpo + 4.5 * mm
+        if necesario > 60 * mm:
+            necesario = alto_titulo + min(primeras, 2) * 4.6 * mm + 5 * mm
+        L.asegurar(necesario)
 
         if titulo_limpio:
             if num:
-                texto(c, L.x0, L.y, num, tam='apoyo', peso='bold', color='primary')
-            texto(c, x_texto, L.y, titulo_limpio, tam='cuerpo', peso='bold', color='text')
-            L.bajar(6 * mm)
+                texto(c, L.x0, L.y, num, tam='cuerpo', peso='bold', color='primary')
+            for linea in titulos:
+                texto(c, x_texto, L.y, linea, tam='cuerpo', peso='bold', color='text')
+                L.bajar(5 * mm)
+            L.bajar(1 * mm)
 
         for item, lineas in bloques:
             for i, ln in enumerate(lineas):
@@ -240,7 +231,7 @@ def _terminos(L, terms):
                     c.circle(x_texto + 1.2 * mm, L.y + 1.2 * mm, 0.7 * mm,
                              fill=True, stroke=False)
                 texto(c, x_texto + (5 * mm if item else 0), L.y, ln,
-                      tam='apoyo', color='text_secondary')
+                      tam='cuerpo', color='text')
                 L.bajar(4.6 * mm)
             if item:
                 L.bajar(0.8 * mm)
