@@ -10,6 +10,7 @@ import hashlib
 import time
 import threading
 import logging
+from zoneinfo import ZoneInfo
 from contextvars import ContextVar
 from datetime import datetime, date, timedelta
 from flask import (Flask, render_template, request, redirect, url_for, jsonify, flash, abort,
@@ -125,6 +126,7 @@ app.jinja_env.filters['fecha_es'] = lambda v: _format_date_es(v) or (v or '')
 app.secret_key = os.environ.get('FLASK_SECRET', 'norkevin-crm-dev-secret-change-me')
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.jinja_env.auto_reload = True
+app.jinja_env.filters['fecha_legible'] = _format_date_es
 
 # Aislamiento multi-tenant: JsonStore filtra automaticamente por
 # Cuenta activa de la peticion en curso. Dos fuentes, en este orden:
@@ -1809,6 +1811,29 @@ def _workflow_instance_for(subject_type, subject_id, job_ids_cache=None, lead_id
     return instances[0] if instances else None
 
 
+def _workflow_time_labels(steps, instance):
+    """Stored naive workflow dates use the server clock; display Guatemala time."""
+    for step in steps:
+        scheduled = step.get('scheduled')
+        if scheduled:
+            when = datetime.fromisoformat(scheduled)
+            local = when.astimezone(ZoneInfo('America/Guatemala'))
+            period = 'a. m.' if local.hour < 12 else 'p. m.'
+            step['scheduled_display'] = (
+                f"{local.day} de {MONTH_NAMES_ES[local.month]} de {local.year}, "
+                f"{local.hour % 12 or 12}:{local.minute:02d} {period}"
+            )
+            step['scheduled_epoch'] = int(when.timestamp() * 1000)
+        template = _get_email_template(step.get('email_template_id'))
+        step['auto_prepare'] = bool(
+            instance and instance.auto_prepare and instance.status == WorkflowStatus.ACTIVE
+            and step.get('status') == 'pending' and scheduled
+            and template and (template.get('cuerpo') or '').strip()
+            and step.get('action_type') in ('send_email', 'send_contract', 'send_questionnaire', 'send_gallery')
+        )
+    return steps
+
+
 def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
     from datetime import datetime, timedelta
     tmpl = LEAD_WORKFLOW(tenant_id or lead.get("tenant_id"))
@@ -1854,7 +1879,7 @@ def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, l
         })
     done = sum(1 for s in steps if s['status'] in ('done', 'skipped'))
     progress = round(done * 100 / len(steps)) if steps else 0
-    return steps, progress, tmpl.name
+    return _workflow_time_labels(steps, instance), progress, tmpl.name
 
 
 def _step_scheduled_for_job(step, trigger_at, boda_date):
@@ -1927,7 +1952,7 @@ def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None,
     # contradictoriamente vacia/baja mientras el texto dice terminado.
     done = sum(1 for s in steps if s['status'] in ('done', 'skipped'))
     progress = round(done * 100 / len(steps)) if steps else 0
-    return steps, progress, tmpl.name
+    return _workflow_time_labels(steps, instance), progress, tmpl.name
 
 
 def days_until(date_str):

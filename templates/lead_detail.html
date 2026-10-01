@@ -47,7 +47,7 @@
               {% if step.email_template_id %}<a href="/settings/email-templates" class="workflow-step-desc">{{ step.email_template_name or 'Vincula un Email Template' }}</a>{% endif %}
               <div>
                 {% if step.email_template_id %}<span class="workflow-step-desc">Preparar email</span>{% endif %}
-                {% if step.scheduled %}<span class="sn-chip pink">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
+                {% include 'workflow_timing.html' %}
               </div>
             </div>
             <button class="sn-menu-dots" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="{% if step.locked %}Primero completa Trabajo aceptado{% else %}Run now{% endif %}">
@@ -73,7 +73,7 @@
               {% if step.email_template_id %}<a href="/settings/email-templates" class="workflow-step-desc">{{ step.email_template_name or 'Vincula un Email Template' }}</a>{% endif %}
               <div>
                 {% if step.email_template_id %}<span class="workflow-step-desc">Preparar email</span>{% endif %}
-                {% if step.scheduled %}<span class="sn-chip yellow">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
+                {% include 'workflow_timing.html' %}
               </div>
             </div>
             <button class="sn-menu-dots" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="Run now">
@@ -110,7 +110,7 @@
           <div class="sn-field-grid">
             <div class="sn-field-label">Type:</div><div class="sn-field-value">{{ lead.tipo_evento or 'BODAS' }}</div>
             <div class="sn-field-label">Workflow:</div><div class="sn-field-value">{{ workflow_name }}</div>
-            <div class="sn-field-label">Boda:</div><div class="sn-field-value">{{ lead.fecha_tentativa or '—' }}</div>
+            <div class="sn-field-label">Boda:</div><div class="sn-field-value">{{ lead.fecha_tentativa|fecha_legible or '—' }}</div>
             <div class="sn-field-label">Location:</div><div class="sn-field-value">{{ lead.locacion or '—' }}</div>
             <div class="sn-field-label">Lead Source:</div><div class="sn-field-value">{{ lead.fuente or '—' }}</div>
             <div class="sn-field-label">Budget:</div><div class="sn-field-value">{{ lead.presupuesto or '—' }}</div>
@@ -903,4 +903,5 @@ document.addEventListener('keydown', function(event) {
   closeAcceptJobModal();
 });
 </script>
+<script src="{{ url_for('static', filename='workflow-timing.js') }}" defer></script>
 {% endblock %}

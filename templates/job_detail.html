@@ -88,7 +88,7 @@
               {% endif %}
               {% if step.status == "queued" %}<a class="sn-chip gray" href="/emails">Pendiente de aprobación</a>{% elif step.status == "failed" %}<a class="sn-chip gray" href="/emails">{{ step.result or "Revisar correo" }}</a>{% endif %}
               {% if step.status == 'skipped' %}<span class="sn-chip gray">Omitido al aceptar</span>{% else %}<span class="sn-chip pink">Preparar email</span>{% endif %}
-              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
+              {% include 'workflow_timing.html' %}
             </div>
             <div class="workflow-step-tools">
               <button class="sn-menu-dots" type="button" onclick="flashToast('Este paso pertenece al lead original', 'success')">
@@ -151,7 +151,7 @@
               {% if step.email_template_id %}
               <span class="sn-chip gray">Template: {{ email_template_names.get(step.email_template_id, step.email_template_id) }}</span>
               {% endif %}
-              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
+              {% include 'workflow_timing.html' %}
               {% endif %}
             </div>
             <div class="workflow-step-tools">
@@ -236,7 +236,7 @@
               {% if step.email_template_id %}
               <span class="sn-chip gray">Template: {{ email_template_names.get(step.email_template_id, step.email_template_id) }}</span>
               {% endif %}
-              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
+              {% include 'workflow_timing.html' %}
               {% endif %}
             </div>
             <button class="sn-menu-dots" type="button" onclick='openStepActions(event, {{ step.id|tojson }}, {{ step.name|tojson }}, {{ step.status|tojson }})' title="Mas opciones">
@@ -303,7 +303,7 @@
             <div class="sn-field-label">Name</div><div class="sn-field-value">{{ job.nombre }}</div>
             <div class="sn-field-label">Type</div><div class="sn-field-value">{{ job.type or 'BODAS' }}</div>
             <div class="sn-field-label">Workflow</div><div class="sn-field-value">{{ workflow_name }}</div>
-            <div class="sn-field-label">Boda</div><div class="sn-field-value">{{ job.boda_date or 'Fixed' }}</div>
+            <div class="sn-field-label">Boda</div><div class="sn-field-value">{{ job.boda_date|fecha_legible or 'Sin fecha' }}</div>
             <div class="sn-field-label">Location</div><div class="sn-field-value">{{ job.location or '-' }}</div>
             <div class="sn-field-label">Lead Source</div><div class="sn-field-value">{{ lead.fuente if lead else '-' }}</div>
           </div>
@@ -1953,4 +1953,5 @@ function openMailDetails(button) {
   window.addEventListener('resize', sync);
 })();
 </script>
+<script src="{{ url_for('static', filename='workflow-timing.js') }}" defer></script>
 {% endblock %}
