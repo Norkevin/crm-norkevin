@@ -113,7 +113,8 @@
     if (results.hidden) return;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
-      active = (active + (event.key === 'ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length;
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      active = active < 0 ? (direction === 1 ? 0 : suggestions.length - 1) : (active + direction + suggestions.length) % suggestions.length;
       [...results.children].forEach((item, index) => item.setAttribute('aria-selected', String(index === active)));
       location.setAttribute('aria-activedescendant', results.children[active].id);
       results.children[active].scrollIntoView({ block: 'nearest' });
@@ -122,7 +123,11 @@
       choose(active);
     }
   });
-  location.addEventListener('blur', () => { cancelSearch(); closeResults(); });
+  location.addEventListener('blur', () => {
+    cancelSearch();
+    closeResults();
+    if (status.textContent === 'Buscando lugares…') status.textContent = 'Puedes escribir el lugar o volver a buscar.';
+  });
 
   form.addEventListener('submit', async event => {
     event.preventDefault();
