@@ -68,6 +68,68 @@
     {% elif upcoming.step or upcoming.task %}<a class="sn-btn" id="job-next-workflow" href="#job-workflow">Ver en workflow ↓</a>{% endif %}
   </section>
   <div class="lead-workspace job-workspace">
+    <aside class="lead-workflow-panel job-workflow" id="job-workflow" aria-labelledby="job-workflow-title">
+      <div class="lead-section-heading"><div><h2 id="job-workflow-title">Workflow</h2><p>{{ workflow_name }}</p></div><a class="lead-template-link" href="/workflow-editor?id=production_workflow_v1">Editar plantilla ↗</a></div>
+      <div class="lead-workflow-card">
+        {% set delivery_ids = ['envio_galeria', 'pedir_review', 'google_comments', 'job_complete'] %}
+        <div class="lead-phase-heading"><h3>Producción</h3><span>{{ workflow_progress or 0 }}% completado</span></div>
+        <div class="workflow-steps">
+          <div class="workflow-step done"><div class="workflow-check done" aria-hidden="true"><svg fill="currentColor" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8-1.4-1.4L8 11.2 5.4 8.6Z"/></svg></div><div><div class="workflow-step-name">Trabajo aceptado</div><div class="workflow-timing">Lead convertido en trabajo.</div></div></div>
+          {% for step in workflow_steps if step.id not in delivery_ids and step.id != 'job_accepted' %}{% include 'job_workflow_step.html' %}{% endfor %}
+        </div>
+        {% if job.manual_workflow_tasks %}
+        <div class="lead-phase-heading"><h3>Tareas y sesiones</h3><span>{{ job.manual_workflow_tasks|length }} tarea{{ 's' if job.manual_workflow_tasks|length != 1 else '' }}</span></div>
+        <div class="workflow-steps">
+          {% for task in job.manual_workflow_tasks or [] %}
+          <div class="workflow-step {{ 'done' if task.status == 'done' else '' }}">
+            <button class="workflow-check {{ 'done' if task.status == 'done' else '' }}" type="button" {% if task.status != 'done' %}onclick="completeManualTask('{{ task.id }}')"{% endif %} title="Completar tarea">
+              {% if task.status == 'done' %}
+              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+              {% endif %}
+            </button>
+            <div class="lead-step-content">
+              <div class="workflow-step-name">{{ task.name }}</div>
+              {% if task.location %}<span class="workflow-step-desc">Lugar: {{ task.location }}</span>{% endif %}
+              <div>
+                {% if task.type == 'extra-event' %}<span class="sn-chip green">Sesión extra</span>
+                {% elif task.type == 'appointment' %}<span class="sn-chip cyan">Cita</span>
+                {% else %}<span class="sn-chip gray">{{ task.type }}</span>{% endif %}
+                {% if task.start_date %}
+                <span class="sn-chip gray">
+                  {{ task.start_date|fecha_legible }}{% if task.end_date and task.end_date != task.start_date %} - {{ task.end_date|fecha_legible }}{% endif %}
+                  {% if task.start_time %} · {{ task.start_time }}{% if task.end_time %} - {{ task.end_time }}{% endif %}{% endif %}
+                </span>
+                {% else %}
+                <span class="sn-chip gray">{{ task.created|fecha_legible }}</span>
+                {% endif %}
+                {% if task.show_in_portal %}<span class="sn-chip blue">Visible en el portal</span>{% endif %}
+              </div>
+            </div>
+            <div class="workflow-step-tools">
+              <button class="sn-menu-dots" type="button" onclick='openManualTaskActions(event, {{ task|tojson }})' title="Mas opciones">
+                <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+
+        </div>
+        {% endif %}
+        <details class="lead-future-phase" {% if upcoming.step and upcoming.step.id in delivery_ids %}open{% endif %}>
+          <summary><span>Entrega y cierre<small>Galería, seguimiento y finalización</small></span><span>{{ workflow_steps|selectattr('id', 'in', delivery_ids)|list|length }} pasos</span></summary>
+          <div class="workflow-steps">{% for step in workflow_steps if step.id in delivery_ids %}{% include 'job_workflow_step.html' %}{% else %}<p class="sn-muted job-phase-empty">Sin pasos de entrega configurados.</p>{% endfor %}</div>
+        </details>
+        {% if lead_steps %}
+        <details class="lead-future-phase">
+          <summary><span>Historial del lead<small>Seguimiento previo a la reserva</small></span><span>{{ lead_steps|length }} pasos</span></summary>
+          <div class="workflow-steps">{% for step in lead_steps %}{% with readonly=true %}{% include 'job_workflow_step.html' %}{% endwith %}{% endfor %}</div>
+          <div class="lead-workflow-footer"><a class="lead-template-link" href="/workflow-editor?id=lead_workflow_v1">Editar seguimiento del lead ↗</a></div>
+        </details>
+        {% endif %}
+        <div class="lead-workflow-footer"><button class="lead-text-button" type="button" onclick="openModal('workflow-task-modal')">+ Agregar tarea o sesión</button><a class="lead-template-link" href="/settings/email-templates">Plantillas de correo ↗</a></div>
+      </div>
+      <div class="job-management"><button class="lead-text-button" type="button" onclick="archiveJob()">Archivar trabajo</button>{% if payments %}<button class="lead-text-button" type="button" onclick="openModal('delete-payments-modal')" title="Para bodas canceladas">Eliminar pagos</button>{% endif %}</div>
+    </aside>
     <div class="lead-records job-records">
       <div class="sn-card wide job-payment-summary">
         <div class="sn-card-head">
@@ -489,68 +551,6 @@
         </div>
       </div>
     </div>
-    <aside class="lead-workflow-panel job-workflow" id="job-workflow" aria-labelledby="job-workflow-title">
-      <div class="lead-section-heading"><div><h2 id="job-workflow-title">Workflow</h2><p>{{ workflow_name }}</p></div><a class="lead-template-link" href="/workflow-editor?id=production_workflow_v1">Editar plantilla ↗</a></div>
-      <div class="lead-workflow-card">
-        {% set delivery_ids = ['envio_galeria', 'pedir_review', 'google_comments', 'job_complete'] %}
-        <div class="lead-phase-heading"><h3>Producción</h3><span>{{ workflow_progress or 0 }}% completado</span></div>
-        <div class="workflow-steps">
-          <div class="workflow-step done"><div class="workflow-check done" aria-hidden="true"><svg fill="currentColor" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8-1.4-1.4L8 11.2 5.4 8.6Z"/></svg></div><div><div class="workflow-step-name">Trabajo aceptado</div><div class="workflow-timing">Lead convertido en trabajo.</div></div></div>
-          {% for step in workflow_steps if step.id not in delivery_ids and step.id != 'job_accepted' %}{% include 'job_workflow_step.html' %}{% endfor %}
-        </div>
-        {% if job.manual_workflow_tasks %}
-        <div class="lead-phase-heading"><h3>Tareas y sesiones</h3><span>{{ job.manual_workflow_tasks|length }} tarea{{ 's' if job.manual_workflow_tasks|length != 1 else '' }}</span></div>
-        <div class="workflow-steps">
-          {% for task in job.manual_workflow_tasks or [] %}
-          <div class="workflow-step {{ 'done' if task.status == 'done' else '' }}">
-            <button class="workflow-check {{ 'done' if task.status == 'done' else '' }}" type="button" {% if task.status != 'done' %}onclick="completeManualTask('{{ task.id }}')"{% endif %} title="Completar tarea">
-              {% if task.status == 'done' %}
-              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-              {% endif %}
-            </button>
-            <div class="lead-step-content">
-              <div class="workflow-step-name">{{ task.name }}</div>
-              {% if task.location %}<span class="workflow-step-desc">Lugar: {{ task.location }}</span>{% endif %}
-              <div>
-                {% if task.type == 'extra-event' %}<span class="sn-chip green">Sesión extra</span>
-                {% elif task.type == 'appointment' %}<span class="sn-chip cyan">Cita</span>
-                {% else %}<span class="sn-chip gray">{{ task.type }}</span>{% endif %}
-                {% if task.start_date %}
-                <span class="sn-chip gray">
-                  {{ task.start_date|fecha_legible }}{% if task.end_date and task.end_date != task.start_date %} - {{ task.end_date|fecha_legible }}{% endif %}
-                  {% if task.start_time %} · {{ task.start_time }}{% if task.end_time %} - {{ task.end_time }}{% endif %}{% endif %}
-                </span>
-                {% else %}
-                <span class="sn-chip gray">{{ task.created|fecha_legible }}</span>
-                {% endif %}
-                {% if task.show_in_portal %}<span class="sn-chip blue">Visible en el portal</span>{% endif %}
-              </div>
-            </div>
-            <div class="workflow-step-tools">
-              <button class="sn-menu-dots" type="button" onclick='openManualTaskActions(event, {{ task|tojson }})' title="Mas opciones">
-                <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
-              </button>
-            </div>
-          </div>
-          {% endfor %}
-
-        </div>
-        {% endif %}
-        <details class="lead-future-phase" {% if upcoming.step and upcoming.step.id in delivery_ids %}open{% endif %}>
-          <summary><span>Entrega y cierre<small>Galería, seguimiento y finalización</small></span><span>{{ workflow_steps|selectattr('id', 'in', delivery_ids)|list|length }} pasos</span></summary>
-          <div class="workflow-steps">{% for step in workflow_steps if step.id in delivery_ids %}{% include 'job_workflow_step.html' %}{% else %}<p class="sn-muted job-phase-empty">Sin pasos de entrega configurados.</p>{% endfor %}</div>
-        </details>
-        {% if lead_steps %}
-        <details class="lead-future-phase">
-          <summary><span>Historial del lead<small>Seguimiento previo a la reserva</small></span><span>{{ lead_steps|length }} pasos</span></summary>
-          <div class="workflow-steps">{% for step in lead_steps %}{% with readonly=true %}{% include 'job_workflow_step.html' %}{% endwith %}{% endfor %}</div>
-          <div class="lead-workflow-footer"><a class="lead-template-link" href="/workflow-editor?id=lead_workflow_v1">Editar seguimiento del lead ↗</a></div>
-        </details>
-        {% endif %}
-        <div class="lead-workflow-footer"><button class="lead-text-button" type="button" onclick="openModal('workflow-task-modal')">+ Agregar tarea o sesión</button><a class="lead-template-link" href="/settings/email-templates">Plantillas de correo ↗</a></div>
-      </div>
-      <div class="job-management"><button class="lead-text-button" type="button" onclick="archiveJob()">Archivar trabajo</button>{% if payments %}<button class="lead-text-button" type="button" onclick="openModal('delete-payments-modal')" title="Para bodas canceladas">Eliminar pagos</button>{% endif %}</div>
-    </aside>
   </div>
 </section>
 

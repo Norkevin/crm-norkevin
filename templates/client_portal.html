@@ -6,255 +6,35 @@
 <title>Portal del cliente · {{ client.first_name }} · {{ brand.display_name }}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 {% include "_tailwind_config.html" %}
-<style>
-  :root {
-    --pc-blue: #7357F6;
-    --pc-blue-dark: #6447EE;
-    --pc-ink: #0B1220;
-    --pc-line: #E7EAF0;
-    --pc-muted: #6B7280;
-    --pc-hero-bg: #1C1440;
-    --pc-gold: #7357F6;
-  }
-  body { background: #F7F8FC; color: var(--pc-ink); font-family: 'Inter', sans-serif; }
-  .brand { color: var(--pc-blue); }
-
-  /* Hero a sangre completa (no una tarjeta flotando en la pagina gris) --
-     Kevin: "haz algo mejor, yo se que puedes". El contenido de abajo
-     (barra de navegacion + resumen de pago) sube con margen negativo y se
-     monta sobre el borde inferior del hero, creando una sensacion de
-     capas/profundidad en vez de "hero -> luego una lista de cajas". */
-  .portal-hero-wrap {
-    background: radial-gradient(130% 180% at 15% 0%, #382A7A 0%, var(--pc-hero-bg) 45%, #0C0824 100%);
-    color: #fff;
-    position: relative;
-    overflow: hidden;
-    padding-bottom: 76px;
-  }
-  .portal-hero-wrap::before {
-    content: '';
-    position: absolute;
-    right: -120px; top: -160px;
-    width: 420px; height: 420px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(115,87,246,.45) 0%, rgba(115,87,246,0) 70%);
-  }
-  .portal-hero-wrap::after {
-    content: '';
-    position: absolute;
-    left: -80px; bottom: -140px;
-    width: 320px; height: 320px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,255,255,.05) 0%, rgba(255,255,255,0) 70%);
-  }
-  .portal-hero {
-    position: relative;
-    max-width: 74rem;
-    margin: 0 auto;
-    padding: 44px 24px 0;
-  }
-  .portal-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; position: relative; z-index: 1; }
-  .portal-hero-greeting { font-size: 32px; font-weight: 600; letter-spacing: -.015em; }
-  .portal-hero-sub { font-size: 13.5px; color: rgba(255,255,255,.65); margin-top: 5px; }
-  .portal-countdown {
-    text-align: center;
-    background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.16);
-    border-radius: 18px;
-    padding: 16px 26px;
-    backdrop-filter: blur(2px);
-  }
-  .portal-countdown-num { font-size: 38px; font-weight: 700; line-height: 1; background: linear-gradient(90deg, #fff, #E4DDFF); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .portal-countdown-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.65); margin-top: 5px; }
-  .portal-hero-meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 24px; position: relative; z-index: 1; }
-  .portal-hero-meta-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,.85); }
-  .portal-hero-meta-item svg { width: 16px; height: 16px; stroke: rgba(255,255,255,.6); flex-shrink: 0; }
-
-  /* Journey stepper */
-  .portal-journey {
-    display: flex;
-    align-items: center;
-    margin-top: 28px;
-    position: relative;
-    z-index: 1;
-  }
-  .portal-journey-step { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; position: relative; }
-  .portal-journey-dot {
-    width: 26px; height: 26px; border-radius: 999px;
-    display: grid; place-items: center;
-    background: rgba(255,255,255,.14);
-    border: 1.5px solid rgba(255,255,255,.3);
-    font-size: 11px; font-weight: 700; color: rgba(255,255,255,.7);
-  }
-  .portal-journey-step.done .portal-journey-dot { background: var(--pc-blue); border-color: var(--pc-blue); color: #fff; }
-  .portal-journey-line { position: absolute; top: 13px; left: 50%; width: 100%; height: 2px; background: rgba(255,255,255,.2); z-index: -1; }
-  .portal-journey-step:last-child .portal-journey-line { display: none; }
-  .portal-journey-step.done .portal-journey-line { background: var(--pc-blue); }
-  .portal-journey-label { font-size: 10.5px; color: rgba(255,255,255,.6); text-align: center; }
-  .portal-journey-step.done .portal-journey-label { color: #fff; font-weight: 600; }
-
-  /* Payment summary */
-  .portal-payment-card {
-    background: #fff;
-    border-radius: 20px;
-    border: 1px solid rgba(16, 24, 40, .04);
-    padding: 22px 24px;
-    box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.08);
-  }
-  .portal-progress-track { height: 10px; border-radius: 999px; background: #EEF0F3; overflow: hidden; }
-  .portal-progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--pc-blue), var(--pc-blue-dark)); }
-
-  /* Contenido apilado sobre el borde del hero */
-  .portal-content { position: relative; z-index: 1; margin-top: -56px; }
-
-  /* Barra de navegacion: pills horizontales sobre fondo blanco, no una
-     grilla de cajas iguales -- se ve como un selector de secciones de
-     app, no como una lista mas. */
-  .portal-nav-strip {
-    display: flex;
-    gap: 6px;
-    background: #fff;
-    border-radius: 18px;
-    padding: 6px;
-    box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 20px 40px -24px rgba(16,24,40,.22);
-    overflow-x: auto;
-  }
-  .portal-nav-pill {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 16px;
-    border-radius: 13px;
-    text-decoration: none;
-    color: var(--pc-ink);
-    white-space: nowrap;
-    flex: 1 1 0;
-    justify-content: center;
-  }
-  .portal-nav-pill:hover { background: #F4F5F9; }
-  .portal-nav-icon {
-    width: 26px; height: 26px; border-radius: 8px;
-    display: grid; place-items: center; color: #fff; flex-shrink: 0;
-  }
-  .portal-nav-icon svg { width: 14px; height: 14px; }
-  .portal-nav-pill .label { font-size: 13px; font-weight: 600; }
-  .portal-nav-pill .count {
-    font-size: 10.5px; font-weight: 700; color: var(--pc-muted);
-    background: #EEF0F3; border-radius: 999px; min-width: 18px; height: 18px;
-    display: inline-flex; align-items: center; justify-content: center; padding: 0 5px;
-  }
-  /* Pestana activa: la que esta seleccionada se distingue de verdad (fondo
-     solido del color de su icono) en vez de que todas se vean iguales. */
-  .portal-nav-pill.active { background: var(--pill-accent, var(--pc-blue)); color: #fff; }
-  .portal-nav-pill.active .count { background: rgba(255,255,255,.22); color: #fff; }
-  @media (max-width: 640px) { .portal-nav-pill { flex: 0 0 auto; } }
-
-  /* Panel unico: Kevin, "en la practica se ve espantoso" -- una grilla de
-     2 columnas con altura pareja se rompe en cuanto una seccion tiene 1
-     item y la de al lado tiene 9 (cajas gigantes vacias, todo desparejo).
-     En vez de mostrar todas las secciones a la vez, las pestanas de
-     arriba controlan cual panel se ve -- cada uno ocupa solo el alto que
-     necesita su propio contenido, nunca se estira para emparejar a otro. */
-  .portal-panel { display: none; }
-  .portal-panel.active { display: block; }
-  .portal-section {
-    background: #fff;
-    border-radius: 20px;
-    border: 1px solid var(--pc-line);
-    border-left: 4px solid var(--section-accent, var(--pc-blue));
-    padding: 22px 24px;
-    box-shadow: 0 1px 2px rgba(15,23,42,.03);
-  }
-  .portal-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-  .portal-section-head .portal-nav-icon { width: 30px; height: 30px; }
-  .portal-section-head .portal-nav-icon svg { width: 15px; height: 15px; }
-  .portal-items-scroll { max-height: 560px; overflow-y: auto; padding-right: 4px; }
-  .portal-item {
-    border: 1px solid var(--pc-line);
-    border-radius: 14px;
-    padding: 16px;
-    background: #FAFBFC;
-  }
-  .portal-badge {
-    display: inline-flex; align-items: center;
-    font-size: 11px; font-weight: 700;
-    padding: 3px 10px; border-radius: 999px;
-    color: #fff;
-  }
-  .portal-badge.b-green { background: #16A34A; }
-  .portal-badge.b-blue { background: var(--pc-blue); }
-  .portal-badge.b-amber { background: #B45309; }
-  .portal-badge.b-red { background: #DC2626; }
-  .portal-badge.b-gray { background: #6B7280; }
-
-  .portal-action-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
-  .portal-action {
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 12.5px; font-weight: 500; padding: 8px 14px; border: 1px solid var(--pc-line); border-radius: 10px;
-    color: var(--pc-ink); text-decoration: none; background: #fff; min-height: 36px;
-    white-space: nowrap; cursor: pointer;
-  }
-  .portal-action:hover { background: #F1F3F6; }
-  .portal-action.primary { background: var(--pc-blue); color: #fff; border-color: var(--pc-blue); font-weight: 600; }
-  .portal-action.primary:hover { opacity: .92; }
-  .portal-header-exit {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 40px; min-height: 40px; font-size: 12.5px; color: #4B5563; text-decoration: none;
-  }
-  @media (max-width: 480px) {
-    .portal-action { min-height: 44px; padding: 10px 16px; font-size: 13.5px; flex: 1 1 auto; }
-    .portal-action-group { gap: 10px; }
-    .portal-hero-top { flex-direction: column; }
-    .portal-countdown { align-self: stretch; }
-    .portal-journey-label { display: none; }
-    .portal-content { margin-top: -36px; }
-    .portal-nav-pill .label { font-size: 12px; }
-  }
-
-  /* El portal del cliente se abre desde el telefono. Mismo criterio que
-     el resto de paginas publicas: sin zoom automatico y con controles
-     que se puedan tocar con el dedo. */
-  @media (max-width: 760px) {
-    input,
-    select,
-    textarea {
-      font-size: 16px;
+<link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    @media (max-width: 760px) {
+      .portal-client input, .portal-client select, .portal-client textarea { font-size: 16px; }
     }
-    input[type="text"],
-    input[type="email"],
-    input[type="tel"],
-    input[type="date"],
-    select {
-      min-height: 46px;
-    }
-    textarea { min-height: 96px; }
-    input[type="checkbox"],
-    input[type="radio"] { width: 24px; height: 24px; }
-    button,
-    .btn,
-    a.btn { min-height: 48px; }
-    body { overflow-wrap: anywhere; }
-  }
-
-</style>
-<link rel="stylesheet" href="{{ url_for('static', filename='client-experience.css') }}">
+  </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='client-portal.css') }}">
 </head>
 <body class="portal-client">
 
 <div class="min-h-screen">
 
   <!-- Header -->
-  <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+  <header class="portal-header">
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-lg brand font-semibold flex items-center justify-center" style="background:#0a0e1a;color:#fff;">
+      <div class="portal-brand-mark">
         {{ brand.initial }}
       </div>
       <div>
         <div class="font-medium text-ink">{{ brand.display_name }}</div>
-        <div class="text-[10px] text-ink-soft uppercase tracking-wide">Portal del cliente</div>
+        <div class="portal-brand-caption">Portal del cliente</div>
       </div>
     </div>
     <a href="/" class="portal-header-exit">Salir</a>
   </header>
 
+  <main class="portal-shell">
   <div class="portal-hero-wrap">
     <div class="portal-hero">
       <div class="portal-hero-top">
@@ -268,12 +48,12 @@
         {% if days_until_wedding is not none and days_until_wedding >= 0 %}
         <div class="portal-countdown">
           <div class="portal-countdown-num">{{ days_until_wedding }}</div>
-          <div class="portal-countdown-label">{{ 'Dia' if days_until_wedding == 1 else 'Dias' }} para tu boda</div>
+          <div class="portal-countdown-label">{{ 'Día' if days_until_wedding == 1 else 'Días' }} para tu boda</div>
         </div>
         {% elif days_until_wedding is not none %}
         <div class="portal-countdown">
           <div class="portal-countdown-num">✓</div>
-          <div class="portal-countdown-label">Ya se celebro</div>
+          <div class="portal-countdown-label">Ya se celebró</div>
         </div>
         {% endif %}
       </div>
@@ -304,7 +84,7 @@
         <div class="portal-journey-step {{ 'done' if steps_done >= 1 else '' }}">
           <div class="portal-journey-line"></div>
           <div class="portal-journey-dot">{{ '✓' if steps_done >= 1 else '1' }}</div>
-          <div class="portal-journey-label">Cotizacion</div>
+          <div class="portal-journey-label">Cotización</div>
         </div>
         <div class="portal-journey-step {{ 'done' if steps_done >= 2 else '' }}">
           <div class="portal-journey-line"></div>
@@ -318,97 +98,76 @@
         </div>
         <div class="portal-journey-step {{ 'done' if steps_done >= 4 else '' }}">
           <div class="portal-journey-dot">{{ '✓' if steps_done >= 4 else '4' }}</div>
-          <div class="portal-journey-label">Galeria</div>
+          <div class="portal-journey-label">Galería</div>
         </div>
       </div>
       {% endif %}
     </div>
   </div>
 
-  <div class="portal-content{{ ' has-payments' if total_all > 0 else '' }} max-w-5xl mx-auto px-6 pb-10">
+    {% for journey in journeys %}
+    <section class="portal-next-step" aria-label="Próximo paso">
+      <div class="portal-next-copy"><div class="experience-eyebrow">Tu próximo paso · {{ journey.name }}</div>
+      <h2 class="text-lg font-semibold mt-2">{{ journey.action[0] }}</h2>
+      {% if journey.booking %}
+      <p class="text-sm mt-2">{{ journey.booking.label }}</p>
+      <ul class="portal-booking-checks">
+        {% for check in journey.booking.checks %}<li class="{{ 'done' if check.done else '' }}">{{ '✓' if check.done else '○' }} {{ check.label }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+      </div>
+      {% if journey.action[1] %}<a class="portal-action primary" href="#{{ journey.action[1] }}" onclick="return showPortalTab('{{ journey.action[1] }}', event)">Continuar</a>{% endif %}
+    </section>
+    {% endfor %}
+
+  <div class="portal-content{{ ' has-payments' if total_all > 0 else '' }}">
+    <section class="portal-documents" aria-label="Tus documentos">
+    <div class="portal-documents-heading"><h2>Tus documentos</h2><p>Todo lo que necesitas para tu evento, siempre a mano.</p></div>
 
     <!-- Tabs / Secciones -->
     <nav class="portal-nav-strip" id="portal-tabs" aria-label="Documentos de tu boda">
-      <a href="#quotes" class="portal-nav-pill" data-tab="quotes" style="--pill-accent:#7357F6;" onclick="return showPortalTab('quotes', event)">
-        <div class="portal-nav-icon" style="background:#7357F6;">
+      <a href="#quotes" class="portal-nav-pill" data-tab="quotes" onclick="return showPortalTab('quotes', event)">
+        <div class="portal-nav-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
         </div>
         <span class="label">Cotizaciones</span>
         <span class="count">{{ quotes|length }}</span>
       </a>
-      <a href="#contracts" class="portal-nav-pill" data-tab="contracts" style="--pill-accent:#111827;" onclick="return showPortalTab('contracts', event)">
-        <div class="portal-nav-icon" style="background:#111827;">
+      <a href="#contracts" class="portal-nav-pill" data-tab="contracts" onclick="return showPortalTab('contracts', event)">
+        <div class="portal-nav-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.5 11 14.5l4-4.5M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
         </div>
         <span class="label">Contratos</span>
         <span class="count">{{ contracts|length }}</span>
       </a>
-      <a href="#invoices" class="portal-nav-pill" data-tab="invoices" style="--pill-accent:#334155;" onclick="return showPortalTab('invoices', event)">
-        <div class="portal-nav-icon" style="background:#334155;">
+      <a href="#invoices" class="portal-nav-pill" data-tab="invoices" onclick="return showPortalTab('invoices', event)">
+        <div class="portal-nav-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><path stroke-linecap="round" d="M1 10h22"/></svg>
         </div>
         <span class="label">Facturas</span>
         <span class="count">{{ invoice_groups|length }}</span>
       </a>
-      <a href="#questionnaires" class="portal-nav-pill" data-tab="questionnaires" style="--pill-accent:#2563EB;" onclick="return showPortalTab('questionnaires', event)">
-        <div class="portal-nav-icon" style="background:#2563EB;">
+      <a href="#questionnaires" class="portal-nav-pill" data-tab="questionnaires" onclick="return showPortalTab('questionnaires', event)">
+        <div class="portal-nav-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
         </div>
         <span class="label">Cuestionarios</span>
         <span class="count">{{ questionnaires|length }}</span>
       </a>
-      <a href="#galeria" class="portal-nav-pill" data-tab="galeria" style="--pill-accent:#6B7280;" onclick="return showPortalTab('galeria', event)">
-        <div class="portal-nav-icon" style="background:#6B7280;">
+      <a href="#galeria" class="portal-nav-pill" data-tab="galeria" onclick="return showPortalTab('galeria', event)">
+        <div class="portal-nav-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="m21 15-5-5L5 21"/></svg>
         </div>
-        <span class="label">Galeria</span>
+        <span class="label">Galería</span>
         <span class="count">{{ files|length }}</span>
       </a>
     </nav>
 
-    <!-- Payment summary -->
-    {% if total_all > 0 %}
-    <div class="portal-payment-card">
-      <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
-        <div>
-          <div class="text-xs text-ink-soft">Pagado hasta hoy</div>
-          <div class="text-2xl font-semibold text-ink">Q{{ '{:,.0f}'.format(paid_all) }} <span class="text-sm font-normal text-ink-soft">de Q{{ '{:,.0f}'.format(total_all) }}</span></div>
-        </div>
-        {% if next_due %}
-        <div class="text-right">
-          <div class="text-xs text-ink-soft">Próximo pago</div>
-          <div class="text-sm font-semibold text-ink">Q{{ '{:,.2f}'.format(next_due.balance if next_due.balance is not none else next_due.amount or 0) }} &middot; {{ next_due.due_date|fecha_es }}</div>
-          {% if next_due.payment_link_url %}
-          <a href="{{ next_due.payment_link_url }}" target="_blank" class="portal-action primary" style="margin-top:8px;">Pagar ahora</a>
-          {% endif %}
-        </div>
-        {% endif %}
-      </div>
-      <div class="portal-progress-track">
-        <div class="portal-progress-fill" style="width:{{ payment_pct }}%;"></div>
-      </div>
-      <div class="text-[11px] text-ink-soft mt-2">{{ payment_pct }}% completado</div>
-    </div>
-    {% endif %}
-
-    {% for journey in journeys %}
-    <section class="portal-payment-card" aria-label="Próximo paso" style="margin-bottom:18px;">
-      <div class="text-xs text-ink-soft">{{ journey.name }} · Tu próximo paso</div>
-      <h2 class="text-lg font-semibold mt-2">{{ journey.action[0] }}</h2>
-      {% if journey.booking %}
-      <p class="text-sm mt-2">{{ journey.booking.label }}</p>
-      <ul class="text-sm text-ink-soft mt-2">
-        {% for check in journey.booking.checks %}<li>{{ '✓' if check.done else '○' }} {{ check.label }}</li>{% endfor %}
-      </ul>
-      {% endif %}
-      {% if journey.action[1] %}<a class="portal-action primary" style="margin-top:14px;" href="#{{ journey.action[1] }}" onclick="return showPortalTab('{{ journey.action[1] }}', event)">Continuar</a>{% endif %}
-    </section>
-    {% endfor %}
     <!-- Cotizaciones -->
     <div id="quotes" class="portal-panel active">
-    <div class="portal-section" style="--section-accent:#7357F6;">
+    <div class="portal-section">
       <div class="portal-section-head">
-        <div class="portal-nav-icon" style="background:#7357F6;">
+        <div class="portal-nav-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
         </div>
         <h2 class="text-lg font-semibold text-ink">Cotizaciones</h2>
@@ -424,7 +183,7 @@
             </div>
             <div class="text-right">
               <div class="text-lg font-semibold text-ink">Q{{ '{:,.0f}'.format(q.precio_total) }}</div>
-              <div class="text-xs text-ink-soft">{{ q.created }}</div>
+              <div class="text-xs text-ink-soft">{{ q.created|fecha_es }}</div>
             </div>
           </div>
           {% if q.incluye %}
@@ -442,7 +201,7 @@
             <a href="/quotes/{{ q.id }}/pdf" download class="portal-action">Descargar cotización PDF</a>
             {% if q.status in ['Enviada', 'Pendiente'] %}
             <form method="POST" action="/quotes/{{ q.id }}/accept" class="inline" style="flex:1 1 auto;">
-              <button type="submit" class="portal-action primary" style="width:100%;">Aceptar Cotizacion</button>
+              <button type="submit" class="portal-action primary" style="width:100%;">Aceptar cotización</button>
             </form>
             {% endif %}
           </div>
@@ -457,9 +216,9 @@
 
     <!-- Contratos -->
     <div id="contracts" class="portal-panel">
-    <div class="portal-section" style="--section-accent:#111827;">
+    <div class="portal-section">
       <div class="portal-section-head">
-        <div class="portal-nav-icon" style="background:#111827;">
+        <div class="portal-nav-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.5 11 14.5l4-4.5M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
         </div>
         <h2 class="text-lg font-semibold text-ink">Contratos</h2>
@@ -471,7 +230,7 @@
           <div class="flex items-center justify-between mb-2 gap-3 flex-wrap">
             <div>
               <div class="font-medium text-ink">Contrato #{{ c.id }}</div>
-              <div class="text-xs text-ink-soft">{{ c.created }}</div>
+              <div class="text-xs text-ink-soft">{{ c.created|fecha_es }}</div>
             </div>
             {% if c.signed %}
             <span class="portal-badge b-green">Firmado</span>
@@ -497,9 +256,9 @@
 
     <!-- Facturas -->
     <div id="invoices" class="portal-panel">
-    <div class="portal-section" style="--section-accent:#334155;">
+    <div class="portal-section">
       <div class="portal-section-head">
-        <div class="portal-nav-icon" style="background:#334155;">
+        <div class="portal-nav-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><path stroke-linecap="round" d="M1 10h22"/></svg>
         </div>
         <h2 class="text-lg font-semibold text-ink">Facturas</h2>
@@ -508,7 +267,7 @@
       <div class="space-y-3">
         {% for g in invoice_groups %}
         <div class="portal-item" style="padding:0;overflow:hidden;">
-          <div class="p-4 flex items-center justify-between cursor-pointer gap-3 flex-wrap" onclick="toggleInvoiceGroup('{{ g.invoice_id }}')">
+          <div class="p-4 flex items-center justify-between gap-3 flex-wrap">
             <div>
               <div class="font-medium text-ink text-sm">{{ g.invoice_id }}</div>
               <div class="text-xs text-ink-soft">{{ g.concepto }} &middot; {{ g.rows|length }} pago{{ 's' if g.rows|length != 1 else '' }}</div>
@@ -524,6 +283,7 @@
                   {{ {'Pagado': 'Pagado', 'Late': 'Vencido', 'Parcial': 'Pago parcial', 'Pendiente': 'Pendiente'}.get(g.status, g.status) }}
                 </span>
               </div>
+              <button type="button" class="portal-action" aria-expanded="false" aria-controls="invoice-breakdown-{{ g.invoice_id }}" onclick="toggleInvoiceGroup('{{ g.invoice_id }}', this)">Ver pagos</button>
               <a href="/invoices/{{ g.invoice_id }}/pdf" download onclick="event.stopPropagation();" class="portal-action" style="flex:none;">Descargar factura PDF</a>
             </div>
           </div>
@@ -541,7 +301,7 @@
             {% for r in g.rows %}
             <div class="py-2 {{ 'border-b border-gray-200' if not loop.last else '' }}">
               <div class="flex items-center justify-between text-xs flex-wrap gap-2">
-                <div class="text-ink-soft">Pago {{ r.cuota or (loop.index) }} &middot; vence {{ r.due_date or '-' }}</div>
+                <div class="text-ink-soft">Pago {{ r.cuota or (loop.index) }} &middot; vence {{ r.due_date|fecha_es }}</div>
                 <div class="flex items-center gap-2">
                   <span class="font-medium text-ink">Q{{ '{:,.2f}'.format(r.amount or 0) }}</span>
                   {% if r.status == 'Pagado' %}
@@ -578,9 +338,9 @@
 
     <!-- Cuestionarios -->
     <div id="questionnaires" class="portal-panel">
-    <div class="portal-section" style="--section-accent:#2563EB;">
+    <div class="portal-section">
       <div class="portal-section-head">
-        <div class="portal-nav-icon" style="background:#2563EB;">
+        <div class="portal-nav-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
         </div>
         <h2 class="text-lg font-semibold text-ink">Cuestionarios</h2>
@@ -591,10 +351,10 @@
         <div class="portal-item flex items-center justify-between gap-3 flex-wrap">
           <div>
             <div class="font-medium text-ink text-sm">{{ q.name }}</div>
-            <div class="text-xs text-ink-soft">{{ q.created }}</div>
+            <div class="text-xs text-ink-soft">{{ q.created|fecha_es }}</div>
           </div>
           <div class="flex items-center gap-2">
-            <span class="portal-badge {{ 'b-green' if q.status == 'Respondido' else ('b-blue' if q.status == 'Sent' else 'b-amber') }}">{{ q.status }}</span>
+            <span class="portal-badge {{ 'b-green' if q.status == 'Respondido' else ('b-blue' if q.status == 'Sent' else 'b-amber') }}">{{ {'Sent': 'Pendiente', 'Respondido': 'Respondido'}.get(q.status, q.status) }}</span>
             <a href="/questionnaires/{{ q.id }}" target="_blank" class="portal-action" style="flex:none;">{{ 'Ver respuestas' if q.status == 'Respondido' else 'Responder' }}</a>
           </div>
         </div>
@@ -608,12 +368,12 @@
 
     <!-- Galeria / Archivos -->
     <div id="galeria" class="portal-panel">
-    <div class="portal-section" style="--section-accent:#6B7280;">
+    <div class="portal-section">
       <div class="portal-section-head">
-        <div class="portal-nav-icon" style="background:#6B7280;">
+        <div class="portal-nav-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="m21 15-5-5L5 21"/></svg>
         </div>
-        <h2 class="text-lg font-semibold text-ink">Galeria y Archivos</h2>
+        <h2 class="text-lg font-semibold text-ink">Galería y archivos</h2>
       </div>
       {% if files %}
       <div class="space-y-2">
@@ -621,7 +381,7 @@
         <div class="portal-item flex items-center justify-between gap-3 flex-wrap">
           <div>
             <div class="font-medium text-ink text-sm">{{ f.name }}</div>
-            <div class="text-xs text-ink-soft">{{ f.created }} &middot; {{ f.size }}</div>
+            <div class="text-xs text-ink-soft">{{ f.created|fecha_es }} &middot; {{ f.size }}</div>
           </div>
           {% if f.stored %}
           <a href="/files/{{ f.id }}/download" class="portal-action" style="flex:none;">Descargar</a>
@@ -638,7 +398,36 @@
 
     </div>
 
+    </section>
+    <!-- Payment summary -->
+    {% if total_all > 0 %}
+    <aside class="portal-payment-card" aria-label="Resumen de pagos">
+      <h2 class="portal-card-title">Resumen de pagos</h2>
+      <div class="portal-payment-details">
+        <div>
+          <div class="text-xs text-ink-soft">Pagado hasta hoy</div>
+          <div class="text-2xl font-semibold text-ink">Q{{ '{:,.0f}'.format(paid_all) }} <span class="text-sm font-normal text-ink-soft">de Q{{ '{:,.0f}'.format(total_all) }}</span></div>
+        </div>
+        {% if next_due %}
+        <div class="portal-next-payment">
+          <div class="text-xs text-ink-soft">Próximo pago</div>
+          <div class="text-sm font-semibold text-ink">Q{{ '{:,.2f}'.format(next_due.balance if next_due.balance is not none else next_due.amount or 0) }} &middot; {{ next_due.due_date|fecha_es }}</div>
+          {% if next_due.payment_link_url %}
+          <a href="{{ next_due.payment_link_url }}" target="_blank" class="portal-action primary" style="margin-top:8px;">Pagar ahora</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="portal-progress-track">
+        <div class="portal-progress-fill" style="width:{{ payment_pct }}%;"></div>
+      </div>
+      <div class="text-[11px] text-ink-soft mt-2">{{ payment_pct }}% completado</div>
+    </aside>
+    {% endif %}
+
+
   </div>
+  </main>
 </div>
 
 <!-- MODAL: Firma digital -->
@@ -647,7 +436,7 @@
     <h3 class="font-semibold text-lg mb-2">Firma digital</h3>
     <p class="text-xs text-ink-soft mb-4">Puedes dibujar tu firma o escribir tu nombre.</p>
     <div class="flex gap-2 mb-4">
-      <button id="sign-mode-draw" type="button" onclick="setSignatureMode('draw')" class="text-sm px-3 py-2 border border-gray-200 rounded-lg font-medium" style="background:#E8FFF4;color:#006B3F;">Dibujar</button>
+      <button id="sign-mode-draw" type="button" onclick="setSignatureMode('draw')" class="text-sm px-3 py-2 border border-gray-200 rounded-lg font-medium" style="background:#E4ECF2;color:#30495D;">Dibujar</button>
       <button id="sign-mode-type" type="button" onclick="setSignatureMode('type')" class="text-sm px-3 py-2 border border-gray-200 rounded-lg font-medium">Escribir nombre</button>
     </div>
     <div id="signature-draw-panel">
@@ -661,7 +450,7 @@
       <button onclick="clearSignature()" class="text-sm px-3 py-2 border border-gray-200 rounded-lg">Limpiar</button>
       <div class="flex-1"></div>
       <button onclick="closeSignature()" class="text-sm px-3 py-2 border border-gray-200 rounded-lg">Cancelar</button>
-      <button onclick="saveSignature()" class="text-sm px-3 py-2 text-white rounded-lg font-medium" style="background: #7357F6;">Guardar firma</button>
+      <button onclick="saveSignature()" class="text-sm px-3 py-2 text-white rounded-lg font-medium" style="background: #3F5B70;">Guardar firma</button>
     </div>
   </div>
 </div>
@@ -682,6 +471,9 @@ function showPortalTab(tab, event) {
     }
   });
   if (history.replaceState) history.replaceState(null, '', '#' + tab);
+  if (event && !event.currentTarget.closest('#portal-tabs')) {
+    document.getElementById('portal-tabs').scrollIntoView({block: 'start'});
+  }
   return false;
 }
 document.addEventListener('DOMContentLoaded', function() {
@@ -689,9 +481,12 @@ document.addEventListener('DOMContentLoaded', function() {
   showPortalTab(PORTAL_TABS.indexOf(fromHash) !== -1 ? fromHash : PORTAL_TABS[0]);
 });
 
-function toggleInvoiceGroup(invoiceId) {
+function toggleInvoiceGroup(invoiceId, button) {
   var el = document.getElementById('invoice-breakdown-' + invoiceId);
-  if (el) el.classList.toggle('hidden');
+  if (el) {
+    var collapsed = el.classList.toggle('hidden');
+    if (button) button.setAttribute('aria-expanded', String(!collapsed));
+  }
 }
 
 let currentContractId = null;
@@ -727,10 +522,10 @@ function setSignatureMode(mode) {
   signatureMode = mode;
   document.getElementById('signature-draw-panel').classList.toggle('hidden', mode !== 'draw');
   document.getElementById('signature-type-panel').classList.toggle('hidden', mode !== 'type');
-  document.getElementById('sign-mode-draw').style.background = mode === 'draw' ? '#E8FFF4' : '#fff';
-  document.getElementById('sign-mode-draw').style.color = mode === 'draw' ? '#006B3F' : '#111827';
-  document.getElementById('sign-mode-type').style.background = mode === 'type' ? '#E8FFF4' : '#fff';
-  document.getElementById('sign-mode-type').style.color = mode === 'type' ? '#006B3F' : '#111827';
+  document.getElementById('sign-mode-draw').style.background = mode === 'draw' ? '#E4ECF2' : '#fff';
+  document.getElementById('sign-mode-draw').style.color = mode === 'draw' ? '#30495D' : '#111827';
+  document.getElementById('sign-mode-type').style.background = mode === 'type' ? '#E4ECF2' : '#fff';
+  document.getElementById('sign-mode-type').style.color = mode === 'type' ? '#30495D' : '#111827';
 }
 
 function renderTypedSignature() {

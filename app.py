@@ -1746,7 +1746,7 @@ def _upsert_config_item(kind, item_id, data):
     return item
 
 
-SOURCE_COLORS = ['#7d83f2', '#20a7dc', '#c65a09', '#10b981', '#f2c94c', '#94a3b8', '#8b5cf6', '#ef4444']
+SOURCE_COLORS = ['#6C8BA2', '#20a7dc', '#c65a09', '#10b981', '#f2c94c', '#94a3b8', '#58778E', '#ef4444']
 
 
 def _configured_lead_sources(include_inactive=False, tenant_id=None):
@@ -3188,7 +3188,7 @@ def dashboard():
                 revenue_by_year[due_day.year][due_day.month - 1] += amount
                 projected_by_year[due_day.year][due_day.month - 1] += amount
 
-    year_palette = ['#2563EB', '#7C3AED', '#F59E0B', '#DC2626', '#059669', '#0891B2']
+    year_palette = ['#2563EB', '#3F5B70', '#F59E0B', '#DC2626', '#059669', '#0891B2']
     sorted_years = sorted(set(revenue_by_year.keys()) | set(paid_by_year.keys()) | set(projected_by_year.keys()))
     revenue_comparison_series = []
     for idx, yr in enumerate(sorted_years):
@@ -5994,7 +5994,7 @@ _MULTI_TENANT_REAL_TENANTS = [
      'logo_letter': 'N', 'color': '#0284C7', 'active': True, 'currency': 'GTQ',
      'language': 'es', 'login_email': 'norkevinfoto@gmail.com'},
     {'id': 'tenant-ramiro-cruz', 'slug': 'ramiro-cruz-photo', 'name': 'Ramiro Cruz Photo',
-     'logo_letter': 'R', 'color': '#7C3AED', 'active': True, 'currency': 'GTQ',
+     'logo_letter': 'R', 'color': '#3F5B70', 'active': True, 'currency': 'GTQ',
      'language': 'es', 'login_email': 'ramirocruz10x@gmail.com'},
 ]
 _MULTI_TENANT_KNOWN_OLD_IDS = {None, '', 'tenant-norkevin', 'tenant-astral'}
@@ -11452,14 +11452,14 @@ def _quote_theme_for_tenant(tenant_id):
         # Estos valores NO son una paleta inventada para los documentos: son
         # los tokens --sn-* de templates/base.html, copiados uno a uno. El
         # criterio de Kevin es que al pasar del CRM a la cotizacion no se
-        # note el salto, y para eso el morado, los grises, las lineas y los
+        # note el salto, y para eso el azul grisáceo, los grises, las lineas y los
         # radios tienen que ser literalmente los mismos, no parecidos.
-        #   --sn-green         -> primary          #7357F6
-        #   --sn-green-dark    -> primary_dark     #6447EE
-        #   --sn-mint          -> primary_soft     #F0EDFF
-        #   --sn-mint-soft     -> primary_tint     #F7F5FF
-        #   --sn-canvas        -> background       #F7F8FC
-        #   --sn-surface-2     -> surface_2        #F4F5F9
+        #   --sn-green         -> primary          #3F5B70
+        #   --sn-green-dark    -> primary_dark     #30495D
+        #   --sn-mint          -> primary_soft     #E4ECF2
+        #   --sn-mint-soft     -> primary_tint     #EEF3F6
+        #   --sn-canvas        -> background       #F5F7F9
+        #   --sn-surface-2     -> surface_2        #EFF2F5
         #   --sn-ink           -> text_primary     #111827
         #   --sn-muted         -> text_secondary   #667085
         #   --sn-soft          -> muted            #98A2B3
@@ -11472,13 +11472,13 @@ def _quote_theme_for_tenant(tenant_id):
         #   --sn-shadow-resting-> shadow_card
         # Si algun dia cambian en base.html, hay que cambiarlos aca tambien.
         # ------------------------------------------------------------------
-        'primary': '#7357F6',
-        'primary_dark': '#6447EE',
-        'primary_soft': '#F0EDFF',
-        'primary_tint': '#F7F5FF',
-        'background': '#F7F8FC',
+        'primary': '#3F5B70',
+        'primary_dark': '#30495D',
+        'primary_soft': '#E4ECF2',
+        'primary_tint': '#EEF3F6',
+        'background': '#F5F7F9',
         'surface': '#FFFFFF',
-        'surface_2': '#F4F5F9',
+        'surface_2': '#EFF2F5',
         'text_primary': '#111827',
         'text_secondary': '#667085',
         'muted': '#98A2B3',
@@ -11504,9 +11504,9 @@ def _quote_theme_for_tenant(tenant_id):
         # Compatibilidad: los nombres viejos siguen existiendo porque los
         # theme_snapshot ya guardados los traen y porque Settings >
         # Cotizaciones los deja editar. Ahora apuntan al mismo ADN.
-        'bg_dark': '#111827', 'cream': '#FFFFFF', 'bone': '#F7F8FC',
+        'bg_dark': '#111827', 'cream': '#FFFFFF', 'bone': '#F5F7F9',
         'ink': '#111827', 'ink_soft': '#667085', 'line': '#E7EAF0',
-        'accent': '#7357F6', 'logo_url': '', 'footer_text': '',
+        'accent': '#3F5B70', 'logo_url': '', 'footer_text': '',
         'cta_text': 'ACEPTAR COTIZACIÓN', 'whatsapp': '',
         # Rediseño editorial (29-ago-2026): moneda y tipografia tambien
         # salen del theme en vez de estar escritas a mano en quote_view.html,

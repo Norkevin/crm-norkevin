@@ -1,4 +1,4 @@
-/* Lead detail: one identity, one next action, then documents and workflow. */
+/* Lead detail: one identity, one next action, then workflow and documents. */
 .lead-detail { max-width: 1440px; }
 .lead-detail .lead-breadcrumb { display: flex; gap: 12px; margin-bottom: 20px; color: var(--sn-muted); font-size: 12px; }
 .lead-detail .lead-breadcrumb a { color: var(--sn-ink); }
@@ -17,22 +17,22 @@
 .lead-detail .lead-secondary-actions { border-top: 1px solid var(--sn-line); padding: 13px 0; display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; }
 .lead-detail .lead-secondary-actions a, .lead-detail .lead-text-button { font-size: 12px; color: var(--sn-muted); }
 .lead-detail .lead-text-button { background: none; border: 0; padding: 5px 0; cursor: pointer; text-align: left; }
-.lead-detail .lead-secondary-actions > :first-child { color: var(--sn-green); font-weight: 600; }
-.lead-detail .lead-text-button:hover, .lead-detail a:hover { color: var(--sn-green); }
+.lead-detail .lead-secondary-actions > :first-child { color: var(--sn-accent-text); font-weight: 600; }
+.lead-detail .lead-text-button:hover, .lead-detail a:hover { color: var(--sn-accent-text); }
 .lead-detail :is(a, button, summary):focus-visible { outline: 2px solid var(--sn-green); outline-offset: 4px; }
 .lead-detail .lead-next { display: flex; align-items: center; gap: 18px; padding: 18px 24px; margin: 18px 0 28px; border: 1px solid var(--sn-line); border-left: 3px solid var(--sn-green); border-radius: 14px; background: var(--sn-surface-hover); }
-.lead-detail .lead-next-icon { width: 42px; height: 42px; display: grid; place-items: center; flex-shrink: 0; border-radius: 12px; background: var(--sn-white); color: var(--sn-green); font-size: 24px; }
+.lead-detail .lead-next-icon { width: 42px; height: 42px; display: grid; place-items: center; flex-shrink: 0; border-radius: 12px; background: var(--sn-white); color: var(--sn-accent-text); font-size: 24px; }
 .lead-detail .lead-next-copy { flex: 1; min-width: 0; }
 .lead-detail .lead-eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: .11em; color: var(--sn-muted); font-weight: 600; margin-bottom: 5px; }
 .lead-detail h2 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
 .lead-detail .lead-next h2 { font-size: 19px; }
 .lead-detail .lead-next .workflow-timing { display: flex; flex-wrap: wrap; column-gap: 16px; row-gap: 3px; }
 .lead-detail .lead-next .workflow-timing > .sn-muted { flex-basis: 100%; }
-.lead-detail .lead-workspace { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.lead-detail .lead-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 28px; align-items: start; }
 .lead-detail .lead-records { display: grid; gap: 16px; min-width: 0; }
 .lead-detail .lead-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 45px; margin-bottom: 2px; }
 .lead-detail .lead-section-heading p { color: var(--sn-muted); font-size: 12px; margin: 5px 0 0; }
-.lead-detail .lead-template-link { font-size: 11px; color: var(--sn-green); white-space: nowrap; }
+.lead-detail .lead-template-link { font-size: 11px; color: var(--sn-accent-text); white-space: nowrap; }
 .lead-detail .lead-records .sn-card { background: var(--sn-white); box-shadow: none; border: 1px solid var(--sn-line); border-radius: 14px; padding: 18px; }
 .lead-detail .lead-records .sn-card-head { padding: 0 0 14px; margin: 0; }
 .lead-detail .lead-records .sn-card-title { font-size: 13px; font-weight: 600; }
@@ -43,20 +43,20 @@
 .lead-detail #lead-notes { min-height: 110px; height: 110px; resize: vertical; }
 .lead-detail .lead-workflow-panel { min-width: 0; scroll-margin-top: 90px; }
 .lead-detail .lead-workflow-panel > .lead-section-heading { margin-bottom: 18px; }
-.lead-detail .lead-workflow-card { background: var(--sn-white); border: 1px solid var(--sn-line); border-radius: 14px; overflow: hidden; }
+.lead-detail .lead-workflow-card { background: var(--sn-mint-soft); border: 1px solid var(--sn-mint); border-radius: 14px; overflow: hidden; }
 .lead-detail .lead-phase-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--sn-line); }
 .lead-detail .lead-phase-heading h3 { margin: 0; font-size: 13px; font-weight: 600; }
 .lead-detail .lead-phase-heading span { color: var(--sn-muted); font-size: 11px; }
 .lead-detail .workflow-steps { gap: 0; }
-.lead-detail .workflow-step { border: 0; border-bottom: 1px solid var(--sn-line); border-radius: 0; box-shadow: none; padding: 18px 16px; grid-template-columns: 22px minmax(0, 1fr) 28px; gap: 10px; align-items: start; }
+.lead-detail .workflow-step { background: transparent; border: 0; border-bottom: 1px solid var(--sn-line); border-radius: 0; box-shadow: none; padding: 18px 16px; grid-template-columns: 22px minmax(0, 1fr) 28px; gap: 10px; align-items: start; }
 .lead-detail .workflow-step:last-child { border-bottom: 0; }
-.lead-detail .workflow-step.is-next { background: var(--sn-surface-hover); }
+.lead-detail .workflow-step.is-next { background: var(--sn-mint); }
 .lead-detail .workflow-step-name { font-size: 13px; }
 .lead-detail .workflow-check { width: 20px; height: 20px; border-radius: 50%; margin-top: 1px; }
 .lead-detail .lead-step-content { min-width: 0; overflow-wrap: anywhere; }
 .lead-detail .lead-step-template { color: var(--sn-muted); font-size: 11px; display: inline-block; margin-top: 4px; }
 .lead-detail .workflow-timing { color: var(--sn-muted); }
-.lead-detail .workflow-timing strong { font-weight: 500; color: var(--sn-green); }
+.lead-detail .workflow-timing strong { font-weight: 500; color: var(--sn-accent-text); }
 .lead-detail .sn-menu-dots { font-size: 22px; min-width: 28px; min-height: 28px; }
 .lead-detail button:disabled { cursor: default; opacity: .45; }
 .lead-detail .lead-future-phase { border-top: 1px solid var(--sn-line); }
@@ -115,7 +115,7 @@
 .job-detail .job-clients .entity-primary > div:first-child { min-width: 0; overflow-wrap: anywhere; }
 .job-detail .job-records > .sn-tabs { display: flex; flex-wrap: wrap; gap: 4px; border: 0; margin: 0; padding: 4px; border-radius: 12px; background: var(--sn-surface-hover); }
 .job-detail .job-records > .sn-tabs .sn-tab { flex: 1 0 auto; border: 0; border-radius: 8px; min-height: 38px; font-size: 12px; padding: 8px 10px; }
-.job-detail .job-records > .sn-tabs .sn-tab.active { background: var(--sn-white); color: var(--sn-green); box-shadow: 0 1px 3px var(--sn-shadow-soft); }
+.job-detail .job-records > .sn-tabs .sn-tab.active { background: var(--sn-white); color: var(--sn-accent-text); box-shadow: 0 1px 3px var(--sn-shadow-soft); }
 .job-detail .sn-tab-panel { min-width: 0; }
 .job-detail .job-mail .sn-table-shell { border: 0; border-radius: 0; }
 .job-detail .job-mail .sn-table { table-layout: fixed; width: 100%; }

@@ -10,6 +10,8 @@ import pytest
 def _load(table):
     data_dir = os.environ['CRM_DATA_DIR']
     path = os.path.join(data_dir, f'{table}.json')
+    if not os.path.exists(path):
+        return []
     with open(path, encoding='utf-8') as f:
         return json.load(f)
 

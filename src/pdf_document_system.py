@@ -37,12 +37,12 @@ from reportlab.pdfbase.ttfonts import TTFont
 # espeja los --sn-* de templates/base.html. Si cambia uno, cambian todos.
 # ============================================================
 COLOR = {
-    'primary':        HexColor('#7357F6'),  # --sn-green   / --primary
-    'primary_dark':   HexColor('#6447EE'),  # --sn-green-dark
-    'primary_soft':   HexColor('#F0EDFF'),  # --sn-mint    / --primary-soft
+    'primary':        HexColor('#3F5B70'),  # --sn-green   / --primary
+    'primary_dark':   HexColor('#30495D'),  # --sn-green-dark
+    'primary_soft':   HexColor('#E4ECF2'),  # --sn-mint    / --primary-soft
     'surface':        HexColor('#FFFFFF'),  # --surface
-    'surface_2':      HexColor('#F4F5F9'),  # --sn-surface-2
-    'background':     HexColor('#F7F8FC'),  # --sn-canvas
+    'surface_2':      HexColor('#EFF2F5'),  # --sn-surface-2
+    'background':     HexColor('#F5F7F9'),  # --sn-canvas
     'text':           HexColor('#111827'),  # --sn-ink     / --text-primary
     'text_secondary': HexColor('#667085'),  # --sn-muted   / --text-secondary
     'muted':          HexColor('#98A2B3'),  # --sn-soft    / --muted

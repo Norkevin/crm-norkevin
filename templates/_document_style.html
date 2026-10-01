@@ -1,14 +1,14 @@
 <style>
   :root {
-    --doc-brand: #1C1440;
-    --doc-brand-soft: #F0EDFF;
-    --doc-accent: #7357F6;
-    --doc-accent-dark: #6447EE;
+    --doc-brand: #203443;
+    --doc-brand-soft: #E4ECF2;
+    --doc-accent: #3F5B70;
+    --doc-accent-dark: #30495D;
     --doc-ink: #0A0E1A;
     --doc-ink-soft: #4B5563;
     --doc-mute: #8A93A3;
     --doc-line: #E7EAF0;
-    --doc-paper: #F7F8FC;
+    --doc-paper: #F5F7F9;
   }
   * { box-sizing: border-box; }
   body { background: var(--doc-paper); color: var(--doc-ink); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; }
@@ -19,7 +19,7 @@
     background: #fff;
     border-radius: 24px;
     overflow: hidden;
-    box-shadow: 0 1px 2px rgba(28,20,64,.04), 0 32px 64px -28px rgba(28,20,64,.28);
+    box-shadow: 0 1px 2px rgba(32,52,67,.04), 0 32px 64px -28px rgba(32,52,67,.28);
   }
   /* Shell de 2 columnas para documentos de cara al cliente (cotizacion,
      contrato, cuestionario) -- Kevin: "quiero algo diferente, no solo
@@ -37,14 +37,14 @@
     background: #fff;
     border-radius: 28px;
     overflow: hidden;
-    box-shadow: 0 1px 2px rgba(28,20,64,.04), 0 40px 90px -34px rgba(28,20,64,.32);
+    box-shadow: 0 1px 2px rgba(32,52,67,.04), 0 40px 90px -34px rgba(32,52,67,.32);
   }
   @media (max-width: 760px) {
     .doc-shell { grid-template-columns: 1fr; border-radius: 22px; }
   }
   .doc-side {
     position: relative;
-    background: radial-gradient(140% 160% at 15% 0%, #382A7A 0%, var(--doc-brand) 50%, #100B2A 100%);
+    background: radial-gradient(140% 160% at 15% 0%, #405F76 0%, var(--doc-brand) 50%, #14232F 100%);
     color: #fff;
     padding: 40px 30px;
     display: flex;
@@ -58,7 +58,7 @@
     right: -80px; top: -100px;
     width: 260px; height: 260px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(115,87,246,.5) 0%, rgba(115,87,246,0) 70%);
+    background: radial-gradient(circle, rgba(63,91,112,.5) 0%, rgba(63,91,112,0) 70%);
   }
   .doc-side::after {
     content: '';
@@ -75,7 +75,7 @@
   .doc-side-meta .id { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 13px; opacity: .92; margin-top: 5px; }
   .doc-side-meta .date { font-size: 11px; opacity: .65; margin-top: 3px; }
   .doc-side-total .label { font-size: 10px; text-transform: uppercase; letter-spacing: .14em; opacity: .75; }
-  .doc-side-total .amount { font-size: 34px; font-weight: 300; letter-spacing: -.01em; margin-top: 4px; line-height: 1.05; background: linear-gradient(90deg, #fff, #E4DDFF); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .doc-side-total .amount { font-size: 34px; font-weight: 300; letter-spacing: -.01em; margin-top: 4px; line-height: 1.05; background: linear-gradient(90deg, #fff, #D5E2EC); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .doc-side-status { margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.14); }
   .doc-side-footer { font-size: 11px; opacity: .55; line-height: 1.6; }
   @media (max-width: 760px) {
@@ -88,7 +88,7 @@
   .doc-hero {
     position: relative;
     padding: 44px 40px 34px;
-    background: radial-gradient(120% 160% at 0% 0%, #382A7A 0%, var(--doc-brand) 46%, #140E30 100%);
+    background: radial-gradient(120% 160% at 0% 0%, #405F76 0%, var(--doc-brand) 46%, #192B38 100%);
     color: #fff;
     overflow: hidden;
   }
@@ -98,7 +98,7 @@
     right: -70px; top: -90px;
     width: 260px; height: 260px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(115,87,246,.55) 0%, rgba(115,87,246,0) 70%);
+    background: radial-gradient(circle, rgba(63,91,112,.55) 0%, rgba(63,91,112,0) 70%);
   }
   .doc-hero::after {
     content: '';
@@ -126,7 +126,7 @@
   .doc-meta .date { font-size: 11px; opacity: .7; margin-top: 3px; }
   .doc-hero-total { position: relative; margin-top: 30px; }
   .doc-hero-total .label { font-size: 10px; text-transform: uppercase; letter-spacing: .14em; opacity: .75; }
-  .doc-hero-total .amount { font-size: 36px; font-weight: 300; letter-spacing: -.01em; margin-top: 2px; background: linear-gradient(90deg, #fff, #E4DDFF); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .doc-hero-total .amount { font-size: 36px; font-weight: 300; letter-spacing: -.01em; margin-top: 2px; background: linear-gradient(90deg, #fff, #D5E2EC); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .doc-body { padding: 36px 40px 40px; }
   .doc-section { margin-bottom: 30px; }
   .doc-eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--doc-mute); font-weight: 600; margin-bottom: 10px; }
@@ -204,7 +204,7 @@
   @media (max-width: 480px) { .doc-actions { grid-template-columns: 1fr; } }
   .doc-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px; border-radius: 12px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: transform .12s ease, opacity .12s ease, box-shadow .12s ease; text-decoration: none; }
   .doc-btn:active { transform: scale(.98); }
-  .doc-btn.primary { background: var(--doc-accent); color: #fff; box-shadow: 0 8px 20px -8px rgba(115,87,246,.55); }
+  .doc-btn.primary { background: var(--doc-accent); color: #fff; box-shadow: 0 8px 20px -8px rgba(63,91,112,.55); }
   .doc-btn.primary:hover { background: var(--doc-accent-dark); box-shadow: 0 10px 24px -8px rgba(100,71,238,.6); }
   .doc-btn.outline { background: #fff; color: var(--doc-ink); border: 1px solid var(--doc-line); }
   .doc-btn.outline:hover { background: var(--doc-paper); }
