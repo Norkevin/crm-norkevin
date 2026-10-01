@@ -195,7 +195,6 @@
 {% if session.get('logged_in') and session.get('tenant_id') == quote.tenant_id %}
 <nav aria-label="Administrar cotización" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
   <a class="doc-btn outline" href="/quotes/{{ quote.id }}/edit">Editar cotización</a>
-  <a class="doc-btn outline" href="/quotes/{{ quote.id }}/manage">Eliminar / gestionar</a>
 </nav>
 {% endif %}
 
