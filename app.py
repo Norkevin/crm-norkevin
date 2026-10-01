@@ -3,6 +3,7 @@ CRM Astral Weddings - Backend Flask
 Arquitectura: Notion-first. SQLite solo para cache de sesión.
 """
 import os
+from urllib.parse import quote as url_quote
 import re
 import hmac
 import hashlib
@@ -573,6 +574,25 @@ def _render_message_template(text, *, client=None, lead=None, job=None):
         '%job_date%': boda_date,
         '%company_name%': company_name,
     }
+    replacements['$jobName$'] = (job or {}).get('nombre') or ''
+    if '%2nd_client_name%' in text:
+        partner = next((get_client(rel['client_id']) for rel in _job_client_relations(job)
+                        if rel['role'] == ROL_PAREJA), None)
+        if partner:
+            replacements['%2nd_client_name%'] = _client_name(client=partner)
+        else:
+            text = text.replace(' y %2nd_client_name%', '').replace('%2nd_client_name%', '')
+    if client and client.get('id'):
+        base = (os.environ.get('APP_BASE_URL') or
+                (request.url_root if has_request_context() else '')).rstrip('/')
+        if base:
+            portal = base + '/portal/' + url_quote(str(client['id']), safe='')
+            for token, section in (('%quote_link%', 'quotes'), ('%contract_link%', 'contracts'),
+                                   ('%invoice_link%', 'invoices'), ('%questionnaire_link%', 'questionnaires')):
+                replacements[token] = portal + '#' + section
+        gallery = client.get('galeria_url') or (job or {}).get('galeria_url')
+        if gallery:
+            replacements['%gallery_link%'] = gallery
     for key, value in replacements.items():
         text = text.replace(key, str(value or ''))
     return text
@@ -4587,7 +4607,7 @@ def quote_builder(job_id, quote_type):
         lead=lead,
         packages=packages,
         quote_kind=normalized,
-        quote_kind_label='Pick & Choose Quote' if normalized == 'pick_and_choose' else 'Fixed Quote',
+        quote_kind_label='Cotización con opciones' if normalized == 'pick_and_choose' else 'Cotización de paquete',
     )
 
 
