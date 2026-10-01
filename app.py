@@ -6032,8 +6032,10 @@ def captacion_form(tenant_slug=None):
     company = get_settings(tenant_id=tenant.get('id')).get('company', {})
     contact_email = company.get('email') or tenant.get('login_email') or 'info@astralweddings.com'
     contact_phone = company.get('phone') or ''
-    if tenant.get('slug') in ('norkevin-photography', 'astral-weddings'):
+    if tenant.get('slug') == 'norkevin-photography':
         contact_phone = '+502 3164 8254'
+    elif tenant.get('slug') == 'astral-weddings':
+        contact_phone = '+502 3253 5549'
     elif ''.join(c for c in contact_phone if c.isdigit()) in ('22223333', '50222223333'):
         contact_phone = ''
     return render_template(

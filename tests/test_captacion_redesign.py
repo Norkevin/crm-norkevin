@@ -59,7 +59,8 @@ def test_brand_contact_details_and_widgets(client, monkeypatch):
     norkevin = client.get('/captacion/norkevin-photography').get_data(as_text=True)
     astral = client.get('/captacion/astral-weddings').get_data(as_text=True)
     assert 'tel:+50231648254' in norkevin
-    assert 'tel:+50231648254' in astral
+    assert 'tel:+50232535549' in astral
+    assert 'tel:+50231648254' not in astral
     for html in [norkevin, astral]:
         assert 'name="notas"' in html and 'maxlength="5000"' in html
         assert 'role="combobox"' in html and 'flatpickr.min.js' in html
