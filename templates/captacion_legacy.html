@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contacto · {{ tenant.name or 'ASTRAL WEDDINGS' }}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+{% include "_tailwind_config.html" %}
+<style>
+  body { background: #FAFAF7; color: #0A0E1A; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+  .brand { color: #0A0E1A; }
+  .field-simple {
+    width: 100%; background: #F3F4F6; border: 1px solid transparent; border-radius: 10px;
+    padding: 12px 16px; font-size: 14px; transition: border-color 150ms, background 150ms;
+  }
+  .field-simple:focus { outline: none; background: #FFFFFF; border-color: #0A0E1A; }
+  .label-simple { font-size: 14px; font-weight: 500; color: #1F2937; display: block; margin-bottom: 6px; }
+
+  /* El formulario de captacion es publico: casi todos los leads llegan
+     desde un telefono, muchas veces por un link de Instagram. Con inputs
+     de menos de 16px, Safari hace zoom en cada campo y el formulario se
+     vuelve incomodo justo en el momento en que alguien decide escribir.
+     Un lead perdido aca es un lead que nunca existio. */
+  @media (max-width: 760px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="date"],
+    select {
+      min-height: 46px;
+    }
+    textarea { min-height: 96px; }
+    input[type="checkbox"],
+    input[type="radio"] { width: 24px; height: 24px; }
+    button,
+    .btn,
+    a.btn { min-height: 48px; }
+    body { overflow-wrap: anywhere; }
+  }
+
+</style>
+</head>
+<body>
+
+<div class="min-h-screen flex items-center justify-center px-4 py-12">
+  <div class="max-w-xl w-full">
+
+    <div class="text-center mb-8">
+      <div class="text-3xl font-semibold tracking-tight text-ink">{{ tenant.name or 'ASTRAL WEDDINGS' }}</div>
+      <p class="text-xs text-ink-soft uppercase tracking-widest mt-1">Photography &amp; Films</p>
+    </div>
+
+    <div class="bg-white rounded-xl border border-line shadow-soft p-8">
+      <h2 class="text-xl font-medium text-ink mb-2">Cuentanos sobre tu boda</h2>
+      <p class="text-sm text-ink-soft mb-6">Completa el formulario y te contactaremos en menos de 24 horas.</p>
+
+      <form id="form-captacion" class="space-y-4">
+        <input type="hidden" name="tenant_slug" value="{{ tenant_slug }}">
+        <div>
+          <label class="label-simple">Nombre completo *</label>
+          <input name="nombre" required class="field-simple">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label-simple">Email *</label>
+            <input type="email" name="email" required class="field-simple">
+          </div>
+          <div>
+            <label class="label-simple">Telefono</label>
+            <input name="telefono" class="field-simple">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label-simple">Fecha tentativa</label>
+            <input type="date" name="fecha_tentativa" class="field-simple">
+          </div>
+          <div>
+            <label class="label-simple">Tipo de evento</label>
+            <select name="tipo_evento" class="field-simple">
+              <option value="Boda">Boda</option>
+              <option value="Civil">Civil</option>
+              <option value="Quinceaneros">Quinceaneros</option>
+              <option value="Evento corporativo">Evento corporativo</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="label-simple">Ubicacion tentativa</label>
+          <input name="locacion" placeholder="ej: Antigua Guatemala" class="field-simple">
+        </div>
+
+        <div>
+          <label class="label-simple">Como nos encontraste?</label>
+          <select name="fuente" class="field-simple">
+            {% for source in lead_sources %}
+            <option value="{{ source.name }}">{{ source.label }}</option>
+            {% endfor %}
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+
+        <button type="submit" class="w-full text-white font-medium py-3 rounded-lg mt-6" style="background: #0A0E1A;">
+          Enviar solicitud
+        </button>
+      </form>
+
+      <div id="success-msg" class="hidden mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
+        <svg class="w-12 h-12 text-emerald-600 mx-auto mb-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+        <p class="font-medium text-emerald-700">Gracias por contactarnos!</p>
+        <p class="text-xs text-emerald-600 mt-1">Te responderemos en menos de 24 horas.</p>
+      </div>
+    </div>
+
+    <div class="text-center mt-6 text-xs text-ink-soft">
+      {{ tenant.name or 'ASTRAL WEDDINGS' }} &middot; {{ contact_email }} &middot; {{ contact_phone }}
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('form-captacion').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var formData = new FormData(e.target);
+  var data = {};
+  formData.forEach(function(value, key) { data[key] = value; });
+
+  var btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  fetch('/api/captacion', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(result) {
+    if (result.ok) {
+      document.getElementById('form-captacion').classList.add('hidden');
+      document.getElementById('success-msg').classList.remove('hidden');
+    } else {
+      alert('Error: ' + (result.error || 'desconocido'));
+      btn.disabled = false;
+      btn.textContent = 'Enviar solicitud';
+    }
+  })
+  .catch(function() {
+    alert('Error de red');
+    btn.disabled = false;
+    btn.textContent = 'Enviar solicitud';
+  });
+});
+</script>
+
+</body>
+</html>

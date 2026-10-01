@@ -6031,9 +6031,13 @@ def captacion_form(tenant_slug=None):
     tenant = tenant or {}
     company = get_settings(tenant_id=tenant.get('id')).get('company', {})
     contact_email = company.get('email') or tenant.get('login_email') or 'info@astralweddings.com'
-    contact_phone = company.get('phone') or '+502 2222 3333'
+    contact_phone = company.get('phone') or ''
+    if tenant.get('slug') == 'norkevin-photography':
+        contact_phone = '+502 3164 8254'
+    elif ''.join(c for c in contact_phone if c.isdigit()) in ('22223333', '50222223333'):
+        contact_phone = ''
     return render_template(
-        'captacion.html',
+        'captacion.html' if tenant.get('slug') in ('norkevin-photography', 'astral-weddings') else 'captacion_legacy.html',
         lead_sources=_configured_lead_sources(tenant_id=tenant.get('id')),
         tenant_slug=tenant.get('slug', 'astral-weddings'),
         tenant=tenant,
@@ -6051,10 +6055,14 @@ def api_captacion_submit():
 
     data = request.get_json() or request.form.to_dict() or {}
 
+    notes = data.get('notas', '')
+    if not isinstance(notes, str) or len(notes) > 5000:
+        return jsonify({'ok': False, 'error': 'Las notas deben tener como máximo 5000 caracteres'}), 400
+
     if not data.get('nombre'):
         return jsonify({'ok': False, 'error': 'nombre requerido'}), 400
 
-    tenant = _tenant_by_slug(data.get('tenant_slug')) or _tenant_by_slug('astral-weddings')
+    tenant = _tenant_by_slug(data.get('tenant_slug') or 'astral-weddings')
     if not tenant:
         return jsonify({'ok': False, 'error': 'Cuenta no reconocida'}), 400
     # El slug ya quedo validado contra tenants.json: recien ahora se fija la
@@ -6073,6 +6081,7 @@ def api_captacion_submit():
         'fecha_tentativa': data.get('fecha_tentativa'),
         'locacion': data.get('locacion', ''),
         'presupuesto': data.get('presupuesto', ''),
+        'notas': notes.strip(),
         'created': _dt.now().isoformat()[:10],
         'is_new': True,
         'next_task': 'Pendiente de contacto',
@@ -10009,8 +10018,9 @@ def _notify_new_lead(lead, source_label):
         f'Ubicacion: {lead.get("locacion") or "-"}',
         f'Fuente: {lead.get("fuente") or "-"}',
     ]
-    if lead.get('notes'):
-        body_lines += ['', 'Notas:', lead['notes']]
+    notes = lead.get('notas') or lead.get('notes')
+    if notes:
+        body_lines += ['', 'Notas:', notes]
     body_lines += ['', f'Ver lead: /leads/{lead.get("id")}']
     try:
         # STAGE 2 (agosto 2026): tambien pasa por la cola, igual que el
