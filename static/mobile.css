@@ -1,0 +1,64 @@
+/* Shared mobile shell: header + one scrolling region + navigation. */
+.mobile-brand, .mobile-event-details > summary { display: none; }
+@media (max-width: 760px) {
+  html { height: 100%; }
+  body { height: 100vh; height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .app-header { flex: 0 0 auto; position: relative; min-height: 60px; padding: calc(8px + env(safe-area-inset-top)) 16px 8px; border-bottom: 1px solid var(--sn-line); overflow: visible; }
+  .mobile-brand { display: inline-flex; align-items: center; gap: 5px; color: var(--sn-ink); font-size: 17px; font-weight: 700; min-height: 44px; }
+  .mobile-brand span { color: var(--sn-accent-text); font-weight: 500; }
+  body[data-page="/dashboard"] .mobile-brand { display: none; }
+  .header-right .sn-icon-button { min-width: 44px; min-height: 44px; }
+  .gmail-warning-banner { flex: 0 0 auto; }
+  .main-content { flex: 1 1 auto; min-height: 0; width: 100%; overflow-y: auto; overflow-x: clip; overscroll-behavior-y: contain; padding: 18px 16px 24px; -webkit-overflow-scrolling: touch; }
+  .bottom-nav { position: relative; inset: auto; order: 100; flex: 0 0 auto; width: 100%; min-height: 64px; padding: 4px 8px calc(4px + env(safe-area-inset-bottom)); }
+  .bottom-nav-item { min-height: 56px; gap: 4px; font-size: 11px; }
+  .bottom-nav-item.active { background: var(--sn-mint-soft); color: var(--sn-accent-text-dark); }
+  .bottom-nav-item svg { width: 21px; height: 21px; }
+  .more-sheet { overscroll-behavior: contain; }
+  .sn-page-head { margin-bottom: 16px; gap: 12px; }
+  .sn-page-title { font-size: 27px; letter-spacing: -.03em; }
+  .sn-page-head .sn-actions .sn-btn-primary { width: auto; height: 44px; padding: 0 14px; border-radius: 10px; font-size: 13px; box-shadow: none; }
+  .sn-toolbar { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 14px; }
+  .sn-toolbar .sn-toolbar-left, .sn-toolbar .sn-toolbar-right { display: flex; flex: 1 1 auto; width: 100%; min-width: 0; gap: 8px; flex-wrap: wrap; }
+  .sn-toolbar .sn-search { display: block; width: 100%; flex: 1 1 100%; min-width: 0; min-height: 44px; background-color: var(--sn-white); border: 1px solid var(--sn-line); border-radius: 10px; }
+  .sn-toolbar .sn-select { flex: 1 1 150px; min-width: 0; max-width: 100%; }
+  .sn-toolbar .sn-icon-button { flex: 0 0 44px; }
+  .stack-mobile .sn-menu-dots { width: 44px; height: 44px; min-width: 44px; }
+  .stack-mobile .sn-table tr { padding: 14px; }
+  body[data-page="/leads"] .stack-mobile .sn-table tr { padding: 14px; row-gap: 3px; grid-template-areas: "name name" "date badge" "type badge" "next next"; }
+  body[data-page="/leads"] .stack-mobile .sn-table tr::before { margin-right: 44px; }
+  body[data-page="/jobs"] .stack-mobile .sn-table tr { row-gap: 6px; }
+  .mail-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .mail-tab { padding: 0 5px; font-size: 12px; border-radius: 9px; }
+  .mail-row { padding: 16px 14px; row-gap: 6px; }
+  .mail-asunto { white-space: normal; line-height: 1.5; }
+  .mail-origen { font-size: 11px; line-height: 1.5; }
+  .mail-aviso, .mail-motivo { padding: 8px 10px; background: var(--sn-row); border-radius: 8px; line-height: 1.5; }
+  .lead-detail .lead-breadcrumb { margin-bottom: 12px; }
+  .lead-detail .lead-hero { padding: 16px 16px 0; }
+  .lead-detail .lead-hero-top { gap: 14px; }
+  .lead-detail h1 { font-size: 25px; margin: 8px 0; }
+  .lead-detail .lead-contact { font-size: 12px; gap: 4px 12px; }
+  .lead-detail .lead-primary-actions { width: 100%; gap: 6px; }
+  .lead-detail .lead-primary-actions > .sn-btn { flex: 1 1 auto; padding: 0 10px; font-size: 12px; }
+  .mobile-event-details { margin-top: 14px; border-top: 1px solid var(--sn-line); }
+  .mobile-event-details > summary { display: list-item; padding: 12px 0; min-height: 44px; cursor: pointer; color: var(--sn-accent-text); font-size: 12px; font-weight: 600; }
+  .mobile-event-details > summary span { display: block; padding-top: 4px; color: var(--sn-muted); font-weight: 400; }
+  .lead-detail .lead-event-facts { margin: 0; padding: 12px 0; gap: 16px; }
+  .lead-detail .lead-secondary-actions { padding: 4px 0; gap: 0 12px; }
+  .lead-detail .lead-secondary-actions > * { display: inline-flex; align-items: center; min-height: 44px; font-size: 11px; }
+  .lead-detail .lead-next { padding: 14px; margin: 14px 0; }
+  .lead-detail .lead-next h2 { font-size: 17px; }
+  .m-jobtabs { top: -18px; margin: 14px 0; border-radius: 10px; }
+  .m-jobtab { min-height: 44px; padding: 6px 3px; font-size: 11px; }
+  .dashboard-shell { padding-top: 0; }
+  .dashboard-intro-stat-value { font-size: clamp(21px, 6vw, 28px); }
+  .dashboard-widgets, .dashboard-rail { margin-top: 16px; gap: 16px; }
+  body[data-page="/jobs"] .sn-toolbar-left { display: grid; grid-template-columns: minmax(0, 1fr) 44px; }
+  body[data-page="/jobs"] #job-status-filter { grid-column: 1 / -1; width: 100%; }
+  body[data-page="/jobs"] #job-sort { width: 100%; }
+  .sn-toolbar .sn-select, .sn-toolbar .sn-search { font-size: 16px; }
+  body[data-page="/dashboard"] .dashboard-greeting { margin-bottom: 0; }
+  body[data-page="/dashboard"] .dashboard-panel-intro { margin-top: 0 !important; }
+  body[data-page="/dashboard"] .header-search input { font-size: 16px; }
+}

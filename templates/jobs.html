@@ -184,11 +184,11 @@
         <option value="all">Todos los trabajos</option>
       </select>
       <select id="job-sort" class="sn-select" onchange="filterJobs()">
-        <option value="relevancia">Mas relevantes primero (por defecto)</option>
-        <option value="created_desc">Mas nuevos primero</option>
-        <option value="created_asc">Mas antiguos primero</option>
-        <option value="date_asc">Fecha del evento (mas proxima primero)</option>
-        <option value="date_desc">Fecha del evento (mas lejana primero)</option>
+        <option value="relevancia">Más relevantes</option>
+        <option value="created_desc">Más nuevos</option>
+        <option value="created_asc">Más antiguos</option>
+        <option value="date_asc">Fecha más cercana</option>
+        <option value="date_desc">Fecha más lejana</option>
       </select>
       <button type="button" id="job-date-toggle" class="sn-btn job-date-toggle" aria-expanded="false" aria-controls="job-date-range" onclick="toggleJobDateFilter()">
         <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 2v4m8-4v4M3 10h18M5 6h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/></svg>
@@ -243,9 +243,9 @@
                  vistazo; en escritorio se oculta y manda la fecha larga. #}
               <span class="date-badge" aria-hidden="true">
                 <strong>{{ job.boda_date[8:10] }}</strong>
-                <em>{{ job.boda_date_display.split(' ')[2] if job.boda_date_display else '' }}</em>
+                <em>{{ (job.boda_date|fecha_legible).split(' ')[1][:3] if job.boda_date|fecha_legible else '' }}</em>
               </span>
-              <span class="date-long">{{ job.boda_date_display or job.boda_date }}</span>
+              <span class="date-long">{{ job.boda_date|fecha_legible or job.boda_date }}</span>
               {% if job.dias_restantes is not none and job.dias_restantes >= 0 %}
                 <span class="sn-chip yellow" title="Dias restantes">{{ job.dias_restantes }}d</span>
               {% endif %}

@@ -85,7 +85,7 @@
           <td class="sn-ellipsis" data-label="Tipo"><span class="sn-dot"></span>{{ lead.tipo_evento or 'BODAS' }}</td>
           <td class="sn-ellipsis" data-label="Boda Date">
             {% if lead.boda_date_display %}
-              {{ lead.boda_date_display }}
+              {{ lead.fecha_tentativa|fecha_legible }}
               {% if lead.date_conflict %}
                 <span class="date-status-badge red" title="Ya hay una boda agendada este dia: {{ lead.date_conflict }}">
                   <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.7 7.3a1 1 0 00-1.4 1.4L8.6 10l-1.3 1.3a1 1 0 101.4 1.4L10 11.4l1.3 1.3a1 1 0 001.4-1.4L11.4 10l1.3-1.3a1 1 0 00-1.4-1.4L10 8.6 8.7 7.3z" clip-rule="evenodd"/></svg>

@@ -187,9 +187,10 @@
             </div>
           </div>
           {% if q.incluye %}
+          <details class="portal-inclusions" data-mobile-fold open><summary>Qué incluye tu paquete</summary>
           <div class="text-xs text-ink-soft" style="margin-bottom:10px;line-height:1.6;">
             {% for item in q.incluye %}&#10003; {{ item }}{% if not loop.last %}<br>{% endif %}{% endfor %}
-          </div>
+          </div></details>
           {% endif %}
           <div class="portal-action-group">
             {% if q.status == 'Aceptada' %}
@@ -470,7 +471,7 @@ function showPortalTab(tab, event) {
       else pill.removeAttribute('aria-current');
     }
   });
-  if (history.replaceState) history.replaceState(null, '', '#' + tab);
+  if (history.replaceState && (event || location.hash)) history.replaceState(null, '', '#' + tab);
   if (event && !event.currentTarget.closest('#portal-tabs')) {
     document.getElementById('portal-tabs').scrollIntoView({block: 'start'});
   }
@@ -614,5 +615,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<script src="{{ url_for('static', filename='mobile.js') }}" defer></script>
 </body>
 </html>

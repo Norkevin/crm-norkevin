@@ -5,7 +5,7 @@
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css') }}">
 <section class="sn-page-wide lead-detail job-detail">
-  <nav class="lead-breadcrumb" aria-label="Ruta de navegación"><a href="/jobs">← Jobs</a><span>/</span><span>Detalle del trabajo</span></nav>
+  <nav class="lead-breadcrumb" aria-label="Ruta de navegación"><a href="/jobs">← Trabajos</a><span>/</span><span>Detalle del trabajo</span></nav>
   <header class="lead-hero">
     <div class="lead-hero-top">
       <div class="lead-identity">
@@ -30,6 +30,8 @@
 
       </div>
     </div>
+    <details class="mobile-event-details" data-mobile-fold open>
+      <summary>Detalles del evento <span>{{ job.boda_date|fecha_legible or 'Por definir' }}</span></summary>
     <dl class="lead-event-facts">
       <div><dt>Fecha del evento</dt><dd>{{ job.boda_date|fecha_legible or 'Por definir' }}</dd></div>
       <div><dt>Lugar</dt><dd>{{ job.location or 'Por definir' }}</dd></div>
@@ -46,6 +48,7 @@
       <button class="lead-text-button" type="button" onclick="openHistoryLog()">Historial del trabajo</button>
       <button class="lead-text-button" type="button" onclick="openModal('workflow-task-modal')">+ Agregar tarea</button>
     </div>
+    </details>
   </header>
 
   {% set upcoming = namespace(step=none, task=none) %}
@@ -1711,7 +1714,7 @@ function openMailDetails(button) {
     { id: 'resumen', label: 'Resumen' },
     { id: 'workflow', label: 'Workflow' },
     { id: 'pagos', label: 'Pagos', sub: 'Facturas' },
-    { id: 'archivos', label: 'Archivos', sub: 'Archivos' }
+    { id: 'archivos', label: 'Documentos', sub: 'Cotizaciones' }
   ];
   var built = false;
   var parts = null;
@@ -1726,7 +1729,7 @@ function openMailDetails(button) {
     var panels = [].slice.call(aside.querySelectorAll(':scope > .sn-tab-panel'));
     var activity = aside.querySelector('.job-mail');
     if (!left || !subTabs) { return null; }
-    return { left: left, entity: entity, subTabs: subTabs, panels: panels, activity: activity };
+    return { left: left, entity: entity, subTabs: subTabs, panels: panels, activity: activity, payments: aside.querySelector('.job-payment-summary') };
   }
 
   function show(id) {
@@ -1735,6 +1738,7 @@ function openMailDetails(button) {
     parts.left.style.display = (id === 'workflow') ? '' : 'none';
     parts.entity.forEach(function(el) { el.style.display = (id === 'resumen') ? '' : 'none'; });
     if (parts.activity) { parts.activity.style.display = (id === 'resumen') ? '' : 'none'; }
+    if (parts.payments) { parts.payments.style.display = (id === 'resumen' || id === 'pagos') ? '' : 'none'; }
     var docs = (id === 'pagos' || id === 'archivos');
     document.querySelector('.job-doc-heading').style.display = docs ? '' : 'none';
     parts.subTabs.style.display = docs ? '' : 'none';
@@ -1781,6 +1785,7 @@ function openMailDetails(button) {
     var bar = document.querySelector('.m-jobtabs');
     if (bar) { bar.remove(); }
     parts.left.style.display = '';
+    if (parts.payments) { parts.payments.style.display = ''; }
     if (parts.activity) { parts.activity.style.display = ''; }
     parts.entity.forEach(function(el) { el.style.display = ''; });
     parts.subTabs.style.display = '';
