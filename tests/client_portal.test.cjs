@@ -58,3 +58,15 @@ test('invoice details and the accessible expanded state open and close together'
   assert.equal(nodes['invoice-breakdown-test'].classes.has('hidden'), true);
   assert.equal(button.attributes['aria-expanded'], 'false');
 });
+
+test('opening the portal does not add an anchor that jumps past the welcome', () => {
+  const { context } = setup();
+  let replacements = 0;
+  context.location = { hash: '' };
+  context.history.replaceState = () => replacements++;
+  context.showPortalTab('quotes');
+  assert.equal(replacements, 0);
+  context.location.hash = '#contracts';
+  context.showPortalTab('contracts');
+  assert.equal(replacements, 1);
+});

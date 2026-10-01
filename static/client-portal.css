@@ -115,3 +115,27 @@
   .portal-nav-strip { margin-inline: -3px; }
   .portal-client input, .portal-client select, .portal-client textarea { font-size: 16px; }
 }
+.portal-inclusions > summary { display: none; }
+@media (max-width: 760px) {
+  .portal-header { position: sticky; top: 0; z-index: 20; padding: calc(10px + env(safe-area-inset-top)) 16px 10px; gap: 12px; }
+  .portal-shell { padding: 16px 14px calc(24px + env(safe-area-inset-bottom)); }
+  .portal-hero { padding: 18px 16px; }
+  .portal-hero-top { gap: 14px; }
+  .portal-hero-greeting { margin: 6px 0; font-size: 27px; }
+  .portal-hero-sub { font-size: 12px; }
+  .portal-countdown { padding: 10px 12px; gap: 10px; }
+  .portal-countdown-num { font-size: 25px; }
+  .portal-hero-meta { margin-top: 14px; padding-top: 14px; gap: 8px; }
+  .portal-hero-meta-item { font-size: 12px; }
+  .portal-journey { margin-top: 18px; }
+  .portal-next-step { padding: 16px; margin-top: 14px; gap: 12px; }
+  .portal-content { margin-top: 20px; gap: 16px; }
+  .portal-nav-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; gap: 5px; margin-inline: 0; }
+  .portal-nav-pill { justify-content: space-between; padding: 8px 10px; background: #fff; border: 1px solid var(--portal-line); }
+  .portal-nav-pill.active { border-color: #B5C8D7; }
+  .portal-inclusions > summary { display: list-item; min-height: 44px; padding: 12px 0; font-size: 12px; color: var(--portal-primary); cursor: pointer; }
+  .portal-inclusions > div { padding-bottom: 8px; }
+  .portal-section-head { margin-bottom: 14px; }
+  .portal-action-group { margin-top: 10px; padding-top: 12px; }
+  #portal-tabs, .portal-panel { scroll-margin-top: calc(90px + env(safe-area-inset-top)); }
+}

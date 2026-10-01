@@ -21,6 +21,8 @@
         <button class="sn-btn" type="button" onclick="openLeadEdit()">Editar datos</button>
       </div>
     </div>
+    <details class="mobile-event-details" data-mobile-fold open>
+      <summary>Detalles del evento <span>{{ lead.fecha_tentativa|fecha_legible or 'Por definir' }}</span></summary>
     <dl class="lead-event-facts">
       <div><dt>Fecha del evento</dt><dd>{{ lead.fecha_tentativa|fecha_legible or 'Por definir' }}</dd></div>
       <div><dt>Lugar</dt><dd>{{ lead.locacion or 'Por definir' }}</dd></div>
@@ -34,6 +36,7 @@
       {% if client %}<a href="/portal/{{ client.id }}" target="_blank" rel="noopener">Portal del cliente ↗</a><a href="/clients/{{ client.id }}">Ficha del cliente</a>{% endif %}
       <button class="lead-text-button" type="button" onclick="openAddMenu()">Más acciones</button>
     </div>
+    </details>
   </header>
 
   {% set upcoming = namespace(step=none) %}

@@ -2313,35 +2313,13 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     margin: 0;
   }
 
-  /* --- Buscador colapsable ---
-     Kevin: "gastar 160px en filtros antes de mostrar siquiera un lead".
-     El input arranca cerrado y se abre con la lupa (ver toggleMobileSearch
-     mas abajo); asi el primer registro sube casi 60px. */
+  /* Shared toolbar defaults; mobile.css keeps search visible. */
   .sn-toolbar { gap: var(--m-gap-xs); margin-bottom: var(--m-gap); }
-  .m-search-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 38px;
-    min-width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    border: 1px solid var(--sn-line);
-    background: var(--sn-white);
-    color: var(--sn-muted);
-  }
-  .m-search-toggle svg { width: 17px; height: 17px; }
-  .sn-toolbar .sn-search { height: 38px; font-size: 15px; }
-  body:not(.m-search-open) .sn-toolbar .sn-search { display: none; }
-  /* La fila de filtros va en linea: "Activos ▼   Fecha ▼   (lupa)".
-     Los filtros y la lupa viven en dos contenedores hermanos
-     (.sn-toolbar-left / -right); con flex:1 y width:auto dejan de ocupar
-     una fila cada uno y se acomodan en el mismo renglon. */
   .sn-toolbar,
   .sn-toolbar-left,
   .sn-toolbar-right {
     display: flex;
-    flex-direction: row !important;
+    flex-direction: row;
     align-items: center;
     flex-wrap: nowrap;
     gap: var(--m-gap-xs);
@@ -2358,8 +2336,6 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     flex-wrap: wrap;
     justify-content: flex-end;
   }
-  body.m-search-open .sn-toolbar { flex-wrap: wrap; }
-  body.m-search-open .sn-toolbar .sn-search { flex: 1 1 100%; order: 3; }
   .sn-toolbar .sn-select {
     width: auto;
     flex: 1 1 auto;
@@ -3321,10 +3297,11 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     </a>
   </nav>
 
+  <a class="mobile-brand" href="/dashboard" aria-label="Flow CRM · Inicio">Flow <span>CRM</span></a>
   <div class="header-search-wrap">
     <div class="header-search">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" stroke-width="1.8"/><path stroke-linecap="round" stroke-width="1.8" d="M21 21l-4.3-4.3"/></svg>
-      <input type="text" id="global-search-input" placeholder="Buscar clientes, jobs, leads..." autocomplete="off" oninput="handleGlobalSearch(event)" onfocus="handleGlobalSearchFocus()">
+      <input type="text" id="global-search-input" placeholder="Buscar en Flow..." autocomplete="off" oninput="handleGlobalSearch(event)" onfocus="handleGlobalSearchFocus()">
       <div class="header-search-results" id="global-search-results"></div>
     </div>
   </div>
@@ -4097,8 +4074,16 @@ document.addEventListener('DOMContentLoaded', function() {
     var nav = el.getAttribute('data-nav') || el.getAttribute('href');
     if (nav && (path === nav || path.indexOf(nav + '/') === 0)) {
       el.classList.add('active');
+      el.setAttribute('aria-current', 'page');
     }
   });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (!document.querySelector('.bottom-nav a.active')) {
+    var more = document.querySelector('.bottom-nav button');
+    if (more) { more.classList.add('active'); more.setAttribute('aria-current', 'page'); }
+  }
 });
 
 document.addEventListener('click', closeActionMenu);
@@ -4111,54 +4096,9 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-// ============================================================
-// Buscador colapsable en mobile
-// Kevin: en Clientes/Leads/Trabajos el buscador siempre abierto empujaba el
-// primer registro ~60px hacia abajo. Se inyecta una lupa al lado de los
-// filtros y el input solo aparece al tocarla. El boton se agrega por JS a
-// proposito para no repetir el mismo markup en las 4 plantillas de listado.
-// ============================================================
-(function setupMobileSearch() {
-  function isMobile() { return window.matchMedia('(max-width: 760px)').matches; }
-
-  function build() {
-    var input = document.querySelector('.sn-toolbar .sn-search');
-    if (!input || document.querySelector('.m-search-toggle')) { return; }
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'm-search-toggle';
-    btn.setAttribute('aria-label', 'Buscar');
-    btn.setAttribute('aria-expanded', 'false');
-    btn.innerHTML = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24">'
-      + '<circle cx="11" cy="11" r="7" stroke-width="1.9"/>'
-      + '<path stroke-linecap="round" stroke-width="1.9" d="M21 21l-4.3-4.3"/></svg>';
-    btn.addEventListener('click', function() {
-      var open = document.body.classList.toggle('m-search-open');
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) {
-        input.focus();
-      } else if (input.value) {
-        // Al cerrar se limpia el filtro: dejarlo activo pero invisible
-        // haria que la lista se viera "vacia" sin explicacion.
-        input.value = '';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
-    input.parentNode.insertBefore(btn, input);
-  }
-
-  function sync() {
-    if (isMobile()) {
-      build();
-    } else {
-      document.body.classList.remove('m-search-open');
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', sync);
-  window.addEventListener('resize', sync);
-})();
 </script>
 
+<link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}">
+<script src="{{ url_for('static', filename='mobile.js') }}" defer></script>
 </body>
 </html>

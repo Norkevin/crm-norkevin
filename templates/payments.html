@@ -168,7 +168,7 @@
             {% elif p.original_amount and p.amount is not none and p.amount|float < p.original_amount|float %}
               <span class="sn-chip yellow">Parcial</span>
             {% elif p.days_until %}
-              <span class="sn-chip blue">Expected</span>
+              <span class="sn-chip blue">Pendiente</span>
             {% else %}
               <span class="sn-chip gray">Pendientes</span>
             {% endif %}
