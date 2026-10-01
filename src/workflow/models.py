@@ -217,6 +217,7 @@ class WorkflowInstance:
     # -basado en si el subject_id aparece en los jobs/leads ya filtrados
     # por tenant- solo para estas instancias legacy).
     tenant_id: Optional[str] = None
+    auto_prepare: bool = False
 
     def progress(self) -> Dict[str, Any]:
         total = len(self.step_states)
@@ -239,4 +240,5 @@ class WorkflowInstance:
             'notes': self.notes,
             'progress': self.progress(),
             'tenant_id': self.tenant_id,
+            'auto_prepare': self.auto_prepare,
         }

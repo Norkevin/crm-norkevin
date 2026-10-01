@@ -60,6 +60,11 @@
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
         </button>
       </div>
+      <p class="sn-muted" style="font-size:12px;margin-bottom:12px;">Configuración enlazada:
+        <a href="/workflow-editor?id=lead_workflow_v1">Seguimiento del lead</a> ·
+        <a href="/workflow-editor?id=production_workflow_v1">Producción</a> ·
+        <a href="/settings/email-templates">Email Templates</a>
+      </p>
       <div class="sn-progress-wrap" style="margin-bottom:16px;">
         <div class="sn-progress"><div class="sn-progress-fill" style="width: {{ job.workflow_progress or 0 }}%;"></div></div>
         <span class="sn-progress-pct">{{ job.workflow_progress or 0 }}%</span>
@@ -70,7 +75,7 @@
         <div class="workflow-rail lead">LEAD</div>
         <div class="workflow-steps">
           {% for step in lead_steps %}
-          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }}">
+          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }} {{ 'skipped' if step.status == 'skipped' else '' }}">
             <div class="workflow-check {{ 'done' if step.status == 'done' else '' }}">
               {% if step.status == 'done' %}
               <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
@@ -78,9 +83,12 @@
             </div>
             <div class="sn-ellipsis">
               <div class="workflow-step-name">{{ step.name }}</div>
+              {% if step.action_type in ['send_email', 'send_contract', 'send_questionnaire', 'send_gallery'] %}
+              <a class="sn-chip gray" href="/settings/email-templates">{{ step.email_template_name or 'Vincula un Email Template' }}</a>
+              {% endif %}
               {% if step.status == "queued" %}<a class="sn-chip gray" href="/emails">Pendiente de aprobación</a>{% elif step.status == "failed" %}<a class="sn-chip gray" href="/emails">{{ step.result or "Revisar correo" }}</a>{% endif %}
-              <span class="sn-chip pink">Auto send email</span>
-              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:10] }}</span>{% endif %}
+              {% if step.status == 'skipped' %}<span class="sn-chip gray">Omitido al aceptar</span>{% else %}<span class="sn-chip pink">Preparar email</span>{% endif %}
+              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
             </div>
             <div class="workflow-step-tools">
               <button class="sn-menu-dots" type="button" onclick="flashToast('Este paso pertenece al lead original', 'success')">
@@ -118,16 +126,19 @@
             </button>
             <div class="sn-ellipsis">
               <div class="workflow-step-name">{{ step.name }}</div>
+              {% if step.action_type in ['send_email', 'send_contract', 'send_questionnaire', 'send_gallery'] %}
+              <a class="sn-chip gray" href="/settings/email-templates">{{ step.email_template_name or 'Vincula un Email Template' }}</a>
+              {% endif %}
               {% if step.status == "queued" %}<a class="sn-chip gray" href="/emails">Pendiente de aprobación</a>{% elif step.status == "failed" %}<a class="sn-chip gray" href="/emails">{{ step.result or "Revisar correo" }}</a>{% endif %}
               {% if step.status == 'skipped' %}
               <span class="sn-chip gray">Omitido</span>
               {% else %}
               {% set action_label = {
-                'send_email': 'Auto send email',
-                'send_contract': 'Auto send contract',
-                'send_questionnaire': 'Auto send questionnaire',
+                'send_email': 'Preparar email',
+                'send_contract': 'Preparar contrato',
+                'send_questionnaire': 'Preparar cuestionario',
                 'send_invoice': 'Auto send invoice',
-                'send_gallery': 'Auto send gallery',
+                'send_gallery': 'Preparar galería',
                 'send_whatsapp': 'Auto send WhatsApp',
                 'create_task': 'Task',
                 'change_status': 'Change status',
@@ -135,12 +146,12 @@
                 'link_job': 'Create job',
                 'archive': 'Archive',
                 'noop': 'Task'
-              }.get(step.action_type, 'Auto send email') %}
+              }.get(step.action_type, 'Preparar email') %}
               <span class="sn-chip yellow">{{ action_label }}</span>
               {% if step.email_template_id %}
               <span class="sn-chip gray">Template: {{ email_template_names.get(step.email_template_id, step.email_template_id) }}</span>
               {% endif %}
-              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:10] }}</span>{% endif %}
+              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
               {% endif %}
             </div>
             <div class="workflow-step-tools">
@@ -207,22 +218,25 @@
             </button>
             <div class="sn-ellipsis">
               <div class="workflow-step-name">{{ step.name }}</div>
+              {% if step.action_type in ['send_email', 'send_contract', 'send_questionnaire', 'send_gallery'] %}
+              <a class="sn-chip gray" href="/settings/email-templates">{{ step.email_template_name or 'Vincula un Email Template' }}</a>
+              {% endif %}
               {% if step.status == "queued" %}<a class="sn-chip gray" href="/emails">Pendiente de aprobación</a>{% elif step.status == "failed" %}<a class="sn-chip gray" href="/emails">{{ step.result or "Revisar correo" }}</a>{% endif %}
               {% if step.status == 'skipped' %}
               <span class="sn-chip gray">Omitido</span>
               {% else %}
               {% set action_label = {
-                'send_email': 'Auto send email',
-                'send_gallery': 'Auto send gallery',
+                'send_email': 'Preparar email',
+                'send_gallery': 'Preparar galería',
                 'create_task': 'Task',
                 'change_status': 'Change status',
                 'noop': 'Task'
-              }.get(step.action_type, 'Auto send email') %}
+              }.get(step.action_type, 'Preparar email') %}
               <span class="sn-chip cyan">{{ action_label }}</span>
               {% if step.email_template_id %}
               <span class="sn-chip gray">Template: {{ email_template_names.get(step.email_template_id, step.email_template_id) }}</span>
               {% endif %}
-              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:10] }}</span>{% endif %}
+              {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
               {% endif %}
             </div>
             <button class="sn-menu-dots" type="button" onclick='openStepActions(event, {{ step.id|tojson }}, {{ step.name|tojson }}, {{ step.status|tojson }})' title="Mas opciones">
@@ -1190,19 +1204,6 @@ function findTemplate(id) {
   return EMAIL_TEMPLATES.find(function(tpl) { return tpl.id === id; });
 }
 
-function templateForStep(stepName) {
-  var text = String(stepName || '').toLowerCase();
-  if (text.includes('cuestion')) return 'tpl-cuestionario-prod';
-  if (text.includes('firma') || text.includes('contract') || text.includes('contrato')) return 'tpl-contrato-prod';
-  if (text.includes('reserva')) return 'tpl-reserva-prod';
-  if (text.includes('google') || text.includes('review') || text.includes('comment')) return 'tpl-review';
-  if (text.includes('galeria') || text.includes('gallery')) return 'tpl-galeria';
-  if (text.includes('paquete')) return 'tpl-paquetes';
-  if (text.includes('levanta')) return 'tpl-levanta-muertos';
-  if (text.includes('seguimiento')) return 'tpl-seguimiento';
-  return '';
-}
-
 function applyEmailTemplate(templateId) {
   var tpl = findTemplate(templateId);
   if (!tpl) return;
@@ -1233,25 +1234,22 @@ function stepConfig(stepId, fallbackName) {
     id: stepId,
     name: cfg.name || fallbackName || stepId,
     actionType: String(cfg.actionType || '').toLowerCase(),
-    templateId: cfg.templateId || templateForStep(cfg.name || fallbackName || stepId)
+    templateId: cfg.templateId || ''
   };
 }
 
 function triggerJobStep(stepId, stepName) {
   var step = stepConfig(stepId, stepName);
-  var lower = String(step.name || '').toLowerCase();
   var action = step.actionType;
-  if (action === 'send_questionnaire' || lower.includes('cuestion')) {
+  if (action === 'send_questionnaire') {
     openQuestionnaireModal('Cuestionario de Bodas Generico', stepId);
     return;
   }
-  if (action === 'send_contract' || lower.includes('firma') || lower.includes('contract') || lower.includes('contrato')) {
+  if (action === 'send_contract') {
     createContractForStep(stepId);
     return;
   }
-  if (action === 'send_email' || action === 'send_gallery' || step.templateId ||
-      lower.includes('reserva') || lower.includes('google') || lower.includes('galeria') ||
-      lower.includes('seguimiento') || lower.includes('levanta')) {
+  if (action === 'send_email' || action === 'send_gallery') {
     openEmailModal({ stepId: stepId, templateId: step.templateId });
     return;
   }

@@ -43,6 +43,7 @@ def pytest_configure(config):
             if os.path.isfile(src) and name.endswith('.json'):
                 shutil.copy2(src, os.path.join(tmp_dir, name))
 
+    os.environ['ENABLE_WORKFLOW_QUEUE'] = '0'
     os.environ['CRM_DATA_DIR'] = tmp_dir
     os.environ['RECURRENTE_SECRET_KEY'] = ''
     os.environ['RECURRENTE_SECRET_KEY_TEST'] = ''

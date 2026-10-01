@@ -28,13 +28,13 @@
   <div class="lead-grid">
     <aside>
       <div class="workflow-title">
-        <span>Workflow</span>
+        <a href="/workflow-editor?id=lead_workflow_v1">Workflow · Editar plantilla</a>
         <button class="sn-btn-icon" type="button" title="Create quote" onclick="createMultiOptionQuote()">+</button>
       </div>
       <div class="workflow-list">
         <div class="workflow-rail lead">LEAD</div>
         <div class="workflow-steps">
-          {% for step in workflow_steps[:4] %}
+          {% for step in lead_steps %}
           <div class="workflow-step {% if step.status == 'done' %}done{% endif %} {% if step.locked %}locked{% endif %}">
             <button class="workflow-check {% if step.status == 'done' %}done{% endif %}" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="Run step">
               {% if step.status == 'done' %}
@@ -43,9 +43,11 @@
             </button>
             <div style="min-width:0;">
               <div class="workflow-step-name">{{ step.name }}</div>
+              {% if step.status == 'queued' %}<a href="/emails" class="sn-chip gray">Pendiente de aprobación</a>{% elif step.status == 'failed' %}<a href="/emails" class="sn-chip gray">Revisar correo</a>{% endif %}
+              {% if step.email_template_id %}<a href="/settings/email-templates" class="workflow-step-desc">{{ step.email_template_name or 'Vincula un Email Template' }}</a>{% endif %}
               <div>
-                {% if step.email_template_id %}<span class="workflow-step-desc">Auto send email</span>{% endif %}
-                {% if step.scheduled %}<span class="sn-chip pink">{{ step.scheduled[:10] }}</span>{% endif %}
+                {% if step.email_template_id %}<span class="workflow-step-desc">Preparar email</span>{% endif %}
+                {% if step.scheduled %}<span class="sn-chip pink">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
               </div>
             </div>
             <button class="sn-menu-dots" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="{% if step.locked %}Primero completa Trabajo aceptado{% else %}Run now{% endif %}">
@@ -55,10 +57,10 @@
           {% endfor %}
         </div>
 
-        {% if workflow_steps|length > 4 %}
+        {% if prod_steps %}
         <div class="workflow-rail production">PRODUCTION</div>
         <div class="workflow-steps">
-          {% for step in workflow_steps[4:] %}
+          {% for step in prod_steps %}
           <div class="workflow-step {% if step.status == 'done' %}done{% endif %}">
             <button class="workflow-check {% if step.status == 'done' %}done{% endif %}" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="Run step">
               {% if step.status == 'done' %}
@@ -67,9 +69,11 @@
             </button>
             <div style="min-width:0;">
               <div class="workflow-step-name">{{ step.name }}</div>
+              {% if step.status == 'queued' %}<a href="/emails" class="sn-chip gray">Pendiente de aprobación</a>{% elif step.status == 'failed' %}<a href="/emails" class="sn-chip gray">Revisar correo</a>{% endif %}
+              {% if step.email_template_id %}<a href="/settings/email-templates" class="workflow-step-desc">{{ step.email_template_name or 'Vincula un Email Template' }}</a>{% endif %}
               <div>
-                {% if step.email_template_id %}<span class="workflow-step-desc">Auto send email</span>{% endif %}
-                {% if step.scheduled %}<span class="sn-chip yellow">{{ step.scheduled[:10] }}</span>{% endif %}
+                {% if step.email_template_id %}<span class="workflow-step-desc">Preparar email</span>{% endif %}
+                {% if step.scheduled %}<span class="sn-chip yellow">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
               </div>
             </div>
             <button class="sn-menu-dots" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="Run now">
@@ -603,7 +607,7 @@ const LEAD_DATE = {{ (lead.fecha_tentativa or '')|tojson }};
 const LEAD_LOCATION = {{ (lead.locacion or '')|tojson }};
 const COMPANY_NAME = {{ (current_tenant.name or 'CRM')|tojson }};
 const JOB_LINKED_ID = {{ (job_vinculado.id if job_vinculado else '')|tojson }};
-const LEAD_WORKFLOW_STEP_IDS = new Set(['envio_paquetes', 'seguimiento_cliente', 'levanta_muertos', 'seguimiento_final']);
+const LEAD_WORKFLOW_STEP_IDS = new Set({{ lead_steps|map(attribute='id')|list|tojson }});
 var EMAIL_TEMPLATES = {{ email_templates|tojson }};
 var STEP_TEMPLATE_MAP = {
   {% for step in workflow_steps %}{{ step.id|tojson }}: {{ (step.email_template_id or '')|tojson }}{% if not loop.last %},{% endif %}

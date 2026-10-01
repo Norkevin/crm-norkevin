@@ -268,7 +268,12 @@ class MailTracker:
 
     # ---------------------------------------------------- cola de aprobacion
 
-    def queue_email(self, to_email, subject, body='', template_id=None,
+    def queue_email(self, *args, **kwargs):
+        # Serialize scheduler and manual requests around idempotency lookup + write.
+        with store.locked_tables('pending_emails', 'mail_log'):
+            return self._queue_email(*args, **kwargs)
+
+    def _queue_email(self, to_email, subject, body='', template_id=None,
                     lead_id=None, job_id=None, client_id=None, attachments=None,
                     tenant_id=None, source=None, idempotency_key=None):
         """Genera un correo y lo deja ESPERANDO aprobacion. No envia nada.

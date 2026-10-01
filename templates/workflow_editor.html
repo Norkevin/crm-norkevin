@@ -9,7 +9,7 @@
 <section class="sn-page-wide">
 <div class="sn-card" style="padding:16px;margin-bottom:16px;">
   <strong>Alcance de los cambios</strong>
-  <p>Esta plantilla es dinámica: las modificaciones se reflejan en los trabajos vinculados y en los nuevos trabajos. El historial de acciones se conserva. Los correos ya preparados conservan su contenido; las cuotas existentes no cambian.</p>
+  <p>Esta plantilla es de tu cuenta: las modificaciones se reflejan en los trabajos vinculados y en los nuevos trabajos. El historial de acciones se conserva. Los correos ya preparados conservan su contenido; las cuotas existentes no cambian.</p>
 </div>
 
 <div class="sn-page-head">
@@ -53,21 +53,10 @@
 
     <div class="wfe-divider"></div>
 
-    <h3 class="wfe-section-label">Aplicar a</h3>
-    <div>
-      <label class="wfe-radio">
-        <input type="radio" name="apply_to" value="all" checked>
-        <span>Todos los leads nuevos</span>
-      </label>
-      <label class="wfe-radio">
-        <input type="radio" name="apply_to" value="specific">
-        <span>Solo leads especificos</span>
-      </label>
-      <label class="wfe-radio">
-        <input type="radio" name="apply_to" value="none">
-        <span>Manual (no auto)</span>
-      </label>
-    </div>
+    <h3 class="wfe-section-label">Conexión con clientes</h3>
+    <p class="sn-muted">{{ 'Nuevos leads' if selected.id == 'lead_workflow_v1' else 'Al aceptar la cotización' if selected.id == 'production_workflow_v1' else 'Plantilla manual' }}. Cada paso usa el email y el plazo configurados aquí.</p>
+    <p class="sn-muted">Los nuevos workflows preparan correos cada minuto al vencer su plazo. Revisa y aprueba el envío en <a href="/emails">Emails</a>. Los workflows antiguos conservan su ejecución manual.</p>
+    <a href="/settings/email-templates" class="sn-btn-link">Administrar Email Templates</a>
 
     <div class="wfe-divider"></div>
 
@@ -229,15 +218,13 @@
 
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label">Trigger (cuando)</label>
-          <select id="step-trigger-input" name="trigger_type" class="form-input">
-            <option value="lead.created">Lead creado</option>
-            <option value="quote.sent">Cotizacion enviada</option>
-            <option value="quote.accepted">Quote aceptado (lead -&gt; job)</option>
-            <option value="contract.signed">Contrato firmado</option>
-            <option value="invoice.paid">Pago recibido</option>
-            <option value="boda">Dia de la boda</option>
-            <option value="wedding.passed">Boda ya paso</option>
+          <label for="step-trigger-input" class="form-label">Contar el plazo desde</label>
+          <select id="step-trigger-input" class="form-input">
+            <option value="manual">Manual</option>
+            <option value="lead_created">Creación del lead</option>
+            <option value="job_created">Aceptación / creación del trabajo</option>
+            <option value="before_boda">Antes de la boda</option>
+            <option value="after_boda">Después de la boda</option>
           </select>
         </div>
 
@@ -246,7 +233,7 @@
           <div style="display:flex;gap:8px;">
             <input id="step-delay-amount" type="number" min="0" value="0" class="form-input" style="width:84px;flex:none;">
             <select id="step-delay-unit" class="form-input">
-              <option value="min">minutos</option>
+              <option value="minutes">minutos</option>
               <option value="hours">horas</option>
               <option value="days" selected>dias</option>
               <option value="weeks">semanas</option>
@@ -516,7 +503,10 @@ function openStepEditor(step) {
   document.getElementById('step-template-input').value = step ? step.email_template_id || '' : '';
   const dueDate = step ? (step.due_date || {}) : {};
   document.getElementById('step-delay-amount').value = dueDate.amount || 0;
-  document.getElementById('step-delay-unit').value = dueDate.unit || 'days';
+  document.getElementById('step-delay-unit').value = dueDate.unit === 'min' ? 'minutes' : (dueDate.unit || 'days');
+  document.getElementById('step-trigger-input').value = step
+    ? (dueDate.mode === 'manual' ? 'manual' : dueDate.relative_to || 'lead_created')
+    : (workflowData.id === 'production_workflow_v1' ? 'job_created' : 'lead_created');
   document.getElementById('step-editor-modal').classList.add('open');
 }
 
@@ -530,30 +520,18 @@ document.getElementById('step-form').addEventListener('submit', function(e) {
   const formData = new FormData(e.target);
   const data = Object.fromEntries(formData.entries());
 
-  // Convertir delay a minutos
-  const amount = parseInt(data.step_delay_amount || document.getElementById('step-delay-amount').value);
+  const amount = Number(document.getElementById('step-delay-amount').value);
   const unit = document.getElementById('step-delay-unit').value;
-  const minutes = amount * {
-    'min': 1,
-    'hours': 60,
-    'days': 60 * 24,
-    'weeks': 60 * 24 * 7,
-    'months': 60 * 24 * 30,
-  }[unit];
-
+  const relativeTo = document.getElementById('step-trigger-input').value;
+  const mode = relativeTo === 'manual' ? 'manual' : ['before_boda', 'after_boda'].includes(relativeTo) ? 'after_event' : 'after_creation';
   const stepId = data.step_id || 'step_' + Date.now();
-  // due_date debe tener esta forma exacta (Step.to_dict() en el backend),
-  // si no el server ignora el template_id y el delay al guardar.
-  const relativeTo = workflowData.id === 'production_workflow_v1' ? 'job_created' : 'lead_created';
   const step = {
     id: stepId,
     name: data.name,
     description: data.description,
     action_type: data.action_type,
     email_template_id: data.template || null,
-    due_date: amount > 0
-      ? { mode: 'after_creation', amount: amount, unit: unit, relative_to: relativeTo }
-      : { mode: 'manual', amount: 0, unit: 'days', relative_to: relativeTo },
+    due_date: { mode, amount, unit, relative_to: relativeTo === 'manual' ? 'lead_created' : relativeTo },
   };
 
   // Actualizar o agregar
