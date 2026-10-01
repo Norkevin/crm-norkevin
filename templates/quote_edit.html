@@ -88,8 +88,9 @@
   .extras-table-row input { border: 1px solid var(--doc-line); border-radius: 8px; padding: 9px 11px; font-size: 13px; font-family: inherit; width: 100%; }
   .extras-remove-btn { border: none; background: none; color: #B4232A; font-size: 16px; cursor: pointer; line-height: 1; }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='client-experience.css') }}">
 </head>
-<body>
+<body class="quote-editor">
 
 <div class="doc-wrap">
   <div class="doc-card">
@@ -142,9 +143,14 @@
         {% if saved_packages %}
         <label for="quick-package-search">Buscar paquete o servicio</label>
         <input id="quick-package-search" type="search" placeholder="Fotografía, video, Mix, Signature…" oninput="filterQuickPackages(this.value)" style="display:block;width:100%;padding:12px;margin-top:8px;border:1px solid var(--doc-line);border-radius:10px;font:inherit;">
+        <div class="package-sections" role="group" aria-label="Categorías del catálogo">
+          {% for section in ['Mix', 'Foto', 'Video', 'Extras'] %}
+          <button type="button" data-quick-section="{{ section }}" aria-pressed="false" onclick="selectQuickSection(this.dataset.quickSection)">{{ section }}</button>
+          {% endfor %}
+        </div>
         <div class="quick-packages">
           {% for pkg in saved_packages %}
-          <button class="quick-package" type="button" data-package-id="{{ pkg.id }}" onclick="addSavedPackage(this.dataset.packageId)" {% if options|length >= 3 or pkg.name in options|map(attribute='name')|list %}disabled{% endif %}>
+          <button class="quick-package" type="button" data-package-section-name="{{ pkg|package_section }}" data-package-id="{{ pkg.id }}" onclick="addSavedPackage(this.dataset.packageId)" {% if options|length >= 3 or pkg.name in options|map(attribute='name')|list %}disabled{% endif %}>
             <strong>{{ pkg.name }}</strong>
             <span>Q{{ '{:,.2f}'.format(pkg.price or 0) }} · {{ pkg.category }}</span>
             <small>{{ pkg.description }}</small>
@@ -170,6 +176,7 @@
                 <div class="opt-price">
                   {% if opt.precio_anterior and opt.precio_anterior|float > (opt.precio_total or 0)|float %}<span class="opt-price-old">Q{{ '{:,.0f}'.format(opt.precio_anterior|float) }}</span>{% endif %}
                   Q{{ '{:,.2f}'.format(opt.precio_total or 0) }}
+                  {% if opt.precio_base is defined and opt.precio_base is not none and opt.descuento %}<div class="doc-hint">Descuento aplicado: Q{{ '{:,.2f}'.format(opt.descuento) }}</div>{% endif %}
                 </div>
                 {% if opt.groups %}
                 <div class="opt-includes">{% for g in opt.groups %}{% if g.title %}{{ g.title }}: {% endif %}{{ g['items']|join(', ') }}{% if not loop.last %}<br>{% endif %}{% endfor %}</div>
@@ -189,12 +196,21 @@
         <div id="option-form" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--doc-line);">
           <input type="hidden" id="opt-id-input">
           <div class="opt-field">
-            <label>Usar un paquete guardado</label>
+            <label for="opt-package-picker">Usar un paquete guardado</label>
+            <div class="package-sections" role="group" aria-label="Tipo de paquete">
+              {% for section in ['Mix', 'Foto', 'Video', 'Extras'] %}
+              <button type="button" data-package-section="{{ section }}" aria-pressed="false" aria-controls="opt-package-picker" onclick="filterPackageSection(this.dataset.packageSection)">{{ section }}</button>
+              {% endfor %}
+            </div>
             <select id="opt-package-picker" onchange="fillFromSavedPackage(this.value)"
-                    style="width:100%;border:1px solid var(--doc-line);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit;color:var(--doc-ink);background:#fff;">
+                    style="width:100%;border:1px solid var(--doc-line);border-radius:10px;padding:11px 13px;font-size:16px;font-family:inherit;color:var(--doc-ink);background:#fff;">
               <option value="">Escribir desde cero...</option>
-              {% for pkg in saved_packages %}
+              {% for section in ['Mix', 'Foto', 'Video', 'Extras'] %}
+              <optgroup label="{{ section }}">
+              {% for pkg in saved_packages if pkg|package_section == section %}
               <option value="{{ pkg.id }}">{{ pkg.name }} &middot; Q{{ '{:,.0f}'.format(pkg.price or 0) }}</option>
+              {% endfor %}
+              </optgroup>
               {% endfor %}
             </select>
             <p class="doc-hint" style="text-align:left;margin-top:5px;">
@@ -208,8 +224,8 @@
               <input id="opt-name-input" placeholder="Ej: Paquete Gold">
             </div>
             <div class="opt-field">
-              <label>Precio total (Q) *</label>
-              <input id="opt-price-input" type="number" min="0" step="0.01">
+              <label for="opt-price-input">Precio sin descuento (Q) *</label>
+              <input id="opt-price-input" oninput="previewDiscount()" type="number" min="0" step="0.01">
             </div>
           </div>
           <div class="opt-field">
@@ -226,16 +242,11 @@
               <input id="opt-hours-input" type="number" min="0" step="0.5">
             </div>
           </div>
-          <div class="opt-form-row">
-            <div class="opt-field">
-              <label>Precio anterior (opcional, para mostrar tachado)</label>
-              <input id="opt-old-price-input" type="number" min="0" step="0.01">
-            </div>
-            <div class="opt-field">
-              <label>Descuento (opcional, referencia interna)</label>
-              <input id="opt-discount-input" type="number" min="0" step="0.01">
-            </div>
+          <div class="opt-field">
+            <label for="opt-discount-input">Descuento (Q)</label>
+            <input id="opt-discount-input" oninput="previewDiscount()" aria-describedby="discount-preview" type="number" min="0" step="0.01" placeholder="0.00">
           </div>
+          <p id="discount-preview" class="discount-preview" role="status" aria-live="polite"></p>
           <div class="opt-field">
             <label>Descripcion breve (opcional)</label>
             <textarea id="opt-description-input" style="min-height:50px;" placeholder="Una o dos frases sobre este paquete"></textarea>
@@ -311,6 +322,15 @@
 
       <div class="doc-section">
         <div class="doc-eyebrow">Agregados opcionales (el cliente los suma a su paquete)</div>
+        <div class="opt-field">
+          <label for="extra-package-picker">Agregar desde Extras</label>
+          <select id="extra-package-picker" onchange="addSavedExtra(this.value); this.value = '';">
+            <option value="">Selecciona un extra guardado…</option>
+            {% for pkg in saved_packages if pkg|package_section == 'Extras' %}
+            <option value="{{ pkg.id }}">{{ pkg.name }} · Q{{ '{:,.0f}'.format(pkg.price or 0) }}</option>
+            {% endfor %}
+          </select>
+        </div>
         <div id="extras-list"></div>
         <button type="button" class="add-group-btn" onclick="addExtraRow()">+ Agregar extra</button>
         <div style="margin-top:10px;">
@@ -335,7 +355,7 @@
           {% endfor %}
         </div>
         <div class="doc-eyebrow" style="margin-top:18px;">Condiciones a incluir</div>
-        <select id="terms-picker" style="width:100%;border:1px solid var(--doc-line);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit;color:var(--doc-ink);background:#fff;">
+        <select id="terms-picker" style="width:100%;border:1px solid var(--doc-line);border-radius:10px;padding:11px 13px;font-size:16px;font-family:inherit;color:var(--doc-ink);background:#fff;">
           <option value="">Sin condiciones especiales</option>
           {% for t in terms_templates %}
           <option value="{{ t.id }}" {% if t.id == selected_terms_template_id %}selected{% endif %}>{{ t.title }}</option>
@@ -392,15 +412,24 @@ var QUOTE_ID = {{ quote.id|tojson }};
 var SAVED_PACKAGES = {{ saved_packages|tojson }};
 var CURRENT_OPTIONS = {{ options|tojson }};
 var savingOption = false;
+var quickSection = 'Mix';
+function selectQuickSection(section) {
+  quickSection = section;
+  document.querySelectorAll('[data-quick-section]').forEach(function(button) {
+    button.setAttribute('aria-pressed', String(button.dataset.quickSection === section));
+  });
+  filterQuickPackages(document.getElementById('quick-package-search').value);
+}
 function filterQuickPackages(value) {
   var query = value.trim().toLocaleLowerCase();
   var visible = 0;
   document.querySelectorAll('.quick-package').forEach(function(button) {
-    button.hidden = !button.textContent.toLocaleLowerCase().includes(query);
+    button.hidden = button.dataset.packageSectionName !== quickSection || !button.textContent.toLocaleLowerCase().includes(query);
     if (!button.hidden) visible++;
   });
   document.getElementById('quick-package-status').textContent = visible ? 'Selecciona un paquete para agregarlo al borrador.' : 'No hay paquetes que coincidan.';
 }
+if (document.getElementById('quick-package-search')) selectQuickSection('Mix');
 function addSavedPackage(id) {
   if (savingOption || CURRENT_OPTIONS.length >= 3) return;
   openOptionForm();
@@ -408,6 +437,17 @@ function addSavedPackage(id) {
   saveOption();
 }
 
+var PACKAGE_GROUPS = Array.from(document.querySelectorAll('#opt-package-picker optgroup')).map(function(group) { return group.cloneNode(true); });
+function filterPackageSection(section) {
+  var picker = document.getElementById('opt-package-picker');
+  picker.replaceChildren(new Option('Escribir desde cero...', ''));
+  var group = PACKAGE_GROUPS.find(function(item) { return item.label === section; });
+  if (group) picker.appendChild(group.cloneNode(true));
+  document.querySelectorAll('[data-package-section]').forEach(function(button) {
+    button.setAttribute('aria-pressed', String(button.dataset.packageSection === section));
+  });
+}
+filterPackageSection((PACKAGE_GROUPS.find(function(group) { return group.children.length; }) || {}).label || 'Mix');
 
 function fillFromSavedPackage(pkgId) {
   var pkg = SAVED_PACKAGES.find(function(p) { return p.id === pkgId; });
@@ -416,22 +456,25 @@ function fillFromSavedPackage(pkgId) {
   document.getElementById('opt-price-input').value = pkg.price || '';
   document.getElementById('opt-description-input').value = pkg.description || '';
   document.getElementById('opt-hours-input').value = pkg.duration_hours || '';
-  svcCargar(null);
-  document.getElementById('opt-groups-list').innerHTML = '';
+  document.getElementById('opt-discount-input').value = '';
+  previewDiscount();
   var includes = pkg.includes || pkg.incluye || [];
   if (typeof includes === 'string') includes = includes.split('\n');
   document.getElementById('opt-includes-input').value = includes.join('\n');
+  svcCargar(pkg);
+  document.getElementById('opt-groups-list').replaceChildren();
+  (pkg.groups || []).forEach(function(group) { addGroupRow(group.title, (group.items || []).join('\n')); });
 }
 
 function openOptionForm(opt) {
   document.getElementById('opt-id-input').value = opt ? opt.id : '';
   document.getElementById('opt-name-input').value = opt ? opt.name : '';
-  document.getElementById('opt-price-input').value = opt ? opt.precio_total : '';
+  var legacyReduction = opt && opt.precio_base == null && Number(opt.precio_anterior) > Number(opt.precio_total);
+  document.getElementById('opt-price-input').value = opt ? (opt.precio_base != null ? opt.precio_base : (legacyReduction ? opt.precio_anterior : opt.precio_total)) : '';
   document.getElementById('opt-subtitle-input').value = opt && opt.subtitle ? opt.subtitle : '';
   document.getElementById('opt-label-input').value = opt && opt.label ? opt.label : '';
   document.getElementById('opt-hours-input').value = opt && opt.horas != null ? opt.horas : '';
-  document.getElementById('opt-old-price-input').value = opt && opt.precio_anterior != null ? opt.precio_anterior : '';
-  document.getElementById('opt-discount-input').value = opt && opt.descuento != null ? opt.descuento : '';
+  document.getElementById('opt-discount-input').value = legacyReduction ? Math.round((opt.precio_anterior - opt.precio_total) * 100) / 100 : (opt && opt.descuento != null ? opt.descuento : '');
   document.getElementById('opt-description-input').value = opt && opt.description ? opt.description : '';
   document.getElementById('opt-includes-input').value = opt && opt.incluye ? opt.incluye.join('\n') : '';
   svcCargar(opt);
@@ -441,6 +484,7 @@ function openOptionForm(opt) {
   }
   document.getElementById('opt-package-picker').value = '';
   document.getElementById('option-form').style.display = 'block';
+  previewDiscount();
   document.getElementById('opt-name-input').focus();
 }
 function closeOptionForm() {
@@ -581,11 +625,23 @@ function collectGroups() {
   }).filter(function(g) { return g.title || g.items.length; });
 }
 
+function previewDiscount() {
+  var price = Number(document.getElementById('opt-price-input').value);
+  var discount = Number(document.getElementById('opt-discount-input').value);
+  var valid = Number.isFinite(price) && Number.isFinite(discount) && price > 0 && discount >= 0 && discount < price;
+  document.getElementById('discount-preview').textContent = valid
+    ? 'Total para el cliente: Q' + (Math.round((price - discount) * 100) / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})
+    : 'Ingresa un precio mayor a cero y un descuento menor al precio.';
+  document.getElementById('opt-discount-input').setCustomValidity(valid ? '' : 'Revisa el precio y el descuento.');
+  return valid;
+}
+
 function saveOption() {
   if (savingOption) return;
   var name = document.getElementById('opt-name-input').value.trim();
   var price = document.getElementById('opt-price-input').value;
   if (!name || !price) { alert('Nombre y precio son requeridos'); return; }
+  if (!previewDiscount()) { document.getElementById('opt-discount-input').reportValidity(); return; }
   savingOption = true;
   fetch('/api/quotes/' + QUOTE_ID + '/options', {
     method: 'POST',
@@ -593,11 +649,10 @@ function saveOption() {
     body: JSON.stringify({
       id: document.getElementById('opt-id-input').value || undefined,
       name: name,
-      precio_total: price,
+      precio_base: price,
       subtitle: document.getElementById('opt-subtitle-input').value,
       label: document.getElementById('opt-label-input').value,
       horas: document.getElementById('opt-hours-input').value || null,
-      precio_anterior: document.getElementById('opt-old-price-input').value || null,
       descuento: document.getElementById('opt-discount-input').value || null,
       description: document.getElementById('opt-description-input').value,
       incluye: document.getElementById('opt-includes-input').value,
@@ -683,6 +738,11 @@ function submitSendQuote(event) {
 
 // ---------- Agregados opcionales (extras) ----------
 var EXTRAS_CATALOG = {{ extras_catalog|tojson }};
+
+function addSavedExtra(id) {
+  var pkg = SAVED_PACKAGES.find(function(item) { return item.id === id; });
+  if (pkg) addExtraRow(pkg);
+}
 
 function addExtraRow(extra) {
   var row = document.createElement('div');

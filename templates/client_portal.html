@@ -235,15 +235,16 @@
   }
 
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='client-experience.css') }}">
 </head>
-<body>
+<body class="portal-client">
 
 <div class="min-h-screen">
 
   <!-- Header -->
   <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-lg brand font-semibold flex items-center justify-center" style="background:#F0EDFF;">
+      <div class="w-10 h-10 rounded-lg brand font-semibold flex items-center justify-center" style="background:#0a0e1a;color:#fff;">
         {{ brand.initial }}
       </div>
       <div>
@@ -258,9 +259,10 @@
     <div class="portal-hero">
       <div class="portal-hero-top">
         <div>
-          <div class="portal-hero-greeting">Hola, {{ client.first_name }} &#10024;</div>
+          <div class="experience-eyebrow">Tu espacio personal</div>
+          <h1 class="portal-hero-greeting">Hola, {{ client.first_name }}.</h1>
           <div class="portal-hero-sub">
-            {% if primary_job %}Este es el estado de tu boda con {{ brand.display_name }}{% else %}Tu portal personalizado {{ brand.display_name }}{% endif %}
+            {% if primary_job %}Cada detalle de tu boda, en un solo lugar.{% else %}Tus propuestas, documentos y recuerdos, siempre a mano.{% endif %}
           </div>
         </div>
         {% if days_until_wedding is not none and days_until_wedding >= 0 %}
@@ -270,7 +272,7 @@
         </div>
         {% elif days_until_wedding is not none %}
         <div class="portal-countdown">
-          <div class="portal-countdown-num">&#128142;</div>
+          <div class="portal-countdown-num">✓</div>
           <div class="portal-countdown-label">Ya se celebro</div>
         </div>
         {% endif %}
@@ -323,10 +325,10 @@
     </div>
   </div>
 
-  <div class="portal-content max-w-5xl mx-auto px-6 pb-10 space-y-6">
+  <div class="portal-content{{ ' has-payments' if total_all > 0 else '' }} max-w-5xl mx-auto px-6 pb-10">
 
     <!-- Tabs / Secciones -->
-    <div class="portal-nav-strip" id="portal-tabs">
+    <nav class="portal-nav-strip" id="portal-tabs" aria-label="Documentos de tu boda">
       <a href="#quotes" class="portal-nav-pill" data-tab="quotes" style="--pill-accent:#7357F6;" onclick="return showPortalTab('quotes', event)">
         <div class="portal-nav-icon" style="background:#7357F6;">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M6 4h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
@@ -362,20 +364,20 @@
         <span class="label">Galeria</span>
         <span class="count">{{ files|length }}</span>
       </a>
-    </div>
+    </nav>
 
     <!-- Payment summary -->
     {% if total_all > 0 %}
     <div class="portal-payment-card">
       <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
         <div>
-          <div class="text-xs text-ink-soft">Progreso de pago</div>
+          <div class="text-xs text-ink-soft">Pagado hasta hoy</div>
           <div class="text-2xl font-semibold text-ink">Q{{ '{:,.0f}'.format(paid_all) }} <span class="text-sm font-normal text-ink-soft">de Q{{ '{:,.0f}'.format(total_all) }}</span></div>
         </div>
         {% if next_due %}
         <div class="text-right">
-          <div class="text-xs text-ink-soft">Proximo pago</div>
-          <div class="text-sm font-semibold text-ink">Q{{ '{:,.2f}'.format(next_due.balance if next_due.balance is not none else next_due.amount or 0) }} &middot; {{ next_due.due_date }}</div>
+          <div class="text-xs text-ink-soft">Próximo pago</div>
+          <div class="text-sm font-semibold text-ink">Q{{ '{:,.2f}'.format(next_due.balance if next_due.balance is not none else next_due.amount or 0) }} &middot; {{ next_due.due_date|fecha_es }}</div>
           {% if next_due.payment_link_url %}
           <a href="{{ next_due.payment_link_url }}" target="_blank" class="portal-action primary" style="margin-top:8px;">Pagar ahora</a>
           {% endif %}
@@ -405,7 +407,7 @@
           <div class="flex items-center justify-between mb-2 gap-3 flex-wrap">
             <div>
               <div class="font-medium text-ink">{{ q.paquete_nombre }}</div>
-              <div class="text-xs text-ink-soft">Cotizacion #{{ q.id }}</div>
+              <div class="text-xs text-ink-soft">Cotización {{ q.number or q.id }}</div>
             </div>
             <div class="text-right">
               <div class="text-lg font-semibold text-ink">Q{{ '{:,.0f}'.format(q.precio_total) }}</div>
@@ -423,7 +425,7 @@
             {% elif q.status in ['Enviada', 'Pendiente'] %}
             <span class="portal-badge b-blue">Pendiente</span>
             {% endif %}
-            <a href="/quotes/{{ q.id }}" target="_blank" class="portal-action">Ver</a>
+            <a href="/quotes/{{ q.id }}" target="_blank" class="portal-action">Ver propuesta <span aria-hidden="true">↗</span></a>
             {% if q.status in ['Enviada', 'Pendiente'] %}
             <form method="POST" action="/quotes/{{ q.id }}/accept" class="inline" style="flex:1 1 auto;">
               <button type="submit" class="portal-action primary" style="width:100%;">Aceptar Cotizacion</button>
@@ -659,7 +661,11 @@ function showPortalTab(tab, event) {
     var panel = document.getElementById(t);
     if (panel) panel.classList.toggle('active', t === tab);
     var pill = document.querySelector('.portal-nav-pill[data-tab="' + t + '"]');
-    if (pill) pill.classList.toggle('active', t === tab);
+    if (pill) {
+      pill.classList.toggle('active', t === tab);
+      if (t === tab) pill.setAttribute('aria-current', 'page');
+      else pill.removeAttribute('aria-current');
+    }
   });
   if (history.replaceState) history.replaceState(null, '', '#' + tab);
   return false;
