@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Editar cotización{% endblock %}
+{% block page_title %}Editar cotización{% endblock %}
+{% block content %}
+<section style="max-width:760px;margin:24px auto;">
+  <div class="sn-page-head">
+    <div><h1 class="sn-page-title">{{ quote.number or 'Cotización' }}</h1><p class="sn-muted">{{ quote.paquete_nombre or 'Paquete por definir' }} · {{ 'En la papelera' if quote.archived_at else quote.status }}</p></div>
+    <a class="sn-btn" href="{{ '/jobs/' ~ job.id if job else '/quotes' }}">Volver</a>
+  </div>
+  <div class="sn-card"><div class="sn-card-body">
+    <p style="font-size:24px;font-weight:600;">Q{{ '{:,.2f}'.format(quote.precio_total or 0) }}</p>
+    {% if blocker and not quote.archived_at %}<p role="status" class="sn-muted">{{ blocker }}</p>{% endif %}
+    {% if quote.archived_at %}
+      <p>Esta cotización está en la papelera. Sus cuotas pendientes y su historial se conservan, pero ya no cuentan como cobros activos.</p>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="changeQuote('restore')">Restaurar como borrador</button>
+    {% else %}
+      {% if quote.status == 'Aceptada' %}
+      <form id="payment-plan-form" style="max-width:360px;margin:24px 0;">
+        <label for="payment-plan">Número de pagos</label>
+        <select class="form-input" id="payment-plan" style="font-size:16px;margin:8px 0;" {% if blocker %}disabled{% endif %}>
+          {% for n in range(1,25) %}<option value="{{ n }}" {% if n == (quote.plan_pago or 1) %}selected{% endif %}>{{ n }} {{ 'pago' if n == 1 else 'pagos' }}</option>{% endfor %}
+        </select>
+        <p id="plan-preview" class="sn-muted" aria-live="polite"></p>
+        <p class="sn-muted">Conserva el total. El nuevo calendario comienza hoy y recalcula las fechas según la boda. El calendario anterior queda en el historial.</p>
+        <button class="sn-btn sn-btn-primary" type="submit" {% if blocker %}disabled{% endif %}>Guardar plan de pagos</button>
+      </form>
+      {% endif %}
+      <hr style="border:0;border-top:1px solid var(--sn-line);margin:24px 0;">
+      <h2 style="font-size:18px;">Contenido de la cotización</h2>
+      {% if quote.status == 'Borrador' %}
+      <a class="sn-btn" href="/quotes/{{ quote.id }}/edit">Editar contenido</a>
+      {% else %}
+      <p class="sn-muted">Para cambiar el paquete o el precio, vuelve a borrador. Se retiran las cuotas sin abonos y la nueva versión deberá aceptarse otra vez.</p>
+      <button class="sn-btn" type="button" onclick="changeQuote('reopen')" {% if blocker %}disabled{% endif %}>Editar contenido</button>
+      {% endif %}
+      <p style="margin-top:24px;" class="sn-muted">Si la creaste por error, puedes enviarla a la papelera y recuperarla después.</p>
+      <button class="sn-btn" style="color:#B4232A;" type="button" onclick="changeQuote('archive')" {% if blocker %}disabled{% endif %}>Eliminar cotización</button>
+    {% endif %}
+    <p id="quote-action-status" role="status" style="margin-top:16px;"></p>
+  </div></div>
+  {% if quote.revision_history %}
+  <details style="margin-top:24px;"><summary>Historial de cambios</summary><ul>
+    {% for item in quote.revision_history|reverse %}<li>{{ item.at[:16]|replace('T',' ') }} · {{ {'payment-plan':'Cambio de plan de pagos','archive':'Enviada a la papelera','restore':'Restaurada como borrador','reopen':'Reabierta para edición'}.get(item.action, item.action) }}{% if item.action == 'payment-plan' %} · plan anterior: {{ item.quote.plan_pago }} pagos{% endif %}</li>{% endfor %}
+  </ul></details>
+  {% endif %}
+</section>
+<script>
+const quoteId = {{ quote.id|tojson }};
+const quoteRevision = {{ (quote.revision_history or [])|length }};
+const quoteTotal = {{ (quote.precio_total or 0)|tojson }};
+const planSelect = document.getElementById('payment-plan');
+if (planSelect) {
+  function previewPlan() {
+    const n = Number(planSelect.value);
+    const amount = (Number(quoteTotal) / n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    document.getElementById('plan-preview').textContent = n + ' pagos de aproximadamente Q' + amount + '. La última cuota ajusta los centavos para conservar el total.';
+  }
+  planSelect.addEventListener('change', previewPlan);
+  previewPlan();
+  document.getElementById('payment-plan-form').addEventListener('submit', event => { event.preventDefault(); changeQuote('payment-plan'); });
+}
+let savingQuote = false;
+async function changeQuote(action) {
+  if (savingQuote) return;
+  const messages = {
+    archive: '¿Enviar esta cotización y sus cuotas pendientes a la papelera? Podrás recuperarla como borrador.',
+    reopen: '¿Volver a borrador y retirar las cuotas pendientes? La nueva versión deberá aceptarse otra vez.',
+  };
+  if (messages[action] && !confirm(messages[action])) return;
+  savingQuote = true;
+  const status = document.getElementById('quote-action-status');
+  status.textContent = 'Guardando…';
+  try {
+    const response = await fetch('/api/quotes/' + quoteId + '/manage', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action, revision:quoteRevision, plan_pago:planSelect ? Number(planSelect.value) : undefined}),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'No se pudo guardar el cambio.');
+    window.location.href = data.url;
+  } catch (error) { status.textContent = error.message; savingQuote = false; }
+}
+</script>
+{% endblock %}

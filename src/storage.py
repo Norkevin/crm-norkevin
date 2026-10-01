@@ -63,6 +63,7 @@ import os
 import shutil
 import threading
 import time
+from contextlib import contextmanager, ExitStack
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -365,8 +366,10 @@ class JsonStore:
             self._cache[table] = (mtime, records)
             return copy.deepcopy(records)
 
-    def list(self, table):
+    def list(self, table, *, include_archived=False):
         records = self._read_raw(table)
+        if table in ('quotes', 'payments') and not include_archived:
+            records = [r for r in records if not r.get('archived_at')]
         if table in TENANT_SCOPED_TABLES:
             aislar, tenant_id = self._tenant_scope()
             if aislar and not tenant_id:
@@ -376,6 +379,26 @@ class JsonStore:
             if tenant_id:
                 records = [r for r in records if r.get('tenant_id') == tenant_id]
         return records
+
+    @contextmanager
+    def locked_tables(self, *tables):
+        """Serialize a multi-table edit and restore its data on an exception.
+
+        Like the existing file locks, this covers threads in one process.
+        Render runs one sync worker; multiple writers require a database transaction.
+        This is rollback on errors, not crash-safe cross-file atomicity.
+        """
+        tables = sorted(set(tables))
+        with ExitStack() as stack:
+            for table in tables:
+                stack.enter_context(_lock_for_path(self._path(table)))
+            snapshots = {table: self._read_raw(table) for table in tables}
+            try:
+                yield
+            except Exception:
+                for table, records in snapshots.items():
+                    self._save(table, records)
+                raise
 
     def list_strict(self, table):
         """Como list(), pero revienta si falta el contexto de empresa.
@@ -501,10 +524,11 @@ class JsonStore:
         return {r.get('tenant_id') for r in self._read_raw(table)
                 if r.get(field) == value and r.get('tenant_id')}
 
-    def get(self, table, record_id):
+    def get(self, table, record_id, *, include_archived=False):
         # Ya filtrado por list() -- pedir el id de otra cuenta devuelve
         # None, como si el registro no existiera.
-        for record in self.list(table):
+        records = self.list(table, include_archived=True) if include_archived else self.list(table)
+        for record in records:
             if record.get('id') == record_id:
                 return record
         return None
