@@ -55,15 +55,7 @@ def test_before_boda_step_schedules_relative_to_wedding_not_job_creation(auth_cl
 
 
 def test_auto_fire_queues_due_questionnaire_step_and_waits_for_approval(auth_client):
-    """STAGE 2 (agosto 2026): el disparador automatico ya no entrega de
-    inmediato -- ahora pasa por queue_email() como cualquier otro correo de
-    produccion, asi que 'disparar' un step ya solo significa 'encolarlo
-    para revision humana en /emails', no 'mandarlo de verdad'. Por eso el
-    step NO se marca 'done' ni entra en `fired` todavia (ok=False dentro de
-    _auto_fire_due_job_steps porque mail_warning siempre esta presente para
-    un encolado fresco) -- se marcara done recien cuando alguien apruebe el
-    pendiente. Antes de STAGE 2 este mismo test esperaba entrega real
-    inmediata; el nombre se actualizo para reflejar la nueva garantia."""
+    """Only enrolled jobs prepare mail; document delivery still needs approval."""
     import app as app_module
     import uuid
 
@@ -87,11 +79,18 @@ def test_auto_fire_queues_due_questionnaire_step_and_waits_for_approval(auth_cli
         'tenant_id': 'tenant-norkevin',
     })
 
+    # New live jobs are enrolled explicitly; historical imports are not.
+    app_module.trigger_workflow_for_quote_accepted('', 'Fire', job_id, 'tenant-norkevin')
+    template_id = next(step.email_template_id for step in app_module.PRODUCTION_WORKFLOW('tenant-norkevin').steps
+                       if step.id == 'cuestionario_cliente')
+    app_module.store.upsert('email_templates', {'id': template_id, 'tenant_id': 'tenant-norkevin',
+        'name': 'Cuestionario test', 'asunto': 'Cuestionario', 'cuerpo': 'Tu cuestionario'})
+
     fired = app_module._auto_fire_due_job_steps()
 
-    # Todavia NO cuenta como disparado de verdad -- solo quedo encolado.
+    # The result counts prepared mail, not delivered mail.
     fired_step_ids = [step_id for (jid, step_id) in fired if jid == job_id]
-    assert 'cuestionario_cliente' not in fired_step_ids
+    assert 'cuestionario_cliente' in fired_step_ids
 
     # No debe haber creado un SEGUNDO cuestionario -- reutiliza el draft.
     questionnaires = [q for q in app_module.store.list('questionnaires') if q.get('job_id') == job_id]

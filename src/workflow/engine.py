@@ -37,11 +37,19 @@ class WorkflowEngine:
     def register_template(self, workflow: Workflow):
         self.templates[workflow.id] = workflow
 
-    def get_template(self, template_id: str) -> Optional[Workflow]:
+    def get_template(self, template_id: str, tenant_id=None) -> Optional[Workflow]:
+        if self.store:
+            from .templates import _saved_override
+            saved = _saved_override(template_id, tenant_id)
+            if saved:
+                return saved
         return self.templates.get(template_id)
 
     def list_templates(self) -> List[Workflow]:
-        return list(self.templates.values())
+        ids = dict.fromkeys(self.templates)
+        if self.store and self.store.current_tenant_id():
+            ids.update(dict.fromkeys(self.store.get_tenant_dict('workflow_templates')))
+        return [template for tid in ids if (template := self.get_template(tid))]
 
     def start_workflow(
         self,
@@ -53,6 +61,7 @@ class WorkflowEngine:
         trigger_at: Optional[datetime] = None,
         auto_execute_first: bool = False,
         tenant_id: Optional[str] = None,
+        auto_prepare: bool = False,
     ) -> WorkflowInstance:
         if trigger_at is None:
             trigger_at = datetime.now()
@@ -67,6 +76,7 @@ class WorkflowEngine:
             trigger_event=trigger_event,
             trigger_at=trigger_at,
             tenant_id=tenant_id,
+            auto_prepare=auto_prepare,
         )
 
         for step in workflow.steps:
@@ -127,7 +137,7 @@ class WorkflowEngine:
         for instance in self.instances.values():
             if instance.status != WorkflowStatus.ACTIVE:
                 continue
-            template = self.templates.get(instance.workflow_id)
+            template = self.get_template(instance.workflow_id, instance.tenant_id)
             if not template:
                 continue
 
@@ -142,7 +152,7 @@ class WorkflowEngine:
         return due
 
     def get_next_pending_step(self, instance):
-        template = self.templates.get(instance.workflow_id)
+        template = self.get_template(instance.workflow_id, instance.tenant_id)
         if not template:
             return None
         for step in template.steps:
@@ -156,7 +166,7 @@ class WorkflowEngine:
         if not instance:
             return False
 
-        template = self.templates.get(instance.workflow_id)
+        template = self.get_template(instance.workflow_id, instance.tenant_id)
         if not template:
             return False
 
@@ -314,6 +324,7 @@ class WorkflowEngine:
                     # es exactamente el valor que _workflow_instances_seguras
                     # (app.py) espera para aplicarles el heuristico legacy.
                     tenant_id=idata.get('tenant_id'),
+                    auto_prepare=idata.get('auto_prepare', False),
                 )
                 self.instances[iid] = inst
             except Exception as e:

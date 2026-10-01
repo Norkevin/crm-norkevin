@@ -81,7 +81,8 @@ def test_cannot_skip_a_step_already_done(auth_client):
     tmpl = app_module.PRODUCTION_WORKFLOW()
     step_id = tmpl.steps[1].id
 
-    auth_client.post('/api/jobs/' + job_id + '/trigger-step', json={'step_id': step_id})
+    instance = app_module.trigger_workflow_for_quote_accepted('', 'Skip', job_id, 'tenant-norkevin')
+    app_module._apply_workflow_delivery(instance, step_id, {'status': 'sent'})
     resp = auth_client.post(f'/api/jobs/{job_id}/steps/{step_id}/skip', json={})
     assert resp.status_code == 400
 

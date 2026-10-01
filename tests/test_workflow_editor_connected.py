@@ -1,3 +1,16 @@
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolated_workflow_edits():
+    import app as a
+    tenant = 'tenant-norkevin'
+    saved = a.store.get_tenant_dict('workflow_templates', tenant)
+    a.store.save_tenant_dict('workflow_templates', {}, tenant)
+    yield
+    a.store.save_tenant_dict('workflow_templates', saved, tenant)
+
+
 """Kevin: 'estas 3 paginas deben estar enlazadas entre si' -- el Workflow
 Editor, la libreria de Email Templates, y lo que realmente le pasa a un
 lead nuevo eran 3 sistemas desconectados:
@@ -27,12 +40,12 @@ def test_editing_lead_workflow_step_affects_new_leads(auth_client):
         assert reloaded.steps[0].email_template_id == 'tpl-editado-por-el-usuario'
 
         # Y un lead nuevo debe arrancar su workflow con esa version editada.
-        resp = auth_client.post('/api/leads/nuevo', json={
+        resp = auth_client.post('/api/leads/new', json={
             'nombre': 'Wired', 'apellido': 'Test', 'email': 'wired@example.com',
             'pais': 'Guatemala', 'fecha_boda': '2027-06-01',
         })
         assert resp.status_code == 200
-        lead_id = resp.get_json()['lead_id']
+        lead_id = resp.get_json()['lead']['id']
 
         instances = app_module.workflow_engine.list_instances(subject_id=lead_id, subject_type='lead')
         assert instances, 'deberia haberse creado una instancia de workflow para el lead'
@@ -109,12 +122,15 @@ def test_manual_lead_step_uses_configured_workflow_template(auth_client):
     app_module.store.save_dict('workflow_templates', {'lead_workflow_v1': edited_dict})
 
     try:
-        resp = auth_client.post('/api/leads/nuevo', json={
+        resp = auth_client.post('/api/leads/new', json={
             'nombre': 'Template', 'apellido': 'Conectado', 'email': 'template@example.com',
             'pais': 'Guatemala', 'fecha_boda': '2027-06-02',
         })
         assert resp.status_code == 200
-        lead_id = resp.get_json()['lead_id']
+        lead_id = resp.get_json()['lead']['id']
+
+        app_module.store.upsert('email_templates', {'id': 'tpl-seguimiento', 'tenant_id': 'tenant-norkevin',
+            'name': 'Seguimiento', 'asunto': 'Seguimiento', 'cuerpo': 'Hola'})
 
         step_resp = auth_client.post('/api/workflow/step', json={
             'lead_id': lead_id,

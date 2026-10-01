@@ -10,6 +10,7 @@ import hashlib
 import time
 import threading
 import logging
+from contextvars import ContextVar
 from datetime import datetime, date, timedelta
 from flask import (Flask, render_template, request, redirect, url_for, jsonify, flash, abort,
                    session, make_response, g, has_request_context)
@@ -139,7 +140,12 @@ app.jinja_env.auto_reload = True
 # cuentas"; ahora significa "ninguna" y la operacion se deniega. Ese cambio
 # es la correccion del incidente en que un hilo sin sesion recorrio las
 # bodas de los dos negocios juntos.
+_workflow_tenant = ContextVar('workflow_tenant', default=None)
+
+
 def _active_tenant_id():
+    if _workflow_tenant.get():
+        return _workflow_tenant.get()
     tid = session.get('tenant_id')
     if tid:
         return tid
@@ -147,7 +153,7 @@ def _active_tenant_id():
 
 
 store.tenant_resolver = _active_tenant_id
-store.request_context_probe = has_request_context
+store.request_context_probe = lambda: has_request_context() or bool(_workflow_tenant.get())
 # Solo las rutas de /api/admin/* autenticadas marcan este flag (ver
 # _require_login). Es lo que habilita scope='all_tenants' en
 # store.list_privileged: cruzar empresas tiene que ser una excepcion
@@ -193,6 +199,12 @@ def _workflow_from_dict(d):
     steps = []
     for s in d.get('steps', []):
         dd = s.get('due_date') or {}
+        if dd.get('mode', 'manual') not in ('manual', 'after_creation', 'after_event'):
+            raise ValueError('Fecha de ejecución inválida')
+        if dd.get('unit', 'days') not in ('minutes', 'hours', 'days', 'weeks', 'months') or int(dd.get('amount', 0) or 0) < 0:
+            raise ValueError('El plazo debe ser positivo y usar una unidad válida')
+        if not s.get('id') or any(step.id == s['id'] for step in steps):
+            raise ValueError('Cada paso debe tener un identificador único')
         steps.append(Step(
             id=s['id'],
             name=s['name'],
@@ -217,19 +229,10 @@ def _workflow_from_dict(d):
 
 
 def _persist_workflow_template(workflow):
-    """Guarda el template editado en data/workflow_templates.json.
-    NOTA (multi-tenant): el WorkflowEngine registra templates por un id
-    fijo compartido (p.ej. 'production_workflow_v1'), no por tenant --
-    volver esto realmente independiente por cuenta requeriria que el motor
-    mismo indexe sus templates por (tenant_id, workflow_id), no solo
-    cambiar donde se guarda el archivo. Por ahora la automatizacion base
-    (que steps existen, que plantilla usa cada uno) es compartida entre
-    las 3 cuentas; lo que SI esta aislado por cuenta es el AVANCE de cada
-    job/lead dentro de esos steps (workflow_instances, ligado al job que
-    ya paso por el filtro de tenant al buscarlo)."""
-    saved = store.get_dict('workflow_templates')
+    """Las ediciones pertenecen a la cuenta activa; el archivo global es legado."""
+    saved = store.get_tenant_dict('workflow_templates')
     saved[workflow.id] = workflow.to_dict()
-    store.save_dict('workflow_templates', saved)
+    store.save_tenant_dict('workflow_templates', saved)
 
 
 # Overlay: templates editados por el usuario pisan los hardcodeados al boot.
@@ -251,12 +254,13 @@ def trigger_workflow_for_lead(lead_id, lead_name, tenant_id=None):
     sesion activa -- pensado para no romper algun caller que todavia no
     se actualizo, no como el camino preferido."""
     return workflow_engine.start_workflow(
-        workflow=LEAD_WORKFLOW(),
+        workflow=LEAD_WORKFLOW(tenant_id),
         subject_type='lead',
         subject_id=lead_id,
         subject_name=lead_name,
         trigger_event='lead.created',
         tenant_id=tenant_id or get_current_tenant_id(),
+        auto_prepare=True,
     )
 
 
@@ -267,12 +271,13 @@ def trigger_workflow_for_quote_accepted(lead_id, lead_name, job_id=None, tenant_
     pasar el tenant_id del job/lead ya conocido en el call site."""
     job_id = job_id or ('job-' + lead_id)
     return workflow_engine.start_workflow(
-        workflow=PRODUCTION_WORKFLOW(),
+        workflow=PRODUCTION_WORKFLOW(tenant_id),
         subject_type='job',
         subject_id=job_id,
         subject_name=lead_name,
         trigger_event='quote.accepted',
         tenant_id=tenant_id or get_current_tenant_id(),
+        auto_prepare=True,
     )
 
 # ============================================================
@@ -289,6 +294,8 @@ def get_current_tenant_id():
     """Tenant_id de la cuenta logueada en esta sesion, o None si no hay
     sesion (login, rutas publicas, o el hilo de recordatorios en segundo
     plano que corre fuera de cualquier request)."""
+    if _workflow_tenant.get():
+        return _workflow_tenant.get()
     try:
         return session.get('tenant_id')
     except RuntimeError:
@@ -584,7 +591,7 @@ def _render_message_template(text, *, client=None, lead=None, job=None):
             text = text.replace(' y %2nd_client_name%', '').replace('%2nd_client_name%', '')
     if client and client.get('id'):
         base = (os.environ.get('APP_BASE_URL') or
-                (request.url_root if has_request_context() else '')).rstrip('/')
+                (request.url_root if has_request_context() else 'https://flowingcrm.com')).rstrip('/')
         if base:
             portal = base + '/portal/' + url_quote(str(client['id']), safe='')
             for token, section in (('%quote_link%', 'quotes'), ('%contract_link%', 'contracts'),
@@ -703,7 +710,7 @@ def _complete_job_workflow_step(job, step_id, result_message=None, mail_id=None)
     if not step_id:
         return {'completed': False}
 
-    tmpl = PRODUCTION_WORKFLOW()
+    tmpl = PRODUCTION_WORKFLOW(job.get('tenant_id'))
     step = next((s for s in tmpl.steps if s.id == step_id), None)
     if not step:
         return {'completed': False, 'warning': 'Step no encontrado'}
@@ -732,6 +739,7 @@ def _complete_job_workflow_step(job, step_id, result_message=None, mail_id=None)
             mail['workflow_instance_id'] = instance.id
             mail['workflow_step_id'] = step_id
             store.upsert('pending_emails' if mail_id.startswith('pend-') else 'mail_log', mail)
+            workflow_engine._save_to_storage()
             return {'completed': mail.get('status') == 'sent', 'queued': mail.get('status') == 'pending'}
     if step_id in instance.step_states and instance.step_states[step_id] == StepStatus.DONE:
         return {'completed': False, 'already_done': True, 'step': step.name}
@@ -791,7 +799,7 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
             'sent': False,
         }
 
-    tmpl = LEAD_WORKFLOW()
+    tmpl = LEAD_WORKFLOW(lead.get('tenant_id'))
     step = next((s for s in tmpl.steps if s.id == step_id), None)
     if not step:
         return {'completed': False, 'warning': 'Step no encontrado'}
@@ -810,10 +818,13 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
         if not to_email:
             return {'completed': False, 'warning': 'Este lead no tiene email'}
         template = _get_email_template(step.email_template_id)
+        if not template and not body_override:
+            return {'completed': False, 'warning': 'Vincula un Email Template antes de preparar el correo'}
+        client = get_client(lead.get('client_id', '')) if lead.get('client_id') else None
         subject = _render_message_template(
-            subject_override or (template or {}).get('asunto') or step.name, lead=lead)
+            subject_override or (template or {}).get('asunto') or step.name, lead=lead, client=client)
         body = _render_message_template(
-            body_override or (template or {}).get('cuerpo') or '', lead=lead)
+            body_override or (template or {}).get('cuerpo') or '', lead=lead, client=client)
         from src.mail_tracker import get_tracker
         # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
         # inmediata. Clave estable: la logica de arriba (linea 605-606) ya
@@ -827,6 +838,7 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
             lead_id=lead.get('id'),
             client_id=lead.get('client_id') or None,
             source=f'workflow:lead-step:{step_id}',
+            tenant_id=lead.get('tenant_id'),
             idempotency_key=f"leadstep:{lead.get('id')}:{step_id}",
         )
         lead['mail_status'] = _lead_mail_status_chip(mail_entry)
@@ -1799,19 +1811,21 @@ def _workflow_instance_for(subject_type, subject_id, job_ids_cache=None, lead_id
 
 def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
     from datetime import datetime, timedelta
-    tmpl = LEAD_WORKFLOW()
+    tmpl = LEAD_WORKFLOW(tenant_id or lead.get("tenant_id"))
     try:
-        trigger_at = datetime.fromisoformat(lead['created'].replace('Z', '+00:00').split('T')[0] + 'T00:00:00')
+        trigger_at = datetime.fromisoformat(lead['created'].replace('Z', '+00:00')).replace(tzinfo=None)
     except Exception:
         trigger_at = datetime.now()
     now = datetime.now()
     instance = _workflow_instance_for('lead', lead.get('id', ''), job_ids_cache=job_ids_cache, lead_ids_cache=lead_ids_cache, tenant_id=tenant_id)
+    if instance:
+        trigger_at = instance.trigger_at.replace(tzinfo=None)
     state_map = getattr(instance, 'step_states', {}) if instance else {}
     result_map = getattr(instance, 'step_results', {}) if instance else {}
     force_done = _lead_is_converted(lead, jobs_cache)
     steps = []
     for step in tmpl.steps:
-        scheduled = trigger_at + timedelta(minutes=step.offset_minutes)
+        scheduled = _step_scheduled_for_job(step, trigger_at, None)
         stored_status = _workflow_state_value(state_map.get(step.id))
         if force_done:
             status = 'done' if stored_status == 'done' else 'skipped'
@@ -1819,7 +1833,7 @@ def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, l
         elif stored_status:
             status = stored_status
             executed_at = trigger_at.isoformat() if status == 'done' else None
-        elif scheduled <= now:
+        elif scheduled and scheduled <= now:
             status = 'pending'
             executed_at = None
         else:
@@ -1830,6 +1844,8 @@ def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, l
             'name': step.name,
             'description': step.description,
             'email_template_id': step.email_template_id,
+            'email_template_name': (_get_email_template(step.email_template_id) or {}).get('name'),
+            'delay_display': step.delay_display,
             'action_type': step.action_type.value if hasattr(step.action_type, 'value') else str(step.action_type),
             'scheduled': scheduled.isoformat() if scheduled else None,
             'executed_at': executed_at,
@@ -1851,6 +1867,8 @@ def _step_scheduled_for_job(step, trigger_at, boda_date):
     boda_date, calculamos el offset desde ahi en su lugar."""
     from datetime import timedelta
     dd = step.due_date
+    if dd.mode == 'manual':
+        return None
     if dd.mode == 'after_event' and not boda_date:
         return None
     if dd.mode == 'after_event' and boda_date:
@@ -1867,9 +1885,9 @@ def _step_scheduled_for_job(step, trigger_at, boda_date):
 
 def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
     from datetime import datetime, timedelta
-    tmpl = PRODUCTION_WORKFLOW()
+    tmpl = PRODUCTION_WORKFLOW(tenant_id or job.get("tenant_id"))
     try:
-        trigger_at = datetime.fromisoformat(job['created'].replace('Z', '+00:00').split('T')[0] + 'T00:00:00')
+        trigger_at = datetime.fromisoformat(job['created'].replace('Z', '+00:00')).replace(tzinfo=None)
     except Exception:
         trigger_at = datetime.now()
     boda_date = None
@@ -1879,6 +1897,8 @@ def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None,
         except ValueError:
             boda_date = None
     instance = _workflow_instance_for('job', job.get('id', ''), job_ids_cache=job_ids_cache, lead_ids_cache=lead_ids_cache, tenant_id=tenant_id)
+    if instance:
+        trigger_at = instance.trigger_at.replace(tzinfo=None)
     state_map = getattr(instance, 'step_states', {}) if instance else {}
     result_map = getattr(instance, 'step_results', {}) if instance else {}
     steps = []
@@ -1892,6 +1912,8 @@ def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None,
             'name': step.name,
             'description': step.description,
             'email_template_id': step.email_template_id,
+            'email_template_name': (_get_email_template(step.email_template_id) or {}).get('name'),
+            'delay_display': step.delay_display,
             'action_type': step.action_type.value if hasattr(step.action_type, 'value') else str(step.action_type),
             'scheduled': scheduled.isoformat() if scheduled else None,
             'executed_at': executed_at,
@@ -3424,7 +3446,7 @@ def lead_detail(lead_id):
                 'locked': step.id != 'job_accepted',
             })
 
-    # Combinar steps (los primeros 4 son lead, el resto production)
+    # Both groups retain their identities when steps are added or removed.
     workflow_steps = lead_steps + prod_steps
     workflow_progress = lead_progress
     workflow_name = f'BODAS {_brand_display_name_for_tenant(lead.get("tenant_id")).upper()}'
@@ -3466,6 +3488,7 @@ def lead_detail(lead_id):
     return render_template('lead_detail.html',
                           lead=lead,
                           workflow_steps=workflow_steps,
+                          lead_steps=lead_steps, prod_steps=prod_steps,
                           workflow_progress=workflow_progress,
                           workflow_name=workflow_name,
                           client=client,
@@ -4816,6 +4839,9 @@ def api_job_trigger_step(job_id):
 
     data = request.get_json() or {}
     step_id = data.get('step_id', '')
+    step = next((s for s in PRODUCTION_WORKFLOW().steps if s.id == step_id), None)
+    if step and step.action_type.value.startswith('send_'):
+        return api_job_production_step(job_id)
     result = _complete_job_workflow_step(job, step_id)
     if result.get('warning') == 'Step no encontrado':
         return jsonify({'ok': False, 'error': result['warning']}), 404
@@ -7233,7 +7259,7 @@ def api_job_notes(job_id):
 
 
 def _send_job_template_email(job, *, template_id=None, subject=None, body=None, attachments=None,
-                              step_id=None, auto_fire=False):
+                              step_id=None, auto_fire=False, idempotency_key=None):
     """Compone y pone en cola (STAGE 2, agosto 2026) un correo a partir de
     una plantilla para un job. Extraido de la ruta para que el modal manual
     y el disparador automatico por fecha (_auto_fire_due_job_steps)
@@ -7260,7 +7286,7 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
     rendered_subject = _render_message_template(rendered_subject, client=client, lead=lead, job=job)
     rendered_body = _render_message_template(rendered_body, client=client, lead=lead, job=job)
 
-    idempotency_key = (
+    idempotency_key = idempotency_key or (
         f"jobstep:{job.get('id')}:{step_id}" if (auto_fire and step_id)
         else f"jobtemplate:{job.get('id')}:{_idempotency_minute_bucket()}"
     )
@@ -8597,6 +8623,10 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
     lead = get_lead(job.get('lead_id', '')) if job.get('lead_id') else None
     client = get_client(job.get('client_id', '')) if job.get('client_id') else None
     host = (host_url or os.environ.get('APP_BASE_URL') or 'http://localhost:5000').rstrip('/')
+
+    email_template = _get_email_template(template_id) or {}
+    subject = subject or email_template.get('asunto')
+    body = body or email_template.get('cuerpo')
 
     questionnaire = None
     if questionnaire_id:
@@ -10636,7 +10666,6 @@ def api_workflow_template_update(template_id):
     data['id'] = template_id
     try:
         new_workflow = _workflow_from_dict(data)
-        workflow_engine.register_template(new_workflow)
         _persist_workflow_template(new_workflow)
         return jsonify({'ok': True, 'template': new_workflow.to_dict()})
     except Exception as e:
@@ -10667,7 +10696,6 @@ def api_workflow_template_create():
             'trigger_type': data.get('trigger_type', 'lead.created'),
             'steps': [],
         })
-        workflow_engine.register_template(new_workflow)
         _persist_workflow_template(new_workflow)
         return jsonify({'ok': True, 'template_id': template_id, 'template': new_workflow.to_dict()})
     except Exception as e:
@@ -10928,12 +10956,8 @@ def api_workflow_trigger_quote_accepted():
 # Cron: ejecutar steps vencidos
 @app.route('/api/workflow/run-due', methods=['POST'])
 def api_workflow_run_due():
-    due = workflow_engine.get_due_steps()
-    executed = 0
-    for instance, step in due:
-        if workflow_engine.execute_step(instance.id, step.id):
-            executed += 1
-    return jsonify({'ok': True, 'executed': executed, 'due_count': len(due)})
+    prepared = _prepare_due_workflow_emails(tenant_id=get_current_tenant_id())
+    return jsonify({'ok': True, 'prepared': prepared, 'executed': len(prepared)})
 
 
 # ============================================================
@@ -13702,57 +13726,13 @@ def api_workflow_step():
     if not template_id:
         return jsonify({'ok': False, 'error': 'Este step no tiene email template configurado'}), 400
 
-    # Disparar workflow engine
-    instances = _workflow_instances_seguras(subject_type='lead', subject_id=lead_id)
-    if not instances:
-        return jsonify({'ok': False, 'error': 'No hay workflow activo'}), 400
-    instance = instances[0]
+    if not _get_email_template(template_id):
+        return jsonify({'ok': False, 'error': 'Vincula un Email Template de esta cuenta'}), 400
+    result = _complete_lead_workflow_step(lead, step_id)
+    if result.get('warning'):
+        return jsonify({'ok': False, 'error': result['warning']}), 400
+    return jsonify({'ok': True, 'template': template_id, **result})
 
-
-    # Registrar email
-    tracker = get_tracker()
-    templates_list = store.list('email_templates')
-    tpl = next((t for t in templates_list if t.get('id') == template_id), None)
-    subject = tpl.get('asunto', step_id) if tpl else step_id
-
-    # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega inmediata.
-    # Clave estable: el step ya se marco DONE arriba (linea 12120-12121),
-    # asi que este es un respaldo contra un reintento del mismo request, no
-    # la guarda principal.
-    mail = tracker.queue_email(
-        to_email=lead.get('email', ''),
-        subject=subject,
-        body=tpl.get('cuerpo', '') if tpl else '',
-        template_id=template_id,
-        lead_id=lead_id,
-        client_id=lead.get('client_id') or None,
-        source=f'workflow:lead-step:{step_id}',
-        # Misma familia de clave que _complete_lead_workflow_step
-        # (leadstep:) -- revision adversarial (agosto 2026): ambos
-        # endpoints derivan asunto/cuerpo del mismo LEAD_WORKFLOW().steps
-        # por step_id, o sea producen el mismo correo para el mismo step.
-        # Con prefijos distintos, disparar el mismo step por las dos vias
-        # crearia dos pendientes aprobables por separado -- aprobar ambos
-        # seria un envio real duplicado al mismo cliente.
-        idempotency_key=f'leadstep:{lead_id}:{step_id}',
-    )
-
-    _apply_workflow_delivery(instance, step_id, mail)
-    workflow_engine._log(instance, 'step.prepared', f'{step_id}: {mail.get("status")}')
-    workflow_engine._save_to_storage()
-
-    return jsonify({
-        'ok': True,
-        'step': step_id,
-        'template': template_id,
-        'mail_id': mail.get('id'),
-        'email': lead.get('email', ''),
-        'delivery_status': mail.get('status'),
-        'mail_warning': _mail_delivery_warning(mail),
-        'message': (f'Email "{subject}" puesto en cola de aprobacion para {lead.get("email", "")} (revisa /emails)'
-                    if mail.get('status') == 'pending'
-                    else f'Email NO se pudo poner en cola: {mail.get("blocked_reason") or "motivo no especificado"}'),
-    })
 
 
 # ============================================================
@@ -13770,154 +13750,122 @@ def api_job_production_step(job_id):
     data = request.get_json() or {}
     step_id = data.get('step_id', '')
 
-    # Determinar el email template segun el step
-    template_map = {
-        'reserva_confirmada': 'tpl-reserva-prod',
-        'firma_contrato': 'tpl-contrato-prod',
-        'cuestionario_cliente': 'tpl-cuestionario-prod',
-        'envio_galeria': 'tpl-galeria',
-        'pedir_review': 'tpl-review',
-    }
-    template_id = template_map.get(step_id)
-
-    # Buscar el workflow instance del job
-    instances = _workflow_instances_seguras(subject_type='job', subject_id=job_id)
-    if not instances:
-        return jsonify({'ok': False, 'error': 'No hay workflow activo'}), 400
-    instance = instances[0]
-
-    # Marcar como done
-    instance.step_states[step_id] = StepStatus.DONE
-    instance.step_results[step_id] = f"PRODUCTION step: {step_id}"
-
-    mail_id = None
-    if template_id:
-        templates_list = store.list('email_templates')
-        tpl = next((t for t in templates_list if t.get('id') == template_id), None)
-        subject = tpl.get('asunto', step_id) if tpl else step_id
-
-        tracker = get_tracker()
-        # Buscar el lead del job para obtener email
-        lead = get_lead(job.get('lead_id', ''))
-        to_email = lead.get('email', '') if lead else ''
-
-        # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
-        # inmediata. Clave estable: el step ya se marco DONE arriba, este
-        # es un respaldo contra un reintento del mismo request.
-        mail = tracker.queue_email(
-            to_email=to_email,
-            subject=subject,
-            body=tpl.get('cuerpo', '') if tpl else '',
-            template_id=template_id,
-            job_id=job_id,
-            lead_id=job.get('lead_id', ''),
-            client_id=job.get('client_id') or None,
-            tenant_id=job.get('tenant_id'),
-            source=f'workflow:job-production:{step_id}',
-            # Misma familia de clave que el auto-fire de
-            # _send_job_template_email (jobstep:) -- revision adversarial
-            # (agosto 2026): confirmado que 'reserva_confirmada',
-            # 'firma_contrato', 'cuestionario_cliente', 'envio_galeria' y
-            # 'pedir_review' son EXACTAMENTE los mismos ids que produce
-            # compute_workflow_steps_for_job() (ver src/workflow/templates.py),
-            # asi que es el mismo step logico visto por dos rutas distintas.
-            idempotency_key=f'jobstep:{job_id}:{step_id}',
-        )
-        mail_id = mail.get('id')
-
-    if template_id:
-        _apply_workflow_delivery(instance, step_id, mail)
-    workflow_engine._log(instance, 'step.manual', f'{step_id}: preparado' if template_id else f'{step_id}: completado')
-    workflow_engine._save_to_storage()
-
-    return jsonify({
-        'ok': True,
-        'step': step_id,
-        'mail_id': mail_id,
-        'message': f'Step {step_id} ejecutado'
-    })
+    step = next((s for s in PRODUCTION_WORKFLOW().steps if s.id == step_id), None)
+    if not step:
+        return jsonify({'ok': False, 'error': 'Step desconocido'}), 400
+    if step.action_type.value.startswith('send_'):
+        result = _prepare_job_workflow_email(job, step.to_dict())
+        if result.get('error'):
+            return jsonify({'ok': False, **result}), 400
+        workflow = _complete_job_workflow_step(job, step_id, mail_id=result.get('mail_id'))
+        return jsonify({'ok': True, 'step': step_id, 'workflow': workflow, **result})
+    return jsonify({'ok': True, **_complete_job_workflow_step(job, step_id)})
 
 
-
-
-_AUTO_FIRE_JOB_ACTION_TYPES = ('send_email', 'send_questionnaire', 'send_gallery')
 
 
 def _auto_fire_due_job_steps():
-    """Kevin: 'al crear el job... que se envie cuando el workflow lo diga' --
-    antes NADA disparaba un step de Job automaticamente por fecha; se
-    quedaba pending para siempre hasta que alguien entrara a darle click
-    manual. Revisa cada Job activo y dispara de verdad (correo real, no solo
-    marcar el step 'done') los steps de envio cuya fecha ya llego."""
-    fired = []
-    for job in store.list('jobs'):
-        if job.get('status') in ('Cancelado', 'Archivado'):
-            continue
-        try:
-            # tenant_id=job.get('tenant_id') explicito: este loop corre sin
-            # peticion web (hilo en segundo plano), asi que get_current_tenant_id()
-            # -que usa la sesion activa- daria None aca. Sin esto, cualquier
-            # instancia YA etiquetada con tenant_id (inst.tenant_id == None
-            # nunca es igual) dejaria de encontrarse y su step jamas se
-            # auto-dispararia. Ver docstring de _instancia_es_de_la_cuenta.
-            steps, _, _ = compute_workflow_steps_for_job(job, tenant_id=job.get('tenant_id'))
-        except Exception as e:
-            logger.error(f'Error calculando steps del job {job.get("id")}: {e}')
-            continue
+    """Compatibility entry point: only the unified queue may prepare job mail."""
+    return [(item['subject_id'], item['step_id'])
+            for item in _prepare_due_workflow_emails(subject_type='job')]
 
-        for step in steps:
-            if step['status'] != 'pending':
+
+def _prepare_job_workflow_email(job, step):
+    """One dispatcher for the client workflow and the scheduled queue."""
+    template = _get_email_template(step.get('email_template_id'))
+    if not template or not (template.get('cuerpo') or '').strip():
+        return {'error': 'Vincula una plantilla de email con contenido en Workflow Templates'}
+    action = step['action_type']
+    base = (os.environ.get('APP_BASE_URL') or 'https://flowingcrm.com').rstrip('/')
+    if action == 'send_questionnaire':
+        return _create_job_questionnaire(
+            job, template_id=template['id'], send_email=True,
+            reuse_draft=True, auto_fire=True, host_url=base,
+        )
+    body = template['cuerpo']
+    contract = None
+    if action == 'send_contract':
+        contract = _ensure_contract_for_job(job)
+        body = _inject_link(body, base + '/contracts/' + contract['id'],
+                            ['[LINK AL CONTRATO]', '[LINK DEL CONTRATO]'], 'Firma tu contrato aquí')
+    elif action == 'send_gallery':
+        client = get_client(job.get('client_id', '')) or {}
+        gallery = job.get('galeria_url') or client.get('galeria_url')
+        if not gallery:
+            return {'error': 'Agrega el enlace de la galería antes de preparar este correo'}
+        body = _inject_link(body, gallery, ['%gallery_link%', '[LINK A LA GALERIA]'], 'Tu galería')
+    elif action != 'send_email':
+        return {'error': 'Esta acción requiere ejecución manual'}
+    result = _send_job_template_email(
+        job, template_id=template['id'], subject=template.get('asunto'), body=body,
+        step_id=step['id'], auto_fire=True,
+        idempotency_key=f"contract:{contract['id']}:workflow:{step['id']}" if contract else None,
+    )
+    if contract and result.get('mail_id'):
+        mail = store.get('pending_emails', result['mail_id']) or store.get('mail_log', result['mail_id'])
+        _apply_document_delivery(contract, mail)
+        if not contract.get('signed'):
+            contract['status'] = 'Enviado' if mail.get('status') == 'sent' else 'Preparado'
+        store.upsert('contracts', contract)
+    return result
+
+
+def _prepare_due_workflow_emails(tenant_id=None, now=None, subject_type=None):
+    """Prepare only newly enrolled workflows. Never deliver or revive legacy mail."""
+    now = now or datetime.now()
+    prepared = []
+    # ponytail: one Render worker; use a database claim before adding workers.
+    with _workflow_queue_lock:
+        for instance in list(workflow_engine.instances.values()):
+            if (not instance.auto_prepare or not instance.tenant_id
+                    or instance.status != WorkflowStatus.ACTIVE
+                    or (tenant_id and instance.tenant_id != tenant_id)
+                    or (subject_type and instance.subject_type != subject_type)):
                 continue
-            if step['action_type'] not in _AUTO_FIRE_JOB_ACTION_TYPES:
-                continue
-            scheduled = step.get('scheduled')
-            if not scheduled:
-                continue
+            token = _workflow_tenant.set(instance.tenant_id)
             try:
-                if datetime.fromisoformat(scheduled) > datetime.now():
+                record = store.get('leads' if instance.subject_type == 'lead' else 'jobs', instance.subject_id)
+                if not record or record.get('status') in ('Cancelado', 'Archivado', 'Listo', 'Perdido'):
                     continue
-            except ValueError:
-                continue
-
-            try:
-                if step['action_type'] == 'send_questionnaire':
-                    result = _create_job_questionnaire(
-                        job, template_id=step.get('email_template_id'), send_email=True,
-                        reuse_draft=True, auto_fire=True,
-                    )
-                    ok = bool(result.get('mail_id')) and not result.get('mail_warning')
-                    result_message = f"Cuestionario auto-enviado: {result['questionnaire']['name']}"
-                else:
+                compute = compute_workflow_steps_for_lead if instance.subject_type == 'lead' else compute_workflow_steps_for_job
+                steps, _, _ = compute(record, tenant_id=instance.tenant_id)
+                for step in steps:
+                    scheduled = step.get('scheduled')
+                    if step['status'] != 'pending' or not scheduled or datetime.fromisoformat(scheduled) > now:
+                        continue
                     template = _get_email_template(step.get('email_template_id'))
-                    result = _send_job_template_email(
-                        job,
-                        template_id=step.get('email_template_id'),
-                        subject=(template or {}).get('asunto'),
-                        body=(template or {}).get('cuerpo'),
-                        step_id=step['id'],
-                        auto_fire=True,
-                    )
-                    ok = bool(result.get('mail_id')) and not result.get('mail_warning') and not result.get('error')
-                    result_message = f"Email auto-enviado: {step['name']}"
+                    if not template or not (template.get('cuerpo') or '').strip():
+                        continue
+                    if instance.subject_type == 'lead':
+                        if step['action_type'] != 'send_email':
+                            continue
+                        result = _complete_lead_workflow_step(record, step['id'])
+                    else:
+                        result = _prepare_job_workflow_email(record, step)
+                        if result.get('mail_id'):
+                            _complete_job_workflow_step(record, step['id'], mail_id=result['mail_id'])
+                    if result.get('mail_id'):
+                        prepared.append({'subject_id': record['id'], 'step_id': step['id'], 'mail_id': result['mail_id']})
+            except Exception:
+                logger.exception('No se pudo preparar el workflow %s', instance.id)
+            finally:
+                _workflow_tenant.reset(token)
+    return prepared
 
-                if result.get('mail_id'):
-                    _complete_job_workflow_step(job, step['id'], mail_id=result['mail_id'])
-                if ok:
-                    # Solo se marca 'done' cuando de verdad se entrego --
-                    # si Gmail esta desconectado hoy, el step se queda
-                    # pending y se reintenta en la siguiente pasada (6h)
-                    # en vez de quedar marcado como completado en falso.
-                    _complete_job_workflow_step(job, step['id'], result_message=result_message)
-                    fired.append((job.get('id'), step['id']))
-                else:
-                    logger.warning(
-                        f"Auto-fire del step {step['id']} en job {job.get('id')} no se entrego de verdad, "
-                        f"se reintentara: {result.get('mail_warning') or result.get('error')}"
-                    )
-            except Exception as e:
-                logger.error(f'Error auto-disparando step {step["id"]} del job {job.get("id")}: {e}')
 
-    return fired
+_workflow_queue_lock = threading.RLock()
+
+
+def _workflow_queue_loop():
+    while True:
+        time.sleep(60)
+        with app.app_context():
+            _prepare_due_workflow_emails()
+
+
+# Separate from payment reminders: this runner only prepares approval drafts.
+if os.environ.get('ENABLE_WORKFLOW_QUEUE', '1') == '1':
+    threading.Thread(target=_workflow_queue_loop, daemon=True).start()
 
 
 _reminder_thread_started = False

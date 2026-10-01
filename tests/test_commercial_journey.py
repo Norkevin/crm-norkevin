@@ -122,6 +122,8 @@ def test_workflow_waits_for_delivery_and_discard_is_visible(auth_client):
         session['tenant_id'] = TENANT
         instance = a.workflow_engine.start_workflow(a.LEAD_WORKFLOW(), 'lead', lead['id'], tenant_id=TENANT)
         step = next(s for s in a.LEAD_WORKFLOW().steps if s.email_template_id)
+        a.store.upsert('email_templates', {'id': step.email_template_id, 'tenant_id': TENANT,
+            'name': 'Journey test', 'asunto': 'Prueba', 'cuerpo': 'Hola %client_name%'})
         result = a._complete_lead_workflow_step(lead, step.id)
         assert result['queued'] and not result['sent']
         assert instance.step_states[step.id] == StepStatus.QUEUED
@@ -158,6 +160,8 @@ def test_discard_updates_step_without_claiming_delivery(auth_client):
         session['tenant_id'] = TENANT
         instance = a.workflow_engine.start_workflow(a.LEAD_WORKFLOW(), 'lead', lead['id'], tenant_id=TENANT)
         step = next(s for s in a.LEAD_WORKFLOW().steps if s.email_template_id)
+        a.store.upsert('email_templates', {'id': step.email_template_id, 'tenant_id': TENANT,
+            'name': 'Journey test', 'asunto': 'Prueba', 'cuerpo': 'Hola %client_name%'})
         result = a._complete_lead_workflow_step(lead, step.id)
         MailTracker().discard_pending(result['mail_id'])
         assert instance.step_states[step.id] == StepStatus.FAILED
