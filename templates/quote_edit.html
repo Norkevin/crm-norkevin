@@ -641,8 +641,8 @@ function saveOption() {
   var name = document.getElementById('opt-name-input').value.trim();
   var price = document.getElementById('opt-price-input').value;
   if (!name || !price) { alert('Nombre y precio son requeridos'); return; }
-  savingOption = true;
   if (!previewDiscount()) { document.getElementById('opt-discount-input').reportValidity(); return; }
+  savingOption = true;
   fetch('/api/quotes/' + QUOTE_ID + '/options', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
