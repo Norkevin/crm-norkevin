@@ -4,163 +4,173 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Contacto · {{ tenant.name or 'ASTRAL WEDDINGS' }}</title>
-<script src="https://cdn.tailwindcss.com"></script>
-{% include "_tailwind_config.html" %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/flatpickr/flatpickr.min.css') }}">
 <style>
-  body { background: #FAFAF7; color: #0A0E1A; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
-  .brand { color: #0A0E1A; }
-  .field-simple {
-    width: 100%; background: #F3F4F6; border: 1px solid transparent; border-radius: 10px;
-    padding: 12px 16px; font-size: 14px; transition: border-color 150ms, background 150ms;
-  }
-  .field-simple:focus { outline: none; background: #FFFFFF; border-color: #0A0E1A; }
-  .label-simple { font-size: 14px; font-weight: 500; color: #1F2937; display: block; margin-bottom: 6px; }
-
-  /* El formulario de captacion es publico: casi todos los leads llegan
-     desde un telefono, muchas veces por un link de Instagram. Con inputs
-     de menos de 16px, Safari hace zoom en cada campo y el formulario se
-     vuelve incomodo justo en el momento en que alguien decide escribir.
-     Un lead perdido aca es un lead que nunca existio. */
+  :root { --ink: #242823; --muted: #666960; --line: #d7d8d0; --paper: #fafaf6; --accent: {{ '#756044' if tenant_slug == 'astral-weddings' else '#242823' }}; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.5; }
+  a { color: inherit; text-underline-offset: 4px; }
+  button, input, select, textarea { font: inherit; color: inherit; border-radius: 0; }
+  button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+  [hidden] { display: none !important; }
+  .page { width: min(1120px, calc(100% - 80px)); margin: 0 auto; }
+  .masthead { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 30px 0; border-bottom: 1px solid var(--ink); }
+  .brand { font-size: 21px; font-weight: 600; letter-spacing: -.7px; }
+  .eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; }
+  main { display: grid; grid-template-columns: .8fr 1.2fr; gap: 80px; padding: 64px 0; }
+  .intro { padding-top: 6px; }
+  .intro .eyebrow { color: var(--accent); }
+  h1 { font-family: Georgia, 'Times New Roman', serif; font-size: clamp(42px, 4.5vw, 62px); font-weight: 400; line-height: 1.08; letter-spacing: -2px; margin: 24px 0; }
+  .intro p { color: var(--muted); max-width: 310px; font-size: 15px; }
+  .intro .response { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 12px; }
+  form { min-width: 0; }
+  fieldset { border: 0; padding: 0; margin: 0 0 28px; min-width: 0; }
+  legend { width: 100%; padding: 0 0 12px; margin-bottom: 20px; border-bottom: 1px solid var(--line); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+  legend span { color: var(--muted); margin-right: 14px; }
+  .fields { display: grid; gap: 18px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .row > div { min-width: 0; }
+  label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 7px; }
+  label .optional { color: var(--muted); font-weight: 400; }
+  .field { width: 100%; min-height: 48px; border: 1px solid var(--line); background: #fff; padding: 11px 12px; font-size: 16px; transition: border-color 150ms; }
+  .field:focus { border-color: var(--accent); outline: 1px solid var(--accent); outline-offset: 0; }
+  .field::placeholder { color: #85877f; font-size: 14px; }
+  textarea.field { min-height: 128px; resize: vertical; }
+  .hint { margin: 7px 0 0; font-size: 11px; color: var(--muted); }
+  .date-wrap { position: relative; }
+  .date-wrap .field { padding-right: 44px; }
+  .calendar-icon { position: absolute; right: 14px; top: 15px; width: 18px; height: 18px; pointer-events: none; }
+  .date-actions { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .text-button { border: 0; background: none; padding: 5px 0; font-size: 11px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .submit { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 52px; background: var(--accent); color: #fff; border: 1px solid var(--accent); padding: 14px 18px; font-size: 13px; cursor: pointer; }
+  .submit:hover { filter: brightness(1.15); }
+  .submit:disabled { opacity: .6; cursor: wait; }
+  .submit span:last-child { font-size: 20px; line-height: 1; }
+  .form-foot { margin-top: 12px; font-size: 11px; color: var(--muted); }
+  .form-error { border-left: 2px solid #a33625; color: #86291e; padding: 8px 12px; margin-bottom: 16px; font-size: 13px; }
+  .success { align-self: start; border-top: 2px solid var(--accent); padding: 28px 0; }
+  .success h2 { font: 400 36px/1.2 Georgia, serif; }
+  .success p { color: var(--muted); }
+  footer { border-top: 1px solid var(--line); padding: 24px 0 32px; display: flex; justify-content: space-between; gap: 20px; font-size: 12px; color: var(--muted); }
+  .contact { display: flex; gap: 24px; flex-wrap: wrap; }
+  .location-wrap { position: relative; }
+  .suggestions { position: absolute; top: 100%; left: 0; right: 0; z-index: 5; margin: 4px 0 0; padding: 4px; list-style: none; background: #fff; border: 1px solid var(--ink); max-height: 280px; overflow-y: auto; box-shadow: 0 10px 24px #24282312; }
+  .suggestions li { padding: 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--line); }
+  .suggestions li:last-child { border-bottom: 0; }
+  .suggestions li:hover, .suggestions li[aria-selected="true"] { background: #eeeee7; }
+  .suggestions small { display: block; color: var(--muted); margin-top: 3px; }
+  .flatpickr-calendar { border-radius: 0; border: 1px solid var(--ink); box-shadow: 0 10px 30px #24282314; font-family: inherit; padding: 10px 0; }
+  .flatpickr-calendar:before, .flatpickr-calendar:after { display: none; }
+  .flatpickr-day { border-radius: 0; }
+  .flatpickr-day.selected, .flatpickr-day.selected:hover, .flatpickr-day.selected:focus { background: var(--accent); border-color: var(--accent); }
+  .flatpickr-day.today { border-color: var(--accent); }
+  .flatpickr-months .flatpickr-month { height: 44px; }
+  .flatpickr-current-month { font-size: 14px; padding-top: 10px; }
+  .flatpickr-weekdays { margin: 6px 0; }
   @media (max-width: 760px) {
-    input,
-    select,
-    textarea {
-      font-size: 16px;
-    }
-    input[type="text"],
-    input[type="email"],
-    input[type="tel"],
-    input[type="date"],
-    select {
-      min-height: 46px;
-    }
-    textarea { min-height: 96px; }
-    input[type="checkbox"],
-    input[type="radio"] { width: 24px; height: 24px; }
-    button,
-    .btn,
-    a.btn { min-height: 48px; }
-    body { overflow-wrap: anywhere; }
+    .page { width: calc(100% - 40px); }
+    .masthead { padding: 22px 0; }
+    .masthead > .eyebrow { display: none; }
+    .brand { font-size: 19px; }
+    main { grid-template-columns: 1fr; gap: 32px; padding: 32px 0; }
+    h1 { max-width: 360px; font-size: 44px; margin: 16px 0; }
+    .intro p { max-width: 100%; margin-bottom: 0; }
+    .intro .response { margin-top: 16px; padding-top: 0; border: 0; }
+    input, select, textarea { font-size: 16px; }
+    footer { flex-direction: column; gap: 12px; }
+    .contact { flex-direction: column; gap: 10px; }
   }
-
+  @media (max-width: 420px) { .row { grid-template-columns: 1fr; gap: 18px; } }
 </style>
+<script defer src="{{ url_for('static', filename='vendor/flatpickr/flatpickr.min.js') }}"></script>
+<script defer src="{{ url_for('static', filename='vendor/flatpickr/es.js') }}"></script>
+<script defer src="{{ url_for('static', filename='captacion.js', v='20261001') }}"></script>
 </head>
 <body>
-
-<div class="min-h-screen flex items-center justify-center px-4 py-12">
-  <div class="max-w-xl w-full">
-
-    <div class="text-center mb-8">
-      <div class="text-3xl font-semibold tracking-tight text-ink">{{ tenant.name or 'ASTRAL WEDDINGS' }}</div>
-      <p class="text-xs text-ink-soft uppercase tracking-widest mt-1">Photography &amp; Films</p>
-    </div>
-
-    <div class="bg-white rounded-xl border border-line shadow-soft p-8">
-      <h2 class="text-xl font-medium text-ink mb-2">Cuentanos sobre tu boda</h2>
-      <p class="text-sm text-ink-soft mb-6">Completa el formulario y te contactaremos en menos de 24 horas.</p>
-
-      <form id="form-captacion" class="space-y-4">
-        <input type="hidden" name="tenant_slug" value="{{ tenant_slug }}">
-        <div>
-          <label class="label-simple">Nombre completo *</label>
-          <input name="nombre" required class="field-simple">
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="label-simple">Email *</label>
-            <input type="email" name="email" required class="field-simple">
-          </div>
-          <div>
-            <label class="label-simple">Telefono</label>
-            <input name="telefono" class="field-simple">
+<div class="page">
+  <header class="masthead">
+    <div class="brand">{{ tenant.name or 'ASTRAL WEDDINGS' }}</div>
+    <span class="eyebrow">Photography &amp; Films</span>
+  </header>
+  <main>
+    <section class="intro" aria-labelledby="contact-title">
+      <span class="eyebrow">Empecemos una historia</span>
+      <h1 id="contact-title">Cuéntanos<br>sobre tu boda.</h1>
+      <p>Las mejores historias empiezan con una conversación. Queremos conocer la tuya.</p>
+      <p class="response">Te responderemos en menos de 24 horas.</p>
+    </section>
+    <form id="form-captacion">
+      <input type="hidden" name="tenant_slug" value="{{ tenant_slug }}">
+      <fieldset>
+        <legend><span>01</span> Tu información</legend>
+        <div class="fields">
+          <div><label for="nombre">Nombre completo *</label><input id="nombre" name="nombre" autocomplete="name" required maxlength="200" class="field" placeholder="¿Cómo te llamas?"></div>
+          <div class="row">
+            <div><label for="email">Correo electrónico *</label><input id="email" type="email" name="email" autocomplete="email" required maxlength="254" class="field" placeholder="tu@correo.com"></div>
+            <div><label for="telefono">Teléfono</label><input id="telefono" type="tel" name="telefono" autocomplete="tel" maxlength="40" class="field" placeholder="+502"></div>
           </div>
         </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="label-simple">Fecha tentativa</label>
-            <input type="date" name="fecha_tentativa" class="field-simple">
+      </fieldset>
+      <fieldset>
+        <legend><span>02</span> Los detalles</legend>
+        <div class="fields">
+          <div class="row">
+            <div>
+              <label for="fecha_tentativa">Fecha tentativa</label>
+              <div class="date-wrap">
+                <input id="fecha_tentativa" type="date" name="fecha_tentativa" class="field" aria-describedby="date-hint">
+                <svg class="calendar-icon" hidden aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="18" height="16"/><path d="M7 2v6m10-6v6M3 11h18"/></svg>
+              </div>
+              <div class="date-actions"><p class="hint" id="date-hint">Puedes dejarla por definir.</p><button type="button" class="text-button" id="clear-date" hidden>Borrar fecha</button></div>
+            </div>
+            <div>
+              <label for="tipo_evento">Tipo de evento</label>
+              <select id="tipo_evento" name="tipo_evento" class="field">
+                <option value="Boda">Boda</option><option value="Civil">Civil</option><option value="Quinceaneros">Quinceaños</option><option value="Evento corporativo">Evento corporativo</option><option value="Otro">Otro</option>
+              </select>
+            </div>
           </div>
           <div>
-            <label class="label-simple">Tipo de evento</label>
-            <select name="tipo_evento" class="field-simple">
-              <option value="Boda">Boda</option>
-              <option value="Civil">Civil</option>
-              <option value="Quinceaneros">Quinceaneros</option>
-              <option value="Evento corporativo">Evento corporativo</option>
+            <label for="locacion">Ubicación tentativa</label>
+            <div class="location-wrap">
+              <input id="locacion" name="locacion" class="field" maxlength="500" placeholder="Busca una finca, hotel o lugar…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="location-results" aria-describedby="location-status location-credit">
+              <ul id="location-results" class="suggestions" role="listbox" aria-label="Lugares sugeridos" hidden></ul>
+            </div>
+            <p class="hint" id="location-status" role="status">Escribe al menos 3 letras o deja tu ubicación por definir.</p>
+            <p class="hint" id="location-credit">Búsqueda con <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a></p>
+          </div>
+          <div>
+            <label for="notas">Notas <span class="optional">/ opcional</span></label>
+            <textarea id="notas" name="notas" class="field" rows="4" maxlength="5000" placeholder="Cuéntanos cómo imaginas tu boda, cuántos invitados esperan o cualquier detalle que quieras compartir."></textarea>
+          </div>
+          <div>
+            <label for="fuente">¿Cómo nos encontraste?</label>
+            <select id="fuente" name="fuente" class="field">
+              {% for source in lead_sources %}<option value="{{ source.name }}">{{ source.label }}</option>{% endfor %}
               <option value="Otro">Otro</option>
             </select>
           </div>
         </div>
-
-        <div>
-          <label class="label-simple">Ubicacion tentativa</label>
-          <input name="locacion" placeholder="ej: Antigua Guatemala" class="field-simple">
-        </div>
-
-        <div>
-          <label class="label-simple">Como nos encontraste?</label>
-          <select name="fuente" class="field-simple">
-            {% for source in lead_sources %}
-            <option value="{{ source.name }}">{{ source.label }}</option>
-            {% endfor %}
-            <option value="Otro">Otro</option>
-          </select>
-        </div>
-
-        <button type="submit" class="w-full text-white font-medium py-3 rounded-lg mt-6" style="background: #0A0E1A;">
-          Enviar solicitud
-        </button>
-      </form>
-
-      <div id="success-msg" class="hidden mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
-        <svg class="w-12 h-12 text-emerald-600 mx-auto mb-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-        <p class="font-medium text-emerald-700">Gracias por contactarnos!</p>
-        <p class="text-xs text-emerald-600 mt-1">Te responderemos en menos de 24 horas.</p>
-      </div>
+      </fieldset>
+      <div id="form-error" class="form-error" role="alert" hidden></div>
+      <button type="submit" class="submit"><span id="submit-label">Enviar solicitud</span><span aria-hidden="true">↗</span></button>
+      <p class="form-foot">* Campos obligatorios. Los demás detalles pueden esperar.</p>
+      <noscript><p>Activa JavaScript para enviar el formulario o escríbenos al correo que aparece abajo.</p></noscript>
+    </form>
+    <section id="success-msg" class="success" tabindex="-1" role="status" hidden>
+      <span class="eyebrow">Solicitud recibida</span>
+      <h2>Gracias por compartir<br>tu historia.</h2>
+      <p>Te responderemos en menos de 24 horas para conversar sobre los siguientes pasos.</p>
+    </section>
+  </main>
+  <footer>
+    <span>{{ tenant.name or 'ASTRAL WEDDINGS' }}</span>
+    <div class="contact">
+      <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>
+      {% if contact_phone %}<a href="tel:{{ contact_phone | replace(' ', '') }}">{{ contact_phone }}</a>{% endif %}
     </div>
-
-    <div class="text-center mt-6 text-xs text-ink-soft">
-      {{ tenant.name or 'ASTRAL WEDDINGS' }} &middot; {{ contact_email }} &middot; {{ contact_phone }}
-    </div>
-  </div>
+  </footer>
 </div>
-
-<script>
-document.getElementById('form-captacion').addEventListener('submit', function(e) {
-  e.preventDefault();
-  var formData = new FormData(e.target);
-  var data = {};
-  formData.forEach(function(value, key) { data[key] = value; });
-
-  var btn = e.target.querySelector('button[type=submit]');
-  btn.disabled = true;
-  btn.textContent = 'Enviando...';
-
-  fetch('/api/captacion', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(result) {
-    if (result.ok) {
-      document.getElementById('form-captacion').classList.add('hidden');
-      document.getElementById('success-msg').classList.remove('hidden');
-    } else {
-      alert('Error: ' + (result.error || 'desconocido'));
-      btn.disabled = false;
-      btn.textContent = 'Enviar solicitud';
-    }
-  })
-  .catch(function() {
-    alert('Error de red');
-    btn.disabled = false;
-    btn.textContent = 'Enviar solicitud';
-  });
-});
-</script>
-
 </body>
 </html>
