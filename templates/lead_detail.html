@@ -1,138 +1,103 @@
 {% extends "base.html" %}
 {% block title %}{{ lead.nombre }} · Lead{% endblock %}
 {% block header %}{{ lead.nombre }}{% endblock %}
-{% block subtitle %}Dashboard &gt; Leads &gt; {{ lead.nombre }}{% endblock %}
+{% block subtitle %}Leads &gt; {{ lead.nombre }}{% endblock %}
 {% block topbar_title %}Lead{% endblock %}
 
 {% block content %}
-<section class="sn-page-wide">
-  <div class="sn-page-head">
-    <div>
-      <h1 class="sn-page-title">{{ lead.nombre }}</h1>
-      <div class="sn-breadcrumbs">Dashboard &gt; Leads &gt; {{ lead.nombre }}</div>
-    </div>
-    <div class="sn-actions">
-      {% if client %}
-      <a class="sn-btn" href="/portal/{{ client.id }}" target="_blank">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-        View Client Portal
-      </a>
-      {% endif %}
-      <button class="sn-btn sn-btn-primary" type="button" onclick="openAddMenu()">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-        Nuevo
-      </button>
-    </div>
-  </div>
-
-  <div class="lead-grid">
-    <aside>
-      <div class="workflow-title">
-        <a href="/workflow-editor?id=lead_workflow_v1">Workflow · Editar plantilla</a>
-        <button class="sn-btn-icon" type="button" title="Create quote" onclick="createMultiOptionQuote()">+</button>
+<link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css') }}">
+<section class="sn-page-wide lead-detail">
+  <nav class="lead-breadcrumb" aria-label="Ruta de navegación"><a href="/leads">← Leads</a><span>/</span><span>Detalle del lead</span></nav>
+  <header class="lead-hero">
+    <div class="lead-hero-top">
+      <div class="lead-identity">
+        <div class="lead-status"><span class="sn-chip {% if lead.status == 'Convertido' %}green{% elif lead.status == 'Perdido' %}red{% else %}cyan{% endif %}">{{ lead.status or 'Nuevo' }}</span><span>{{ lead.tipo_evento or 'Evento por definir' }}</span></div>
+        <h1>{{ lead.nombre }}</h1>
+        <div class="lead-contact"><span>{{ lead.email or 'Sin correo' }}</span><span>{{ lead.telefono or 'Sin teléfono' }}</span></div>
       </div>
-      <div class="workflow-list">
-        <div class="workflow-rail lead">LEAD</div>
-        <div class="workflow-steps">
-          {% for step in lead_steps %}
-          <div class="workflow-step {% if step.status == 'done' %}done{% endif %} {% if step.locked %}locked{% endif %}">
-            <button class="workflow-check {% if step.status == 'done' %}done{% endif %}" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="Run step">
-              {% if step.status == 'done' %}
-              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-              {% endif %}
-            </button>
-            <div style="min-width:0;">
-              <div class="workflow-step-name">{{ step.name }}</div>
-              {% if step.status == 'queued' %}<a href="/emails" class="sn-chip gray">Pendiente de aprobación</a>{% elif step.status == 'failed' %}<a href="/emails" class="sn-chip gray">Revisar correo</a>{% endif %}
-              {% if step.email_template_id %}<a href="/settings/email-templates" class="workflow-step-desc">{{ step.email_template_name or 'Vincula un Email Template' }}</a>{% endif %}
-              <div>
-                {% if step.email_template_id %}<span class="workflow-step-desc">Preparar email</span>{% endif %}
-                {% if step.scheduled %}<span class="sn-chip pink">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
-              </div>
-            </div>
-            <button class="sn-menu-dots" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="{% if step.locked %}Primero completa Trabajo aceptado{% else %}Run now{% endif %}">
-              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
-            </button>
-          </div>
-          {% endfor %}
-        </div>
-
-        {% if prod_steps %}
-        <div class="workflow-rail production">PRODUCTION</div>
-        <div class="workflow-steps">
-          {% for step in prod_steps %}
-          <div class="workflow-step {% if step.status == 'done' %}done{% endif %}">
-            <button class="workflow-check {% if step.status == 'done' %}done{% endif %}" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="Run step">
-              {% if step.status == 'done' %}
-              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-              {% endif %}
-            </button>
-            <div style="min-width:0;">
-              <div class="workflow-step-name">{{ step.name }}</div>
-              {% if step.status == 'queued' %}<a href="/emails" class="sn-chip gray">Pendiente de aprobación</a>{% elif step.status == 'failed' %}<a href="/emails" class="sn-chip gray">Revisar correo</a>{% endif %}
-              {% if step.email_template_id %}<a href="/settings/email-templates" class="workflow-step-desc">{{ step.email_template_name or 'Vincula un Email Template' }}</a>{% endif %}
-              <div>
-                {% if step.email_template_id %}<span class="workflow-step-desc">Preparar email</span>{% endif %}
-                {% if step.scheduled %}<span class="sn-chip yellow">{{ step.scheduled[:16]|replace('T', ' ') }}</span>{% endif %}
-              </div>
-            </div>
-            <button class="sn-menu-dots" type="button" onclick="triggerStep('{{ step.id }}', '{{ step.name }}')" title="Run now">
-              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
-            </button>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
+      <div class="lead-primary-actions">
+        <button class="sn-btn sn-btn-primary" type="button" onclick="createMultiOptionQuote()">+ Crear cotización</button>
+        <button class="sn-btn" type="button" onclick="sendEmailToLead()">Redactar correo</button>
+        <button class="sn-btn" type="button" onclick="openLeadEdit()">Editar datos</button>
       </div>
-      <button class="sn-btn sn-btn-sm mt-3" type="button" onclick="showHistory()">History Log</button>
-    </aside>
+    </div>
+    <dl class="lead-event-facts">
+      <div><dt>Fecha del evento</dt><dd>{{ lead.fecha_tentativa|fecha_legible or 'Por definir' }}</dd></div>
+      <div><dt>Lugar</dt><dd>{{ lead.locacion or 'Por definir' }}</dd></div>
+      <div><dt>Origen</dt><dd>{{ lead.fuente or 'Sin especificar' }}</dd></div>
+      <div><dt>Presupuesto</dt><dd>{{ lead.presupuesto or 'Por definir' }}</dd></div>
+    </dl>
+    <div class="lead-secondary-actions">
+      {% if lead.status != 'Convertido' %}<button class="lead-text-button" type="button" onclick="openAcceptJobModal('accept')">Confirmar reserva →</button>{% endif %}
+      {% if job_vinculado %}<a href="/jobs/{{ job_vinculado.id }}">Abrir boda →</a>{% endif %}
+      <button class="lead-text-button" type="button" onclick="checkDate()">Consultar disponibilidad</button>
+      {% if client %}<a href="/portal/{{ client.id }}" target="_blank" rel="noopener">Portal del cliente ↗</a><a href="/clients/{{ client.id }}">Ficha del cliente</a>{% endif %}
+      <button class="lead-text-button" type="button" onclick="openAddMenu()">Más acciones</button>
+    </div>
+  </header>
 
-    <main class="grid-1">
-      <section class="sn-card">
-        <div class="sn-card-head">
-          <div class="sn-card-title">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20Z"/></svg>
-            Lead
-          </div>
-          <div class="sn-actions">
-            <button class="sn-btn sn-btn-sm" type="button" onclick="openLeadEdit()">Editar</button>
-            <button class="sn-btn sn-btn-sm" type="button" onclick="archiveLead()">Archive</button>
-          </div>
-        </div>
-        <div class="sn-card-body">
-          <div class="entity-primary">
-            <div style="min-width:0;">
-              <div class="sn-list-title">{{ lead.nombre }}</div>
-              <div class="sn-list-meta">{{ lead.email or 'No email' }} · {{ lead.telefono or 'No phone' }}</div>
-            </div>
-            <span class="sn-chip {% if lead.status == 'Convertido' %}green{% elif lead.status == 'Perdido' %}red{% else %}cyan{% endif %}">{{ lead.status or 'Nuevo' }}</span>
-          </div>
-          <div class="sn-field-grid">
-            <div class="sn-field-label">Type:</div><div class="sn-field-value">{{ lead.tipo_evento or 'BODAS' }}</div>
-            <div class="sn-field-label">Workflow:</div><div class="sn-field-value">{{ workflow_name }}</div>
-            <div class="sn-field-label">Boda:</div><div class="sn-field-value">{{ lead.fecha_tentativa or '—' }}</div>
-            <div class="sn-field-label">Location:</div><div class="sn-field-value">{{ lead.locacion or '—' }}</div>
-            <div class="sn-field-label">Lead Source:</div><div class="sn-field-value">{{ lead.fuente or '—' }}</div>
-            <div class="sn-field-label">Budget:</div><div class="sn-field-value">{{ lead.presupuesto or '—' }}</div>
-          </div>
-          <div class="sn-list-actions">
-            <button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick="createMultiOptionQuote()">Create Quote</button>
-            {% if lead.status != 'Convertido' %}
-            <button class="sn-btn sn-btn-sm" type="button" onclick="openAcceptJobModal('accept')">Accept / Create Job</button>
-            {% endif %}
-            {% if job_vinculado %}
-            <a class="sn-btn sn-btn-sm" href="/jobs/{{ job_vinculado.id }}">Abrir boda</a>
-            {% endif %}
-          </div>
-        </div>
-      </section>
+  {% set upcoming = namespace(step=none) %}
+  {% for step in workflow_steps %}
+    {% if not upcoming.step and step.status not in ['done', 'skipped'] and not step.locked %}{% set upcoming.step = step %}{% endif %}
+  {% endfor %}
+  <section class="lead-next" aria-labelledby="lead-next-title">
+    <div class="lead-next-icon" aria-hidden="true">↗</div>
+    <div class="lead-next-copy">
+      <div class="lead-eyebrow">Próximo paso</div>
+      <h2 id="lead-next-title">{{ upcoming.step.name if upcoming.step else 'Todo al día' }}</h2>
+      {% if upcoming.step %}{% with step=upcoming.step %}{% include 'workflow_timing.html' %}{% endwith %}
+      {% else %}<p class="sn-muted">No hay pasos pendientes disponibles.</p>{% endif %}
+    </div>
+    {% if upcoming.step %}
+      {% if upcoming.step.status in ['queued', 'failed'] %}<a class="sn-btn" href="/emails">Revisar correo →</a>
+      {% else %}<a class="sn-btn" href="#lead-workflow">Ver en workflow ↓</a>{% endif %}
+    {% endif %}
+  </section>
 
+  <div class="lead-workspace">
+    <div class="lead-records">
+      <div class="lead-section-heading"><div><h2>Documentos y actividad</h2><p>Todo lo que compartes con este cliente.</p></div></div>
       <section class="grid-2">
         <div class="sn-card">
           <div class="sn-card-head">
             <div class="sn-card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
+              Cotizaciones
+            </div>
+            <button class="sn-btn-icon" type="button" onclick="createMultiOptionQuote()" aria-label="Crear cotización" title="Crear cotización">+</button>
+          </div>
+          <div class="sn-card-body">
+            {% if quotes %}
+            <div class="sn-list">
+              {% for q in quotes %}
+              <div class="sn-list-item">
+                <div class="sn-list-row">
+                  <div>
+                    <div class="sn-list-title">{{ q.paquete_nombre or q.id }}</div>
+                    <div class="sn-list-meta">{{ q.created|fecha_legible or '' }} · {{ q.status or 'Draft' }}</div>
+                  </div>
+                  <div class="sn-money">Q{{ '{:,.2f}'.format(q.precio_total or 0) }}</div>
+                </div>
+                <div class="sn-list-actions">
+                  <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}">Ver</a>
+                  {% if q.status != 'Aceptada' and lead.status != 'Convertido' %}
+                  <button class="sn-btn sn-btn-sm" type="button" onclick="acceptQuote()">Aceptar</button>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="sn-muted">Todavía no hay cotizaciones.</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="sn-card">
+          <div class="sn-card-head">
+            <div class="sn-card-title">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 3h10v18H7zM9 7h6M9 11h6M9 15h3"/></svg>
-              Invoices
+              Facturas
             </div>
           </div>
           <div class="sn-card-body">
@@ -143,54 +108,19 @@
                 <div class="sn-list-row">
                   <div>
                     <div class="sn-list-title">{{ p.invoice_id or p.id }}</div>
-                    <div class="sn-list-meta">{{ p.due_date or 'No due date' }} · {{ p.status or 'Pendiente' }}</div>
+                    <div class="sn-list-meta">{{ p.due_date|fecha_legible or 'Sin fecha de vencimiento' }} · {{ p.status or 'Pendiente' }}</div>
                   </div>
                   <div class="sn-money">Q{{ '{:,.2f}'.format(p.amount or 0) }}</div>
                 </div>
                 <div class="sn-list-actions">
                   <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ p.id }}')">Enviar</button>
-                  {% if p.status != 'Pagado' %}<button class="sn-btn sn-btn-sm" type="button" onclick="markPaymentPaid('{{ p.id }}')">Record Payment</button>{% endif %}
+                  {% if p.status != 'Pagado' %}<button class="sn-btn sn-btn-sm" type="button" onclick="markPaymentPaid('{{ p.id }}')">Registrar pago</button>{% endif %}
                 </div>
               </div>
               {% endfor %}
             </div>
             {% else %}
             <div class="sn-muted">Sin facturas.</div>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="sn-card">
-          <div class="sn-card-head">
-            <div class="sn-card-title">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
-              Quotes
-            </div>
-            <button class="sn-btn-icon" type="button" onclick="createMultiOptionQuote()">+</button>
-          </div>
-          <div class="sn-card-body">
-            {% if quotes %}
-            <div class="sn-list">
-              {% for q in quotes %}
-              <div class="sn-list-item">
-                <div class="sn-list-row">
-                  <div>
-                    <div class="sn-list-title">{{ q.paquete_nombre or q.id }}</div>
-                    <div class="sn-list-meta">{{ q.created or '' }} · {{ q.status or 'Draft' }}</div>
-                  </div>
-                  <div class="sn-money">Q{{ '{:,.2f}'.format(q.precio_total or 0) }}</div>
-                </div>
-                <div class="sn-list-actions">
-                  <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}">View</a>
-                  {% if q.status != 'Aceptada' and lead.status != 'Convertido' %}
-                  <button class="sn-btn sn-btn-sm" type="button" onclick="acceptQuote()">Accept</button>
-                  {% endif %}
-                </div>
-              </div>
-              {% endfor %}
-            </div>
-            {% else %}
-            <div class="sn-muted">Las cotizaciones de este lead van a aparecer aca.</div>
             {% endif %}
           </div>
         </div>
@@ -201,7 +131,7 @@
           <div class="sn-card-head">
             <div class="sn-card-title">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6M9 16h6M8 4h8l3 3v13H5V4h3Z"/></svg>
-              Contracts
+              Contratos
             </div>
           </div>
           <div class="sn-card-body">
@@ -212,7 +142,7 @@
                 <div class="sn-list-row">
                   <div>
                     <div class="sn-list-title">{{ c.tipo or 'Contract' }}</div>
-                    <div class="sn-list-meta">{{ c.created or '' }} · {{ c.status or 'Draft' }}</div>
+                    <div class="sn-list-meta">{{ c.created|fecha_legible or '' }} · {{ c.status or 'Draft' }}</div>
                   </div>
                   {% if c.signed %}<span class="sn-chip green">Signed</span>{% else %}<span class="sn-chip gray">Not signed</span>{% endif %}
                 </div>
@@ -222,7 +152,7 @@
                      si (con estado de firma, terminos, etc.), la unica forma de
                      llegar ahi era buscarlo desde el job. Mismo patron de dos
                      botones que ya usa job_detail.html. #}
-                  <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}" target="_blank">View</a>
+                  <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}" target="_blank">Ver</a>
                   <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf" target="_blank">PDF</a>
                   <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Enviar</button>
                 </div>
@@ -239,9 +169,9 @@
           <div class="sn-card-head">
             <div class="sn-card-title">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5h6M9 9h6M9 13h6M7 21h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z"/></svg>
-              Questionnaires
+              Cuestionarios
             </div>
-            <button class="sn-btn-icon" type="button" onclick="createQuestionnaire()">+</button>
+            <button class="sn-btn-icon" type="button" onclick="createQuestionnaire()" aria-label="Crear cuestionario" title="Crear cuestionario">+</button>
           </div>
           <div class="sn-card-body">
             {% if questionnaires %}
@@ -251,7 +181,7 @@
                 <div class="sn-list-row">
                   <div>
                     <div class="sn-list-title">{{ q.name or q.id }}</div>
-                    <div class="sn-list-meta">{{ q.created or '' }} · {{ q.status or 'Sent' }}</div>
+                    <div class="sn-list-meta">{{ q.created|fecha_legible or '' }} · {{ q.status or 'Sent' }}</div>
                   </div>
                   <span class="sn-chip cyan">{{ q.status or 'Sent' }}</span>
                 </div>
@@ -259,7 +189,7 @@
               {% endfor %}
             </div>
             {% else %}
-            <div class="sn-muted">Los cuestionarios de este lead van a aparecer aca.</div>
+            <div class="sn-muted">Todavía no hay cuestionarios.</div>
             {% endif %}
           </div>
         </div>
@@ -270,9 +200,9 @@
           <div class="sn-card-head">
             <div class="sn-card-title">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h6l2 2h8v10H4z"/></svg>
-              Files
+              Archivos
             </div>
-            <button class="sn-btn-icon" type="button" onclick="uploadFile()">+</button>
+            <button class="sn-btn-icon" type="button" onclick="uploadFile()" aria-label="Subir archivo" title="Subir archivo">+</button>
           </div>
           <div class="sn-card-body">
             {% if files %}
@@ -282,7 +212,7 @@
                 <div class="sn-list-row">
                   <div>
                     <div class="sn-list-title">{{ f.name or f.id }}</div>
-                    <div class="sn-list-meta">{{ f.created or '' }} · {{ f.size or '0 MB' }}</div>
+                    <div class="sn-list-meta">{{ f.created|fecha_legible or '' }} · {{ f.size or '0 MB' }}</div>
                   </div>
                   <span class="sn-chip gray">{{ f.status or 'Attached' }}</span>
                 </div>
@@ -299,12 +229,12 @@
           <div class="sn-card-head">
             <div class="sn-card-title">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
-              Notes
+              Notas
             </div>
-            <button class="sn-btn-icon" type="button" onclick="saveLeadNotes()">+</button>
+            <button class="sn-btn-icon" type="button" onclick="saveLeadNotes()" aria-label="Guardar notas" title="Guardar notas">Guardar</button>
           </div>
           <div class="sn-card-body">
-            <textarea id="lead-notes" class="form-input" rows="5">{{ lead.notas or lead.notes or '' }}</textarea>
+            <textarea aria-label="Notas del lead" id="lead-notes" class="form-input" rows="5">{{ lead.notas or lead.notes or '' }}</textarea>
           </div>
         </div>
       </section>
@@ -313,9 +243,9 @@
         <div class="sn-card-head">
           <div class="sn-card-title">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m4 6 8 5 8-5M4 6h16v12H4z"/></svg>
-            Mail
+            Correos
           </div>
-          <button class="sn-btn-icon" type="button" onclick="sendEmailToLead()">+</button>
+          <button class="sn-btn-icon" type="button" onclick="sendEmailToLead()" aria-label="Redactar correo" title="Redactar correo">+</button>
         </div>
         <div class="sn-card-body">
           {% if mail_log %}
@@ -325,7 +255,7 @@
               <tbody>
                 {% for m in mail_log %}
                 <tr>
-                  <td data-label="Date">{{ m.sent_at[:10] if m.sent_at else '' }}</td>
+                  <td data-label="Date">{{ m.sent_at|fecha_legible or '' }}</td>
                   <td class="sn-ellipsis" data-label="To">{{ m.to }}</td>
                   <td class="sn-ellipsis" data-label="Subject">{{ m.subject }}</td>
                   <td data-label="Estado">
@@ -333,7 +263,7 @@
                     {% elif m.status == 'clicked' %}<span class="sn-chip green">LINK CLICKED</span>
                     {% else %}<span class="sn-chip yellow">EMAIL SENT</span>{% endif %}
                   </td>
-                  <td class="stack-actions"><button class="sn-btn sn-btn-sm" type="button" onclick="simulateOpen('{{ m.id }}')">View</button></td>
+                  <td class="stack-actions"><button class="sn-btn sn-btn-sm" type="button" onclick="simulateOpen('{{ m.id }}')">Ver</button></td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -344,49 +274,23 @@
           {% endif %}
         </div>
       </section>
-    </main>
-
-    <aside class="grid-1">
-      <section class="sn-card entity-card">
-        <div class="sn-card-head">
-          <div class="sn-card-title">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20a5 5 0 0 0-10 0M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/></svg>
-            Client
-          </div>
+    </div>
+    <aside class="lead-workflow-panel" id="lead-workflow" aria-labelledby="lead-workflow-title">
+      <div class="lead-section-heading"><div><h2 id="lead-workflow-title">Workflow</h2><p>{{ workflow_name }}</p></div><a class="lead-template-link" href="/workflow-editor?id=lead_workflow_v1">Editar plantilla ↗</a></div>
+      <div class="lead-workflow-card">
+        <div class="lead-phase-heading"><h3>Seguimiento</h3><span>{{ lead_steps|selectattr('status', 'equalto', 'done')|list|length }} de {{ lead_steps|length }} completados</span></div>
+        <div class="workflow-steps">
+          {% for step in lead_steps %}{% include 'lead_workflow_step.html' %}{% else %}<p class="sn-muted">Sin pasos de seguimiento.</p>{% endfor %}
         </div>
-        <div class="sn-card-body">
-          <div class="entity-primary">
-            <div style="min-width:0;">
-              <div class="sn-list-title">{{ (client.first_name ~ ' ' ~ client.last_name) if client else lead.nombre }}</div>
-              <div class="sn-list-meta">{{ 'Primary' if client else 'Not converted yet' }}</div>
-            </div>
-            <div class="entity-avatar">{{ (client.first_name[:1] if client else lead.nombre[:1]) }}</div>
-          </div>
-          <div class="sn-field-grid">
-            <div class="sn-field-label">Phone:</div><div class="sn-field-value">{{ (client.phone if client else lead.telefono) or '—' }}</div>
-            <div class="sn-field-label">Email:</div><div class="sn-field-value sn-ellipsis">{{ (client.email if client else lead.email) or '—' }}</div>
-            <div class="sn-field-label">Address:</div><div class="sn-field-value">{{ (client.address if client else lead.locacion) or '—' }}</div>
-          </div>
-          <div class="sn-list-actions">
-            {% if client %}<a class="sn-btn sn-btn-sm" href="/clients/{{ client.id }}">Edit Client</a>{% endif %}
-            <button class="sn-btn sn-btn-sm" type="button" onclick="sendEmailToLead()">Enviar correo</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="sn-card">
-        <div class="sn-card-head">
-          <div class="sn-card-title">Quick Actions</div>
-        </div>
-        <div class="sn-card-body">
-          <div class="grid-1">
-            <button class="sn-btn sn-btn-primary" type="button" onclick="createMultiOptionQuote()">Create Quote</button>
-            {% if lead.status != 'Convertido' %}<button class="sn-btn" type="button" onclick="openAcceptJobModal('accept')">Accept / Create Job</button>{% endif %}
-            <button class="sn-btn" type="button" onclick="checkDate()">Check Date</button>
-            <button class="sn-btn" type="button" onclick="sendEmailToLead()">Enviar correo</button>
-          </div>
-        </div>
-      </section>
+        {% if prod_steps %}
+        <details class="lead-future-phase" {% if lead.status == 'Convertido' %}open{% endif %}>
+          <summary><span>Reserva y producción<small>Contrato, cuestionario y siguientes pasos</small></span><span>{{ prod_steps|length }} pasos</span></summary>
+          <div class="workflow-steps">{% for step in prod_steps %}{% include 'lead_workflow_step.html' %}{% endfor %}</div>
+        </details>
+        {% endif %}
+        <div class="lead-workflow-footer"><button class="lead-text-button" type="button" onclick="showHistory()">Ver historial del workflow →</button></div>
+      </div>
+      <button class="lead-archive lead-text-button" type="button" onclick="archiveLead()">Archivar lead</button>
     </aside>
   </div>
 </section>
@@ -903,4 +807,5 @@ document.addEventListener('keydown', function(event) {
   closeAcceptJobModal();
 });
 </script>
+<script src="{{ url_for('static', filename='workflow-timing.js') }}" defer></script>
 {% endblock %}

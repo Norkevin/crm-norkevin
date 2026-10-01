@@ -1,0 +1,23 @@
+<div class="workflow-timing" style="white-space:normal;font-size:12px;line-height:1.5;margin-top:5px;">
+  {% if step.scheduled_display %}
+  <div><time>{{ step.scheduled_display }}</time> <span class="sn-muted">· Guatemala</span></div>
+  {% endif %}
+  {% if step.auto_prepare %}
+  <strong data-workflow-due="{{ step.scheduled_epoch }}">Preparación automática programada</strong>
+  <div class="sn-muted">Después, aprueba el envío en Emails.</div>
+  {% elif step.status == 'queued' %}
+  <div>Correo preparado. <a href="/emails">Falta aprobar el envío.</a></div>
+  {% elif step.status == 'done' %}
+  <div class="sn-muted">Paso completado.</div>
+  {% elif step.status == 'skipped' %}
+  <div class="sn-muted">Paso omitido; no se preparará automáticamente.</div>
+  {% elif step.status == 'failed' %}
+  <div><a href="/emails">Revisa el correo antes de continuar.</a></div>
+  {% elif step.locked %}
+  <div class="sn-muted">Se programa al aceptar la cotización.</div>
+  {% elif not step.email_template_name and step.action_type in ['send_email', 'send_contract', 'send_questionnaire', 'send_gallery'] %}
+  <div class="sn-muted">Falta vincular una plantilla para automatizar este paso.</div>
+  {% else %}
+  <div class="sn-muted">Pendiente de ejecución manual o de la fecha del evento.</div>
+  {% endif %}
+</div>

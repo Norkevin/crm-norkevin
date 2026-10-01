@@ -88,7 +88,8 @@ def test_submitting_with_questionnaire_id_sends_that_exact_prepared_record(auth_
 
     all_q = [q for q in app_module.store.list('questionnaires') if q.get('job_id') == job_id]
     assert len(all_q) == 1
-    assert all_q[0]['status'] == 'Sent'
+    # Encolar no confirma entrega: sigue preparado hasta aprobar el correo.
+    assert all_q[0]['status'] == 'Preparado'
 
     # STAGE 2 (agosto 2026): encola en vez de entregar de inmediato.
     mail = next(m for m in app_module.store.list('pending_emails') if m.get('id') == data['mail_id'])
