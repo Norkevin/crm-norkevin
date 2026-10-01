@@ -31,11 +31,12 @@
 <section class="sn-page-wide quotes-page">
   <div class="sn-page-head">
     <div>
-      <h1 class="sn-page-title">Cotizaciones</h1>
-      <div class="sn-breadcrumbs">Todas las cotizaciones enviadas a clientes y leads.</div>
+      <h1 class="sn-page-title">{{ "Papelera de cotizaciones" if trash else "Cotizaciones" }}</h1>
+      <div class="sn-breadcrumbs">{{ "Puedes recuperar estas cotizaciones como borradores. Sus cuotas no cuentan como cobros activos." if trash else "Todas las cotizaciones enviadas a clientes y leads." }}</div>
     </div>
   </div>
 
+  {% if not trash %}
   <div class="quote-stats">
     <div class="quote-stat-card">
       <div class="quote-stat-label">Enviadas / Aceptadas</div>
@@ -51,8 +52,9 @@
     </div>
   </div>
 
+  {% endif %}
   <div class="sn-toolbar">
-    <div class="sn-toolbar-left"></div>
+    <div class="sn-toolbar-left"><a class="sn-btn" href="{{ '/quotes' if trash else '/quotes?trash=1' }}">{{ 'Ver cotizaciones' if trash else 'Papelera' }}</a></div>
     <div class="sn-toolbar-right">
       <input id="quote-search" class="sn-search" type="search" placeholder="Search" oninput="filterQuotes()">
     </div>
@@ -67,11 +69,12 @@
           <th style="width: 130px;">Monto</th>
           <th style="width: 130px;">Estado</th>
           <th style="width: 130px;">Creada</th>
+          <th>Acciones</th>
         </tr>
       </thead>
       <tbody>
         {% for q in quotes %}
-        <tr class="sn-table-row" data-text="{{ ((q.paquete_nombre or '') ~ ' ' ~ (q.client_name or '') ~ ' ' ~ (q.ref_name or ''))|lower }}" onclick="window.location.href='/quotes/{{ q.id }}'">
+        <tr class="sn-table-row" data-text="{{ ((q.paquete_nombre or '') ~ ' ' ~ (q.client_name or '') ~ ' ' ~ (q.ref_name or ''))|lower }}" onclick="window.location.href='/quotes/{{ q.id }}/{{ 'manage' if trash else 'edit' }}'">
           <td class="sn-ellipsis stack-full" data-label="Cotizacion">
             <div style="display:flex;align-items:center;gap:10px;min-width:0;">
               <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (q.client_name or '?')[:1]|upper }}</span>
@@ -84,9 +87,14 @@
           <td class="sn-ellipsis" data-label="Cliente">{{ q.client_name }}</td>
           <td data-label="Monto">Q{{ '{:,.0f}'.format(q.precio_total or 0) }}</td>
           <td data-label="Estado">
-            <span class="sn-chip {{ 'green' if q.status == 'Aceptada' else ('cyan' if q.status == 'Enviada' else 'yellow') }}">{{ q.status or 'Borrador' }}</span>
+            <span class="sn-chip {{ 'green' if q.status == 'Aceptada' else ('cyan' if q.status == 'Enviada' else 'yellow') }}">{{ 'En la papelera' if trash else (q.status or 'Borrador') }}</span>
           </td>
           <td class="sn-ellipsis" data-label="Creada">{{ q.created or '—' }}</td>
+          <td data-label="Acciones" onclick="event.stopPropagation()">
+            {% if trash %}<a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}/manage">Recuperar</a>
+            {% else %}<a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}/edit">Editar</a>
+            <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}/manage">Eliminar</a>{% endif %}
+          </td>
         </tr>
         {% else %}
         <tr>

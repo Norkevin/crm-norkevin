@@ -372,7 +372,12 @@
           <div style="display:flex;flex-wrap:wrap;gap:18px;">
             <div style="min-width:120px;">
               <div class="sn-list-meta">Total</div>
+              {% if not pagos_resumen.total and not job.accepted_quote_id and not pagos_resumen.cuotas %}
+              <div class="sn-list-title">Por definir</div>
+              <div class="sn-list-meta">Sin cotización aceptada</div>
+              {% else %}
               <div class="sn-list-title">Q{{ '{:,.2f}'.format(pagos_resumen.total) }}</div>
+              {% endif %}
             </div>
             <div style="min-width:120px;">
               <div class="sn-list-meta">Pagado</div>
@@ -544,6 +549,8 @@
             </div>
             <div class="sn-list-actions">
               <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}" target="_blank">View</a>
+              <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}/edit">Editar</a>
+              <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}/manage">Eliminar / gestionar</a>
               <button class="sn-btn sn-btn-sm" type="button" onclick="sendQuote('{{ q.id }}')">Enviar</button>
             </div>
           </div>

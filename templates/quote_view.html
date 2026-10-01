@@ -192,6 +192,13 @@
 {{ ui.topbar(theme, 'Cotización', quote.number or quote.id[-6:]|upper, _estado_label, _estado_tono) }}
 
 <div class="doc-page doc-body" style="padding-top: clamp(18px, 2.4vw, 26px);">
+{% if session.get('logged_in') and session.get('tenant_id') == quote.tenant_id %}
+<nav aria-label="Administrar cotización" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
+  <a class="doc-btn outline" href="/quotes/{{ quote.id }}/edit">Editar cotización</a>
+  <a class="doc-btn outline" href="/quotes/{{ quote.id }}/manage">Eliminar / gestionar</a>
+</nav>
+{% endif %}
+
 
   {# ---------- Hero: para quien es, cuando y donde ---------- #}
   {% set _hero_img = (portfolio[0].image_url if portfolio and portfolio[0].image_url else '') %}

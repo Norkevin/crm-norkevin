@@ -956,6 +956,10 @@ def _ensure_job_for_lead(lead, client_id, quote=None, status='Confirmado'):
                 changed = True
         if quote and not existing.get('accepted_quote_id'):
             existing['accepted_quote_id'] = quote.get('id')
+            existing['price_total'] = float(quote.get('precio_total') or 0)
+            existing['plan_pago'] = max(int(quote.get('plan_pago') or 1), 1)
+            existing['cuota_monto'] = round(existing['price_total'] / existing['plan_pago'], 2)
+            existing['package'] = quote.get('paquete_nombre') or ''
             changed = True
         if status and existing.get('status') != status:
             existing['status'] = status
@@ -970,8 +974,8 @@ def _ensure_job_for_lead(lead, client_id, quote=None, status='Confirmado'):
         return existing, False
 
     nombre_completo = lead.get('nombre', 'Cliente')
-    price_total = float((quote or {}).get('precio_total') or 15000)
-    plan_pago = int((quote or {}).get('plan_pago') or 1)
+    price_total = float((quote or {}).get('precio_total') or 0)
+    plan_pago = max(int(quote.get('plan_pago') or 1), 1) if quote else 0
     cuota_monto = round(price_total / plan_pago, 2) if plan_pago else price_total
     job = {
         'id': 'boda-' + uuid.uuid4().hex[:8],
@@ -986,7 +990,7 @@ def _ensure_job_for_lead(lead, client_id, quote=None, status='Confirmado'):
         'empresa': _brand_display_name_for_tenant(tenant_id),
         'type': lead.get('tipo_evento', 'Boda'),
         'location': lead.get('locacion', ''),
-        'package': (quote or {}).get('paquete_nombre', 'Basico'),
+        'package': (quote or {}).get('paquete_nombre') or '',
         'client_id': client_id,
         'lead_id': lead.get('id'),
         'accepted_quote_id': (quote or {}).get('id'),
@@ -1152,7 +1156,7 @@ def _accept_quote_for_existing_job(quote):
 
     job['accepted_quote_id'] = quote.get('id')
     job['package'] = quote.get('paquete_nombre') or job.get('package') or ''
-    job['price_total'] = float(quote.get('precio_total') or job.get('price_total') or 0)
+    job['price_total'] = float(quote.get('precio_total') or 0)
     job['plan_pago'] = int(quote.get('plan_pago') or job.get('plan_pago') or 1)
     job['cuota_monto'] = float(quote.get('cuota_monto') or (job['price_total'] / max(job['plan_pago'], 1)))
     if job.get('status') in ('Cotizando', 'Nuevo', ''):
@@ -11306,7 +11310,9 @@ def _snapshot_public_quote_extras(quote, tenant_id):
 def quotes_list():
     """Quotes Overview: todas las cotizaciones del tenant, sin importar
     si ya se convirtieron en job o siguen ligadas a un lead."""
-    quotes = list_quotes()
+    trash = request.args.get('trash') == '1'
+    quotes = ([q for q in store.list('quotes', include_archived=True) if q.get('archived_at')]
+              if trash else list_quotes())
     clients = {c['id']: c for c in list_clients()}
     jobs = {j['id']: j for j in list_jobs()}
     leads = {l['id']: l for l in list_leads()}
@@ -11324,7 +11330,7 @@ def quotes_list():
     total_accepted = sum(1 for q in quotes if q.get('status') == 'Aceptada')
     total_value = sum(coerce_amount(q.get('precio_total')) for q in quotes)
 
-    return render_template('quotes.html', quotes=quotes,
+    return render_template('quotes.html', quotes=quotes, trash=trash,
                           total_sent=total_sent, total_accepted=total_accepted, total_value=total_value)
 
 
@@ -11433,6 +11439,8 @@ def quote_view(quote_id):
     quote = next((q for q in quotes if q.get('id') == quote_id), None)
     if not quote:
         abort(404)
+    if quote.get('revision_pending') and quote.get('status') == 'Borrador' and not (session.get('logged_in') and session.get('tenant_id') == quote.get('tenant_id')):
+        abort(404)
 
     lead = get_lead(quote.get('lead_id', ''))
     if not lead and quote.get('job_id'):
@@ -11537,16 +11545,116 @@ def quote_view(quote_id):
     )
 
 
+def _quote_change_blocker(quote, job, payments):
+    if any(_row_paid_amount(p) > 0 or p.get('status') == 'Pagado' for p in payments):
+        return 'Esta cotización tiene pagos registrados. No se pueden reemplazar ni eliminar sus cuotas automáticamente.'
+    if job and any(c.get('job_id') == job['id'] and
+                   (c.get('signed') or c.get('signed_at') or c.get('photographer_signed'))
+                   for c in store.list('contracts')):
+        return 'Esta boda tiene un contrato firmado. Revisa el acuerdo antes de modificar la cotización.'
+    return None
+
+
+@app.route('/quotes/<quote_id>/manage')
+def quote_manage(quote_id):
+    quote = store.get('quotes', quote_id, include_archived=True)
+    if not quote:
+        abort(404)
+    job = get_job(quote.get('job_id')) if quote.get('job_id') else None
+    payments = [p for p in store.list('payments') if p.get('quote_id') == quote_id]
+    return render_template('quote_manage.html', quote=quote, job=job,
+                           blocker=_quote_change_blocker(quote, job, payments))
+
+
+@app.route('/api/quotes/<quote_id>/manage', methods=['POST'])
+def api_quote_manage(quote_id):
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify(ok=False, error='Datos inválidos'), 400
+    action = data.get('action')
+    if action not in ('payment-plan', 'reopen', 'archive', 'restore'):
+        return jsonify(ok=False, error='Acción inválida'), 400
+    if action == 'payment-plan':
+        plan = data.get('plan_pago')
+        if type(plan) is not int or not 1 <= plan <= 24:
+            return jsonify(ok=False, error='Selecciona entre 1 y 24 pagos'), 400
+    # No partial replacement: preserve the original data if any write fails.
+    with store.locked_tables('quotes', 'payments', 'payment_schedules', 'jobs', 'contracts'):
+        quote = store.get('quotes', quote_id, include_archived=True)
+        if not quote:
+            return jsonify(ok=False, error='Cotización no encontrada'), 404
+        if type(data.get('revision')) is not int or data['revision'] != len(quote.get('revision_history') or []):
+            return jsonify(ok=False, error='La cotización cambió. Recarga la página antes de continuar.'), 409
+        if quote.get('archived_at') and action != 'restore':
+            return jsonify(ok=False, error='La cotización está en la papelera'), 409
+        if action == 'restore' and not quote.get('archived_at'):
+            return jsonify(ok=True, url=f'/quotes/{quote_id}/edit')
+        job = get_job(quote.get('job_id')) if quote.get('job_id') else None
+        payments = [p for p in store.list('payments') if p.get('quote_id') == quote_id]
+        blocker = _quote_change_blocker(quote, job, payments)
+        if blocker and action != 'restore':
+            return jsonify(ok=False, error=blocker), 409
+        if action == 'payment-plan':
+            if quote.get('status') != 'Aceptada' or not job or job.get('accepted_quote_id') != quote_id:
+                return jsonify(ok=False, error='Solo se puede cambiar el plan de la cotización aceptada vigente'), 409
+            if plan == int(quote.get('plan_pago') or 1):
+                return jsonify(ok=True, url=f'/quotes/{quote_id}/manage', unchanged=True)
+        now = datetime.now().isoformat()
+        previous = {key: value for key, value in quote.items() if key != 'revision_history'}
+        quote['revision_history'] = list(quote.get('revision_history') or []) + [{
+            'action': action, 'at': now, 'by': session.get('user_email'), 'quote': previous,
+        }]
+        old_schedules = [s for s in _job_schedules(job['id']) if s.get('origin') == quote_id and s.get('status') == SCHEDULE_ACTIVE] if job else []
+        if action != 'restore':
+            for payment in payments:
+                payment.update(archived_at=now, archived_reason='quote:' + action)
+                store.upsert('payments', payment)
+            for schedule in old_schedules:
+                schedule.update(status=SCHEDULE_SUPERSEDED if action == 'payment-plan' else SCHEDULE_CANCELLED,
+                                superseded_at=now, superseded_motivo='quote:' + action)
+                store.upsert('payment_schedules', schedule)
+        if action == 'payment-plan':
+            quote.update(plan_pago=plan, selected_plan_pago=plan,
+                         cuota_monto=round(float(quote.get('precio_total') or 0) / plan, 2))
+            quote['plan_pago_opciones'] = sorted(set((quote.get('plan_pago_opciones') or []) + [plan]))
+            if quote.get('snapshot_aceptado'):
+                quote['snapshot_aceptado'] = dict(quote['snapshot_aceptado'], plan_pago=plan)
+            store.upsert('quotes', quote)
+            job.update(plan_pago=plan, cuota_monto=quote['cuota_monto'])
+            upsert_job(job)
+            _ensure_payments_for_quote(quote, quote.get('client_id') or job['client_id'], job['id'], quote['tenant_id'])
+            new_schedule = _active_schedule_for(quote['tenant_id'], job['id'], quote_id)
+            for schedule in old_schedules:
+                schedule['superseded_by'] = new_schedule['id']
+                store.upsert('payment_schedules', schedule)
+            destination = f'/quotes/{quote_id}/manage'
+        else:
+            if action != 'restore' and job and job.get('accepted_quote_id') == quote_id:
+                job.update(accepted_quote_id=None, price_total=0, plan_pago=0, cuota_monto=0, package='')
+                upsert_job(job)
+            # Old public links and accepted snapshots must not expose an edited draft.
+            quote.update(archived_at=now if action == 'archive' else None,
+                         public_token_hash=None, public_token=None)
+            if action != 'archive':
+                quote.update(status='Borrador', aceptada_en=None, selected_option_id=None,
+                             selected_plan_pago=None, snapshot_aceptado=None, revision_pending=True)
+            store.upsert('quotes', quote)
+            destination = '/quotes?trash=1' if action == 'archive' else f'/quotes/{quote_id}/edit'
+        log_security_event('QUOTE_ADMIN_CHANGED', tabla='quotes', registro=quote_id,
+                           cuenta_activa=quote.get('tenant_id'), accion=action)
+    return jsonify(ok=True, url=destination)
+
+
 @app.route('/quotes/<quote_id>/edit')
 def quote_edit(quote_id):
     """Vista de administrador: armar hasta 3 opciones de paquete antes de
-    enviar la cotizacion al cliente. Una vez enviada, esta pagina redirige a
-    la vista publica (ya no se puede seguir editando)."""
+    enviar la cotizacion al cliente. Una vez enviada, permite gestionar
+    el plan de pagos o reabrir la cotizacion como borrador."""
     quote = store.get('quotes', quote_id)
     if not quote:
         abort(404)
     if quote.get('status') and quote.get('status') != 'Borrador':
-        return redirect(url_for('quote_view', quote_id=quote_id))
+        return redirect(url_for('quote_manage', quote_id=quote_id))
 
     lead = get_lead(quote.get('lead_id', '')) if quote.get('lead_id') else None
     job = get_job(quote.get('job_id', '')) if quote.get('job_id') else None
@@ -12055,6 +12163,8 @@ def quote_accept(quote_id):
     quote = next((q for q in quotes if q.get('id') == quote_id), None)
     if not quote:
         abort(404)
+    if quote.get('revision_pending') and quote.get('status') == 'Borrador' and not (session.get('logged_in') and session.get('tenant_id') == quote.get('tenant_id')):
+        abort(404)
     brand = resolve_pdf_brand(quote.get('tenant_id'))
     # Mismo tema/URL-base que quote_view (BLOQUE C) para que la confirmacion
     # se vea igual de premium que la cotizacion que el cliente acaba de
@@ -12210,6 +12320,8 @@ def quote_decline(quote_id):
     quotes = store.list('quotes')
     quote = next((q for q in quotes if q.get('id') == quote_id), None)
     if not quote:
+        abort(404)
+    if quote.get('revision_pending') and quote.get('status') == 'Borrador' and not (session.get('logged_in') and session.get('tenant_id') == quote.get('tenant_id')):
         abort(404)
 
     if quote.get('status') != 'Aceptada':
@@ -12484,6 +12596,8 @@ def quote_pdf(quote_id):
     quotes = store.list('quotes')
     quote = next((q for q in quotes if q.get('id') == quote_id), None)
     if not quote:
+        abort(404)
+    if quote.get('revision_pending') and quote.get('status') == 'Borrador' and not (session.get('logged_in') and session.get('tenant_id') == quote.get('tenant_id')):
         abort(404)
 
     lead = get_lead(quote.get('lead_id', ''))
