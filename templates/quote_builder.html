@@ -5,6 +5,7 @@
 {% block topbar_title %}Jobs{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='client-experience.css') }}">
 <style>
 .quote-builder-grid {
   display: grid;
@@ -302,11 +303,11 @@ function renderCatalog() {
   }
   var groups = {};
   filteredPackages.forEach(function(pkg) {
-    var category = pkg.category || 'Package';
+    var category = pkg.section || 'Extras';
     if (!groups[category]) groups[category] = [];
     groups[category].push(pkg);
   });
-  list.innerHTML = Object.keys(groups).map(function(category) {
+  list.innerHTML = ['Mix', 'Foto', 'Video', 'Extras'].filter(function(category) { return groups[category]; }).map(function(category) {
     return '<div class="quote-catalog-section">' +
       '<div class="quote-catalog-heading"><span>' + escapeHtml(category) + '</span><span>' + groups[category].length + '</span></div>' +
       groups[category].map(renderCatalogCard).join('') +

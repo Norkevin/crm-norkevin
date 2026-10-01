@@ -147,8 +147,9 @@
   transition: background-color .16s, color .16s;
 }
 .btn-decline:hover { background: var(--surface-2); color: var(--text-primary); }
+#accept-form { flex: 1 1 260px; }
 .cta-row { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 12px; }
-@media (max-width: 620px) { .cta-row { flex-direction: column; } .cta-row form { width: 100%; } .btn-decline { width: 100%; } }
+@media (max-width: 620px) { input, select, textarea { font-size: 16px; } .cta-row { flex-direction: column; } .cta-row form { width: 100%; } #accept-form { flex: 0 1 auto; } .btn-decline { width: 100%; } }
 
 /* Portafolio */
 .pf-video { margin-bottom: clamp(14px, 2vw, 20px); }
@@ -177,8 +178,9 @@
 }
 .pf-copy:hover { background: var(--surface-2); color: var(--text-primary); }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='client-experience.css') }}">
 </head>
-<body>
+<body class="quote-client">
 {% import '_document_parts.html' as ui with context %}
 
 {% set _estado = quote.status %}
@@ -273,6 +275,9 @@
         <div class="opt-price-wrap">
           <div class="opt-price-label">Total</div>
           <div class="opt-price num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.precio_total or 0) }}</div>
+          {% if quote.snapshot_aceptado and quote.snapshot_aceptado.descuento %}
+          <div class="opt-discount">Descuento aplicado: −{{ theme.currency_symbol }}{{ '{:,.2f}'.format(quote.snapshot_aceptado.descuento) }}</div>
+          {% endif %}
         </div>
       </div>
 
@@ -383,6 +388,9 @@
             <div class="opt-price-old num">{{ theme.currency_symbol }}{{ '{:,.0f}'.format(opt.precio_anterior|float) }}</div>
             {% endif %}
             <div class="opt-price num">{{ theme.currency_symbol }}{{ '{:,.2f}'.format(opt.precio_total or 0) }}</div>
+            {% if opt.precio_base is defined and opt.precio_base is not none and opt.descuento %}
+            <div class="opt-discount">Descuento aplicado: −{{ theme.currency_symbol }}{{ '{:,.2f}'.format(opt.descuento) }}</div>
+            {% endif %}
             <div class="opt-price-currency">{{ theme.currency_label }}</div>
           </div>
         </div>
@@ -459,6 +467,7 @@
         <h2 class="doc-h2" style="margin-bottom:14px;">Tu selección</h2>
         <div class="summary-row"><span class="k">Modalidad</span><span id="sum-package">Elegí una opción arriba</span></div>
         <div class="summary-row" id="sum-extras-row" style="display:none;"><span class="k">Extras</span><span class="v" id="sum-extras">{{ theme.currency_symbol }}0</span></div>
+        <div class="summary-row" id="sum-discount-row" style="display:none;"><span class="k">Descuento incluido</span><span class="v" id="sum-discount"></span></div>
         <div class="summary-row total"><span class="k">Total</span><span class="v num" id="sum-total">{{ theme.currency_symbol }}0.00</span></div>
         <div class="summary-plan">
           <div class="doc-label">Plan elegido</div>
@@ -481,7 +490,7 @@
         </div>
       </div>
       <div class="cta-row">
-        <form method="POST" action="{{ public_base }}/accept" id="accept-form" style="flex:1 1 260px;">
+        <form method="POST" action="{{ public_base }}/accept" id="accept-form">
           <input type="hidden" name="option_id" id="accept-option-id">
           <input type="hidden" name="plan_pago" id="accept-plan-pago">
           <input type="hidden" name="extra_ids" id="accept-extra-ids">
@@ -641,6 +650,9 @@ function updateSummary() {
     extrasRow.style.display = extras > 0 ? 'flex' : 'none';
     document.getElementById('sum-extras').textContent = fmtMoney(extras);
   }
+  var discount = opt && opt.precio_base != null ? Number(opt.descuento || 0) : 0;
+  document.getElementById('sum-discount-row').style.display = discount > 0 ? 'flex' : 'none';
+  document.getElementById('sum-discount').textContent = '−' + fmtMoney(discount);
   var base = opt ? Number(opt.precio_total || 0) + extras : 0;
   document.getElementById('sum-total').textContent = fmtMoney(base);
 

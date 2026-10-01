@@ -3356,6 +3356,24 @@ def lead_detail(lead_id):
                           packages=packages)
 
 
+@app.template_filter('package_section')
+def _package_section(package):
+    """Agrupa el catálogo sin modificar nombres, precios ni categorías guardadas."""
+    import unicodedata
+    name = package.get('name') or package.get('Name') or ''
+    category = package.get('category') or package.get('Categoria') or ''
+    text = unicodedata.normalize('NFKD', name + ' ' + category).encode('ascii', 'ignore').decode().lower()
+    if any(word in text for word in ('civil', 'save the date', 'trash the dress', 'content creator', 'extra', 'adicional', 'compromiso', 'segundo')):
+        return 'Extras'
+    if 'mix' in text or (('foto' in text or 'photo' in text) and ('video' in text or 'film' in text)):
+        return 'Mix'
+    if 'foto' in text or 'photo' in text:
+        return 'Foto'
+    if 'video' in text or 'film' in text:
+        return 'Video'
+    return 'Extras'
+
+
 def _load_packages():
     """Carga el catalogo de paquetes via el JsonStore compartido (respeta
     CRM_DATA_DIR, a diferencia de la version vieja con ruta fija)."""
@@ -4594,6 +4612,7 @@ def quote_builder(job_id, quote_type):
             'id': package.get('id') or re.sub(r'[^a-z0-9]+', '-', (package.get('name') or package.get('Name') or 'package').lower()).strip('-'),
             'name': package.get('name') or package.get('Name') or 'Package',
             'category': package.get('category') or package.get('Categoria') or 'Package',
+            'section': _package_section(package),
             'description': package.get('description') or package.get('Notas') or '',
             'price': float(package.get('price') or package.get('Precio Q') or 0),
             'includes': includes,
@@ -11810,24 +11829,38 @@ def api_quote_option_save(quote_id):
     name = (data.get('name') or '').strip()
     if not name:
         return jsonify({'ok': False, 'error': 'Nombre del paquete requerido'}), 400
+    from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+    # El editor manda el precio antes del descuento explícitamente. Los clientes
+    # anteriores que mandan precio_total conservan su importe final contratado.
+    precio_base = None
     try:
-        precio_total = float(data.get('precio_total') or 0)
-    except (TypeError, ValueError):
-        return jsonify({'ok': False, 'error': 'Precio invalido'}), 400
-    if precio_total <= 0:
-        return jsonify({'ok': False, 'error': 'El precio debe ser mayor a 0'}), 400
+        amount = Decimal(str(data.get('precio_base') if 'precio_base' in data else data.get('precio_total') or 0))
+        discount = Decimal(str(data.get('descuento') or 0))
+        if not amount.is_finite() or not discount.is_finite() or amount <= 0 or discount < 0:
+            raise ValueError
+        amount = amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        discount = discount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        if 'precio_base' in data:
+            if discount >= amount:
+                return jsonify({'ok': False, 'error': 'El descuento debe ser menor al precio del paquete'}), 400
+            precio_base = float(amount)
+            precio_total = float(amount - discount)
+        else:
+            precio_total = float(amount)
+        if precio_total <= 0:
+            raise ValueError
+        descuento = float(discount)
+    except (InvalidOperation, TypeError, ValueError, OverflowError):
+        return jsonify({'ok': False, 'error': 'Precio o descuento inválido'}), 400
 
     precio_anterior = data.get('precio_anterior')
     try:
-        precio_anterior = float(precio_anterior) if precio_anterior not in (None, '') else None
-    except (TypeError, ValueError):
+        previous = Decimal(str(precio_anterior)) if precio_anterior not in (None, '') else None
+        precio_anterior = float(previous) if previous is not None and previous.is_finite() and previous > 0 else None
+    except (InvalidOperation, TypeError, ValueError, OverflowError):
         precio_anterior = None
-
-    descuento = data.get('descuento')
-    try:
-        descuento = float(descuento) if descuento not in (None, '') else None
-    except (TypeError, ValueError):
-        descuento = None
+    if precio_base is not None:
+        precio_anterior = precio_base if descuento else None
 
     horas = data.get('horas')
     try:
@@ -11884,6 +11917,7 @@ def api_quote_option_save(quote_id):
         'subtitle': (data.get('subtitle') or '').strip(),
         'description': (data.get('description') or '').strip(),
         'precio_total': precio_total,
+        'precio_base': precio_base,
         'precio_anterior': precio_anterior,
         'descuento': descuento,
         'horas': horas,
@@ -12334,6 +12368,8 @@ def quote_accept(quote_id):
             'groups': chosen.get('groups') or [],
             'incluye': chosen.get('incluye') or [],
             'precio_base': base_price,
+            'precio_sin_descuento': chosen.get('precio_base'),
+            'descuento': chosen.get('descuento') if chosen.get('precio_base') is not None else 0,
             'extras': selected_extras,
             'extras_total': extras_total,
             'total': base_price + extras_total,
