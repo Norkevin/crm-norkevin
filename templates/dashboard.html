@@ -940,6 +940,7 @@
     <div class="dashboard-widget-head">
       <div class="dashboard-widget-title">Fuentes de leads</div>
     </div>
+    <p class="sn-muted" style="font-size:12px;margin:0 0 12px;">Histórico de consultas y bodas. Cada solicitud cuenta una sola vez.</p>
     {% if lead_source_stats %}
     <div class="source-bars">
       {% for source in lead_source_stats[:6] %}
@@ -980,7 +981,7 @@
         <tr>
           <th>Estado</th>
           <th>Lead Source</th>
-          <th>Leads</th>
+          <th>Consultas / bodas</th>
           <th>Trabajos</th>
           <th>Total (%)</th>
           <th>Conversion</th>

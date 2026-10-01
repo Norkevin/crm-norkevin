@@ -1611,6 +1611,31 @@ def _configured_lead_sources(include_inactive=False, tenant_id=None):
     return sources
 
 
+def _lead_source_totals():
+    """Historical acquisition: a lead and its converted job count once.
+
+    Both tables are tenant scoped. Imported jobs without a lead still retain
+    their recorded source; no source is inferred from a client's identity.
+    """
+    leads = {lead['id']: lead for lead in list_leads()}
+    jobs = _canonical_jobs()
+    jobs_by_lead = {job.get('lead_id'): job for job in jobs if job.get('lead_id')}
+    counts, booked = defaultdict(int), defaultdict(int)
+
+    def source_for(lead, job):
+        return (lead.get('fuente') or job.get('lead_source') or 'Sin fuente').strip() or 'Sin fuente'
+
+    for lead_id, lead in leads.items():
+        counts[source_for(lead, jobs_by_lead.get(lead_id, {}))] += 1
+    for job in jobs:
+        lead = leads.get(job.get('lead_id'))
+        source = source_for(lead or {}, job)
+        booked[source] += 1
+        if lead is None:
+            counts[source] += 1
+    return counts, booked
+
+
 def _workflow_state_value(value):
     if value is None:
         return None
@@ -2778,20 +2803,10 @@ def dashboard():
 
     configured_sources = _configured_lead_sources(include_inactive=True)
     source_meta = {source['name']: source for source in configured_sources}
-    lead_source_counts = defaultdict(int)
-    lead_source_jobs = defaultdict(int)
+    lead_source_counts, lead_source_jobs = _lead_source_totals()
     for source in configured_sources:
         lead_source_counts[source['name']] += 0
         lead_source_jobs[source['name']] += 0
-    source_leads = _open_leads()
-    for lead in source_leads:
-        source = lead.get('fuente') or 'Sin fuente'
-        lead_source_counts[source] += 1
-    leads_by_id = {lead.get('id'): lead for lead in list_leads()}
-    for job in _canonical_jobs():
-        lead = leads_by_id.get(job.get('lead_id'))
-        source = (lead or {}).get('fuente') or job.get('lead_source') or 'Sin fuente'
-        lead_source_jobs[source] += 1
 
     source_total = sum(lead_source_counts.values()) or 1
     lead_source_stats = []
@@ -3105,17 +3120,11 @@ def api_leads_export_xls():
     """Exporta las fuentes de leads a XLS (tabla HTML con MIME de Excel)."""
     from flask import Response
 
-    lead_source_counts = defaultdict(int)
-    lead_source_jobs = defaultdict(int)
-    for lead in _open_leads():
-        lead_source_counts[lead.get('fuente') or 'Sin fuente'] += 1
-    leads_by_id = {lead.get('id'): lead for lead in list_leads()}
-    for job in _canonical_jobs():
-        lead = leads_by_id.get(job.get('lead_id'))
-        lead_source_jobs[(lead or {}).get('fuente') or job.get('lead_source') or 'Sin fuente'] += 1
+    from html import escape
+    lead_source_counts, lead_source_jobs = _lead_source_totals()
 
     rows = ''.join(
-        f'<tr><td>{source}</td><td>{count}</td><td>{lead_source_jobs.get(source, 0)}</td></tr>'
+        f'<tr><td>{escape(source)}</td><td>{count}</td><td>{lead_source_jobs.get(source, 0)}</td></tr>'
         for source, count in sorted(lead_source_counts.items(), key=lambda kv: kv[1], reverse=True)
     )
     html = (
