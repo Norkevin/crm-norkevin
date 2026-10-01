@@ -253,6 +253,9 @@ def _anotar(pendiente, nuevo_estado, *, actor=None, motivo=None):
     return pendiente
 
 
+delivery_observer = None
+
+
 class MailTracker:
     """Tracker de emails. Persiste via el JsonStore compartido (data/mail_log.json)
     en vez de mantener su propia copia en memoria, para que cualquier otro
@@ -451,6 +454,8 @@ class MailTracker:
         if motivo:
             _anotar(pendiente, BLOQUEADO, actor=actor, motivo=motivo)
             store.upsert('pending_emails', pendiente)
+            if delivery_observer:
+                delivery_observer(pendiente)
             # Se devuelve tambien el pendiente para que la pantalla pueda
             # mostrar el estado nuevo y su motivo sin volver a consultarlo.
             return {'ok': False, 'error': f'EMAIL BLOCKED: {motivo}',
@@ -480,9 +485,13 @@ class MailTracker:
             estado_final = FALLO
         detalle = enviado.get('blocked_reason') or enviado.get('delivery_error')
         _anotar(pendiente, estado_final, actor=actor, motivo=detalle)
-        pendiente['sent_at'] = datetime.now().isoformat()
+        pendiente['attempted_at'] = datetime.now().isoformat()
+        if ok:
+            pendiente['sent_at'] = datetime.now().isoformat()
         pendiente['mail_id'] = enviado.get('id')
         store.upsert('pending_emails', pendiente)
+        if delivery_observer:
+            delivery_observer(pendiente)
         respuesta = {'ok': ok, 'pendiente': pendiente, 'mail': enviado}
         if not ok:
             # Sin esto la pantalla decia "no se pudo enviar" y nada mas: quien
@@ -542,6 +551,8 @@ class MailTracker:
         _anotar(pendiente, CANCELADO, actor=actor, motivo='descartado a mano')
         pendiente['discarded_at'] = datetime.now().isoformat()
         store.upsert('pending_emails', pendiente)
+        if delivery_observer:
+            delivery_observer(pendiente)
         return {'ok': True, 'pendiente': pendiente}
 
     def log_email(self, to_email, subject, body='', template_id=None,
@@ -633,7 +644,8 @@ class MailTracker:
             'attachments': attachments or [],
             'idempotency_key': idempotency_key,
             'status': MailStatus.SENT.value if delivery.ok else MailStatus.FAILED.value,
-            'sent_at': datetime.now().isoformat(),
+            'attempted_at': datetime.now().isoformat(),
+            'sent_at': datetime.now().isoformat() if delivery.ok else '',
             'opened_at': None,
             'clicked_at': None,
             'bounced_at': None,

@@ -391,6 +391,19 @@
     </div>
     {% endif %}
 
+    {% for journey in journeys %}
+    <section class="portal-payment-card" aria-label="Próximo paso" style="margin-bottom:18px;">
+      <div class="text-xs text-ink-soft">{{ journey.name }} · Tu próximo paso</div>
+      <h2 class="text-lg font-semibold mt-2">{{ journey.action[0] }}</h2>
+      {% if journey.booking %}
+      <p class="text-sm mt-2">{{ journey.booking.label }}</p>
+      <ul class="text-sm text-ink-soft mt-2">
+        {% for check in journey.booking.checks %}<li>{{ '✓' if check.done else '○' }} {{ check.label }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+      {% if journey.action[1] %}<a class="portal-action primary" style="margin-top:14px;" href="#{{ journey.action[1] }}" onclick="return showPortalTab('{{ journey.action[1] }}', event)">Continuar</a>{% endif %}
+    </section>
+    {% endfor %}
     <!-- Cotizaciones -->
     <div id="quotes" class="portal-panel active">
     <div class="portal-section" style="--section-accent:#7357F6;">

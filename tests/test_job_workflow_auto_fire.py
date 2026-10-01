@@ -98,7 +98,8 @@ def test_auto_fire_queues_due_questionnaire_step_and_waits_for_approval(auth_cli
     assert len(questionnaires) == 1
     qid = questionnaires[0]['id']
 
-    pendientes = [p for p in app_module.store.list('pending_emails') if p.get('job_id') == job_id]
+    pendientes = [p for p in app_module.store.list('pending_emails') if p.get('job_id') == job_id
+                  and p.get('idempotency_key') == f'jobquestionnaire:{qid}:notify']
     assert pendientes, 'debe haber quedado un correo esperando aprobacion en pending_emails'
     assert pendientes[0]['status'] == 'pending'
     assert pendientes[0]['idempotency_key'] == f'jobquestionnaire:{qid}:notify'
@@ -113,7 +114,8 @@ def test_auto_fire_queues_due_questionnaire_step_and_waits_for_approval(auth_cli
     # exactamente el escenario que motivo el dedup de queue_email() por
     # idempotency_key en estado 'pending'/'sending'.
     app_module._auto_fire_due_job_steps()
-    pendientes_2 = [p for p in app_module.store.list('pending_emails') if p.get('job_id') == job_id]
+    pendientes_2 = [p for p in app_module.store.list('pending_emails') if p.get('job_id') == job_id
+                    and p.get('idempotency_key') == f'jobquestionnaire:{qid}:notify']
     assert len(pendientes_2) == 1, 'una segunda pasada no debe duplicar el pendiente sin revisar'
 
 

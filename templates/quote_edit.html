@@ -317,9 +317,23 @@
           </label>
           {% endfor %}
         </div>
+        <details style="margin-top:14px;"><summary>Ver fechas antes de enviar</summary>
+          <p class="doc-hint">Estimadas si acepta hoy. Se recalculan al aceptar; cambiar la fecha del evento después no modifica cuotas existentes.</p>
+          {% for n, dates in payment_preview.items() %}
+          <p class="doc-hint"><strong>{{ n }} {{ 'pago' if n == 1 else 'pagos' }}:</strong> {% for due in dates %}{{ due|fecha_es }}{{ ' · ' if not loop.last else '' }}{% endfor %}</p>
+          {% endfor %}
+        </details>
         <p class="doc-hint" id="plan-save-hint" style="margin-top:8px;"></p>
       </div>
 
+      <div class="doc-section">
+        <div class="doc-eyebrow">Preparación de la propuesta</div>
+        <p class="doc-hint">Al aceptar se vinculan el trabajo, las cuotas y estos documentos. Los correos quedan sujetos a tu aprobación en Emails.</p>
+        <label class="plan-check"><input type="checkbox" id="prepare-contract" {% if quote.get('prepare_contract', true) %}checked{% endif %}> Preparar contrato de boda</label>
+        <label class="plan-check"><input type="checkbox" id="prepare-questionnaire" {% if quote.get('prepare_questionnaire', true) %}checked{% endif %}> Preparar cuestionario de boda</label>
+        <button class="doc-btn outline" type="button" onclick="savePreparation()">Guardar preparación</button>
+        <p id="preparation-status" class="doc-hint" role="status"></p>
+      </div>
       <div class="doc-section">
         <div class="doc-eyebrow">Agregados opcionales (el cliente los suma a su paquete)</div>
         <div class="opt-field">
@@ -371,7 +385,7 @@
       <div class="doc-actions">
         <a class="doc-btn outline" href="/quotes/{{ quote.id }}" target="_blank">Vista previa (como la ve el cliente)</a>
         <button type="button" class="doc-btn outline" onclick="saveAsTemplate()">Guardar como plantilla</button>
-        <button type="button" class="doc-btn primary" onclick="sendQuote()">Enviar cotizacion al cliente</button>
+        <button type="button" class="doc-btn primary" onclick="sendQuote()">Preparar envío al cliente</button>
         <p class="doc-hint">Después de enviarla, usa Editar cotización para cambiar el plan o volver a borrador. "Guardar como plantilla" copia las opciones y el plan de pago para reutilizarlos en cotizaciones futuras (ver Settings &gt; Cotizaciones).</p>
       </div>
 
@@ -384,7 +398,7 @@
 
 <div class="send-modal-overlay" id="send-quote-modal">
   <div class="send-modal-content">
-    <h2>Enviar cotizacion al cliente</h2>
+    <h2>Preparar envío al cliente</h2>
     <form onsubmit="submitSendQuote(event)">
       <div class="opt-field">
         <label>Para</label>
@@ -400,7 +414,7 @@
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button type="button" class="doc-btn outline" onclick="closeSendQuoteModal()">Cancelar</button>
-        <button type="submit" class="doc-btn primary">Enviar cotizacion</button>
+        <button type="submit" class="doc-btn primary">Poner en cola de aprobación</button>
       </div>
       <p class="doc-hint" style="margin-top:10px;">Después de enviarla, usa Editar cotización para cambiar el plan o volver a borrador.</p>
     </form>
@@ -718,8 +732,25 @@ function closeSendQuoteModal() {
   document.getElementById('send-quote-modal').classList.remove('open');
 }
 
-function submitSendQuote(event) {
+async function savePreparation() {
+  try {
+  const response = await fetch('/api/quotes/' + QUOTE_ID + '/preparation', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({prepare_contract:document.getElementById('prepare-contract').checked,
+      prepare_questionnaire:document.getElementById('prepare-questionnaire').checked})
+  });
+  const data = await response.json();
+  document.getElementById('preparation-status').textContent = data.ok ? 'Preparación guardada' : data.error;
+  return Boolean(data.ok);
+  } catch (error) {
+    document.getElementById('preparation-status').textContent = 'No se pudo guardar. Revisa tu conexión e intenta de nuevo.';
+    return false;
+  }
+}
+async function submitSendQuote(event) {
   event.preventDefault();
+  try { if (!(await savePreparation())) return; }
+  catch (error) { alert('No se pudo guardar la preparación. Intenta de nuevo.'); return; }
   fetch('/api/quotes/' + QUOTE_ID + '/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

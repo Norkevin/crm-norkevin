@@ -18,6 +18,7 @@ import json
 class StepStatus(Enum):
     PENDING = "pending"
     READY = "ready"
+    QUEUED = "queued"
     RUNNING = "running"
     DONE = "done"
     SKIPPED = "skipped"

@@ -598,7 +598,108 @@ def _render_message_template(text, *, client=None, lead=None, job=None):
     return text
 
 
-def _complete_job_workflow_step(job, step_id, result_message=None):
+def _apply_document_delivery(document, mail, reminder=False):
+    """Delivery is independent from commercial acceptance and signatures."""
+    prefix = 'reminder_' if reminder else ''
+    document[prefix + 'delivery_status'] = mail.get('status')
+    document[prefix + 'mail_id'] = mail.get('id')
+    if mail.get('status') in ('sent', 'opened', 'clicked'):
+        document[prefix + 'sent_at'] = mail.get('sent_at') or datetime.now().isoformat()
+    elif mail.get('status') == 'pending':
+        document[prefix + 'queued_at'] = mail.get('created_at') or datetime.now().isoformat()
+
+
+def _apply_workflow_delivery(instance, step_id, mail):
+    if instance.status in (WorkflowStatus.COMPLETED, WorkflowStatus.CANCELLED):
+        return
+    state = mail.get('status')
+    instance.step_states[step_id] = (StepStatus.DONE if state in ('sent', 'opened', 'clicked')
+                                    else StepStatus.QUEUED if state in ('pending', 'sending')
+                                    else StepStatus.FAILED)
+    instance.step_results[step_id] = {
+        'sent': 'Correo enviado', 'pending': 'Pendiente de aprobación',
+        'sending': 'Enviando correo', 'failed': 'Falló el envío',
+        'blocked': 'Envío bloqueado', 'discarded': 'Correo descartado',
+    }.get(state, state or 'Sin envío')
+    pending = next((sid for sid, value in instance.step_states.items()
+                    if value not in (StepStatus.DONE, StepStatus.SKIPPED)), None)
+    instance.current_step_id = pending
+    if not pending:
+        instance.status = WorkflowStatus.COMPLETED
+    workflow_engine._log(instance, 'mail.' + (state or 'unknown'), f'{step_id}: {instance.step_results[step_id]}')
+    workflow_engine._save_to_storage()
+
+
+def _sync_mail_delivery(mail):
+    """One completion hook for approval, failure, and manual retry."""
+    parts = (mail.get('idempotency_key') or '').split(':')
+    if len(parts) < 2:
+        return
+    kind, record_id = parts[:2]
+    collection = {'quote': 'quotes', 'contract': 'contracts', 'pago': 'payments',
+                  'questionnaire': 'questionnaires', 'jobquestionnaire': 'questionnaires'}.get(kind)
+    if collection:
+        record = store.get(collection, record_id)
+        if record and record.get('tenant_id') == mail.get('tenant_id'):
+            _apply_document_delivery(record, mail, reminder=kind == 'pago' and 'reminder' in parts)
+            if mail.get('status') == 'sent':
+                if collection == 'quotes' and record.get('status') == 'Preparada':
+                    record['status'] = 'Enviada'
+                elif collection == 'contracts' and not record.get('signed'):
+                    record['status'] = 'Enviado'
+                elif collection == 'questionnaires' and record.get('status') != 'Respondido':
+                    record['status'] = 'Sent'
+            store.upsert(collection, record)
+    if mail.get('workflow_instance_id'):
+        instance = workflow_engine.get_instance(mail['workflow_instance_id'])
+        if instance and instance.tenant_id == mail.get('tenant_id'):
+            _apply_workflow_delivery(instance, mail['workflow_step_id'], mail)
+    elif kind in ('leadstep', 'jobstep') and len(parts) >= 3:
+        instance = _workflow_instance_for('lead' if kind == 'leadstep' else 'job', record_id, tenant_id=mail.get('tenant_id'))
+        if instance and instance.tenant_id == mail.get('tenant_id'):
+            _apply_workflow_delivery(instance, parts[2], mail)
+
+
+# MailTracker owns delivery; the application owns commercial/workflow effects.
+from src import mail_tracker as _mail_tracker_module
+_mail_tracker_module.delivery_observer = _sync_mail_delivery
+
+
+def _booking_progress(job):
+    """Derived checklist; never rewrites historical job/payment statuses."""
+    job_id = job.get('id')
+    quote = next((q for q in store.list('quotes') if q.get('status') == 'Aceptada'
+                  and (q.get('id') == job.get('accepted_quote_id') or q.get('job_id') == job_id)), None)
+    contracts = [c for c in store.list('contracts') if c.get('job_id') == job_id]
+    schedule = _active_schedule_for(job.get('tenant_id'), job_id, quote.get('id')) if quote else None
+    payments = [p for p in list_payments() if p.get('job_id') == job_id and p.get('tipo') != 'team_payment'
+                and (p.get('id') in schedule.get('payment_ids', []) if schedule
+                     else quote and p.get('quote_id') == quote.get('id'))]
+    payments.sort(key=lambda p: (p.get('due_date') or '', str(p.get('cuota') or '')))
+    first = payments[0] if payments else None
+    checks = [
+        {'label': 'Cotización aceptada', 'done': bool(quote), 'section': 'quotes'},
+        {'label': 'Contrato firmado por ambas partes', 'done': any(c.get('signed') and c.get('photographer_signed') for c in contracts), 'section': 'contracts'},
+        {'label': 'Primera cuota cubierta', 'done': bool(first and (first.get('status') == 'Pagado' or (_row_original_amount(first) > 0 and _row_paid_amount(first) >= _row_original_amount(first)))), 'section': 'invoices'},
+    ]
+    return {'checks': checks, 'complete': all(c['done'] for c in checks),
+            'label': 'Reserva confirmada' if all(c['done'] for c in checks) else 'Reserva por completar'}
+
+
+def _ensure_contract_for_job(job):
+    existing = next((c for c in store.list('contracts') if c.get('job_id') == job['id']), None)
+    if existing:
+        return existing
+    import uuid
+    contract = {'id': 'contract-' + uuid.uuid4().hex[:8], 'job_id': job['id'],
+                'client_id': job['client_id'], 'lead_id': job.get('lead_id'),
+                'tenant_id': job.get('tenant_id'), 'tipo': 'boda', 'status': 'Borrador',
+                'signed': False, 'created': datetime.now().isoformat()}
+    store.upsert('contracts', contract)
+    return contract
+
+
+def _complete_job_workflow_step(job, step_id, result_message=None, mail_id=None):
     if not step_id:
         return {'completed': False}
 
@@ -607,7 +708,7 @@ def _complete_job_workflow_step(job, step_id, result_message=None):
     if not step:
         return {'completed': False, 'warning': 'Step no encontrado'}
 
-    instances = _workflow_instances_seguras(subject_type='job', subject_id=job.get('id'))
+    instances = _workflow_instances_seguras(subject_type='job', subject_id=job.get('id'), tenant_id=job.get('tenant_id'))
     if not instances:
         instance = workflow_engine.start_workflow(
             workflow=PRODUCTION_WORKFLOW(),
@@ -621,6 +722,17 @@ def _complete_job_workflow_step(job, step_id, result_message=None):
         instances = [instance]
 
     instance = instances[0]
+    if result_message and not mail_id and step.action_type.value.startswith('send_'):
+        return {'completed': False, 'warning': 'Documento preparado; envío no confirmado'}
+    if mail_id:
+        mail = store.get('pending_emails', mail_id) or store.get('mail_log', mail_id)
+        if mail:
+            _apply_workflow_delivery(instance, step_id, mail)
+            # Link even questionnaire/manual mail to its exact step for approval/retry.
+            mail['workflow_instance_id'] = instance.id
+            mail['workflow_step_id'] = step_id
+            store.upsert('pending_emails' if mail_id.startswith('pend-') else 'mail_log', mail)
+            return {'completed': mail.get('status') == 'sent', 'queued': mail.get('status') == 'pending'}
     if step_id in instance.step_states and instance.step_states[step_id] == StepStatus.DONE:
         return {'completed': False, 'already_done': True, 'step': step.name}
 
@@ -663,7 +775,7 @@ def _complete_job_workflow_step(job, step_id, result_message=None):
 
 
 def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_email=True,
-                                  subject_override=None, body_override=None):
+                                  subject_override=None, body_override=None, existing_mail=None):
     if not step_id:
         return {'completed': False}
 
@@ -684,7 +796,7 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
     if not step:
         return {'completed': False, 'warning': 'Step no encontrado'}
 
-    instances = _workflow_instances_seguras(subject_type='lead', subject_id=lead.get('id'))
+    instances = _workflow_instances_seguras(subject_type='lead', subject_id=lead.get('id'), tenant_id=lead.get('tenant_id'))
     if not instances:
         return {'completed': False, 'warning': 'No hay workflow activo para este lead'}
 
@@ -692,7 +804,7 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
     if step_id in instance.step_states and instance.step_states[step_id] == StepStatus.DONE:
         return {'completed': False, 'already_done': True, 'step': step.name}
 
-    mail_entry = None
+    mail_entry = existing_mail
     if send_email:
         to_email = lead.get('email') or ''
         if not to_email:
@@ -719,24 +831,29 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
         )
         lead['mail_status'] = _lead_mail_status_chip(mail_entry)
 
-    instance.step_states[step_id] = StepStatus.DONE
-    instance.step_results[step_id] = result_message or (
-        f"EMAIL sent manually: {step.name}" if send_email else f"TASK completed manually: {step.name}"
-    )
+    if mail_entry:
+        _apply_workflow_delivery(instance, step_id, mail_entry)
+        mail_entry.update(workflow_instance_id=instance.id, workflow_step_id=step_id)
+        store.upsert('pending_emails' if mail_entry['id'].startswith('pend-') else 'mail_log', mail_entry)
+    else:
+        instance.step_states[step_id] = StepStatus.DONE
+        instance.step_results[step_id] = result_message or f'TASK completed manually: {step.name}'
 
     steps, _, _ = compute_workflow_steps_for_lead(lead)
-    next_pending = next((s for s in steps if s.get('id') != step_id and s.get('status') != 'done'), None)
+    next_pending = next((s for s in steps if s.get('status') not in ('done', 'skipped')), None)
     lead['next_task'] = next_pending.get('name') if next_pending else 'Trabajo aceptado'
     upsert_lead(lead)
 
-    action_label = 'enviado manualmente' if send_email else 'completado manualmente'
+    action_label = 'preparado para aprobación' if mail_entry else 'completado manualmente'
     workflow_engine._log(instance, 'step.manual', f'{step.name}: {action_label}')
     workflow_engine._save_to_storage()
     return {
-        'completed': True,
+        'completed': not mail_entry or mail_entry.get('status') in ('sent', 'opened', 'clicked'),
         'step': step.name,
         'mail_id': mail_entry.get('id') if mail_entry else None,
-        'sent': bool(mail_entry),
+        'sent': bool(mail_entry and mail_entry.get('status') == 'sent'),
+        'queued': bool(mail_entry and mail_entry.get('status') == 'pending'),
+        'delivery_status': mail_entry.get('status') if mail_entry else None,
     }
 
 
@@ -1035,6 +1152,36 @@ def _add_one_month(dt):
     return dt.replace(year=year, month=month, day=day)
 
 
+def _payment_due_dates(plan_pago, boda_date_str, today_dt=None):
+    """Shared by the proposal preview and the accepted payment schedule."""
+    today_dt = today_dt or datetime.now()
+    due_dates = None
+    if boda_date_str:
+        try:
+            boda_date = datetime.strptime(boda_date_str, '%Y-%m-%d')
+            last_due = _add_one_month(boda_date)
+            if last_due > today_dt:
+                if plan_pago == 1:
+                    due_dates = [today_dt.strftime('%Y-%m-%d')]
+                elif plan_pago == 3 and boda_date > today_dt:
+                    middle = today_dt + timedelta(seconds=(boda_date - today_dt).total_seconds() / 2)
+                    due_dates = [
+                        today_dt.strftime('%Y-%m-%d'),
+                        middle.strftime('%Y-%m-%d'),
+                        last_due.strftime('%Y-%m-%d'),
+                    ]
+                else:
+                    span = (last_due - today_dt).total_seconds()
+                    due_dates = [
+                        (today_dt + timedelta(seconds=span * i / (plan_pago - 1))).strftime('%Y-%m-%d')
+                        for i in range(plan_pago)
+                    ]
+        except ValueError:
+            due_dates = None
+
+    return due_dates or [(today_dt + timedelta(days=30 * i)).strftime("%Y-%m-%d") for i in range(plan_pago)]
+
+
 def _ensure_payments_for_quote(quote, client_id, job_id, tenant_id=None):
     import uuid
     if not quote:
@@ -1080,36 +1227,8 @@ def _ensure_payments_for_quote(quote, client_id, job_id, tenant_id=None):
     payment_ids = []
     sum_generada = 0.0
 
-    # Calendario de pagos inteligente: 1era cuota el dia de aceptacion,
-    # ultima cuota 1 mes despues de la boda. Para 3 cuotas, la segunda va a
-    # mitad exacta entre aceptacion y boda; para 4/5, las cuotas intermedias
-    # se reparten de forma equidistante hasta la fecha final.
-    due_dates = None
     job_for_dates = get_job(job_id) if job_id else None
-    boda_date_str = job_for_dates.get('boda_date') if job_for_dates else None
-    if boda_date_str:
-        try:
-            boda_date = datetime.strptime(boda_date_str, '%Y-%m-%d')
-            today_dt = datetime.now()
-            last_due = _add_one_month(boda_date)
-            if last_due > today_dt:
-                if plan_pago == 1:
-                    due_dates = [today_dt.strftime('%Y-%m-%d')]
-                elif plan_pago == 3 and boda_date > today_dt:
-                    middle = today_dt + timedelta(seconds=(boda_date - today_dt).total_seconds() / 2)
-                    due_dates = [
-                        today_dt.strftime('%Y-%m-%d'),
-                        middle.strftime('%Y-%m-%d'),
-                        last_due.strftime('%Y-%m-%d'),
-                    ]
-                else:
-                    span = (last_due - today_dt).total_seconds()
-                    due_dates = [
-                        (today_dt + timedelta(seconds=span * i / (plan_pago - 1))).strftime('%Y-%m-%d')
-                        for i in range(plan_pago)
-                    ]
-        except ValueError:
-            due_dates = None
+    due_dates = _payment_due_dates(plan_pago, (job_for_dates or {}).get('boda_date'))
 
     for i in range(1, plan_pago + 1):
         invoice_id = 'INV-' + uuid.uuid4().hex[:6].upper()
@@ -1198,7 +1317,7 @@ def _accept_quote_for_existing_job(quote):
 
 
 def _ensure_production_workflow_for_job(lead, job):
-    existing = _workflow_instances_seguras(subject_type='job', subject_id=job['id'])
+    existing = _workflow_instances_seguras(subject_type='job', subject_id=job['id'], tenant_id=job.get('tenant_id') or lead.get('tenant_id'))
     if existing:
         return existing[0].id, False
     instance = trigger_workflow_for_quote_accepted(
@@ -1209,13 +1328,14 @@ def _ensure_production_workflow_for_job(lead, job):
 
 
 def _complete_original_lead_workflow(lead, job):
-    instance = _workflow_instance_for('lead', lead.get('id', ''))
+    instance = _workflow_instance_for('lead', lead.get('id', ''), tenant_id=lead.get('tenant_id'))
     if not instance:
         return
 
     for step in LEAD_WORKFLOW().steps:
-        instance.step_states[step.id] = StepStatus.DONE
-        instance.step_results.setdefault(step.id, 'Closed because lead was converted into a job')
+        if instance.step_states.get(step.id) != StepStatus.DONE:
+            instance.step_states[step.id] = StepStatus.SKIPPED
+            instance.step_results[step.id] = 'Omitido al convertir el lead en trabajo'
     instance.status = WorkflowStatus.COMPLETED
     instance.current_step_id = None
     workflow_engine._log(instance, 'workflow.completed', f'Lead converted into job {job.get("id", "")}')
@@ -1223,7 +1343,7 @@ def _complete_original_lead_workflow(lead, job):
 
 
 def _activate_job_workflow_start(job):
-    instance = _workflow_instance_for('job', job.get('id', ''))
+    instance = _workflow_instance_for('job', job.get('id', ''), tenant_id=job.get('tenant_id'))
     if not instance:
         return
 
@@ -1231,7 +1351,7 @@ def _activate_job_workflow_start(job):
     instance.step_results['job_accepted'] = 'Lead converted into job'
     next_step = next(
         (step for step in PRODUCTION_WORKFLOW().steps
-         if step.id != 'job_accepted' and instance.step_states.get(step.id) != StepStatus.DONE),
+         if step.id != 'job_accepted' and instance.step_states.get(step.id) not in (StepStatus.DONE, StepStatus.SKIPPED)),
         None,
     )
     instance.current_step_id = next_step.id if next_step else None
@@ -1342,7 +1462,10 @@ def _convert_lead_to_job_unlocked(lead, quote=None, status='Confirmado', create_
     workflow_instance_id, workflow_created = _ensure_production_workflow_for_job(lead, job)
     _complete_original_lead_workflow(lead, job)
     _activate_job_workflow_start(job)
-    if job_created:
+    if quote and quote.get('prepare_contract', True):
+        _ensure_contract_for_job(job)
+    if (not quote or quote.get('prepare_questionnaire', True)) and not any(
+            q.get('job_id') == job['id'] for q in store.list('questionnaires')):
         # Kevin: 'al crear el job creo el cuestionario deberia estar creado'
         # -- se crea de una vez en Draft (sin mandar nada todavia); el envio
         # real lo dispara _auto_fire_due_job_steps() cuando llegue la fecha
@@ -1691,14 +1814,14 @@ def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, l
         scheduled = trigger_at + timedelta(minutes=step.offset_minutes)
         stored_status = _workflow_state_value(state_map.get(step.id))
         if force_done:
-            status = 'done'
+            status = 'done' if stored_status == 'done' else 'skipped'
             executed_at = lead.get('converted_at') or trigger_at.isoformat()
         elif stored_status:
             status = stored_status
             executed_at = trigger_at.isoformat() if status == 'done' else None
         elif scheduled <= now:
-            status = 'done'
-            executed_at = scheduled.isoformat()
+            status = 'pending'
+            executed_at = None
         else:
             status = 'pending'
             executed_at = None
@@ -1708,12 +1831,12 @@ def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, l
             'description': step.description,
             'email_template_id': step.email_template_id,
             'action_type': step.action_type.value if hasattr(step.action_type, 'value') else str(step.action_type),
-            'scheduled': scheduled.isoformat(),
+            'scheduled': scheduled.isoformat() if scheduled else None,
             'executed_at': executed_at,
             'status': status,
             'result': result_map.get(step.id),
         })
-    done = sum(1 for s in steps if s['status'] == 'done')
+    done = sum(1 for s in steps if s['status'] in ('done', 'skipped'))
     progress = round(done * 100 / len(steps)) if steps else 0
     return steps, progress, tmpl.name
 
@@ -1728,6 +1851,8 @@ def _step_scheduled_for_job(step, trigger_at, boda_date):
     boda_date, calculamos el offset desde ahi en su lugar."""
     from datetime import timedelta
     dd = step.due_date
+    if dd.mode == 'after_event' and not boda_date:
+        return None
     if dd.mode == 'after_event' and boda_date:
         mult_days = {
             'minutes': 1 / (60 * 24), 'hours': 1 / 24, 'days': 1,
@@ -1768,7 +1893,7 @@ def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None,
             'description': step.description,
             'email_template_id': step.email_template_id,
             'action_type': step.action_type.value if hasattr(step.action_type, 'value') else str(step.action_type),
-            'scheduled': scheduled.isoformat(),
+            'scheduled': scheduled.isoformat() if scheduled else None,
             'executed_at': executed_at,
             'status': status,
             'result': result_map.get(step.id),
@@ -3492,8 +3617,9 @@ def api_lead_trigger_step(lead_id):
         'message': (
             'Job created from lead.'
             if result.get('converted') else
-            f'Email enviado a {lead.get("email", "")}. Registrado en Mail Log.'
-            if send_email else 'Task completed'
+            'Correo pendiente de aprobación en Emails.' if result.get('queued') else
+            f'Email enviado a {lead.get("email", "")}.' if result.get('sent') else
+            'Correo no enviado. Revisa su estado en Emails.' if send_email else 'Task completed'
         )
     })
 
@@ -3594,8 +3720,8 @@ def api_lead_send_email(lead_id):
         _complete_lead_workflow_step(
             lead,
             data.get('step_id'),
-            result_message=f"EMAIL sent from modal: {subject}",
-            send_email=False,
+            result_message=f"Correo preparado: {subject}",
+            send_email=False, existing_mail=entry,
         )
 
     return jsonify({
@@ -3642,7 +3768,7 @@ def api_lead_create_questionnaire(lead_id):
     questionnaire['name'] = data.get('name') or questionnaire.get('name') or 'Cuestionario de Bodas Generico'
     questionnaire['template_name'] = 'Cuestionario de Bodas Generico'
     questionnaire['questions'] = data.get('questions') or questionnaire.get('questions') or QUESTIONNAIRE_QUESTIONS
-    questionnaire['status'] = data.get('status') or ('Sent' if data.get('send_email', True) else 'Draft')
+    questionnaire['status'] = data.get('status') or 'Draft'
     store.upsert('questionnaires', questionnaire)
 
     questionnaire_path = f"/questionnaires/{questionnaire['id']}"
@@ -3684,6 +3810,10 @@ def api_lead_create_questionnaire(lead_id):
                 source='manual:questionnaire-lead',
                 idempotency_key=f"questionnaire:{questionnaire['id']}:notify:{date.today().isoformat()}",
             )
+            _apply_document_delivery(questionnaire, entry)
+            if questionnaire.get('status') != 'Respondido':
+                questionnaire['status'] = 'Sent' if entry.get('status') == 'sent' else 'Preparado'
+            store.upsert('questionnaires', questionnaire)
             mail_id = entry['id']
             mail_warning = _mail_delivery_warning(entry)
         else:
@@ -4535,7 +4665,11 @@ def job_detail(job_id):
         m for m in store.list('mail_log')
         if m.get('job_id') == job_id or (job.get('lead_id') and m.get('lead_id') == job.get('lead_id'))
     ]
-    mail_log.sort(key=lambda m: m.get('sent_at') or '', reverse=True)
+    delivered_ids = {m.get('id') for m in mail_log}
+    mail_log += [m for m in store.list('pending_emails')
+                 if (m.get('job_id') == job_id or (job.get('lead_id') and m.get('lead_id') == job.get('lead_id')))
+                 and m.get('mail_id') not in delivered_ids]
+    mail_log.sort(key=lambda m: m.get('sent_at') or m.get('created_at') or '', reverse=True)
     pending_steps = [s for s in workflow_steps if s['status'] == 'pending']
     job['production_tasks'] = ', '.join(s['name'] for s in pending_steps[:3]) if pending_steps else 'Sin tareas pendientes'
     job['invoices'] = f"{len(invoice_groups)} invoices" if invoice_groups else 'Sin invoices'
@@ -4562,6 +4696,7 @@ def job_detail(job_id):
     roles_disponibles = [(r, ETIQUETA_ROL.get(r, r)) for r in ROLES_JOB_CLIENT]
 
     return render_template('job_detail.html',
+                          booking=_booking_progress(job),
                           job_clientes=job_clientes,
                           roles_disponibles=roles_disponibles,
                           pagos_resumen=pagos_resumen,
@@ -7173,7 +7308,7 @@ def api_job_send_email(job_id):
     workflow = _complete_job_workflow_step(
         job,
         data.get('step_id'),
-        result_message=f"Email enviado: {result['subject']}"
+        result_message=f"Email preparado: {result['subject']}", mail_id=result.get("mail_id")
     )
     return jsonify({
         'ok': True,
@@ -8495,7 +8630,7 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
             questionnaire['name'] = name
         if questions:
             questionnaire['questions'] = questions
-    questionnaire['status'] = status or ('Sent' if send_email else 'Draft')
+    questionnaire['status'] = status or 'Draft'
     store.upsert('questionnaires', questionnaire)
 
     questionnaire_path = f"/questionnaires/{questionnaire['id']}"
@@ -8539,6 +8674,10 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
                 idempotency_key=idempotency_key,
                 attachments=[questionnaire['name']],
             )
+            _apply_document_delivery(questionnaire, entry)
+            if questionnaire.get('status') != 'Respondido':
+                questionnaire['status'] = 'Sent' if entry.get('status') == 'sent' else 'Preparado'
+            store.upsert('questionnaires', questionnaire)
             mail_id = entry['id']
             mail_warning = _mail_delivery_warning(entry)
         else:
@@ -8596,7 +8735,7 @@ def api_job_create_questionnaire(job_id):
     workflow = _complete_job_workflow_step(
         job,
         data.get('step_id'),
-        result_message=f"Cuestionario creado: {result['questionnaire']['name']}"
+        result_message=f"Cuestionario preparado: {result['questionnaire']['name']}", mail_id=result.get('mail_id')
     )
     return jsonify({
         'ok': True,
@@ -8671,6 +8810,26 @@ def file_download(file_id):
     return send_file(path, as_attachment=True, download_name=rec.get('name') or stored)
 
 
+@app.route('/api/jobs/<job_id>/date-preview')
+def api_job_date_preview(job_id):
+    job = get_job(job_id)
+    if not job:
+        abort(404)
+    new_date = request.args.get('date', '')
+    if new_date:
+        try:
+            date.fromisoformat(new_date)
+        except ValueError:
+            return jsonify(ok=False, error='Fecha inválida'), 400
+    old_steps, _, _ = compute_workflow_steps_for_job(job)
+    new_steps, _, _ = compute_workflow_steps_for_job(dict(job, boda_date=new_date))
+    old_by_id = {step['id']: step for step in old_steps}
+    changes = [{'name': step['name'], 'before': old_by_id[step['id']]['scheduled'], 'after': step['scheduled']}
+               for step in new_steps if step['status'] not in ('done', 'skipped')
+               and step['scheduled'] != old_by_id[step['id']]['scheduled']]
+    return jsonify(ok=True, changes=changes, payments_unchanged=True)
+
+
 @app.route('/api/jobs/<job_id>/history')
 def api_job_history(job_id):
     """Historial real del workflow del job (para el modal History Log)."""
@@ -8688,6 +8847,29 @@ def api_job_history(job_id):
             subject_type='lead', subject_id=job['lead_id'])
     instance_ids = {i.id for i in instancias_seguras}
     history = [h for h in workflow_engine.history if h.get('instance_id') in instance_ids]
+    def add(timestamp, event, message):
+        if timestamp:
+            history.append({'timestamp': timestamp, 'event': event, 'message': message})
+    for collection, timestamps in (
+        ('quotes', [('created', 'Cotización preparada'), ('aceptada_en', 'Cotización aceptada')]),
+        ('contracts', [('created', 'Contrato preparado'), ('signed_at', 'Contrato firmado por el cliente'), ('photographer_signed_at', 'Contrato firmado por el estudio')]),
+        ('questionnaires', [('created', 'Cuestionario preparado'), ('answered_at', 'Cuestionario respondido')]),
+        ('payments', [('paid_date', 'Pago registrado')]),
+    ):
+        for record in store.list(collection):
+            if record.get('job_id') != job_id and not (job.get('lead_id') and record.get('lead_id') == job['lead_id']):
+                continue
+            for field, label in timestamps:
+                add(record.get(field), collection + '.' + field, label)
+    labels = {'pending': 'Pendiente de aprobación', 'sending': 'Enviando', 'sent': 'Enviado',
+              'failed': 'Falló el envío', 'blocked': 'Bloqueado', 'discarded': 'Descartado'}
+    for mail in store.list('pending_emails'):
+        if mail.get('job_id') != job_id and not (job.get('lead_id') and mail.get('lead_id') == job['lead_id']):
+            continue
+        add(mail.get('created_at'), 'email.prepared', 'Correo preparado: ' + (mail.get('subject') or ''))
+        for change in mail.get('historial') or []:
+            add(change.get('cuando'), 'email.' + change.get('a', ''), labels.get(change.get('a'), 'Correo actualizado') + ': ' + (mail.get('subject') or ''))
+    history.sort(key=lambda h: h.get('timestamp') or '')
     return jsonify({'ok': True, 'history': history[-100:]})
 
 
@@ -8894,7 +9076,7 @@ def api_job_workflow_task_toggle_portal(job_id, task_id):
 
 
 def _get_or_create_job_workflow_instance(job):
-    instances = _workflow_instances_seguras(subject_type='job', subject_id=job.get('id'))
+    instances = _workflow_instances_seguras(subject_type='job', subject_id=job.get('id'), tenant_id=job.get('tenant_id'))
     if instances:
         return instances[0]
     return workflow_engine.start_workflow(
@@ -9528,14 +9710,14 @@ def api_pago_send(pago_id):
         idempotency_key=f"pago:{pay['id']}:invoice:{_idempotency_minute_bucket()}",
     )
 
-    pay['sent_at'] = datetime.now().isoformat()
-    pay['last_action'] = 'sent'
+    _apply_document_delivery(pay, mail)
+    pay['last_action'] = mail.get('status')
     store.upsert('payments', pay)
 
     return jsonify({
         'ok': True,
         'payment_id': pay['id'],
-        'sent_at': pay['sent_at'],
+        'sent_at': pay.get('sent_at'),
         'mail_id': mail.get('id'),
         'delivery_status': mail.get('status'),
         'email': to_email,
@@ -9708,8 +9890,8 @@ def api_payment_send_reminder(pago_id):
         source='manual:payment-reminder',
         idempotency_key=f"pago:{pay['id']}:reminder:{date.today().isoformat()}",
     )
-    pay['reminder_sent_at'] = datetime.now().isoformat()
-    pay['last_action'] = 'sent'
+    _apply_document_delivery(pay, mail, reminder=True)
+    pay['last_action'] = mail.get('status')
     store.upsert('payments', pay)
 
     return jsonify({
@@ -9739,6 +9921,12 @@ def check_and_send_payment_reminders(host_url=None):
             continue
         if pay.get('tipo') == 'team_payment':
             continue
+        schedules = [s for s in _job_schedules(pay.get('job_id')) if pay['id'] in (s.get('payment_ids') or [])]
+        if schedules and not any(s.get('status') == SCHEDULE_ACTIVE for s in schedules):
+            continue
+        previous_mail = store.get('pending_emails', pay.get('reminder_mail_id', ''))
+        if previous_mail and previous_mail.get('status') in ('pending', 'sending', 'failed', 'blocked'):
+            continue
         due_date_str = pay.get('due_date')
         if not due_date_str:
             continue
@@ -9751,7 +9939,7 @@ def check_and_send_payment_reminders(host_url=None):
         if days_until > REMINDER_WINDOW_DAYS_AHEAD or days_until < -REMINDER_WINDOW_DAYS_OVERDUE:
             continue
 
-        last_sent = pay.get('reminder_sent_at')
+        last_sent = pay.get('reminder_sent_at') or pay.get('reminder_queued_at')
         if last_sent:
             try:
                 last_sent_date = datetime.fromisoformat(last_sent).date()
@@ -9791,7 +9979,7 @@ def check_and_send_payment_reminders(host_url=None):
         # inmediata. Clave estable por pago+dia: comparte familia con el
         # boton manual "enviar recordatorio ahora" para no duplicar el
         # mismo aviso si ambos caminos se disparan el mismo dia.
-        get_tracker().queue_email(
+        mail = get_tracker().queue_email(
             to_email=to_email,
             subject=subject,
             body=body,
@@ -9802,7 +9990,7 @@ def check_and_send_payment_reminders(host_url=None):
             source='auto:payment-reminder',
             idempotency_key=f"pago:{pay['id']}:reminder:{today.isoformat()}",
         )
-        pay['reminder_sent_at'] = datetime.now().isoformat()
+        _apply_document_delivery(pay, mail, reminder=True)
         store.upsert('payments', pay)
         sent.append(pay['id'])
 
@@ -11615,6 +11803,7 @@ def quote_view(quote_id):
         options=opciones,
         plan_choices=_quote_plan_choices(quote),
         payment_schedule=payment_schedule,
+        payment_preview={n: _payment_due_dates(n, (_job_para_marca or {}).get('boda_date') or lead.get('fecha_tentativa')) for n in _quote_plan_choices(quote)},
         brand=brand,
         theme=theme,
         portfolio=portfolio,
@@ -11754,6 +11943,7 @@ def quote_edit(quote_id):
         options=quote.get('options') or [],
         display_name=display_name,
         display_email=display_email,
+        payment_preview={n: _payment_due_dates(n, (job or {}).get('boda_date') or (lead or {}).get('fecha_tentativa')) for n in range(1, 7)},
         plan_pago_opciones=quote.get('plan_pago_opciones') or [1, 2, 3, 4],
         saved_packages=_load_packages(),
         brand=brand,
@@ -11955,6 +12145,22 @@ def api_quote_option_delete(quote_id, option_id):
     quote['options'] = options
     store.upsert('quotes', quote)
     return jsonify({'ok': True, 'options': options})
+
+
+@app.route('/api/quotes/<quote_id>/preparation', methods=['POST'])
+def api_quote_preparation(quote_id):
+    quote = store.get('quotes', quote_id)
+    if not quote:
+        abort(404)
+    if quote.get('status') != 'Borrador':
+        return jsonify(ok=False, error='La propuesta ya está preparada o aceptada'), 400
+    data = request.get_json() or {}
+    for key in ('prepare_contract', 'prepare_questionnaire'):
+        if not isinstance(data.get(key), bool):
+            return jsonify(ok=False, error='Selecciona los documentos que se prepararán'), 400
+    quote.update({key: data[key] for key in ('prepare_contract', 'prepare_questionnaire')})
+    store.upsert('quotes', quote)
+    return jsonify(ok=True)
 
 
 @app.route('/api/quotes/<quote_id>/payment-options', methods=['POST'])
@@ -12501,9 +12707,7 @@ def api_quote_send(quote_id):
     body = body.replace('[[QUOTE_LINK]]', quote_url)
     # STAGE 2 (agosto 2026): ya no se entrega de inmediato -- se pone en la
     # cola de aprobacion (mail_tracker.queue_email) y espera a que alguien
-    # la revise y apruebe en /emails. El status de la cotizacion se sigue
-    # marcando 'Enviada' aca abajo (Kevin ya tomo la accion de mandarla), la
-    # verdad de si el correo salio de verdad vive en /emails.
+    # la revise y apruebe en /emails. Preparada y Enviada son estados distintos.
     mail = get_tracker().queue_email(
         to_email=to_email,
         subject=subject,
@@ -12517,9 +12721,10 @@ def api_quote_send(quote_id):
         idempotency_key=f'quote:{quote_id}:send:{_idempotency_minute_bucket()}',
     )
 
-    # Marcar como enviada
-    quote['sent_at'] = datetime.now().isoformat()[:10]
-    quote['status'] = 'Enviada'
+    # Publicar la propuesta y registrar por separado la entrega del correo.
+    _apply_document_delivery(quote, mail)
+    if quote.get('status') not in ('Aceptada', 'Rechazada', 'Superada'):
+        quote['status'] = 'Enviada' if mail.get('status') == 'sent' else 'Preparada'
     store.upsert('quotes', quote)
 
     return jsonify({
@@ -12869,9 +13074,6 @@ def api_contract_new():
     y el trigger del workflow step llamaban a este endpoint cada vez, creando
     un registro nuevo (y un link nuevo) en cada click/disparo. Ahora es
     idempotente: un job siempre resuelve al mismo contrato."""
-    import uuid
-    from datetime import datetime as _dt
-
     data = request.get_json() or {}
     job_id = data.get('job_id', '')
     if not job_id:
@@ -12885,26 +13087,8 @@ def api_contract_new():
     if not client:
         return jsonify({'ok': False, 'error': 'Cliente no encontrado'}), 404
 
-    existing = next((c for c in store.list('contracts') if c.get('job_id') == job_id), None)
-    if existing:
-        return jsonify({
-            'ok': True,
-            'contract_id': existing['id'],
-            'pdf_url': f"/contracts/{existing['id']}/pdf",
-        })
-
-    contract_id = 'contract-' + uuid.uuid4().hex[:8]
-    contract = {
-        'id': contract_id,
-        'job_id': job_id,
-        'client_id': job['client_id'],
-        'lead_id': job.get('lead_id'),
-        'tipo': 'boda',
-        'status': 'Borrador',
-        'signed': False,
-        'created': _dt.now().isoformat()[:10],
-    }
-    store.upsert('contracts', contract)
+    contract = _ensure_contract_for_job(job)
+    contract_id = contract['id']
 
     return jsonify({
         'ok': True,
@@ -13120,8 +13304,33 @@ def client_portal(client_id):
         bool(files),
     ])
 
+    journeys = []
+    for job in jobs:
+        booking = _booking_progress(job)
+        job_quotes = [q for q in quotes if q.get('job_id') == job['id'] or (job.get('lead_id') and q.get('lead_id') == job.get('lead_id'))]
+        unsigned = next((c for c in contracts if c.get('job_id') == job['id'] and not c.get('signed')), None)
+        unanswered = next((q for q in questionnaires if q.get('job_id') == job['id'] and q.get('status') not in ('Respondido', 'Draft', 'Borrador')), None)
+        due = next((p for p in payments if p.get('job_id') == job['id'] and p.get('status') != 'Pagado' and float(p.get('amount') or 0) > 0), None)
+        if any(q.get('status') in ('Preparada', 'Enviada') for q in job_quotes) and not booking['checks'][0]['done']:
+            action = ('Elegí tu cotización', 'quotes')
+        elif unsigned:
+            action = ('Revisá y firmá tu contrato', 'contracts')
+        elif due and (not booking['checks'][2]['done'] or (due.get('due_date') or '9999') <= date.today().isoformat()):
+            action = ('Revisá tu próximo pago', 'invoices')
+        elif unanswered:
+            action = ('Completá el cuestionario', 'questionnaires')
+        elif due:
+            action = ('Revisá tu próximo pago', 'invoices')
+        elif not booking['complete']:
+            action = ('Estamos preparando los siguientes pasos', None)
+        else:
+            action = ('Todo al día. Te avisaremos del siguiente paso.', None)
+        journeys.append({'name': job.get('nombre') or 'Tu evento', 'booking': booking, 'action': action})
+    if not jobs and any(q.get('status') in ('Preparada', 'Enviada') for q in quotes):
+        journeys.append({'name': 'Tu propuesta', 'booking': None, 'action': ('Elegí tu cotización', 'quotes')})
     brand = resolve_pdf_brand(client.get('tenant_id'))
     return render_template('client_portal.html',
+                          journeys=journeys,
                           client=client,
                           brand=brand,
                           jobs=jobs,
@@ -13260,8 +13469,9 @@ def api_contract_send(contract_id):
         idempotency_key=f'contract:{contract_id}:send:{_idempotency_minute_bucket()}',
     )
 
-    contract['status'] = 'Enviado'
-    contract['sent_at'] = datetime.now().isoformat()
+    _apply_document_delivery(contract, mail)
+    if not contract.get('signed'):
+        contract['status'] = 'Enviado' if mail.get('status') == 'sent' else 'Preparado'
     store.upsert('contracts', contract)
 
     return jsonify({
@@ -13498,9 +13708,6 @@ def api_workflow_step():
         return jsonify({'ok': False, 'error': 'No hay workflow activo'}), 400
     instance = instances[0]
 
-    # Marcar como done
-    instance.step_states[step_id] = StepStatus.DONE
-    instance.step_results[step_id] = f"EMAIL sent: {step_id}"
 
     # Registrar email
     tracker = get_tracker()
@@ -13530,7 +13737,8 @@ def api_workflow_step():
         idempotency_key=f'leadstep:{lead_id}:{step_id}',
     )
 
-    workflow_engine._log(instance, 'step.manual', f'{step_id}: enviado')
+    _apply_workflow_delivery(instance, step_id, mail)
+    workflow_engine._log(instance, 'step.prepared', f'{step_id}: {mail.get("status")}')
     workflow_engine._save_to_storage()
 
     return jsonify({
@@ -13617,7 +13825,9 @@ def api_job_production_step(job_id):
         )
         mail_id = mail.get('id')
 
-    workflow_engine._log(instance, 'step.manual', f'{step_id}: enviado')
+    if template_id:
+        _apply_workflow_delivery(instance, step_id, mail)
+    workflow_engine._log(instance, 'step.manual', f'{step_id}: preparado' if template_id else f'{step_id}: completado')
     workflow_engine._save_to_storage()
 
     return jsonify({
@@ -13690,6 +13900,8 @@ def _auto_fire_due_job_steps():
                     ok = bool(result.get('mail_id')) and not result.get('mail_warning') and not result.get('error')
                     result_message = f"Email auto-enviado: {step['name']}"
 
+                if result.get('mail_id'):
+                    _complete_job_workflow_step(job, step['id'], mail_id=result['mail_id'])
                 if ok:
                     # Solo se marca 'done' cuando de verdad se entrego --
                     # si Gmail esta desconectado hoy, el step se queda
