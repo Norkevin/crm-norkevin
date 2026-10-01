@@ -255,3 +255,18 @@ def test_los_tokens_del_pdf_son_los_del_sistema_web():
         real = COLOR[clave_pdf].hexval()[2:].upper()
         assert real == esperado[1:], \
             f'{clave_py}: la web usa {esperado} y el PDF #{real}'
+
+
+def test_calendario_y_saldo_no_dejan_una_cuota_aislada():
+    if not _hay_pdftotext():
+        import pytest
+        pytest.skip('pdftotext no disponible')
+    doc = _doc(
+        incluye=[f'Servicio contratado {i}' for i in range(16)],
+        filas_pago=[_fila('next', f'{i} noviembre 2026', f'Cuota {i} de 5',
+                          'Programado', 5000) for i in range(1, 6)],
+    )
+    paginas = _texto_del_pdf(render_invoice_pdf(doc, MARCAS['Norkevin Photography'])).split('\f')
+    calendario = next(p for p in paginas if 'Cuota 1 de 5' in p)
+    assert 'Cuota 5 de 5' in calendario
+    assert 'Saldo pendiente' in calendario
