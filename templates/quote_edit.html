@@ -6,6 +6,13 @@
 <title>Editar cotizacion - {{ display_name }} · {{ brand.display_name }}</title>
 {% include "_document_style.html" %}
 <style>
+.quick-packages { display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;max-height:380px;overflow:auto;margin:14px 0; }
+.quick-package { border:1px solid var(--doc-line);border-radius:12px;background:#fff;padding:16px;text-align:left;color:var(--doc-ink);font:inherit;cursor:pointer; }
+.quick-package:hover { border-color:var(--doc-ink); }
+.quick-package:disabled { opacity:.5;cursor:default; }
+.quick-package strong, .quick-package span { display:block;margin-bottom:6px; }
+.quick-package small { line-height:1.5; }
+
 /* --- Servicios estructurados del Quote Builder --- */
 .svc-hint { font-size: 12px; color: var(--sn-muted); margin: 0 0 10px; line-height: 1.5; }
 .svc-list { display: grid; gap: 6px; margin-bottom: 10px; }
@@ -130,7 +137,28 @@
       </div>
 
       <div class="doc-section">
-        <div class="doc-eyebrow">Opciones de paquete ({{ options|length }}/3)</div>
+        <div class="doc-eyebrow">1. Elige tus paquetes</div>
+        <p>Agrega hasta tres opciones con un clic. Cada una conserva su precio y todos sus entregables; después puedes editarla.</p>
+        {% if saved_packages %}
+        <label for="quick-package-search">Buscar paquete o servicio</label>
+        <input id="quick-package-search" type="search" placeholder="Fotografía, video, Mix, Signature…" oninput="filterQuickPackages(this.value)" style="display:block;width:100%;padding:12px;margin-top:8px;border:1px solid var(--doc-line);border-radius:10px;font:inherit;">
+        <div class="quick-packages">
+          {% for pkg in saved_packages %}
+          <button class="quick-package" type="button" data-package-id="{{ pkg.id }}" onclick="addSavedPackage(this.dataset.packageId)" {% if options|length >= 3 or pkg.name in options|map(attribute='name')|list %}disabled{% endif %}>
+            <strong>{{ pkg.name }}</strong>
+            <span>Q{{ '{:,.2f}'.format(pkg.price or 0) }} · {{ pkg.category }}</span>
+            <small>{{ pkg.description }}</small>
+          </button>
+          {% endfor %}
+        </div>
+        <p id="quick-package-status" role="status" class="doc-hint" style="text-align:left;">Selecciona un paquete para agregarlo al borrador.</p>
+        {% else %}
+        <p><a href="/settings/packages">Agrega tus paquetes en Settings</a> para reutilizarlos aquí.</p>
+        {% endif %}
+      </div>
+
+      <div class="doc-section">
+        <div class="doc-eyebrow">2. Revisa tus opciones ({{ options|length }}/3)</div>
         <div id="options-list">
           {% for opt in options %}
           <div class="opt-card" data-option-id="{{ opt.id }}">
@@ -264,7 +292,7 @@
 
         <button type="button" class="doc-btn outline" id="add-option-btn" style="margin-top:14px;" onclick="openOptionForm()">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-          Agregar opcion de paquete
+          Crear opción personalizada
         </button>
       </div>
 
@@ -363,12 +391,33 @@
 var QUOTE_ID = {{ quote.id|tojson }};
 var SAVED_PACKAGES = {{ saved_packages|tojson }};
 var CURRENT_OPTIONS = {{ options|tojson }};
+var savingOption = false;
+function filterQuickPackages(value) {
+  var query = value.trim().toLocaleLowerCase();
+  var visible = 0;
+  document.querySelectorAll('.quick-package').forEach(function(button) {
+    button.hidden = !button.textContent.toLocaleLowerCase().includes(query);
+    if (!button.hidden) visible++;
+  });
+  document.getElementById('quick-package-status').textContent = visible ? 'Selecciona un paquete para agregarlo al borrador.' : 'No hay paquetes que coincidan.';
+}
+function addSavedPackage(id) {
+  if (savingOption || CURRENT_OPTIONS.length >= 3) return;
+  openOptionForm();
+  fillFromSavedPackage(id);
+  saveOption();
+}
+
 
 function fillFromSavedPackage(pkgId) {
   var pkg = SAVED_PACKAGES.find(function(p) { return p.id === pkgId; });
   if (!pkg) return;
   document.getElementById('opt-name-input').value = pkg.name || '';
   document.getElementById('opt-price-input').value = pkg.price || '';
+  document.getElementById('opt-description-input').value = pkg.description || '';
+  document.getElementById('opt-hours-input').value = pkg.duration_hours || '';
+  svcCargar(null);
+  document.getElementById('opt-groups-list').innerHTML = '';
   var includes = pkg.includes || pkg.incluye || [];
   if (typeof includes === 'string') includes = includes.split('\n');
   document.getElementById('opt-includes-input').value = includes.join('\n');
@@ -533,9 +582,11 @@ function collectGroups() {
 }
 
 function saveOption() {
+  if (savingOption) return;
   var name = document.getElementById('opt-name-input').value.trim();
   var price = document.getElementById('opt-price-input').value;
   if (!name || !price) { alert('Nombre y precio son requeridos'); return; }
+  savingOption = true;
   fetch('/api/quotes/' + QUOTE_ID + '/options', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -557,9 +608,9 @@ function saveOption() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.ok) { location.reload(); }
-      else { alert('Error: ' + data.error); }
+      else { savingOption = false; alert('Error: ' + data.error); }
     })
-    .catch(function() { alert('Error de red'); });
+    .catch(function() { savingOption = false; alert('Error de red'); });
 }
 
 function deleteOption(id) {
