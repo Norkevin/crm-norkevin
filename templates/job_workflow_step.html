@@ -1,0 +1,13 @@
+<div class="workflow-step {{ 'done' if step.status == 'done' else '' }} {{ 'skipped' if step.status == 'skipped' else '' }} {% if not readonly and upcoming.step and step.id == upcoming.step.id %}is-next{% endif %}">
+  {% if readonly %}<div class="workflow-check {{ 'done' if step.status == 'done' else '' }}" aria-hidden="true">
+  {% else %}<button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status == 'pending' %}onclick='triggerJobStep({{ step.id|tojson }})'{% else %}disabled{% endif %} aria-label="Completar paso: {{ step.name }}">{% endif %}
+    {% if step.status == 'done' %}<svg fill="currentColor" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8-1.4-1.4L8 11.2 5.4 8.6Z"/></svg>{% endif %}
+  {% if readonly %}</div>{% else %}</button>{% endif %}
+  <div class="lead-step-content">
+    <div class="workflow-step-name">{{ step.name }}</div>
+    {% if step.action_type in ['send_email', 'send_contract', 'send_questionnaire', 'send_gallery'] %}<a class="lead-step-template" href="/settings/email-templates">{{ step.email_template_name or email_template_names.get(step.email_template_id) or 'Vincular plantilla de correo' }}</a>{% endif %}
+    {% if step.status == 'skipped' %}<span class="workflow-step-desc">Omitido</span>{% endif %}
+    {% include 'workflow_timing.html' %}
+  </div>
+  {% if not readonly %}<button class="sn-menu-dots" type="button" onclick='openStepActions(event, {{ step.id|tojson }}, {{ step.name|tojson }}, {{ step.status|tojson }})' aria-label="Opciones de {{ step.name }}"></button>{% endif %}
+</div>

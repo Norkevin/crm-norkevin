@@ -4024,6 +4024,12 @@ def _job_estado_label(job, job_payments=None):
         return 'Cancelado', 'red', 'cancelado'
 
     dias = job.get('dias_restantes')
+    if dias is None and job.get('boda_date'):
+        # El detalle recibe el registro sin el enriquecimiento de la lista.
+        try:
+            dias = (datetime.strptime(job['boda_date'], '%Y-%m-%d').date() - datetime.now().date()).days
+        except (TypeError, ValueError):
+            pass
     if dias is None:
         return 'Sin fecha', 'muted', 'sin_fecha'
     if dias > 0:

@@ -1,5 +1,5 @@
 <div class="workflow-step {% if step.status == 'done' %}done{% elif step.status == 'skipped' %}skipped{% endif %} {% if upcoming.step and step.id == upcoming.step.id %}is-next{% endif %}">
-  <button class="workflow-check {% if step.status == 'done' %}done{% endif %}" type="button" onclick="triggerStep({{ step.id|tojson|forceescape }}, {{ step.name|tojson|forceescape }})" aria-label="Abrir paso: {{ step.name }}" {% if step.locked %}disabled{% endif %}>
+  <button class="workflow-check {% if step.status == 'done' %}done{% endif %}" type="button" onclick='triggerStep({{ step.id|tojson }}, {{ step.name|tojson }})' aria-label="Abrir paso: {{ step.name }}" {% if step.locked %}disabled{% endif %}>
     {% if step.status == 'done' %}<svg fill="currentColor" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8-1.4-1.4L8 11.2 5.4 8.6Z"/></svg>{% endif %}
   </button>
   <div class="lead-step-content">
@@ -7,5 +7,5 @@
     {% if step.email_template_id %}<a href="/settings/email-templates" class="lead-step-template">{{ step.email_template_name or 'Vincular plantilla de correo' }}</a>{% endif %}
     {% include 'workflow_timing.html' %}
   </div>
-  <button class="sn-menu-dots" type="button" onclick="triggerStep({{ step.id|tojson|forceescape }}, {{ step.name|tojson|forceescape }})" aria-label="Opciones de {{ step.name }}" {% if step.locked %}disabled{% endif %}></button>
+  <button class="sn-menu-dots" type="button" onclick='triggerStep({{ step.id|tojson }}, {{ step.name|tojson }})' aria-label="Opciones de {{ step.name }}" {% if step.locked %}disabled{% endif %}></button>
 </div>
