@@ -164,7 +164,15 @@
 @media (max-width: 900px) { .dashboard-widgets { grid-template-columns: 1fr; } }
 
 .dashboard-jobs-table-wrap { overflow-x: auto; }
-.dashboard-jobs-table { width: 100%; border-collapse: collapse; }
+.dashboard-jobs-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.dashboard-jobs-location { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+@media (min-width: 761px) {
+  .dashboard-jobs-table { min-width: 760px; }
+  .dashboard-jobs-table th:nth-child(1) { width: 28%; }
+  .dashboard-jobs-table th:nth-child(2) { width: 20%; }
+  .dashboard-jobs-table th:nth-child(4) { width: 150px; }
+  .dashboard-jobs-table th:nth-child(5) { width: 125px; }
+}
 .dashboard-jobs-table th {
   text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase;
   letter-spacing: .04em; color: var(--sn-muted); padding: 0 12px 10px; white-space: nowrap;
@@ -176,7 +184,7 @@
 /* El dashboard es la primera pantalla que Kevin abre, muchas veces desde
    el telefono. Esta tabla tiene 5 columnas y el wrap solo hacia
    overflow-x:auto -- o sea que en movil habia que arrastrar de lado para
-   ver estado y avance. Se apila como ficha etiqueta/valor. */
+   ver lugar y avance. Se apila como ficha etiqueta/valor. */
 @media (max-width: 760px) {
   .dashboard-jobs-table-wrap { overflow-x: visible; }
   .dashboard-jobs-table thead { display: none; }
@@ -777,8 +785,8 @@
           <tr>
             <th>Trabajo</th>
             <th>Cliente</th>
-            <th>Date</th>
-            <th>Estado</th>
+            <th>Lugar</th>
+            <th>Fecha</th>
             <th>Avance</th>
           </tr>
         </thead>
@@ -788,12 +796,12 @@
             <td data-label="Trabajo" class="stack-full">
               <div class="dashboard-jobs-job-cell">
                 <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (j.nombre or '?')[:1]|upper }}</span>
-                <span class="dashboard-jobs-job-name">{{ j.nombre or 'Sin nombre' }}</span>
+                <span class="dashboard-jobs-job-name" title="{{ j.nombre or 'Sin nombre' }}">{{ j.nombre or 'Sin nombre' }}</span>
               </div>
             </td>
             <td data-label="Cliente">{{ j.client_name or 'Sin cliente' }}</td>
-            <td data-label="Fecha">{{ j.boda_date or 'Sin fecha' }}</td>
-            <td data-label="Estado"><span class="sn-chip green">{{ j.status or 'Activo' }}</span></td>
+            <td data-label="Lugar"><span class="dashboard-jobs-location" title="{{ j.location or 'Por definir' }}">{{ j.location or 'Por definir' }}</span></td>
+            <td data-label="Fecha">{{ j.boda_date|fecha_es or 'Sin fecha' }}</td>
             <td data-label="Avance">
               <div class="dashboard-jobs-progress-wrap">
                 <div class="sn-progress"><div class="sn-progress-fill" style="width:{{ j.workflow_progress or 0 }}%;"></div></div>
