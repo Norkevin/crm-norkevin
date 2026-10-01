@@ -6,6 +6,7 @@ Para envio real, configurar EMAIL_DELIVERY_MODE=real y EMAIL_PROVIDER=smtp
 o EMAIL_PROVIDER=resend con sus credenciales.
 """
 import json
+import re
 import logging
 import os
 import smtplib
@@ -220,6 +221,14 @@ def send_email(to_email, subject, body='', *, attachments=None, metadata=None):
         logger.warning('ENVIO BLOQUEADO por %s -> "%s" a %s', motivo, subject, to_email)
         return DeliveryResult(ok=False, provider='blocked', status='blocked',
                               error=f'Envio de correo deshabilitado ({motivo})')
+
+    unresolved = re.findall(
+        r'%(?:client_name|2nd_client_name|job_date|company_name|quote_link|contract_link|invoice_link|questionnaire_link|gallery_link)%|\$jobName\$',
+        (subject or '') + '\n' + (body or ''),
+    )
+    if unresolved:
+        return DeliveryResult(ok=False, provider='blocked', status='blocked',
+                              error='Completa los campos de la plantilla antes de enviar: ' + ', '.join(sorted(set(unresolved))))
 
     # Si la cuenta activa conecto su Gmail, se usa automaticamente sin
     # necesidad de tocar EMAIL_DELIVERY_MODE/EMAIL_PROVIDER. tenant_id

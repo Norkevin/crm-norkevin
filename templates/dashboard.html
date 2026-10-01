@@ -171,7 +171,6 @@
   .dashboard-jobs-table th:nth-child(1) { width: 28%; }
   .dashboard-jobs-table th:nth-child(2) { width: 20%; }
   .dashboard-jobs-table th:nth-child(4) { width: 150px; }
-  .dashboard-jobs-table th:nth-child(5) { width: 125px; }
   .dashboard-jobs-table td:nth-child(3),
   .dashboard-jobs-table td:nth-child(4) { border-left: 1px solid #e9edf3; }
   .dashboard-jobs-table tr.dashboard-jobs-row:nth-child(even) td { background: #fafbfe; }
@@ -796,7 +795,6 @@
             <th>Cliente</th>
             <th>Lugar</th>
             <th>Fecha</th>
-            <th>Avance</th>
           </tr>
         </thead>
         <tbody>
@@ -811,15 +809,9 @@
             <td data-label="Cliente">{{ j.client_name or 'Sin cliente' }}</td>
             <td data-label="Lugar"><span class="dashboard-jobs-location" title="{{ j.location or 'Por definir' }}">{{ j.location or 'Por definir' }}</span></td>
             <td data-label="Fecha"><span class="dashboard-jobs-date">{{ j.boda_date|fecha_es or 'Sin fecha' }}</span></td>
-            <td data-label="Avance">
-              <div class="dashboard-jobs-progress-wrap">
-                <div class="sn-progress"><div class="sn-progress-fill" style="width:{{ j.workflow_progress or 0 }}%;"></div></div>
-                <span class="dashboard-jobs-progress-pct">{{ j.workflow_progress or 0 }}%</span>
-              </div>
-            </td>
           </tr>
           {% else %}
-          <tr><td colspan="5"><div class="sn-muted" style="padding:8px 0;">Sin jobs proximos.</div></td></tr>
+          <tr><td colspan="4"><div class="sn-muted" style="padding:8px 0;">Sin jobs proximos.</div></td></tr>
           {% endfor %}
         </tbody>
       </table>

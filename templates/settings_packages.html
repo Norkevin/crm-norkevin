@@ -39,8 +39,8 @@
             <div class="sn-list-meta">{{ p.description }}</div>
           </td>
           <td data-label="Categoria">{{ p.category }}</td>
-          <td data-label="Horas">{{ p.duration_hours }}h</td>
-          <td data-label="Fotos">{{ p.num_photos }}</td>
+          <td data-label="Horas">{{ (p.duration_hours|string ~ 'h') if p.duration_hours else 'Ver detalle' }}</td>
+          <td data-label="Fotos">{{ p.num_photos if p.num_photos else 'Ver detalle' }}</td>
           <td data-label="Precio" style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(p.price or 0) }}</span></td>
           <td class="stack-actions" style="text-align:right;">
             <button class="sn-btn sn-btn-sm" type="button" onclick='openPackageModal({{ p|tojson }})'>Editar</button>

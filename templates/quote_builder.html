@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ quote_kind_label }} · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}{{ quote_kind_label }}{% endblock %}
-{% block subtitle %}Dashboard &gt; Jobs &gt; {{ job.nombre }} &gt; New Quote{% endblock %}
+{% block subtitle %}Dashboard &gt; Jobs &gt; {{ job.nombre }} &gt; Nueva cotización{% endblock %}
 {% block topbar_title %}Jobs{% endblock %}
 
 {% block content %}
@@ -178,57 +178,47 @@
   <div class="sn-page-head">
     <div>
       <h1 class="sn-page-title">{{ quote_kind_label }}</h1>
-      <div class="sn-breadcrumbs">Dashboard &gt; Jobs &gt; {{ job.nombre }} &gt; New Quote</div>
+      <div class="sn-breadcrumbs">Dashboard &gt; Jobs &gt; {{ job.nombre }} &gt; Nueva cotización</div>
     </div>
     <div class="sn-actions">
-      <a class="sn-btn" href="/jobs/{{ job.id }}">Back to Job</a>
-      <button class="sn-btn sn-btn-primary" type="button" onclick="submitQuote()">Create Quote</button>
+      <a class="sn-btn" href="/jobs/{{ job.id }}">Volver al trabajo</a>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="submitQuote()">Crear cotización</button>
     </div>
   </div>
 
   <div class="quote-builder-grid">
     <div>
+      <h2 class="sn-page-title" style="font-size:22px;">1. Elige tus paquetes</h2>
+      <p class="sn-muted">{% if quote_kind == 'fixed' %}Selecciona el paquete que vas a cotizar.{% else %}Selecciona las opciones que quieres ofrecer al cliente.{% endif %} Incluye descripción, cobertura y precio.</p>
+      <div class="form-group" style="margin:16px 0;">
+        <label for="catalog-search" class="form-label">Buscar paquete</label>
+        <input id="catalog-search" class="form-input" placeholder="Nombre, categoría o servicio" oninput="renderCatalog()">
+        <span class="sn-muted" id="catalog-count" aria-live="polite"></span>
+      </div>
+      <div class="quote-package-picker" id="catalog-list"></div>
+      <h2 class="sn-page-title" style="font-size:22px;margin-top:24px;">2. Revisa tu cotización</h2>
+      <p id="quote-empty" class="sn-muted">Selecciona un paquete del catálogo para comenzar.</p>
+      <div id="quote-selected" class="quote-selected-list" style="display:none;"></div>
+
       <div class="form-group">
-        <label class="form-label">Introduction</label>
-        <textarea id="quote-introduction" class="quote-textarea" maxlength="1000" oninput="updateIntroCount()" placeholder="E.g. Thank you for considering me as your photographer! Please choose from the list of packages and products and click Accept."></textarea>
+        <label for="quote-introduction" class="form-label">Mensaje para el cliente (opcional)</label>
+        <textarea id="quote-introduction" class="quote-textarea" maxlength="1000" oninput="updateIntroCount()" placeholder="Gracias por considerarme para tu boda. Aquí encontrarás los detalles de tu cotización."></textarea>
         <div class="sn-list-meta" style="text-align:right;"><span id="intro-count">0</span>/1000</div>
       </div>
 
-      <div style="height:1px;background:var(--sn-line);margin:32px 0;"></div>
-
-      <div class="sn-page-head" style="margin-bottom:16px;">
-        <div>
-          <h2 class="sn-page-title" style="font-size:22px;">Packages</h2>
-          <div class="sn-muted">Arma la lista de paquetes entre los que el cliente puede elegir. Puede elegir mas de uno.</div>
-        </div>
-        <button class="sn-btn sn-btn-primary" type="button" onclick="openPackageModal()">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/></svg>
-          Add Packages
-        </button>
-      </div>
-
-      <div id="quote-empty" class="quote-empty">
-        <div>
-          <h3 style="font-size:22px;font-weight:500;margin:0 0 12px;">Start Adding Packages to your Quote</h3>
-          <p class="sn-muted" style="max-width:390px;margin:0 auto 24px;">Esta cotizacion todavia no tiene ningun paquete. Agrega el primero con el boton de abajo.</p>
-          <button class="sn-btn sn-btn-primary" type="button" onclick="openPackageModal()">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"/></svg>
-            Add Packages
-          </button>
-        </div>
-      </div>
-
-      <div id="quote-selected" class="quote-selected-list" style="display:none;"></div>
-
       <div class="quote-total-panel">
         <div class="quote-total-line"><span>Subtotal</span><span id="quote-subtotal">Q0.00</span></div>
-        <div class="quote-total-line total"><span>Total Due</span><span id="quote-total">Q0.00</span></div>
+        <div class="quote-total-line total"><span>Total</span><span id="quote-total">Q0.00</span></div>
+        <label for="quote-schedule" class="form-label">Plan de pagos</label>
         <select id="quote-schedule" class="sn-select" style="width:260px;max-width:none;">
           <option>2 (50% + 50%)</option>
           <option>1 (total al reservar)</option>
           <option>3 (33% + 33% + 34%)</option>
           <option>4 (25% c/u)</option>
         </select>
+      </div>
+      <div class="sn-actions" style="margin-top:20px;">
+        <button class="sn-btn sn-btn-primary" type="button" onclick="submitQuote()">Crear cotización</button>
       </div>
     </div>
 
@@ -237,17 +227,17 @@
         <div class="sn-card-head">
           <div class="sn-card-title">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M4 9h16v11H4z"/></svg>
-            Event details
+            Datos del evento
           </div>
         </div>
         <div class="sn-card-body">
           <div class="quote-info-row">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z"/></svg>
-            <div><strong>Boda</strong><br>{{ job.boda_date or 'No date confirmed' }}{% if job.time %}<br>{{ job.time }}{% endif %}</div>
+            <div><strong>Boda</strong><br>{{ job.boda_date or 'Sin fecha confirmada' }}{% if job.time %}<br>{{ job.time }}{% endif %}</div>
           </div>
           <div class="quote-info-row">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2"/></svg>
-            <div><strong>Location</strong><br>{{ job.location or (lead.locacion if lead else '') or 'Sin ubicacion' }}</div>
+            <div><strong>Lugar</strong><br>{{ job.location or (lead.locacion if lead else '') or 'Sin ubicacion' }}</div>
           </div>
         </div>
       </div>
@@ -256,7 +246,7 @@
         <div class="sn-card-head">
           <div class="sn-card-title">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2m18 0v-2a4 4 0 0 0-3-3.87M12 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"/></svg>
-            Contact details
+            Datos del cliente
           </div>
         </div>
         <div class="sn-card-body">
@@ -267,11 +257,11 @@
           </div>
           <div class="quote-info-row">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.18 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.77.62 2.6a2 2 0 0 1-.45 2.11L8 9.7a16 16 0 0 0 6.3 6.3l1.27-1.27a2 2 0 0 1 2.11-.45c.83.29 1.7.5 2.6.62A2 2 0 0 1 22 16.92Z"/></svg>
-            <div><strong>Phone</strong><br>{{ (client.phone if client else (lead.telefono if lead else '')) or 'Sin telefono' }}</div>
+            <div><strong>Teléfono</strong><br>{{ (client.phone if client else (lead.telefono if lead else '')) or 'Sin telefono' }}</div>
           </div>
           <div class="quote-info-row">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2"/></svg>
-            <div><strong>Address</strong><br>{{ (client.address if client else '') or job.location or 'Sin direccion' }}</div>
+            <div><strong>Dirección</strong><br>{{ (client.address if client else '') or job.location or 'Sin direccion' }}</div>
           </div>
         </div>
       </div>
@@ -279,40 +269,18 @@
   </div>
 </section>
 
-<div class="modal-overlay" id="package-modal">
-  <div class="modal-content" style="width:min(760px,100%);">
-    <button type="button" class="modal-close" onclick="closePackageModal()" aria-label="Close">x</button>
-    <h2 class="modal-title">Add Packages</h2>
-    <p class="sn-muted" style="margin-top:-8px;margin-bottom:18px;">Elegi del catalogo configurado.</p>
-    <div class="sn-actions" style="margin-bottom:14px;justify-content:space-between;gap:10px;align-items:center;">
-      <input id="catalog-search" class="form-input" style="max-width:320px;" placeholder="Search packages" oninput="renderCatalog()">
-      <span class="sn-muted" id="catalog-count"></span>
-    </div>
-    <div class="quote-package-picker" id="catalog-list"></div>
-    <div class="sn-actions" style="justify-content:flex-end;margin-top:18px;">
-      <button class="sn-btn" type="button" onclick="closePackageModal()">Cancelar</button>
-    </div>
-  </div>
-</div>
-
 <script>
 var JOB_ID = {{ job.id|tojson }};
 var QUOTE_KIND = {{ quote_kind|tojson }};
 var PACKAGES = {{ packages|tojson }};
 var selectedPackages = [];
+var savingQuote = false;
 
 function money(value) {
   return 'Q' + Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function updateIntroCount() {
   document.getElementById('intro-count').textContent = document.getElementById('quote-introduction').value.length;
-}
-function openPackageModal() {
-  renderCatalog();
-  document.getElementById('package-modal').classList.add('open');
-}
-function closePackageModal() {
-  document.getElementById('package-modal').classList.remove('open');
 }
 function renderCatalog() {
   var list = document.getElementById('catalog-list');
@@ -323,9 +291,9 @@ function renderCatalog() {
     return !query || haystack.indexOf(query) !== -1;
   });
   var counter = document.getElementById('catalog-count');
-  if (counter) counter.textContent = filteredPackages.length + ' available';
+  if (counter) counter.textContent = filteredPackages.length + ' disponibles';
   if (!PACKAGES.length) {
-    list.innerHTML = '<div class="sn-muted" style="padding:28px;text-align:center;">No hay paquetes configurados todavia.</div>';
+    list.innerHTML = '<div class="sn-muted" style="padding:28px;text-align:center;">No hay paquetes configurados. <a href="/settings/packages">Agregar paquetes en Settings</a>.</div>';
     return;
   }
   if (!filteredPackages.length) {
@@ -350,7 +318,7 @@ function renderCatalogCard(pkg) {
   var includes = (pkg.includes || []).slice(0, 4).map(function(item) {
     return '<li>' + escapeHtml(item) + '</li>';
   }).join('');
-  return '<button class="quote-catalog-card' + (selected ? ' is-selected' : '') + '" type="button" onclick="addPackage(' + JSON.stringify(pkg.id).replace(/"/g, '&quot;') + ')">' +
+  return '<button class="quote-catalog-card' + (selected ? ' is-selected' : '') + '" aria-pressed="' + selected + '" type="button" onclick="addPackage(' + JSON.stringify(pkg.id).replace(/"/g, '&quot;') + ')">' +
       '<div class="quote-package-name">' + escapeHtml(pkg.name) + '</div>' +
       '<div class="quote-package-desc">' + escapeHtml(pkg.description || pkg.category || '') + '</div>' +
       (includes ? '<ul class="quote-package-includes">' + includes + '</ul>' : '') +
@@ -365,12 +333,13 @@ function addPackage(id) {
   } else if (!selectedPackages.some(function(item) { return item.id === id; })) {
     selectedPackages.push(pkg);
   }
-  closePackageModal();
   renderSelected();
+  renderCatalog();
 }
 function removePackage(id) {
   selectedPackages = selectedPackages.filter(function(item) { return item.id !== id; });
   renderSelected();
+  renderCatalog();
 }
 function renderSelected() {
   var empty = document.getElementById('quote-empty');
@@ -389,16 +358,18 @@ function renderSelected() {
       (includes ? '<ul class="quote-package-includes">' + includes + '</ul>' : '') +
       '</div>' +
       '<strong>' + money(pkg.price) + '</strong>' +
-      '<button class="sn-btn" type="button" onclick="removePackage(' + JSON.stringify(pkg.id).replace(/"/g, '&quot;') + ')">Remove</button>' +
+      '<button class="sn-btn" type="button" onclick="removePackage(' + JSON.stringify(pkg.id).replace(/"/g, '&quot;') + ')">Quitar</button>' +
       '</div>';
   }).join('');
 }
 function submitQuote() {
+  if (savingQuote) return;
   if (!selectedPackages.length) {
     flashToast('Agrega al menos un paquete', 'error');
     return;
   }
   var subtotal = selectedPackages.reduce(function(sum, item) { return sum + Number(item.price || 0); }, 0);
+  savingQuote = true;
   apiPost('/api/jobs/' + JOB_ID + '/quotes', {
     tipo_cotizacion: QUOTE_KIND,
     paquete: selectedPackages.map(function(item) { return item.name; }).join(' + '),
@@ -407,9 +378,10 @@ function submitQuote() {
     introduction: document.getElementById('quote-introduction').value,
     items: selectedPackages
   }).then(function(data) {
-    flashToast('Quote creado', 'success');
+    flashToast('Cotización creada', 'success');
     setTimeout(function() { window.location.href = data.quote_url || ('/jobs/' + JOB_ID); }, 500);
   }).catch(function(err) {
+    savingQuote = false;
     flashToast(err.message, 'error');
   });
 }
@@ -418,8 +390,6 @@ function escapeHtml(value) {
     return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]);
   });
 }
-document.addEventListener('keydown', function(event) {
-  if (event.key === 'Escape') closePackageModal();
-});
+renderCatalog();
 </script>
 {% endblock %}
