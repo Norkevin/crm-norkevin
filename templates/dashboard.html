@@ -739,7 +739,7 @@
           <button class="metric-tab" type="button" data-metric="sessions" style="--metric-color:#2563EB;" onclick="setDashboardMetric('sessions')">
             <span class="metric-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></span>
             <div class="metric-copy">
-              <div class="metric-label">Sesiones</div>
+              <div class="metric-label">Eventos</div>
               <div class="metric-value" id="dashboard-sessions-value"></div>
             </div>
           </button>
@@ -1035,7 +1035,7 @@ function money(value) {
 function metricLabel(metric) {
   return {
     leads: 'Leads',
-    sessions: 'Sesiones',
+    sessions: 'Eventos',
     payments: 'Pagos',
     revenue: 'Comparativo'
   }[metric] || 'Comparativo';

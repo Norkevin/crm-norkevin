@@ -14,6 +14,7 @@ def test_accepting_without_quote_never_invents_money(client, tenant_id, path, pa
     assert response.status_code == 200
     job = module.get_job(module.get_lead(lead['id'])['job_id'])
     assert job['price_total'] == job['price_paid'] == job['cuota_monto'] == job['plan_pago'] == 0
+    assert not job['boda_date'], 'An undated booking must not invent an event today'
     assert not job['package'] and not job['accepted_quote_id']
     assert not [p for p in module.store.list('payments') if p.get('job_id') == job['id']]
     html = client.get('/jobs/' + job['id']).get_data(as_text=True)

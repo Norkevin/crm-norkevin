@@ -980,7 +980,7 @@ def _ensure_job_for_lead(lead, client_id, quote=None, status='Confirmado'):
     job = {
         'id': 'boda-' + uuid.uuid4().hex[:8],
         'nombre': f'Boda {nombre_completo}',
-        'boda_date': lead.get('fecha_tentativa') or today,
+        'boda_date': lead.get('fecha_tentativa') or '',
         'status': status,
         'workflow_progress': 12 if status == 'Confirmado' else 0,
         # Antes hardcodeado a 'ASTRAL WEDDINGS' sin importar el tenant real
@@ -2564,6 +2564,27 @@ def index():
                           day_names=['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'])
 
 
+def _dashboard_scheduled_events(jobs):
+    """One event per dated job or extra event; calendar entries are mirrors."""
+    events = []
+    for job in jobs:
+        if str(job.get('status') or '').lower() in ('archivado', 'cancelado', 'cancelled', 'canceled'):
+            continue
+        job_type = job.get('type') or job.get('tipo_evento') or 'BODAS'
+        day = _parse_iso_day(job.get('boda_date'))
+        if day:
+            events.append((day, job_type))
+        for task in job.get('manual_workflow_tasks') or []:
+            if task.get('type') != 'extra-event':
+                continue
+            if str(task.get('status') or '').lower() in ('skipped', 'cancelado', 'cancelled', 'canceled'):
+                continue
+            day = _parse_iso_day(task.get('start_date'))
+            if day:
+                events.append((day, job_type))
+    return events
+
+
 def _compute_custom_range_payload(start_day, end_day):
     """Igual que los rangos preseteados (7/30/mtd/ytd) de dashboard(), pero
     para un rango de fechas arbitrario que el usuario elige con el
@@ -2591,6 +2612,7 @@ def _compute_custom_range_payload(start_day, end_day):
 
     all_leads = _open_leads()
     all_jobs = _canonical_jobs()
+    scheduled_events = _dashboard_scheduled_events(all_jobs)
     all_payments = _visible_billable_payments()
     job_type_labels = sorted({
         (j.get('type') or j.get('tipo_evento') or 'BODAS') for j in all_jobs
@@ -2632,8 +2654,14 @@ def _compute_custom_range_payload(start_day, end_day):
             d = _parse_day(job.get('boda_date') or job.get('created'))
             idx = keys_index.get(d.isoformat()) if d else None
             if idx is not None:
-                session_series[idx] += 1
                 revenue_series[idx] += coerce_amount(job.get('price_total') or job.get('Total facturado al cliente (Q)'))
+
+        for day, event_type in scheduled_events:
+            if job_type != 'All Job Types' and event_type != job_type:
+                continue
+            idx = keys_index.get(day.isoformat())
+            if idx is not None:
+                session_series[idx] += 1
 
         for payment in all_payments:
             job = job_by_id.get(payment.get('job_id')) or {}
@@ -2858,7 +2886,7 @@ def dashboard():
             return days, [d.strftime('%d %b') for d in days], f"{start_day.strftime('%d %b %Y')} - {today.strftime('%d %b %Y')}"
         if range_key == 'ytd':
             months = [date(today.year, m, 1) for m in range(1, 13)]
-            return months, [d.strftime('%b') for d in months], f"01 Jan {today.year} - {today.strftime('%d %b %Y')}"
+            return months, [d.strftime('%b') for d in months], f"1 enero {today.year} - 31 diciembre {today.year}"
         start_day = today.replace(day=1)
         days = [start_day + timedelta(days=i) for i in range((today - start_day).days + 1)]
         return days, [d.strftime('%d %b') for d in days], f"{start_day.strftime('%d %b %Y')} - {today.strftime('%d %b %Y')}"
@@ -2870,6 +2898,7 @@ def dashboard():
 
     all_dashboard_leads = _open_leads()
     all_dashboard_jobs = _canonical_jobs()
+    scheduled_events = _dashboard_scheduled_events(all_dashboard_jobs)
     all_dashboard_payments = _visible_billable_payments()
 
     job_type_labels = sorted({
@@ -2910,8 +2939,14 @@ def dashboard():
                     continue
                 key = _bucket_key(_parse_iso_day(job.get('boda_date') or job.get('created')), range_key)
                 if key in keys_index:
-                    session_series[keys_index[key]] += 1
                     revenue_series[keys_index[key]] += coerce_amount(job.get('price_total') or job.get('Total facturado al cliente (Q)'))
+
+            for day, event_type in scheduled_events:
+                if job_type != 'All Job Types' and event_type != job_type:
+                    continue
+                key = _bucket_key(day, range_key)
+                if key in keys_index:
+                    session_series[keys_index[key]] += 1
 
             job_by_id = {job.get('id'): job for job in all_dashboard_jobs}
             lead_by_id = {lead.get('id'): lead for lead in all_dashboard_leads}
