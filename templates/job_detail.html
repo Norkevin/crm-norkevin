@@ -4,6 +4,13 @@
 
 {% block content %}
 <section class="sn-page-wide">
+  <div class="sn-card" style="padding:18px;margin-bottom:18px;">
+    <strong>{{ booking.label }}</strong>
+    <p class="sn-muted">La reserva se confirma con la cotización aceptada, ambas firmas y la primera cuota cubierta.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;">
+      {% for check in booking.checks %}<span class="sn-chip {{ 'green' if check.done else 'gray' }}">{{ '✓' if check.done else '○' }} {{ check.label }}</span>{% endfor %}
+    </div>
+  </div>
   <div class="sn-page-head">
     <div>
       <h1 class="sn-page-title">{{ job.nombre }}</h1>
@@ -71,6 +78,7 @@
             </div>
             <div class="sn-ellipsis">
               <div class="workflow-step-name">{{ step.name }}</div>
+              {% if step.status == "queued" %}<a class="sn-chip gray" href="/emails">Pendiente de aprobación</a>{% elif step.status == "failed" %}<a class="sn-chip gray" href="/emails">{{ step.result or "Revisar correo" }}</a>{% endif %}
               <span class="sn-chip pink">Auto send email</span>
               {% if step.scheduled %}<span class="sn-chip gray">{{ step.scheduled[:10] }}</span>{% endif %}
             </div>
@@ -110,6 +118,7 @@
             </button>
             <div class="sn-ellipsis">
               <div class="workflow-step-name">{{ step.name }}</div>
+              {% if step.status == "queued" %}<a class="sn-chip gray" href="/emails">Pendiente de aprobación</a>{% elif step.status == "failed" %}<a class="sn-chip gray" href="/emails">{{ step.result or "Revisar correo" }}</a>{% endif %}
               {% if step.status == 'skipped' %}
               <span class="sn-chip gray">Omitido</span>
               {% else %}
@@ -198,6 +207,7 @@
             </button>
             <div class="sn-ellipsis">
               <div class="workflow-step-name">{{ step.name }}</div>
+              {% if step.status == "queued" %}<a class="sn-chip gray" href="/emails">Pendiente de aprobación</a>{% elif step.status == "failed" %}<a class="sn-chip gray" href="/emails">{{ step.result or "Revisar correo" }}</a>{% endif %}
               {% if step.status == 'skipped' %}
               <span class="sn-chip gray">Omitido</span>
               {% else %}
@@ -223,7 +233,7 @@
         </div>
       </div>
 
-      <button class="sn-btn sn-btn-sm" type="button" onclick="openHistoryLog()">History Log</button>
+      <button class="sn-btn sn-btn-sm" type="button" onclick="openHistoryLog()">Historial del trabajo</button>
 
       <div class="sn-card mt-4">
         <div class="sn-card-head">
@@ -241,17 +251,17 @@
             <tbody>
             {% for mail in mail_log %}
               <tr>
-                <td data-label="Date">{{ (mail.sent_at or '')[:10] }}</td>
+                <td data-label="Date">{{ (mail.sent_at or mail.created_at or '')[:10] }}</td>
                 <td class="sn-ellipsis" data-label="To">{{ mail.to or 'me' }}</td>
                 <td data-label="Subject">
                   <div class="sn-ellipsis">{{ mail.subject or 'Email' }}</div>
-                  {% if mail.status == 'opened' %}<span class="sn-chip cyan">EMAIL OPENED</span>{% elif mail.status %}<span class="sn-chip gray">{{ mail.status|upper }}</span>{% endif %}
+                  {% if mail.status == 'opened' %}<span class="sn-chip cyan">EMAIL OPENED</span>{% elif mail.status %}<span class="sn-chip gray">{{ {'pending':'Pendiente de aprobación', 'sent':'Enviado', 'failed':'Falló el envío', 'blocked':'Bloqueado', 'discarded':'Descartado'}.get(mail.status, mail.status) }}</span>{% endif %}
                 </td>
                 <td class="stack-actions">
                   <button class="sn-btn sn-btn-sm" type="button"
                     data-subject="{{ mail.subject or 'Email' }}"
                     data-to="{{ mail.to or '' }}"
-                    data-date="{{ (mail.sent_at or '')[:10] }}"
+                    data-date="{{ (mail.sent_at or mail.created_at or '')[:10] }}"
                     data-body-ref="mail-body-{{ mail.id }}"
                     onclick="openMailDetails(this)">View</button>
                   <script type="application/json" id="mail-body-{{ mail.id }}">{{ (mail.body or mail.body_preview or '')|tojson }}</script>
@@ -542,7 +552,7 @@
             <div class="sn-list-row">
               <div>
                 <div class="sn-list-title">{{ q.paquete_nombre or 'Quote' }}</div>
-                <div class="sn-list-meta">Sent {{ q.sent_at or q.created or '-' }}</div>
+                <div class="sn-list-meta">{{ {'pending':'Pendiente de aprobación', 'failed':'Falló el envío', 'blocked':'Envío bloqueado', 'discarded':'Correo descartado'}.get(q.delivery_status) or ('Enviado el ' ~ q.sent_at if q.sent_at else 'Preparado · sin envío confirmado') }}</div>
                 <div class="sn-list-meta">{{ q.status or 'Draft' }}</div>
               </div>
               <div class="sn-money">Q{{ '{:,.2f}'.format(q.get('precio_total') or 0) }}</div>
@@ -579,7 +589,7 @@
             <div class="sn-list-row">
               <div>
                 <div class="sn-list-title">CONTRATO DE BODAS {{ (current_tenant.name or 'CRM')|upper }}</div>
-                <div class="sn-list-meta">Enviado el {{ c.sent_at or c.created or '-' }}</div>
+                <div class="sn-list-meta">{{ {'pending':'Pendiente de aprobación', 'failed':'Falló el envío', 'blocked':'Envío bloqueado', 'discarded':'Correo descartado'}.get(c.delivery_status) or ('Enviado el ' ~ c.sent_at if c.sent_at else 'Preparado · sin envío confirmado') }}</div>
                 <div class="sn-list-meta">
                   {{ c.status or 'Borrador' }}
                   {% if c.signed %} &middot; Cliente firmo{% endif %}
@@ -621,7 +631,7 @@
               <div>
                 <div class="sn-list-title">{{ q.name or q.id }}</div>
                 <div class="sn-list-meta">
-                  Sent on {{ q.created or '-' }}
+                  {{ 'Enviado el ' ~ q.sent_at if q.sent_at else 'Preparado · sin envío confirmado' }}
                   {% if q.status == 'Respondido' and q.answered_at %} · Completed on {{ q.answered_at[:10] }}{% endif %}
                 </div>
               </div>
@@ -774,7 +784,7 @@
     <form onsubmit="saveJob(event)">
       <div class="form-group"><label class="form-label">Job name</label><input class="form-input" name="nombre" value="{{ job.nombre }}"></div>
       <div class="grid-2">
-        <div class="form-group"><label class="form-label">Boda date</label><input class="form-input" name="boda_date" type="date" value="{{ job.boda_date or '' }}"></div>
+        <div class="form-group"><label class="form-label">Boda date</label><input class="form-input" name="boda_date" type="date" onchange="previewWeddingDate(this.value)" value="{{ job.boda_date or '' }}"></div><div id="date-change-preview" role="status" class="sn-muted" style="grid-column:1/-1;white-space:pre-line;">Al cambiar la fecha se actualizan tareas pendientes relativas a la boda. Las cuotas existentes conservan sus fechas e importes.</div>
         <div class="form-group"><label class="form-label">Estado</label><select class="form-input" name="status"><option>{{ job.status }}</option><option>Cotizando</option><option>Confirmado</option><option>En produccion</option><option>Listo</option><option>Archivado</option></select></div>
       </div>
       <div class="form-group"><label class="form-label">Location</label><input class="form-input" name="location" value="{{ job.location or '' }}"></div>
@@ -1010,7 +1020,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 <div class="modal-overlay" id="history-log-modal">
   <div class="modal-content" style="width:min(560px,100%);">
     <button type="button" class="modal-close" onclick="closeModal('history-log-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title">History Log</h2>
+    <h2 class="modal-title">Historial del trabajo</h2>
     <div class="sn-list" id="history-log-list" style="max-height:420px;overflow:auto;"></div>
   </div>
 </div>
@@ -1788,6 +1798,21 @@ function submitFile(event) {
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
+let datePreviewRequest = 0;
+async function previewWeddingDate(value) {
+  const requestId = ++datePreviewRequest;
+  const box = document.getElementById('date-change-preview');
+  box.textContent = 'Calculando fechas…';
+  try {
+    const response = await fetch('/api/jobs/' + JOB_ID + '/date-preview?date=' + encodeURIComponent(value));
+    const data = await response.json();
+    if (requestId !== datePreviewRequest) return;
+    if (!data.ok) throw new Error(data.error || 'No se pudo calcular');
+    box.textContent = 'Las cuotas existentes no cambian.\n' + (data.changes.length ? data.changes.map(function(change) {
+      return change.name + ': ' + (change.before || 'Sin fecha').slice(0, 10) + ' → ' + (change.after || 'Pendiente de fecha').slice(0, 19);
+    }).join('\n') : 'Ninguna tarea pendiente cambia de fecha.');
+  } catch (error) { if (requestId === datePreviewRequest) box.textContent = error.message; }
+}
 function openHistoryLog() {
   fetch('/api/jobs/' + JOB_ID + '/history')
     .then(function(r) { return r.json(); })
@@ -1795,13 +1820,17 @@ function openHistoryLog() {
       if (!data.ok) throw new Error(data.error || 'No se pudo cargar el historial');
       var list = document.getElementById('history-log-list');
       if (!data.history.length) {
-        list.innerHTML = '<div class="sn-list-item sn-muted">Sin eventos de workflow todavia.</div>';
+        list.innerHTML = '<div class="sn-list-item sn-muted">Sin eventos registrados todavía.</div>';
       } else {
-        list.innerHTML = data.history.slice().reverse().map(function(h) {
-          var ts = (h.timestamp || '').replace('T', ' ').slice(0, 16);
-          return '<div class="sn-list-item"><div class="sn-list-title">' + (h.message || h.event || '') +
-            '</div><div class="sn-list-meta">' + ts + ' · ' + (h.event || '') + '</div></div>';
-        }).join('');
+        list.replaceChildren();
+        data.history.slice().reverse().forEach(function(h) {
+          const item = document.createElement('div'); item.className = 'sn-list-item';
+          const title = document.createElement('div'); title.className = 'sn-list-title';
+          title.textContent = h.message || h.event || '';
+          const meta = document.createElement('div'); meta.className = 'sn-list-meta';
+          meta.textContent = (h.timestamp || '').replace('T', ' ').slice(0, 16) + ' · ' + (h.event || '');
+          item.append(title, meta); list.appendChild(item);
+        });
       }
       openModal('history-log-modal');
     })

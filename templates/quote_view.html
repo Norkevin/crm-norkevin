@@ -452,7 +452,7 @@
       <div class="card__body">
         <h2 class="doc-h2" style="margin-bottom:8px;">¿En cuántos pagos?</h2>
         <p class="doc-text doc-text--sm" style="margin-bottom:16px;">
-          El primer pago reserva la fecha; los siguientes se programan durante los meses previos al evento.
+          La reserva se confirma con la cotización aceptada, el contrato firmado por ambas partes y la primera cuota cubierta.
         </p>
         <div class="plan-row" id="plan-options" role="radiogroup" aria-label="Plan de pago">
           {% for n in plan_choices %}
@@ -486,7 +486,7 @@
         <div class="wide-card__text">
           <div class="wide-card__label">Siguiente paso</div>
           <div class="wide-card__value">¿Continuamos?</div>
-          <p class="doc-text doc-text--sm" style="margin-top:3px;">Elegí tu opción y plan de pago. Al aceptar, generamos tu calendario de pagos.</p>
+          <p class="doc-text doc-text--sm" style="margin-top:3px;">Elegí tu opción y plan de pago. Las fechas suponen que aceptás hoy; se recalculan el día de aceptación.</p>
         </div>
       </div>
       <div class="cta-row">
@@ -642,6 +642,7 @@ function selectPlan(n) {
   updateSummary();
 }
 
+const PAYMENT_PREVIEW = {{ payment_preview|tojson }};
 function updateSummary() {
   var opt = OPTIONS.find(function(o) { return o.id === selectedOptionId; });
   var extras = extrasTotal();
@@ -659,7 +660,7 @@ function updateSummary() {
   var scheduleEl = document.getElementById('sum-schedule');
   if (scheduleEl) {
     scheduleEl.innerHTML = '';
-    if (base && selectedPlan && selectedPlan > 1) {
+    if (base && selectedPlan) {
       var per = Math.round((base / selectedPlan) * 100) / 100;
       var acumulado = 0;
       for (var i = 1; i <= selectedPlan; i++) {
@@ -667,7 +668,9 @@ function updateSummary() {
         acumulado += per;
         var row = document.createElement('div');
         row.className = 'summary-row';
-        row.innerHTML = '<span class="k">Pago ' + i + '</span><span>' + fmtMoney(monto) + '</span>';
+        var due = (PAYMENT_PREVIEW[selectedPlan] || [])[i - 1];
+        var label = due ? new Date(due + 'T12:00:00').toLocaleDateString('es-GT', {day:'numeric', month:'short', year:'numeric'}) : '';
+        row.innerHTML = '<span class="k">Pago ' + i + ' · ' + label + '</span><span>' + fmtMoney(monto) + '</span>';
         scheduleEl.appendChild(row);
       }
     }
