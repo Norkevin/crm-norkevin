@@ -100,8 +100,8 @@ INK = HexColor('#111827')        # text-primary
 INK_SOFT = HexColor('#667085')   # text-secondary
 MUTE = HexColor('#98A2B3')       # muted
 LINE = HexColor('#E7EAF0')       # border
-LINE_SOFT = HexColor('#F4F5F9')  # surface-2
-GOLD = HexColor('#7357F6')       # primary (el acento del producto; el nombre
+LINE_SOFT = HexColor('#EFF2F5')  # surface-2
+GOLD = HexColor('#3F5B70')       # primary (el acento del producto; el nombre
                                  # de la constante se conserva para no tocar
                                  # las ~40 referencias que ya la usan)
 EMERALD = HexColor('#2FB66D')    # success -- rellenos y marcadores

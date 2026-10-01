@@ -436,7 +436,7 @@
     <h3 class="font-semibold text-lg mb-2">Firma digital</h3>
     <p class="text-xs text-ink-soft mb-4">Puedes dibujar tu firma o escribir tu nombre.</p>
     <div class="flex gap-2 mb-4">
-      <button id="sign-mode-draw" type="button" onclick="setSignatureMode('draw')" class="text-sm px-3 py-2 border border-gray-200 rounded-lg font-medium" style="background:#F0EDFF;color:#6447EE;">Dibujar</button>
+      <button id="sign-mode-draw" type="button" onclick="setSignatureMode('draw')" class="text-sm px-3 py-2 border border-gray-200 rounded-lg font-medium" style="background:#E4ECF2;color:#30495D;">Dibujar</button>
       <button id="sign-mode-type" type="button" onclick="setSignatureMode('type')" class="text-sm px-3 py-2 border border-gray-200 rounded-lg font-medium">Escribir nombre</button>
     </div>
     <div id="signature-draw-panel">
@@ -450,7 +450,7 @@
       <button onclick="clearSignature()" class="text-sm px-3 py-2 border border-gray-200 rounded-lg">Limpiar</button>
       <div class="flex-1"></div>
       <button onclick="closeSignature()" class="text-sm px-3 py-2 border border-gray-200 rounded-lg">Cancelar</button>
-      <button onclick="saveSignature()" class="text-sm px-3 py-2 text-white rounded-lg font-medium" style="background: #7357F6;">Guardar firma</button>
+      <button onclick="saveSignature()" class="text-sm px-3 py-2 text-white rounded-lg font-medium" style="background: #3F5B70;">Guardar firma</button>
     </div>
   </div>
 </div>
@@ -522,10 +522,10 @@ function setSignatureMode(mode) {
   signatureMode = mode;
   document.getElementById('signature-draw-panel').classList.toggle('hidden', mode !== 'draw');
   document.getElementById('signature-type-panel').classList.toggle('hidden', mode !== 'type');
-  document.getElementById('sign-mode-draw').style.background = mode === 'draw' ? '#F0EDFF' : '#fff';
-  document.getElementById('sign-mode-draw').style.color = mode === 'draw' ? '#6447EE' : '#111827';
-  document.getElementById('sign-mode-type').style.background = mode === 'type' ? '#F0EDFF' : '#fff';
-  document.getElementById('sign-mode-type').style.color = mode === 'type' ? '#6447EE' : '#111827';
+  document.getElementById('sign-mode-draw').style.background = mode === 'draw' ? '#E4ECF2' : '#fff';
+  document.getElementById('sign-mode-draw').style.color = mode === 'draw' ? '#30495D' : '#111827';
+  document.getElementById('sign-mode-type').style.background = mode === 'type' ? '#E4ECF2' : '#fff';
+  document.getElementById('sign-mode-type').style.color = mode === 'type' ? '#30495D' : '#111827';
 }
 
 function renderTypedSignature() {

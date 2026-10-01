@@ -19,7 +19,7 @@
 .settings-tile.clickable { cursor: pointer; transition: box-shadow .15s ease, border-color .15s ease, background .15s ease; }
 .settings-tile.clickable:hover { box-shadow: var(--sn-shadow-hover); border-color: var(--sn-line-dark); background: var(--sn-surface-hover); }
 .settings-tile.disabled { opacity: .55; cursor: default; }
-.settings-tile svg { width: 22px; height: 22px; color: var(--sn-green); margin-bottom: 8px; }
+.settings-tile svg { width: 22px; height: 22px; color: var(--sn-accent-text); margin-bottom: 8px; }
 .settings-tile h4 { font-size: 13px; font-weight: 600; color: var(--sn-ink); margin: 0 0 4px; }
 .settings-tile p { font-size: 11px; color: var(--sn-muted); margin: 0; }
 .settings-soon {
@@ -103,7 +103,7 @@
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
       <h4>Configuracion de correo</h4>
       {% if gmail_connected %}
-        <p style="color:var(--sn-green);font-weight:600;">Gmail conectado: {{ gmail_email }}</p>
+        <p style="color: var(--sn-accent-text);font-weight:600;">Gmail conectado: {{ gmail_email }}</p>
         <button class="sn-btn sn-btn-sm mt-2" type="button" onclick="disconnectGmail()">Desconectar</button>
       {% elif gmail_configured %}
         <p>No conectado. Usando modo prueba (local outbox).</p>
@@ -117,7 +117,7 @@
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
       <h4>Payment Links (Recurrente)</h4>
       {% if recurrente_status.status == 'connected' %}
-        <p style="color:var(--sn-green);font-weight:600;">Conectado &middot; llave ...{{ recurrente_status.masked_key[-4:] }}</p>
+        <p style="color: var(--sn-accent-text);font-weight:600;">Conectado &middot; llave ...{{ recurrente_status.masked_key[-4:] }}</p>
         {% if recurrente_status.mode == 'test' %}
         <p style="margin-top:6px;"><span class="sn-chip" style="background:#FEF3C7;color:#92400E;">MODO PRUEBA</span></p>
         {% endif %}

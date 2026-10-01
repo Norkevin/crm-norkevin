@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{% block title %}{{ current_tenant.name }} · Flow CRM{% endblock %}</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#7357F6">
+<meta name="theme-color" content="#3F5B70">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -31,19 +31,21 @@
      ahora son los que Kevin definio explicitamente (paleta, radios,
      sombras, anchos). Mismo patron de "cambiar el valor, no el nombre" que
      v1-v4. */
-  --sn-green: #7357F6;
-  --sn-green-dark: #6447EE;
-  --sn-green-active: #5638DC;
-  --sn-mint: #F0EDFF;
-  --sn-mint-soft: #F7F5FF;
+  --sn-green: #3F5B70;
+  --sn-green-dark: #30495D;
+  --sn-green-active: #263D4F;
+  --sn-accent-text: #3F5B70;
+  --sn-accent-text-dark: #30495D;
+  --sn-mint: #E4ECF2;
+  --sn-mint-soft: #EEF3F6;
   --sn-ink: #111827;
   --sn-muted: #667085;
   --sn-soft: #98A2B3;
   --sn-disabled: #B5BDC9;
   --sn-line: #E7EAF0;
   --sn-line-dark: #D7DCE5;
-  --sn-row: #F4F5F9;
-  --sn-panel: #F4F5F9;
+  --sn-row: #EFF2F5;
+  --sn-panel: #EFF2F5;
   --sn-white: #ffffff;
   --sn-yellow: #F59E0B;
   --sn-yellow-soft: #FFF5DF;
@@ -56,13 +58,13 @@
   --sn-success: #2FB66D;
   --sn-success-soft: #EAF8F0;
   /* Fondo general de la app -- Kevin: "fondo muy claro" en el brief. */
-  --sn-canvas: #F7F8FC;
+  --sn-canvas: #F5F7F9;
   /* Niveles de superficie -- separados de --sn-white/--sn-row para que el
      tema oscuro pueda distinguir tarjeta vs input vs hover sin que todo
      colapse al mismo gris. */
-  --sn-surface-2: #F4F5F9;
-  --sn-surface-hover: #F8F7FF;
-  --sn-focus-ring: rgba(115, 87, 246, .15);
+  --sn-surface-2: #EFF2F5;
+  --sn-surface-hover: #F0F4F7;
+  --sn-focus-ring: rgba(63,91,112, .15);
   --sn-shadow-soft: rgba(16, 24, 40, .04);
   --sn-shadow-card: rgba(16, 24, 40, .045);
   --sn-overlay: rgba(15, 18, 22, .6);
@@ -99,6 +101,8 @@
    cada template. Toggle en Settings, persistido en localStorage y
    aplicado sin flash via el script inline en <head>. */
 :root[data-theme="dark"] {
+  --sn-accent-text: #9BB6CA;
+  --sn-accent-text-dark: #BDD0DE;
   --sn-canvas: #05070a;
   --sn-white: #090d12;
   --sn-row: #0d131a;
@@ -110,9 +114,9 @@
   --sn-ink: #f3f6f9;
   --sn-muted: #aab4c0;
   --sn-soft: #7f8a98;
-  --sn-mint: #211c3d;
-  --sn-mint-soft: #191530;
-  --sn-focus-ring: rgba(139, 124, 246, .22);
+  --sn-mint: #233747;
+  --sn-mint-soft: #192A37;
+  --sn-focus-ring: rgba(155,182,202, .22);
   --sn-shadow-soft: rgba(0, 0, 0, .35);
   --sn-shadow-card: rgba(0, 0, 0, .45);
   --sn-shadow-resting: 0 1px 2px rgba(0, 0, 0, .3), 0 1px 3px rgba(0, 0, 0, .35);
@@ -266,7 +270,7 @@ svg[stroke="currentColor"] rect {
 }
 .bottom-nav-item:active { transform: scale(.92); }
 .bottom-nav-item svg { width: 21px; height: 21px; }
-.bottom-nav-item.active { color: var(--sn-green); }
+.bottom-nav-item.active { color: var(--sn-accent-text); }
 
 /* Menu "Mas" -- pantalla completa estilo iPhone, no un popup flotante
    (Kevin: "se ve raro, muy vacio... lo convertiria en una pantalla"). */
@@ -341,7 +345,7 @@ svg[stroke="currentColor"] rect {
 }
 .topnav-item:hover {
   background: var(--sn-mint-soft);
-  color: var(--sn-green-dark);
+  color: var(--sn-accent-text-dark);
 }
 .topnav-item.active {
   background: var(--sn-green);
@@ -564,7 +568,7 @@ svg[stroke="currentColor"] rect {
   .sidebar-item:hover { background: var(--sn-sidebar-hover); color: var(--sn-ink); }
   .sidebar-item.active {
     background: var(--sn-sidebar-active-bg);
-    color: var(--sn-green-dark);
+    color: var(--sn-accent-text-dark);
     font-weight: 600;
   }
   .sidebar-bottom {
@@ -588,7 +592,7 @@ svg[stroke="currentColor"] rect {
     height: 28px;
     border-radius: 999px;
     background: var(--sn-mint-soft);
-    color: var(--sn-green-dark);
+    color: var(--sn-accent-text-dark);
     display: grid;
     place-items: center;
     font-size: 12px;
@@ -822,7 +826,7 @@ body:not(.is-native-app) [data-install-banner] {
   font-size: 12px;
 }
 .sn-notification-permission button {
-  color: var(--sn-green);
+  color: var(--sn-accent-text);
   font-weight: 600;
 }
 .sn-notification-list {
@@ -937,7 +941,7 @@ a.sn-notification-item:hover {
   font-weight: 700;
   flex-shrink: 0;
 }
-.sn-row-avatar-lg.c0 { background: #EDE9FE; color: #5849BE; }
+.sn-row-avatar-lg.c0 { background: #E4ECF2; color: #3F5B70; }
 .sn-row-avatar-lg.c1 { background: #DBEAFE; color: #1D4ED8; }
 .sn-row-avatar-lg.c2 { background: #FCE7F3; color: #BE185D; }
 .sn-row-avatar-lg.c3 { background: #FEF3C7; color: #92400E; }
@@ -977,7 +981,7 @@ a.sn-notification-item:hover {
   padding: 5px 8px;
   border-radius: 5px;
   color: #fff;
-  background: #6557f5;
+  background: #3F5B70;
   font-size: 11px;
   font-weight: 700;
 }
@@ -1220,7 +1224,7 @@ select.sn-input {
   border: 0;
   background: transparent;
   padding: 0;
-  color: var(--sn-green);
+  color: var(--sn-accent-text);
   font-weight: 600;
   box-shadow: none;
 }
@@ -1318,9 +1322,9 @@ select.sn-input {
   display: inline-grid;
   place-items: center;
   border-radius: 999px;
-  color: #20242a;
+  color: var(--sn-muted);
 }
-.sn-menu-dots:hover { background: #f0f1f2; }
+.sn-menu-dots:hover { background: var(--sn-surface-hover); }
 .sn-menu-dots svg { display: none; }
 .sn-menu-dots::before {
   content: "";
@@ -1394,7 +1398,7 @@ select.sn-input {
   transition: color .15s ease, border-color .15s ease;
 }
 .sn-tab:hover { color: var(--sn-ink); }
-.sn-tab.active { color: var(--sn-green-dark); border-bottom-color: var(--sn-green); font-weight: 600; }
+.sn-tab.active { color: var(--sn-accent-text-dark); border-bottom-color: var(--sn-green); font-weight: 600; }
 .sn-tab .sn-tab-count {
   display: inline-flex;
   align-items: center;
@@ -1408,7 +1412,7 @@ select.sn-input {
   font-size: 10.5px;
   font-weight: 600;
 }
-.sn-tab.active .sn-tab-count { background: var(--sn-mint-soft); color: var(--sn-green-dark); }
+.sn-tab.active .sn-tab-count { background: var(--sn-mint-soft); color: var(--sn-accent-text-dark); }
 .sn-tab-panel { display: none; }
 .sn-tab-panel.active { display: block; }
 
@@ -1599,7 +1603,7 @@ a.kpi-card:hover,
 .sn-field-label { color: var(--sn-muted); font-weight: 600; }
 .sn-field-value { color: var(--sn-ink); min-width: 0; }
 .sn-muted { color: var(--sn-muted); }
-.sn-green { color: var(--sn-green); }
+.sn-green { color: var(--sn-accent-text); }
 .sn-money { color: #087a4a; font-weight: 600; }
 
 .sn-chip,
@@ -1707,7 +1711,7 @@ a.kpi-card:hover,
   place-items: center;
   background: var(--sn-white);
   cursor: pointer;
-  color: var(--sn-green);
+  color: var(--sn-accent-text);
 }
 .workflow-check.done {
   background: var(--sn-green);
@@ -2245,7 +2249,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   }
   .brand-link,
   .header-search-wrap { display: none; }
-  /* El "+" de la barra superior duplicaba al circulo violeta del titulo.
+  /* El "+" de la barra superior duplicaba al circulo de acento del titulo.
      Se deja solo el de la pagina, como en el mockup. */
   .header-right .header-popover-wrap:first-child { display: none; }
   /* En Inicio si se muestra el buscador global arriba, como en el mockup.
@@ -2285,7 +2289,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   .sn-page-desc,
   .sn-page-subtitle { display: none; }
 
-  /* La accion principal se vuelve el circulo violeta del mockup; las
+  /* La accion principal se vuelve el circulo de acento del mockup; las
      secundarias (Importar/Exportar) pasan al menu de tres puntos en
      escritorio -- en el telefono estorban mas de lo que sirven. */
   .sn-page-head .sn-actions {
@@ -2301,7 +2305,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     padding: 0;
     border-radius: 999px;
     font-size: 0;
-    box-shadow: 0 6px 16px rgba(115, 87, 246, .34);
+    box-shadow: 0 6px 16px rgba(63,91,112, .34);
   }
   .sn-page-head .sn-actions .sn-btn-primary svg {
     width: 20px;
@@ -2523,8 +2527,8 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     margin-right: 34px;
     padding: 3px 9px;
     border-radius: 999px;
-    background: var(--sn-green-soft, #EFEAFE);
-    color: var(--sn-green-dark);
+    background: var(--sn-green-soft, #E4ECF2);
+    color: var(--sn-accent-text-dark);
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: .01em;
@@ -2852,7 +2856,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   }
   .m-jobtab.active {
     background: var(--sn-white);
-    color: var(--sn-green-dark);
+    color: var(--sn-accent-text-dark);
     box-shadow: 0 1px 2px rgba(15, 23, 42, .08);
   }
   /* El workflow deja de ser 2 columnas: en el telefono la lista va a lo ancho. */
@@ -3507,7 +3511,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   <div class="modal-content" style="width:min(590px,100%);text-align:center;">
     <button type="button" class="modal-close" onclick="closeGlobalModal('upgrade-modal')" aria-label="Close">x</button>
     <h2 class="modal-title" style="font-size:28px;margin-top:18px;">You've outgrown the Pro plan!</h2>
-    <p style="margin:8px auto 0;color:#4f5862;max-width:460px;">Upgrade now to our <strong style="color:var(--sn-green);">Master</strong> plan and get access to more features and benefits.</p>
+    <p style="margin:8px auto 0;color:#4f5862;max-width:460px;">Upgrade now to our <strong style="color: var(--sn-accent-text);">Master</strong> plan and get access to more features and benefits.</p>
     <div class="sn-upgrade-grid">
       <div class="sn-upgrade-feature">
         <div class="sn-upgrade-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10v10H7zM12 3v4m0 10v4"/></svg></div>
