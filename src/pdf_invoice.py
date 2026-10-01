@@ -34,7 +34,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
 from src.pdf_document_system import (
-    COLOR, TIPO, MARGEN, RADIO,
+    encabezado_documento, COLOR, TIPO, MARGEN, RADIO,
     registrar_fuente_documental, texto, label, regla, card, badge,
     marcador, recortar, envolver, moneda,
 )
@@ -47,7 +47,7 @@ _MARCA_NO_RESUELTA = {
 # Alto minimo que debe quedar libre para empezar un bloque. Si no cabe, se
 # salta de pagina ANTES de dibujarlo: es como se evita cortar una fila por
 # la mitad sin depender de break-inside, que en un canvas no existe.
-_ALTO_FILA_PAGO = 9 * mm
+_ALTO_FILA_PAGO = 12 * mm
 _ALTO_CONCEPTO = 12 * mm
 
 
@@ -117,11 +117,11 @@ class _Lienzo:
         izq = self.marca['display_name']
         if self.marca.get('email'):
             izq += f" · {self.marca['email']}"
-        texto(c, self.x0, y - 6 * mm, recortar(izq, self.util * 0.7, tam='apoyo'),
+        texto(c, self.x0, y - 6 * mm, recortar(izq, self.util * 0.52, tam='apoyo'),
               tam='apoyo', color='text_secondary')
         der = f'Página {self.pagina}'
         if self.generado_el:
-            der = f'Documento generado el {self.generado_el} · {der}'
+            der = f'{self.generado_el} · {der}'
         texto(c, self.x1, y - 6 * mm, der, tam='apoyo', color='muted', ancla='right')
 
     def bajar(self, mm_):
@@ -132,28 +132,7 @@ class _Lienzo:
 # BLOQUES
 # ============================================================
 def _encabezado(L, estado_label, estado_tono):
-    """Marca a la izquierda, tipo + numero + estado a la derecha. Misma
-    composicion que .doc-topbar en la web."""
-    c, m = L.c, L.marca
-    texto(c, L.x0, L.y - 5 * mm, recortar(m['display_name'], L.util * 0.55,
-                                          tam='subtitulo', peso='bold'),
-          tam='subtitulo', peso='bold', color='text')
-    if m.get('tagline'):
-        texto(c, L.x0, L.y - 10 * mm, recortar(m['tagline'], L.util * 0.5, tam='apoyo'),
-              tam='apoyo', color='text_secondary')
-
-    label(c, L.x1, L.y - 4 * mm, L.titulo_doc, ancla='right')
-    texto(c, L.x1, L.y - 9.5 * mm, L.referencia, tam='cuerpo', peso='medium',
-          color='text', ancla='right')
-    if estado_label:
-        f = registrar_fuente_documental()
-        from reportlab.pdfbase import pdfmetrics
-        ancho_badge = pdfmetrics.stringWidth(estado_label, f['medium'], TIPO['apoyo']) + 4.8 * mm
-        badge(c, L.x1 - ancho_badge, L.y - 16 * mm, estado_label, estado_tono)
-
-    L.bajar(22 * mm)
-    regla(c, L.x0, L.y, L.x1)
-    L.bajar(9 * mm)
+    encabezado_documento(L, 'Factura', estado_label, estado_tono)
 
 
 def _metadata(L, campos):
@@ -185,7 +164,7 @@ def _tres_cifras(L, simbolo, total, pagado, pendiente):
     jerarquia que las summary cards de la web. El saldo solo va en rojo si
     de verdad hay algo pendiente; saldado se lee en verde."""
     c = L.c
-    alto = 20 * mm
+    alto = 23 * mm
     L.asegurar(alto + 6 * mm)
     ancho_col = (L.util - 8 * mm) / 3
     saldado = (pendiente or 0) <= 0
@@ -197,9 +176,10 @@ def _tres_cifras(L, simbolo, total, pagado, pendiente):
     ]
     for i, (etq, val, color) in enumerate(datos):
         x = L.x0 + i * (ancho_col + 4 * mm)
-        card(c, x, L.y - alto, ancho_col, alto)
+        card(c, x, L.y - alto, ancho_col, alto,
+             fondo='primary_soft' if i == 2 else 'surface_2', borde=None)
         label(c, x + 5 * mm, L.y - 7 * mm, etq)
-        texto(c, x + 5 * mm, L.y - 15 * mm, moneda(val, simbolo),
+        texto(c, x + 5 * mm, L.y - 17 * mm, moneda(val, simbolo),
               tam='cifra', peso='bold', color=color)
     L.bajar(alto + 5 * mm)
 
@@ -214,7 +194,7 @@ def _proximo_pago(L, simbolo, cuando, monto):
           peso='medium', color='text')
     texto(c, L.x1 - 5 * mm, L.y - 10.5 * mm, moneda(monto, simbolo),
           tam='cifra', peso='bold', color='text', ancla='right')
-    L.bajar(alto + 5 * mm)
+    L.bajar(alto + 9 * mm)
 
 
 def _seccion(L, titulo, meta=''):
@@ -357,6 +337,7 @@ def render_invoice_pdf(doc, marca, *, simbolo='Q', generado_el=''):
     c.setTitle(f"{doc.get('invoice_id') or 'Factura'} · {marca['display_name']}")
 
     L = _Lienzo(c, ancho, alto, marca, 'Factura', doc.get('invoice_id') or '')
+    L.generado_el = generado_el
 
     _encabezado(L, doc.get('estado_label') or '', doc.get('estado_tono') or 'neutral')
 

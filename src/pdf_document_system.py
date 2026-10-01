@@ -296,3 +296,26 @@ def moneda(valor, simbolo='Q'):
         return f'{simbolo}{float(valor or 0):,.2f}'
     except (TypeError, ValueError):
         return f'{simbolo}0.00'
+
+
+def encabezado_documento(L, titulo, estado, tono):
+    """Cabecera impresa compartida: marca discreta y título editorial."""
+    c = L.c
+    texto(c, L.x0, L.y - 4 * mm,
+          recortar(L.marca['display_name'], L.util * .62, tam='cuerpo', peso='bold'),
+          peso='bold')
+    if L.marca.get('tagline'):
+        label(c, L.x0, L.y - 9 * mm,
+              recortar(L.marca['tagline'], L.util * .62, tam='label'))
+    if estado:
+        fuente = registrar_fuente_documental()['medium']
+        ancho = pdfmetrics.stringWidth(estado, fuente, TIPO['apoyo']) + 4.8 * mm
+        badge(c, L.x1 - ancho, L.y - 4 * mm, estado, tono)
+    texto(c, L.x0, L.y - 24 * mm, titulo, tam=28, peso='bold')
+    texto(c, L.x1, L.y - 23 * mm,
+          recortar(L.referencia, L.util * .55, tam='apoyo'),
+          tam='apoyo', color='text_secondary', ancla='right')
+    L.bajar(30 * mm)
+    regla(c, L.x0, L.y, L.x1)
+    regla(c, L.x0, L.y, L.x0 + 18 * mm, color='primary', grosor=2)
+    L.bajar(10 * mm)

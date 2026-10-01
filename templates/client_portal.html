@@ -426,6 +426,7 @@
             <span class="portal-badge b-blue">Pendiente</span>
             {% endif %}
             <a href="/quotes/{{ q.id }}" target="_blank" class="portal-action">Ver propuesta <span aria-hidden="true">↗</span></a>
+            <a href="/quotes/{{ q.id }}/pdf" download class="portal-action">Descargar cotización PDF</a>
             {% if q.status in ['Enviada', 'Pendiente'] %}
             <form method="POST" action="/quotes/{{ q.id }}/accept" class="inline" style="flex:1 1 auto;">
               <button type="submit" class="portal-action primary" style="width:100%;">Aceptar Cotizacion</button>
@@ -467,7 +468,7 @@
           </div>
           <div class="portal-action-group">
             <a href="/contracts/{{ c.id }}" target="_blank" class="portal-action">Ver contrato</a>
-            <a href="/contracts/{{ c.id }}/pdf" target="_blank" class="portal-action">Ver PDF</a>
+            <a href="/contracts/{{ c.id }}/pdf" download class="portal-action">Descargar contrato PDF</a>
             {% if not c.signed %}
             <button onclick="openSignature('{{ c.id }}')" class="portal-action primary">Firmar digitalmente</button>
             {% endif %}
@@ -510,7 +511,7 @@
                   {{ {'Pagado': 'Pagado', 'Late': 'Vencido', 'Parcial': 'Pago parcial', 'Pendiente': 'Pendiente'}.get(g.status, g.status) }}
                 </span>
               </div>
-              <a href="/invoices/{{ g.invoice_id }}/pdf" target="_blank" onclick="event.stopPropagation();" class="portal-action" style="flex:none;">PDF</a>
+              <a href="/invoices/{{ g.invoice_id }}/pdf" download onclick="event.stopPropagation();" class="portal-action" style="flex:none;">Descargar factura PDF</a>
             </div>
           </div>
           {% if g.package_name %}
