@@ -1289,6 +1289,7 @@ function drawDashboardChart(labels, values, metric) {
   var paddingTop = narrow ? 16 : 24;
   var paddingBottom = narrow ? 28 : 42;
   var max = niceCeil(Math.max(1, Math.max.apply(null, values.concat([0]))));
+  if (metric === 'sessions') { max = Math.max(4, Math.ceil(max / 4) * 4); }
   var usableW = width - paddingX * 2;
   var usableH = height - paddingTop - paddingBottom;
   var accent = METRIC_COLORS[metric] || '#0D9488';
@@ -1315,7 +1316,7 @@ function drawDashboardChart(labels, values, metric) {
     + '</defs>';
   html += drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usableW, usableH, max, axisFormat);
 
-  if (narrow) {
+  if (narrow || metric === 'sessions') {
     // Kevin: "por el espacio no se logra apreciar todo, talvez de barras".
     // En 430px la curva suavizada engana: entre dos meses en cero dibuja una
     // panza que sugiere ingresos que no existieron, y los puntos quedan
