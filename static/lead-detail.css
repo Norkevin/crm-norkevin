@@ -1,4 +1,4 @@
-/* Lead detail: one identity, one next action, then documents and workflow. */
+/* Lead detail: one identity, one next action, then workflow and documents. */
 .lead-detail { max-width: 1440px; }
 .lead-detail .lead-breadcrumb { display: flex; gap: 12px; margin-bottom: 20px; color: var(--sn-muted); font-size: 12px; }
 .lead-detail .lead-breadcrumb a { color: var(--sn-ink); }
@@ -28,7 +28,7 @@
 .lead-detail .lead-next h2 { font-size: 19px; }
 .lead-detail .lead-next .workflow-timing { display: flex; flex-wrap: wrap; column-gap: 16px; row-gap: 3px; }
 .lead-detail .lead-next .workflow-timing > .sn-muted { flex-basis: 100%; }
-.lead-detail .lead-workspace { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.lead-detail .lead-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 28px; align-items: start; }
 .lead-detail .lead-records { display: grid; gap: 16px; min-width: 0; }
 .lead-detail .lead-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 45px; margin-bottom: 2px; }
 .lead-detail .lead-section-heading p { color: var(--sn-muted); font-size: 12px; margin: 5px 0 0; }
@@ -43,14 +43,14 @@
 .lead-detail #lead-notes { min-height: 110px; height: 110px; resize: vertical; }
 .lead-detail .lead-workflow-panel { min-width: 0; scroll-margin-top: 90px; }
 .lead-detail .lead-workflow-panel > .lead-section-heading { margin-bottom: 18px; }
-.lead-detail .lead-workflow-card { background: var(--sn-white); border: 1px solid var(--sn-line); border-radius: 14px; overflow: hidden; }
+.lead-detail .lead-workflow-card { background: var(--sn-mint-soft); border: 1px solid var(--sn-mint); border-radius: 14px; overflow: hidden; }
 .lead-detail .lead-phase-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--sn-line); }
 .lead-detail .lead-phase-heading h3 { margin: 0; font-size: 13px; font-weight: 600; }
 .lead-detail .lead-phase-heading span { color: var(--sn-muted); font-size: 11px; }
 .lead-detail .workflow-steps { gap: 0; }
-.lead-detail .workflow-step { border: 0; border-bottom: 1px solid var(--sn-line); border-radius: 0; box-shadow: none; padding: 18px 16px; grid-template-columns: 22px minmax(0, 1fr) 28px; gap: 10px; align-items: start; }
+.lead-detail .workflow-step { background: transparent; border: 0; border-bottom: 1px solid var(--sn-line); border-radius: 0; box-shadow: none; padding: 18px 16px; grid-template-columns: 22px minmax(0, 1fr) 28px; gap: 10px; align-items: start; }
 .lead-detail .workflow-step:last-child { border-bottom: 0; }
-.lead-detail .workflow-step.is-next { background: var(--sn-surface-hover); }
+.lead-detail .workflow-step.is-next { background: var(--sn-mint); }
 .lead-detail .workflow-step-name { font-size: 13px; }
 .lead-detail .workflow-check { width: 20px; height: 20px; border-radius: 50%; margin-top: 1px; }
 .lead-detail .lead-step-content { min-width: 0; overflow-wrap: anywhere; }
