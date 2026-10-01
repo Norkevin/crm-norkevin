@@ -366,6 +366,10 @@ def render_invoice_pdf(doc, marca, *, simbolo='Q', generado_el=''):
     if filas:
         vigentes = [f for f in filas if f.get('estado') != 'cancelled']
         titulo = 'Calendario de pagos' if len(vigentes) > 1 else 'Historial de pagos'
+        # Mantener el calendario y el saldo juntos si caben en una página.
+        alto_calendario = 15 * mm + len(filas) * _ALTO_FILA_PAGO + 23 * mm
+        if alto_calendario <= alto - 2 * MARGEN - L.pie_alto - 15 * mm:
+            L.asegurar(alto_calendario)
         _seccion(L, titulo, f'{len(vigentes)} pagos' if len(vigentes) > 1 else '')
         _calendario(L, simbolo, filas)
 
