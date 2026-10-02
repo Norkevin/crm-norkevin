@@ -18,92 +18,75 @@
 .date-status-badge svg { width: 12px; height: 12px; }
 .date-status-badge.red { background: #fecaca; color: #b3263b; }
 .date-status-badge.orange { background: #fed7aa; color: #b3540a; }
-.jobs-page .sn-page-head {
-  margin-bottom: 16px;
-}
-.jobs-page .sn-toolbar {
-  margin: 0 0 14px;
-}
-.jobs-page #jobs-table th {
-  height: 38px;
-  padding: 0 18px;
-}
-/* Kevin probo en un Macbook Air 13" y la columna Job (nombre+avatar) se
-   aplastaba casi a 0 en anchos de laptop intermedios (~990-1300px),
-   porque las demas columnas son anchos fijos y "Job" es la unica flexible.
-   Se sube el min-width de la tabla para que, en vez de seguir aplastando
-   Job, aparezca scroll horizontal (ya soportado por sn-table-shell) antes
-   de que Job se vuelva ilegible. Solo por encima de 760px -- debajo de eso
-   la tabla pasa a tarjetas apiladas (.stack-mobile) y no debe tener este
-   min-width o rompe ese layout movil. */
+/* Scoped to Jobs: keep shared tables and their mobile layouts untouched. */
+.jobs-page .sn-page-head { margin-bottom: 24px; align-items: center; }
+.jobs-page .jobs-eyebrow { color: var(--sn-accent-text); font-size: 10px; font-weight: 700; letter-spacing: .16em; margin-bottom: 8px; }
+.jobs-page .sn-page-title { font-size: 30px; letter-spacing: -.035em; }
+.jobs-page .jobs-count { display: inline-flex; vertical-align: middle; margin-left: 8px; padding: 4px 9px; border: 1px solid var(--sn-line); border-radius: 8px; color: var(--sn-muted); font-size: 12px; font-weight: 500; letter-spacing: 0; }
+.jobs-page .sn-breadcrumbs { margin-top: 6px; }
+.jobs-page .sn-toolbar { margin: 0 0 18px; padding: 12px; border: 1px solid var(--sn-line); border-radius: 14px; background: var(--sn-white); gap: 12px; }
+.jobs-page .sn-select { width: 210px; background-color: var(--sn-bg); }
+.jobs-page .sn-search { width: 230px; background-color: var(--sn-bg); }
+.jobs-page .sn-table-shell { border: 1px solid var(--sn-line); border-radius: 16px; overflow-x: auto; }
+.jobs-page #jobs-table th { height: 44px; padding: 0 18px; background: var(--sn-bg); font-size: 10px; letter-spacing: .08em; }
+.jobs-page #jobs-table td { height: auto; padding: 18px; vertical-align: middle; }
+.jobs-page #jobs-table td[data-label="Date"] { white-space: normal; overflow: visible; }
+.jobs-page .job-date { display: flex; align-items: center; gap: 11px; }
+.jobs-page .date-badge { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 48px; min-width: 48px; padding: 9px 0; border: 1px solid var(--sn-line); border-radius: 11px; background: var(--sn-bg); line-height: 1; }
+.jobs-page .date-badge strong { font-size: 21px; font-weight: 600; color: var(--sn-ink); }
+.jobs-page .date-badge em { margin-top: 5px; font-style: normal; font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--sn-muted); }
+.jobs-page .job-date-meta { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--sn-ink); }
+.jobs-page .job-countdown { color: var(--sn-muted); font-size: 11px; white-space: nowrap; }
+.jobs-page .job-primary { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.jobs-page #jobs-table td[data-label="Trabajo"],
+.jobs-page .job-title { white-space: normal; overflow-wrap: anywhere; }
+.jobs-page .job-title { display: block; font-size: 15px; line-height: 1.4; font-weight: 600; color: var(--sn-ink); text-decoration: none; }
+.jobs-page .job-title:hover { color: var(--sn-accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.jobs-page .job-title:focus-visible { outline: 2px solid var(--sn-accent-text); outline-offset: 4px; border-radius: 3px; }
+.jobs-page .job-type-text { font-size: 12px; line-height: 1.4; color: var(--sn-muted); }
+.jobs-page .job-state-row { margin-bottom: 10px; }
+.jobs-page .job-state-row .sn-chip { height: 24px; padding: 0 9px; font-size: 11px; font-weight: 600; }
+.jobs-page .job-state-row .sn-chip.violet { background: var(--sn-mint-soft); color: var(--sn-accent-text); }
+.jobs-page .job-state-row .sn-chip.orange { background: #FDF1DC; color: #97620C; }
+.jobs-page .job-state-row .sn-chip.muted { background: var(--sn-bg); color: var(--sn-muted); }
+.jobs-page .sn-progress-wrap { gap: 9px; }
+.jobs-page .sn-progress { height: 5px; background: var(--sn-line); }
+.jobs-page .sn-progress-fill { background: var(--sn-green); }
+.jobs-page .sn-progress-pct { font-size: 10px; }
+.jobs-page .job-payment-label { display: block; margin-bottom: 5px; font-size: 10px; color: var(--sn-muted); }
+.jobs-page .job-pay-chip { font-size: 13px; font-weight: 600; color: var(--sn-ink); font-variant-numeric: tabular-nums; white-space: normal; }
+.jobs-page .job-pay-chip.green { color: var(--sn-accent-text); }
+.jobs-page .job-next-task { white-space: normal; font-size: 12px; line-height: 1.5; }
+.jobs-page .job-next-content { display: flex; align-items: flex-start; gap: 8px; }
+.jobs-page .job-next-content svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; color: var(--sn-muted); }
+.jobs-page .sn-menu-dots { width: 32px; height: 36px; }
+.jobs-page #jobs-table td.stack-actions { padding-left: 0; padding-right: 12px; }
 @media (min-width: 761px) {
-  .jobs-page #jobs-table {
-    min-width: 980px;
-  }
-}
-.jobs-page #jobs-table td {
-  height: auto;
-  padding: 10px 18px;
-}
-.jobs-page .sn-table-row td {
-  vertical-align: top;
-}
-.jobs-page .sn-table-row td.stack-actions,
-.jobs-page .sn-table-row td[data-label="Date"],
-.jobs-page .sn-table-row td[data-label="Next task"] {
-  vertical-align: middle;
-}
-.jobs-page .job-primary {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.jobs-page .job-name-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.jobs-page .job-title {
-  display: block;
-  font-size: 14.5px;
-  line-height: 1.32;
-  font-weight: 600;
-  color: var(--sn-ink);
-}
-.jobs-page .job-type-text {
-  display: block;
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--sn-muted);
-}
-.jobs-page .job-next-task {
-  color: var(--sn-ink);
-  font-size: 13px;
-  line-height: 1.45;
-}
-.jobs-page .sn-progress-wrap {
-  min-height: 28px;
-  align-items: center;
-}
-.jobs-page .sn-menu-dots {
-  margin-top: 2px;
+  .jobs-page #jobs-table { min-width: 980px; }
 }
 @media (max-width: 760px) {
-  .jobs-page #jobs-table td {
-    padding: 13px 18px;
+  .jobs-page .sn-page-head { margin-bottom: 18px; }
+  .jobs-page .jobs-eyebrow { font-size: 10px; }
+  .jobs-page .sn-page-title { font-size: 27px; }
+  .jobs-page .sn-toolbar { padding: 10px; }
+  .jobs-page .sn-search { width: 100%; }
+  .jobs-page .sn-table-shell { overflow: hidden; }
+  body[data-page="/jobs"] .jobs-page .stack-mobile .sn-table tr {
+    grid-template-columns: 52px minmax(0, 1fr) 44px;
+    grid-template-areas: "date job menu" "date prog prog" "pay pay pay" "next next next";
+    gap: 12px; padding: 18px 14px;
   }
-  .jobs-page .job-primary {
-    gap: 6px;
-  }
-  .jobs-page .job-title {
-    font-size: 15px;
-  }
-  .jobs-page .job-type-text,
-  .jobs-page .job-next-task {
-    font-size: 13px;
-  }
+  body[data-page="/jobs"] .jobs-page #jobs-table td { padding: 0; white-space: normal; }
+  .jobs-page .job-date { flex-direction: column; gap: 6px; }
+  .jobs-page .job-date-meta { text-align: center; font-size: 11px; }
+  .jobs-page .job-countdown { display: none; }
+  body[data-page="/jobs"] .jobs-page #jobs-table td[data-label="Date"] .date-status-badge { display: inline-flex; }
+  .jobs-page .job-state-row { margin-bottom: 7px; }
+  .jobs-page .job-title { font-size: 15px; }
+  body[data-page="/jobs"] .jobs-page #jobs-table td[data-label="Pago"] { grid-area: pay; display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--sn-line); padding-top: 12px; gap: 10px; }
+  .jobs-page .job-payment-label { margin: 0; font-size: 11px; }
+  .jobs-page .job-next-content { font-size: 12px; }
+  .jobs-page .sn-menu-dots { width: 44px; height: 44px; }
 }
 
 /* --- Filtro de rango de fechas (Backlog A, cerrado 27-ago-2026) ---
@@ -158,7 +141,8 @@
 <section class="sn-page-wide jobs-page">
   <div class="sn-page-head">
     <div>
-      <h1 class="sn-page-title">Trabajos</h1>
+      <div class="jobs-eyebrow">BODAS Y EVENTOS</div>
+      <h1 class="sn-page-title">Trabajos <span class="jobs-count">{{ jobs|length }}</span></h1>
       <div class="sn-breadcrumbs">Sigue el progreso de cada boda o evento, de principio a fin.</div>
     </div>
     <div class="sn-actions">
@@ -175,7 +159,7 @@
 
   <div class="sn-toolbar">
     <div class="sn-toolbar-left">
-      <select id="job-status-filter" class="sn-select" onchange="filterJobs()">
+      <select id="job-status-filter" aria-label="Filtrar por estado" class="sn-select" onchange="filterJobs()">
         <option value="active">Trabajos activos</option>
         <option value="upcoming">Activos con evento proximo</option>
         <option value="por_cobrar">Ya ocurrieron y falta cobrar</option>
@@ -183,20 +167,20 @@
         <option value="archived">Archivados</option>
         <option value="all">Todos los trabajos</option>
       </select>
-      <select id="job-sort" class="sn-select" onchange="filterJobs()">
+      <select id="job-sort" aria-label="Ordenar trabajos" class="sn-select" onchange="filterJobs()">
         <option value="relevancia">Más relevantes</option>
         <option value="created_desc">Más nuevos</option>
         <option value="created_asc">Más antiguos</option>
         <option value="date_asc">Fecha más cercana</option>
         <option value="date_desc">Fecha más lejana</option>
       </select>
-      <button type="button" id="job-date-toggle" class="sn-btn job-date-toggle" aria-expanded="false" aria-controls="job-date-range" onclick="toggleJobDateFilter()">
+      <button type="button" id="job-date-toggle" aria-label="Filtrar por fecha" class="sn-btn job-date-toggle" aria-expanded="false" aria-controls="job-date-range" onclick="toggleJobDateFilter()">
         <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 2v4m8-4v4M3 10h18M5 6h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/></svg>
         <span id="job-date-toggle-label">Fecha</span>
       </button>
     </div>
     <div class="sn-toolbar-right">
-      <input id="job-search" class="sn-search" type="search" placeholder="Buscar trabajos..." oninput="filterJobs()">
+      <input id="job-search" aria-label="Buscar trabajos" class="sn-search" type="search" placeholder="Buscar trabajos..." oninput="filterJobs()">
     </div>
   </div>
 
@@ -212,21 +196,15 @@
     <table class="sn-table" id="jobs-table">
       <thead>
         <tr>
-          <th style="width: 140px;">Fecha</th>
+          <th style="width: 160px;">Fecha del evento</th>
           <th>Trabajo</th>
-          <th style="width: 280px;">Estado</th>
-          <th style="width: 160px;">Siguiente tarea</th>
-          <th style="width: 56px;"></th>
+          <th style="width: 164px;">Estado y avance</th>
+          <th style="width: 136px;">Pago</th>
+          <th style="width: 170px;">Siguiente tarea</th>
+          <th style="width: 48px;" aria-label="Acciones"></th>
         </tr>
       </thead>
       <tbody>
-        <tr aria-hidden="true" style="display:none;">
-          <td></td>
-          <td class="sn-ellipsis stack-full"></td>
-          <td></td>
-          <td></td>
-          <td></td>
-        </tr>
         {% for job in jobs %}
         <tr class="sn-table-row"
             data-status="{{ job.status or '' }}"
@@ -239,16 +217,16 @@
             onclick="goJob(event, '{{ job.id }}')">
           <td class="sn-ellipsis" data-label="Date">
             {% if job.boda_date %}
-              {# Date badge (dia / mes) para poder escanear la lista de un
-                 vistazo; en escritorio se oculta y manda la fecha larga. #}
-              <span class="date-badge" aria-hidden="true">
+              <div class="job-date" aria-label="{{ job.boda_date|fecha_legible }}">
+              <span class="date-badge">
                 <strong>{{ job.boda_date[8:10] }}</strong>
                 <em>{{ (job.boda_date|fecha_legible).split(' ')[1][:3] if job.boda_date|fecha_legible else '' }}</em>
               </span>
-              <span class="date-long">{{ job.boda_date|fecha_legible or job.boda_date }}</span>
-              {% if job.dias_restantes is not none and job.dias_restantes >= 0 %}
-                <span class="sn-chip yellow" title="Dias restantes">{{ job.dias_restantes }}d</span>
-              {% endif %}
+              <div class="job-date-meta">
+                <span>{{ job.boda_date[:4] }}</span>
+                {% if job.dias_restantes is not none and job.dias_restantes >= 0 %}
+                <span class="job-countdown">{{ 'Hoy' if job.dias_restantes == 0 else 'En ' ~ job.dias_restantes ~ ' días' }}</span>
+                {% endif %}
               {% if job.date_conflict %}
                 <span class="date-status-badge red" title="Otra boda ya agendada este mismo dia">
                   <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.7 7.3a1 1 0 00-1.4 1.4L8.6 10l-1.3 1.3a1 1 0 101.4 1.4L10 11.4l1.3 1.3a1 1 0 001.4-1.4L11.4 10l1.3-1.3a1 1 0 00-1.4-1.4L10 8.6 8.7 7.3z" clip-rule="evenodd"/></svg>
@@ -258,16 +236,17 @@
                   <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.486 0l6.516 11.598c.75 1.334-.213 2.986-1.743 2.986H3.484c-1.53 0-2.493-1.652-1.743-2.986L8.257 3.1zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-.25-6.5a.75.75 0 00-1.5 0v3.5a.75.75 0 001.5 0v-3.5z" clip-rule="evenodd"/></svg>
                 </span>
               {% endif %}
+              </div>
+              </div>
             {% else %}
               <span class="sn-muted">Sin fecha</span>
             {% endif %}
           </td>
           <td class="sn-ellipsis stack-full" data-label="Trabajo">
             <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-              <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (job.nombre or '?')[:1]|upper }}</span>
               <div class="job-primary">
                 <div class="job-name-stack">
-                  <span class="job-title sn-ellipsis">{{ job.nombre or 'Sin nombre' }}</span>
+                  <a class="job-title" href="{{ url_for('job_detail', job_id=job.id) }}">{{ job.nombre or 'Sin nombre' }}</a>
                 </div>
                 <span class="job-type-text sn-ellipsis">{{ job.type or 'BODAS' }}</span>
               </div>
@@ -281,20 +260,26 @@
               {% if job.estado_label %}
               <span class="sn-chip {{ job.estado_tone }}">{{ job.estado_label }}</span>
               {% endif %}
-              {% if job.pago_label %}
-              <span class="sn-chip {{ job.pago_tone }} job-pay-chip">{{ job.pago_label }}</span>
-              {% endif %}
             </div>
             <div class="sn-progress-wrap">
-              <div class="sn-progress" title="Avance del workflow: {{ job.workflow_progress }}%">
-                <div class="sn-progress-fill {% if job.type and job.type != 'Boda' %}cyan{% endif %}" style="width: {{ job.workflow_progress or 0 }}%;"></div>
+              <div class="sn-progress" role="progressbar" aria-label="Avance de {{ job.nombre }}" aria-valuenow="{{ job.workflow_progress or 0 }}" aria-valuemin="0" aria-valuemax="100" title="Avance del workflow: {{ job.workflow_progress }}%">
+                <div class="sn-progress-fill" style="width: {{ job.workflow_progress or 0 }}%;"></div>
               </div>
               <span class="sn-progress-pct">{{ job.workflow_progress or 0 }}%</span>
             </div>
           </td>
-          <td class="sn-ellipsis job-next-task" data-label="Next task">{{ job.next_task or 'Trabajo completado' }}</td>
+          <td data-label="Pago">
+            <span class="job-payment-label">Estado del pago</span>
+            <span class="job-pay-chip {{ job.pago_tone }}">{{ job.pago_label or 'Sin pagos' }}</span>
+          </td>
+          <td class="job-next-task" data-label="Next task">
+            <div class="job-next-content">
+              <svg aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M8 12h8m-3-3 3 3-3 3"/><circle cx="12" cy="12" r="9" stroke-width="1.5"/></svg>
+              <span>{{ job.next_task or 'Trabajo completado' }}</span>
+            </div>
+          </td>
           <td class="stack-actions" style="text-align:right;">
-            <button class="sn-menu-dots" type="button" title="Actions" onclick="openRowMenu(event, '{{ job.id }}')">
+            <button class="sn-menu-dots" type="button" title="Acciones del trabajo" aria-label="Acciones de {{ job.nombre }}" onclick="openRowMenu(event, '{{ job.id }}')">
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
             </button>
           </td>
@@ -379,7 +364,7 @@
 
 <script>
 function goJob(event, id) {
-  if (event.target.closest('button')) return;
+  if (event.target.closest('button, a')) return;
   window.location.href = '/jobs/' + id;
 }
 

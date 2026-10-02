@@ -443,6 +443,36 @@ class MailTracker:
             entry['blocked_reason'] = entry['blocked_reason'] or 'sin cuenta activa'
         return entry
 
+    def send_new_lead_notification(self, *, to_email, subject, body, lead_id, tenant_id):
+        """Auto-deliver only a new internal lead notice; client mail stays queued."""
+        key = f'leadnotify:{lead_id}'
+        # ponytail: one Render worker; serialize creation and delivery here.
+        # A repeated form callback must not retry failed or discarded notices,
+        # or release a historical pending notice without a separate decision.
+        with store.locked_tables('pending_emails', 'mail_log'):
+            existing = next((p for p in store.list('pending_emails')
+                             if p.get('tenant_id') == tenant_id
+                             and p.get('idempotency_key') == key), None)
+            if existing:
+                return existing
+            entry = self.queue_email(
+                to_email, subject, body, lead_id=lead_id, tenant_id=tenant_id,
+                source=NEW_LEAD_NOTIFICATION, idempotency_key=key)
+            if entry.get('status') != PENDIENTE:
+                return entry
+            try:
+                result = self.approve_and_send(
+                    entry['id'], sender_tenant_id=tenant_id,
+                    actor='sistema:aviso-interno')
+                return result.get('pendiente', entry)
+            except Exception as exc:
+                # Keep an uncertain delivery attempt for manual review. Never
+                # erase it and automatically send again on the next callback.
+                entry = store.get('pending_emails', entry['id']) or entry
+                _anotar(entry, FALLO, actor='sistema:aviso-interno', motivo=str(exc))
+                store.upsert('pending_emails', entry)
+                return entry
+
     def approve_and_send(self, pending_id, sender_tenant_id=None, actor=None):
         """Envia un correo que estaba esperando aprobacion.
 

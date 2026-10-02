@@ -10396,16 +10396,11 @@ def _notify_new_lead(lead, source_label):
         body_lines += ['', 'Notas:', notes]
     body_lines += ['', f'Ver lead: /leads/{lead.get("id")}']
     try:
-        # STAGE 2 (agosto 2026): tambien pasa por la cola, igual que el
-        # resto -- es una notificacion interna (al dueno de la cuenta, no a
-        # un cliente), pero "cada correo se mira antes de salir" es la
-        # regla pareja que pidio Kevin despues del incidente. Clave estable
-        # por lead: un aviso de "lead nuevo" solo tiene sentido una vez.
-        get_tracker().queue_email(
+        # Internal notices are explicitly authorized for automatic delivery.
+        # The tracker still verifies this company's lead and configured inbox.
+        get_tracker().send_new_lead_notification(
             to_email=to_email, subject=subject, body='\n'.join(body_lines),
             lead_id=lead.get('id'), tenant_id=tenant_id,
-            source='auto:new-lead-notify',
-            idempotency_key=f"leadnotify:{lead.get('id')}",
         )
     except Exception as exc:
         logger.error(f'No se pudo notificar el lead nuevo por correo: {exc}')
