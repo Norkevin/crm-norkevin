@@ -101,7 +101,20 @@ def check_attachments_same_tenant(tenant_id, attachments):
     return None
 
 
-def check_recipient_identity(tenant_id, to_email, client_id):
+MISSING_CLIENT_WARNING = 'sin cliente asociado: no se pudo verificar la identidad'
+NEW_LEAD_NOTIFICATION = 'auto:new-lead-notify'
+
+
+def new_lead_notification_recipient(tenant_id):
+    """Resolve the internal recipient only from this company's configuration."""
+    if not tenant_id:
+        return ''
+    tenant = next((t for t in store.list('tenants') if t.get('id') == tenant_id), {})
+    company = store.get_tenant_dict('settings', tenant_id=tenant_id).get('company') or {}
+    return (company.get('email') or tenant.get('login_email') or '').strip()
+
+
+def check_recipient_identity(tenant_id, to_email, client_id, *, source=None, lead_id=None):
     """Quien recibe un correo es un CLIENTE de una empresa, no una direccion.
 
     Kevin, despues del incidente: "no confies en el email del destinatario".
@@ -111,11 +124,23 @@ def check_recipient_identity(tenant_id, to_email, client_id):
     Devuelve (motivo_de_bloqueo, aviso). El bloqueo es duro; el aviso es
     informacion para la pantalla de revision, no corta el envio.
     """
+    if not client_id and source == NEW_LEAD_NOTIFICATION:
+        # Source alone is not authorization: verify the lead owner and exact
+        # configured destination again at preview and delivery time.
+        if not tenant_id or not lead_id or store.owner_tenant_of('leads', lead_id) != tenant_id:
+            return 'no se pudo verificar el lead de este aviso interno', None
+        expected = new_lead_notification_recipient(tenant_id)
+        if not expected:
+            return 'configura el correo de esta empresa para recibir avisos internos', None
+        if (to_email or '').strip().lower() != expected.lower():
+            return 'el aviso interno no está dirigido al correo configurado de esta empresa', None
+        return None, None
+
     if not client_id:
         # Un correo sin cliente asociado no se puede verificar por identidad.
         # No se bloquea aca (el resto de reglas ya exige job para los tipos
         # sensibles), pero queda dicho que no hubo verificacion.
-        return None, 'sin cliente asociado: no se pudo verificar la identidad'
+        return None, MISSING_CLIENT_WARNING
 
     dueno = store.owner_tenant_of('clients', client_id)
     if dueno is None:
@@ -380,7 +405,8 @@ class MailTracker:
                                    template_id=template_id)
         aviso = None
         if not motivo:
-            motivo, aviso = check_recipient_identity(tenant_id, to_email, client_id)
+            motivo, aviso = check_recipient_identity(tenant_id, to_email, client_id,
+                                                      source=source, lead_id=lead_id)
         if not motivo and requires_job_relation(subject, template_id)                 and not job_id and not lead_id:
             motivo = 'un correo de este tipo debe estar ligado a una boda'
         # Un cobro o un contrato sin boda asociada no se puede verificar
@@ -450,7 +476,8 @@ class MailTracker:
         # otra empresa sin que cambiara ni una letra de la direccion.
         if not motivo:
             motivo, aviso = check_recipient_identity(
-                actual, pendiente.get('to'), pendiente.get('client_id'))
+                actual, pendiente.get('to'), pendiente.get('client_id'),
+                source=pendiente.get('source'), lead_id=pendiente.get('lead_id'))
             pendiente['aviso_identidad'] = aviso
         # Los adjuntos se validan aparte y AL ENVIAR: un job pudo cambiar de
         # empresa despues de generarse el pendiente.

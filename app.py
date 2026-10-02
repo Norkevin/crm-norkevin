@@ -7669,8 +7669,21 @@ def _pending_email_view(p):
     job = get_job(p.get('job_id')) if p.get('job_id') else None
     tenant = next((t for t in store.list('tenants')
                    if t.get('id') == p.get('tenant_id')), None) or {}
+    from src.mail_tracker import check_recipient_identity, MISSING_CLIENT_WARNING, NEW_LEAD_NOTIFICATION
+    warning = p.get('aviso_identidad')
+    internal_verified = False
+    if p.get('source') == NEW_LEAD_NOTIFICATION and not p.get('client_id'):
+        reason, current_warning = check_recipient_identity(
+            p.get('tenant_id'), p.get('to'), None,
+            source=p.get('source'), lead_id=p.get('lead_id'))
+        internal_verified = not reason and not current_warning
+        # Re-evaluate old pending notices without rewriting their content or
+        # removing unrelated warnings (for example, a changed draft).
+        warnings = [w for w in (warning or '').split(' | ') if w and w != MISSING_CLIENT_WARNING]
+        warning = ' | '.join(dict.fromkeys(warnings + [w for w in (reason, current_warning) if w])) or None
     return {
         'id': p.get('id'),
+        'aviso_interno': internal_verified,
         'empresa': tenant.get('name') or p.get('tenant_id'),
         'tenant_id': p.get('tenant_id'),
         'para': p.get('to'),
@@ -7685,7 +7698,7 @@ def _pending_email_view(p):
         'motivo_bloqueo': p.get('blocked_reason'),
         # No bloquea, pero hay que verlo antes de aprobar (direccion que no
         # es la del cliente, o que existe tambien en la otra empresa).
-        'aviso_identidad': p.get('aviso_identidad'),
+        'aviso_identidad': warning,
         'adjuntos': len(p.get('attachments') or []),
         # Secuencia completa de estados, no solo el ultimo.
         'historial': p.get('historial') or [],
@@ -7745,7 +7758,9 @@ def api_pending_email_detail(pending_id):
                                job_id=p.get('job_id'), template_id=p.get('template_id'))
     aviso = None
     if not motivo:
-        motivo, aviso = check_recipient_identity(actual, p.get('to'), p.get('client_id'))
+        motivo, aviso = check_recipient_identity(
+            actual, p.get('to'), p.get('client_id'),
+            source=p.get('source'), lead_id=p.get('lead_id'))
     gmail_ok = gmail_delivery.is_connected(tenant_id=actual)
 
     return jsonify({
@@ -10358,12 +10373,11 @@ def _notify_new_lead(lead, source_label):
     abierto. tenant_id explicito en get_settings/log_email porque esto
     corre desde una ruta publica (sin sesion, el lead ya trae su propio
     tenant_id resuelto por el slug del formulario)."""
-    from src.mail_tracker import get_tracker
+    from src.mail_tracker import get_tracker, new_lead_notification_recipient
 
     tenant_id = lead.get('tenant_id')
     tenant = next((t for t in store.list('tenants') if t.get('id') == tenant_id), {})
-    company = (get_settings(tenant_id=tenant_id).get('company', {}) or {})
-    to_email = company.get('email') or tenant.get('login_email') or 'norkevinfoto@gmail.com'
+    to_email = new_lead_notification_recipient(tenant_id)
     nombre = lead.get('nombre') or 'Sin nombre'
     subject = f"Nuevo lead: {nombre} - {tenant.get('name') or 'Flow CRM'}"
     body_lines = [

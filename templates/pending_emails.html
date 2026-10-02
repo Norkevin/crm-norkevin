@@ -125,6 +125,7 @@
         <div class="mail-origen">
           Generado por {{ e.origen }}{% if e.creado %} · {{ e.creado[:16]|replace('T', ' ') }}{% endif %}
         </div>
+        {% if e.aviso_interno %}<div class="mail-origen">Aviso interno para ti · correo de la empresa verificado</div>{% endif %}
         {% if e.motivo_bloqueo %}
         <div class="mail-motivo">{{ e.motivo_bloqueo }}</div>
         {% endif %}
