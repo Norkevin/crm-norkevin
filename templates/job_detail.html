@@ -15,6 +15,7 @@
       </div>
       <div class="lead-primary-actions" style="position:relative;">
         <button class="sn-btn sn-btn-primary" type="button" onclick="toggleAddMenu(event)">+ Nuevo documento</button>
+        {% if client %}<a class="sn-btn job-portal-button" href="/portal/{{ client.id }}" target="_blank" rel="noopener">Portal del cliente ↗</a>{% endif %}
         <button class="sn-btn" type="button" onclick="sendClientEmail()">Redactar correo</button>
         <button class="sn-btn" type="button" onclick="openModal('job-edit-modal')">Editar trabajo</button>
       <div id="add-menu" class="tenant-menu" style="right:0;top:38px;">
@@ -43,10 +44,8 @@
       <div class="job-booking-checks">{% for check in booking.checks %}<span class="sn-chip {{ 'green' if check.done else 'gray' }}">{{ '✓' if check.done else '○' }} {{ check.label }}</span>{% endfor %}</div>
     </div>
     <div class="lead-secondary-actions">
-      {% if client %}<a href="/portal/{{ client.id }}" target="_blank" rel="noopener">Portal del cliente ↗</a>{% endif %}
       {% if lead %}<a href="/leads/{{ lead.id }}" title="Lead original de este job">Ver lead original</a>{% endif %}
       <button class="lead-text-button" type="button" onclick="openHistoryLog()">Historial del trabajo</button>
-      <button class="lead-text-button" type="button" onclick="openModal('workflow-task-modal')">+ Agregar tarea</button>
     </div>
     </details>
   </header>
@@ -72,7 +71,7 @@
   </section>
   <div class="lead-workspace job-workspace">
     <aside class="lead-workflow-panel job-workflow" id="job-workflow" aria-labelledby="job-workflow-title">
-      <div class="lead-section-heading"><div><h2 id="job-workflow-title">Workflow</h2><p>{{ workflow_name }}</p></div><a class="lead-template-link" href="/workflow-editor?id=production_workflow_v1">Editar plantilla ↗</a></div>
+      <div class="lead-section-heading"><div><h2 id="job-workflow-title">Workflow</h2><p>{{ workflow_name }}</p></div><button class="sn-btn sn-btn-primary" type="button" onclick="openModal('workflow-task-modal')">+ Agregar</button></div>
       <div class="lead-workflow-card">
         {% set delivery_ids = ['envio_galeria', 'pedir_review', 'google_comments', 'job_complete'] %}
         <div class="lead-phase-heading"><h3>Producción</h3><span>{{ workflow_progress or 0 }}% completado</span></div>
@@ -92,10 +91,12 @@
             </button>
             <div class="lead-step-content">
               <div class="workflow-step-name">{{ task.name }}</div>
+              {% if task.type == 'email' and task.status != 'done' %}<button class="sn-btn sn-btn-sm" type="button" onclick='openEmailModal({subject: {{ task.name|tojson }}})'>Redactar correo</button>{% endif %}
               {% if task.location %}<span class="workflow-step-desc">Lugar: {{ task.location }}</span>{% endif %}
               <div>
                 {% if task.type == 'extra-event' %}<span class="sn-chip green">Sesión extra</span>
-                {% elif task.type == 'appointment' %}<span class="sn-chip cyan">Cita</span>
+                {% elif task.type == 'appointment' %}<span class="sn-chip cyan">Reunión</span>
+                {% elif task.type == 'email' %}<span class="sn-chip blue">Correo electrónico</span>
                 {% else %}<span class="sn-chip gray">{{ task.type }}</span>{% endif %}
                 {% if task.start_date %}
                 <span class="sn-chip gray">
@@ -118,6 +119,19 @@
 
         </div>
         {% endif %}
+        <div class="lead-phase-heading"><h3>Evento principal</h3></div>
+        <div class="workflow-steps">
+          <div class="workflow-step job-wedding-milestone">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-width="2" d="M8 3v4m8-4v4M4 10h16M4 5h16v16H4z"/></svg>
+            <div class="lead-step-content">
+              <div class="workflow-step-name">{{ 'Día de la boda' if (job.type or 'Boda')|lower in ['boda', 'bodas', 'wedding'] else 'Día del evento' }}</div>
+              <div class="workflow-timing">{% if job.boda_date %}<time datetime="{{ job.boda_date }}">{{ job.boda_date|fecha_legible }}</time>{% else %}Fecha por definir{% endif %}</div>
+              {% if job.location %}<span class="workflow-step-desc">{{ job.location }}</span>{% endif %}
+              {% if job.boda_date %}<a class="lead-template-link" href="/calendar?month={{ job.boda_date[:7] }}">Ver en calendario ↗</a>{% endif %}
+              <button class="lead-text-button" type="button" onclick="openModal('job-edit-modal')">{{ 'Cambiar fecha' if job.boda_date else 'Definir fecha' }}</button>
+            </div>
+          </div>
+        </div>
         <details class="lead-future-phase" {% if upcoming.step and upcoming.step.id in delivery_ids %}open{% endif %}>
           <summary><span>Entrega y cierre<small>Galería, seguimiento y finalización</small></span><span>{{ workflow_steps|selectattr('id', 'in', delivery_ids)|list|length }} pasos</span></summary>
           <div class="workflow-steps">{% for step in workflow_steps if step.id in delivery_ids %}{% include 'job_workflow_step.html' %}{% else %}<p class="sn-muted job-phase-empty">Sin pasos de entrega configurados.</p>{% endfor %}</div>
@@ -129,7 +143,7 @@
           <div class="lead-workflow-footer"><a class="lead-template-link" href="/workflow-editor?id=lead_workflow_v1">Editar seguimiento del lead ↗</a></div>
         </details>
         {% endif %}
-        <div class="lead-workflow-footer"><button class="lead-text-button" type="button" onclick="openModal('workflow-task-modal')">+ Agregar tarea o sesión</button><a class="lead-template-link" href="/settings/email-templates">Plantillas de correo ↗</a></div>
+        <div class="lead-workflow-footer"><a class="lead-template-link" href="/settings/email-templates">Plantillas de correo ↗</a></div>
       </div>
       <div class="job-management"><button class="lead-text-button" type="button" onclick="archiveJob()">Archivar trabajo</button>{% if payments %}<button class="lead-text-button" type="button" onclick="openModal('delete-payments-modal')" title="Para bodas canceladas">Eliminar pagos</button>{% endif %}</div>
     </aside>
@@ -325,6 +339,7 @@
               <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}" target="_blank">Ver</a>
               <a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}/edit">Editar</a>
               <button class="sn-btn sn-btn-sm" type="button" onclick="sendQuote('{{ q.id }}')">Enviar</button>
+              {% if q.status != 'Aceptada' and job.accepted_quote_id != q.id %}<a class="sn-btn sn-btn-sm" href="/quotes/{{ q.id }}/manage">Eliminar</a>{% endif %}
             </div>
           </div>
           {% else %}
@@ -559,71 +574,64 @@
 
 <div class="modal-overlay" id="workflow-task-modal">
   <div class="modal-content" style="width:min(720px,100%);">
-    <button type="button" class="modal-close" onclick="closeModal('workflow-task-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title" style="font-size:20px;margin-bottom:22px;">Add a New Workflow Task</h2>
+    <button type="button" class="modal-close" onclick="closeModal('workflow-task-modal')" aria-label="Cerrar">×</button>
+    <h2 class="modal-title">Agregar actividad</h2>
+    <p class="sn-muted">Solo para este trabajo. Se agrega al workflow y al calendario, sin generar cobros.</p>
     <div class="sn-choice-grid">
-      <button class="sn-choice-card" type="button" onclick="createManualTask('to-do', 'To-do')">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12l3 3 5-6M5 4h14v16H5z"/></svg>
-        <strong>To-do</strong>
-        <span>Add a to-do task that can be checked when you get it done.</span>
+      {% for type, name, description in [
+        ('appointment', 'Reunión de Meet', 'Reunión con los novios por Meet o Zoom.'),
+        ('extra-event', 'Save the date', 'Sesión previa a la boda con su propia fecha.'),
+        ('extra-event', 'Boda civil', 'Ceremonia civil con fecha y lugar propios.'),
+        ('extra-event', 'Welcome party', 'Celebración de bienvenida.'),
+        ('extra-event', 'Evento extra', 'Otra sesión o actividad de este trabajo.'),
+        ('email', 'Correo electrónico', 'Recordatorio en el calendario para redactar y enviar otro correo. No se envía automáticamente.')
+      ] %}
+      <button class="sn-choice-card" type="button" onclick='openScheduleTaskForm({{ type|tojson }}, {{ name|tojson }})'>
+        <strong>{{ name }}</strong><span>{{ description }}</span>
       </button>
-      <button class="sn-choice-card" type="button" onclick="createManualTask('automation', 'Automation')">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-5v3m0 12v3m9-9h-3M6 12H3"/></svg>
-        <strong>Automation</strong>
-        <span>Add a task that automatically sends an email, questionnaire or contract.</span>
-      </button>
-      <button class="sn-choice-card" type="button" onclick="openScheduleTaskForm('extra-event', 'Extra Shoot')">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M4 9h16v11H4zM12 13v4m-2-2h4"/></svg>
-        <strong>Extra Event</strong>
-        <span>Add an additional shoot (civil wedding, save the date, trash the dress) that appears in your workflow and calendar.</span>
-      </button>
-      <button class="sn-choice-card" type="button" onclick="openScheduleTaskForm('appointment', 'Appointment')">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 0 1-6 0"/></svg>
-        <strong>Appointment</strong>
-        <span>Add an appointment that appears in your workflow and calendar.</span>
-      </button>
+      {% endfor %}
     </div>
   </div>
 </div>
 
 <div class="modal-overlay" id="schedule-task-modal">
   <div class="modal-content" style="width:min(560px,100%);">
-    <button type="button" class="modal-close" onclick="closeModal('schedule-task-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title" id="schedule-task-title">Add a New Extra Shoot</h2>
+    <button type="button" class="modal-close" onclick="closeModal('schedule-task-modal')" aria-label="Cerrar">×</button>
+    <h2 class="modal-title" id="schedule-task-title">Agregar actividad</h2>
     <form onsubmit="submitScheduleTask(event)">
       <input type="hidden" id="schedule-task-type">
       <input type="hidden" id="schedule-task-id">
       <div class="form-group">
-        <label class="form-label">Name *</label>
-        <input class="form-input" id="schedule-task-name" required placeholder="e.g. Boda civil, Save the Date, Trash the Dress">
+        <label class="form-label" for="schedule-task-name">Nombre *</label>
+        <input class="form-input" id="schedule-task-name" required placeholder="Nombre de la actividad o asunto del correo">
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label">Start date *</label>
+          <label class="form-label" for="schedule-task-start-date">Fecha de inicio *</label>
           <input class="form-input" id="schedule-task-start-date" type="date" required>
         </div>
         <div class="form-group">
-          <label class="form-label">End date</label>
+          <label class="form-label" for="schedule-task-end-date">Fecha de fin</label>
           <input class="form-input" id="schedule-task-end-date" type="date">
         </div>
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label">Start time</label>
+          <label class="form-label" for="schedule-task-start-time">Hora de inicio</label>
           <input class="form-input" id="schedule-task-start-time" type="time">
         </div>
         <div class="form-group">
-          <label class="form-label">End time</label>
+          <label class="form-label" for="schedule-task-end-time">Hora de fin</label>
           <input class="form-input" id="schedule-task-end-time" type="time">
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Location</label>
-        <input class="form-input" id="schedule-task-location" placeholder="Ingresa una ubicacion">
+        <label class="form-label" for="schedule-task-location">Lugar o enlace de la reunión</label>
+        <input class="form-input" id="schedule-task-location" placeholder="Ubicación o enlace de Meet / Zoom">
       </div>
       <div class="form-group" style="display:flex;align-items:center;gap:8px;">
         <input type="checkbox" id="schedule-task-portal" style="width:16px;height:16px;">
-        <label class="form-label" for="schedule-task-portal" style="margin:0;">Show in Client Portal</label>
+        <label class="form-label" for="schedule-task-portal" style="margin:0;">Mostrar en el portal del cliente</label>
       </div>
       <div class="sn-actions" style="justify-content:flex-start;margin-top:6px;">
         <button class="sn-btn sn-btn-primary" type="submit" id="schedule-task-submit">Guardar</button>
@@ -1120,21 +1128,13 @@ function unskipJobStep(stepId, stepName) {
     .then(function() { flashToast('"' + stepName + '" vuelve a estar activo', 'success'); setTimeout(function() { location.reload(); }, 450); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
-function createManualTask(type, label) {
-  apiPost('/api/jobs/' + JOB_ID + '/workflow-task', { type: type, name: label })
-    .then(function() {
-      flashToast('Workflow task added', 'success');
-      setTimeout(function() { location.reload(); }, 500);
-    })
-    .catch(function(err) { flashToast(err.message, 'error'); });
-}
 function openScheduleTaskForm(type, titleLabel) {
   closeModal('workflow-task-modal');
   document.getElementById('schedule-task-type').value = type;
   document.getElementById('schedule-task-id').value = '';
-  document.getElementById('schedule-task-title').textContent = 'Add a New ' + titleLabel;
-  document.getElementById('schedule-task-submit').textContent = 'Save';
-  document.getElementById('schedule-task-name').value = '';
+  document.getElementById('schedule-task-title').textContent = 'Agregar ' + titleLabel;
+  document.getElementById('schedule-task-submit').textContent = 'Guardar';
+  document.getElementById('schedule-task-name').value = titleLabel;
   document.getElementById('schedule-task-start-date').value = '';
   document.getElementById('schedule-task-end-date').value = '';
   document.getElementById('schedule-task-start-time').value = '';
@@ -1146,8 +1146,8 @@ function openScheduleTaskForm(type, titleLabel) {
 function openEditTaskForm(task) {
   document.getElementById('schedule-task-type').value = task.type;
   document.getElementById('schedule-task-id').value = task.id;
-  document.getElementById('schedule-task-title').textContent = 'Edit ' + (task.type === 'extra-event' ? 'Extra Shoot' : 'Appointment');
-  document.getElementById('schedule-task-submit').textContent = 'Save changes';
+  document.getElementById('schedule-task-title').textContent = 'Editar actividad';
+  document.getElementById('schedule-task-submit').textContent = 'Guardar cambios';
   document.getElementById('schedule-task-name').value = task.name || '';
   document.getElementById('schedule-task-start-date').value = task.start_date || '';
   document.getElementById('schedule-task-end-date').value = task.end_date || '';
@@ -1177,7 +1177,7 @@ function submitScheduleTask(event) {
   apiPost(url, payload)
     .then(function() {
       closeModal('schedule-task-modal');
-      flashToast(taskId ? 'Cambios guardados' : 'Workflow task and calendar event added', 'success');
+      flashToast(taskId ? 'Cambios guardados' : 'Actividad agregada al workflow y al calendario', 'success');
       setTimeout(function() { location.reload(); }, 500);
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
@@ -1185,17 +1185,17 @@ function submitScheduleTask(event) {
 function completeManualTask(taskId) {
   apiPost('/api/jobs/' + JOB_ID + '/workflow-task/' + taskId + '/complete', {})
     .then(function() {
-      flashToast('Task completed', 'success');
+      flashToast('Actividad completada', 'success');
       setTimeout(function() { location.reload(); }, 500);
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 function openManualTaskActions(event, task) {
-  var hasSchedule = task.type === 'extra-event' || task.type === 'appointment';
+  var hasSchedule = ['extra-event', 'appointment', 'email'].includes(task.type);
   openActionMenu(event, [
     task.status !== 'done' ? { label: 'Completar ahora', action: function() { completeManualTask(task.id); } } : null,
     hasSchedule ? { label: 'Editar', action: function() { openEditTaskForm(task); } } : null,
-    hasSchedule ? { label: task.show_in_portal ? 'Ocultar del Client Portal' : 'Show in Client Portal', action: function() { togglePortalManualTask(task.id); } } : null,
+    hasSchedule ? { label: task.show_in_portal ? 'Ocultar del portal' : 'Mostrar en el portal', action: function() { togglePortalManualTask(task.id); } } : null,
     { divider: true },
     { label: 'Eliminar', danger: true, confirm: 'Eliminar "' + task.name + '"?', action: function() { deleteManualTask(task.id); } }
   ]);

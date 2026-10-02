@@ -8934,6 +8934,22 @@ def api_job_history(job_id):
     return jsonify({'ok': True, 'history': history[-100:]})
 
 
+def _workflow_schedule_error(start_date, end_date, start_time, end_time):
+    if not start_date:
+        return 'La fecha es requerida'
+    try:
+        datetime.strptime(start_date, '%Y-%m-%d')
+        datetime.strptime(end_date, '%Y-%m-%d')
+        for value in (start_time, end_time):
+            if value:
+                datetime.strptime(value, '%H:%M')
+    except ValueError:
+        return 'La fecha o la hora no es válida'
+    if end_date < start_date or (end_date == start_date and start_time and end_time and end_time < start_time):
+        return 'El fin no puede ser anterior al inicio'
+    return None
+
+
 @app.route('/api/jobs/<job_id>/workflow-task', methods=['POST'])
 def api_job_workflow_task(job_id):
     """Kevin: 'poder agregar un shoot extra desde jobs, porque muchas veces se
@@ -8956,20 +8972,23 @@ def api_job_workflow_task(job_id):
         'to-do': 'New to-do',
         'automation': 'Automation',
         'extra-event': 'Evento extra',
-        'appointment': 'Appointment',
+        'appointment': 'Reunión de Meet',
+        'email': 'Correo electrónico',
     }
     if not name:
         name = default_names.get(task_type, 'Workflow task')
 
-    needs_schedule = task_type in ('extra-event', 'appointment')
+    needs_schedule = task_type in ('extra-event', 'appointment', 'email')
     start_date = (data.get('start_date') or '').strip()
-    if needs_schedule and not start_date:
-        return jsonify({'ok': False, 'error': 'La fecha es requerida'}), 400
     end_date = (data.get('end_date') or '').strip() or start_date
     start_time = (data.get('start_time') or '').strip()
     end_time = (data.get('end_time') or '').strip()
     location = (data.get('location') or '').strip()
     show_in_portal = bool(data.get('show_in_portal'))
+    if needs_schedule:
+        error = _workflow_schedule_error(start_date, end_date, start_time, end_time)
+        if error:
+            return jsonify({'ok': False, 'error': error}), 400
 
     import uuid
     task = {
@@ -9057,15 +9076,17 @@ def api_job_workflow_task_update(job_id, task_id):
 
     data = request.get_json() or {}
     name = (data.get('name') or '').strip() or task.get('name')
-    needs_schedule = task.get('type') in ('extra-event', 'appointment')
+    needs_schedule = task.get('type') in ('extra-event', 'appointment', 'email')
     start_date = (data.get('start_date') or '').strip()
-    if needs_schedule and not start_date:
-        return jsonify({'ok': False, 'error': 'La fecha es requerida'}), 400
     end_date = (data.get('end_date') or '').strip() or start_date
     start_time = (data.get('start_time') or '').strip()
     end_time = (data.get('end_time') or '').strip()
     location = (data.get('location') or '').strip()
     show_in_portal = bool(data.get('show_in_portal'))
+    if needs_schedule:
+        error = _workflow_schedule_error(start_date, end_date, start_time, end_time)
+        if error:
+            return jsonify({'ok': False, 'error': error}), 400
 
     task['name'] = name
     if needs_schedule:
@@ -9084,7 +9105,7 @@ def api_job_workflow_task_update(job_id, task_id):
                 'title': f"{name} - {job.get('nombre', 'Job')}",
             })
             store.upsert('calendar', event)
-        elif not event_id:
+        else:
             event_id = 'evt-' + uuid.uuid4().hex[:8]
             store.upsert('calendar', {
                 'id': event_id, 'date': start_date, 'end_date': end_date,
@@ -11875,7 +11896,11 @@ def quote_view(quote_id):
 def _quote_change_blocker(quote, job, payments):
     if any(_row_paid_amount(p) > 0 or p.get('status') == 'Pagado' for p in payments):
         return 'Esta cotización tiene pagos registrados. No se pueden reemplazar ni eliminar sus cuotas automáticamente.'
-    if job and any(c.get('job_id') == job['id'] and
+    # An unrelated test draft does not change the signed agreement.
+    committed_quote = (quote.get('status') == 'Aceptada' or quote.get('aceptada_en')
+                       or quote.get('snapshot_aceptado') or payments
+                       or (job and job.get('accepted_quote_id') == quote.get('id')))
+    if job and committed_quote and any(c.get('job_id') == job['id'] and
                    (c.get('signed') or c.get('signed_at') or c.get('photographer_signed'))
                    for c in store.list('contracts')):
         return 'Esta boda tiene un contrato firmado. Revisa el acuerdo antes de modificar la cotización.'

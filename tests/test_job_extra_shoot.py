@@ -111,7 +111,7 @@ def test_extra_event_shows_location_and_schedule_on_the_job_page(auth_client):
     html = resp.get_data(as_text=True)
     assert 'Trash the Dress' in html
     assert 'Lago de Atitlan' in html
-    assert 'Extra Shoot' in html
+    assert 'Sesión extra' in html
     assert '2027-05-01' in html
 
 

@@ -159,3 +159,33 @@ def test_stale_page_cannot_overwrite_new_revision(accepted):
     assert change(accepted, 'payment-plan', plan_pago=5).status_code == 200
     assert client.post(f'/api/quotes/{qid}/manage', json={'action':'archive','revision':0}).status_code == 409
     assert module.store.get('quotes', qid)['plan_pago'] == 5
+
+
+def test_unused_quote_can_be_removed_from_signed_job_and_portal(accepted):
+    client, module, accepted_id, job_id, tenant = accepted
+    job_before = module.get_job(job_id)
+    module.store.upsert('contracts', {'id': 'contract-' + accepted_id, 'job_id': job_id,
+                                      'tenant_id': tenant, 'signed': True})
+    draft_id = accepted_id + '-unused'
+    draft = {'id': draft_id, 'job_id': job_id, 'client_id': job_before['client_id'],
+             'tenant_id': tenant, 'status': 'Borrador', 'paquete_nombre': 'Prueba sin contenido'}
+    token, draft = module.public_tokens.emitir_para(draft)
+    module.store.upsert('quotes', draft)
+    payments_before = module.store._read_raw('payments')
+    schedules_before = module.store._read_raw('payment_schedules')
+    job_html = client.get('/jobs/' + job_id).get_data(as_text=True)
+    assert f'href="/quotes/{draft_id}/manage">Eliminar</a>' in job_html
+    assert f'href="/quotes/{accepted_id}/manage">Eliminar</a>' not in job_html
+    portal_url = '/portal/' + job_before['client_id']
+    assert 'Prueba sin contenido' in client.get(portal_url).get_data(as_text=True)
+    response = client.post(f'/api/quotes/{draft_id}/manage', json={'action': 'archive', 'revision': 0})
+    assert response.status_code == 200
+    assert module.store.get('quotes', draft_id) is None
+    assert module.store.get('quotes', draft_id, include_archived=True)['archived_at']
+    assert module.get_job(job_id) == job_before
+    assert module.store._read_raw('payments') == payments_before
+    assert module.store._read_raw('payment_schedules') == schedules_before
+    assert 'Prueba sin contenido' not in client.get(portal_url).get_data(as_text=True)
+    assert draft_id not in client.get('/jobs/' + job_id).get_data(as_text=True)
+    assert client.get('/q/' + token).status_code == 404
+    assert change(accepted, 'archive').status_code == 409

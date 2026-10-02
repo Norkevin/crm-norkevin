@@ -133,3 +133,10 @@
   .job-detail .job-clients .sn-select { max-width: 100% !important; }
   .job-detail .m-jobtabs { margin-bottom: 20px; }
 }
+
+/* Keep the job's primary controls visible outside collapsed event details. */
+.job-detail .job-portal-button { border: 1px solid var(--sn-accent-text); color: var(--sn-accent-text); background: var(--sn-mint-soft); }
+.job-detail #job-workflow > .lead-section-heading .sn-btn { min-height: 44px; flex-shrink: 0; }
+.job-detail .job-wedding-milestone { background: var(--sn-white); }
+.job-detail .job-wedding-milestone .lead-template-link,
+.job-detail .job-wedding-milestone .lead-text-button { display: inline-block; margin: 8px 12px 0 0; }
