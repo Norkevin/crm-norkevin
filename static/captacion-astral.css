@@ -1,0 +1,69 @@
+/* Astral's public contact page. Shared fields and submission stay in captacion.html/js. */
+.astral-contact {
+  --ink: #252520;
+  --muted: #66665e;
+  --paper: #f7f6f2;
+  --line: #d5d3ca;
+  --accent: #30352c;
+  --astral-serif: 'Cormorant Garamond', Georgia, serif;
+}
+.astral-cover { position: relative; min-height: 470px; display: grid; place-items: center; overflow: hidden; background: #363931; color: #fff; }
+.astral-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, #0005, #0003 45%, #0007); }
+.astral-cover-image { position: absolute; width: 100%; height: 100%; object-fit: cover; object-position: 50% 60%; }
+.astral-nav { position: absolute; z-index: 1; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 27px 48px; }
+.astral-nav a { text-decoration: none; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; }
+.astral-nav a:first-child { font: 500 20px var(--astral-serif); letter-spacing: 4px; }
+.astral-nav a:hover { text-decoration: underline; }
+.astral-nav a:focus-visible { outline-color: #fff; }
+.astral-nav a:last-child { padding: 10px 0; }
+.astral-nav a span { margin-left: 14px; }
+.astral-signature { position: relative; z-index: 1; text-align: center; padding: 90px 20px 64px; }
+.astral-monogram { display: inline-grid; place-items: center; width: 46px; height: 46px; border: 1px solid #ffffffa0; border-radius: 50%; font: 400 28px var(--astral-serif); }
+.astral-signature p { font: 400 clamp(50px, 5.5vw, 78px)/.98 var(--astral-serif); letter-spacing: 8px; text-transform: uppercase; margin: 18px 0 24px; }
+.astral-signature .eyebrow { font-size: 10px; letter-spacing: 3px; }
+.astral-cover-caption { position: absolute; z-index: 1; bottom: 20px; font: italic 18px var(--astral-serif); letter-spacing: .3px; }
+.astral-contact .page { width: min(800px, calc(100% - 80px)); }
+.astral-contact main { display: block; padding: 54px 0 64px; }
+.astral-contact .intro { text-align: center; padding: 0 0 48px; }
+.astral-contact .intro .eyebrow { font-size: 9px; letter-spacing: 2.5px; }
+.astral-contact h1 { font: 400 clamp(40px, 4vw, 54px)/1.1 var(--astral-serif); letter-spacing: -1px; margin: 15px 0; }
+.astral-contact h1 br { display: none; }
+.astral-contact .intro p { max-width: 430px; margin: 0 auto; font-size: 13px; }
+.astral-contact .intro .response { border: 0; margin: 14px auto 0; padding: 0; font-size: 11px; }
+.astral-contact fieldset { padding: 28px 34px 34px; margin-bottom: 22px; border: 1px solid var(--line); }
+.astral-contact legend { width: auto; padding: 0 14px; margin: 0 0 0 -14px; border: 0; font: 400 27px var(--astral-serif); text-transform: none; letter-spacing: 0; }
+.astral-contact legend span { font: 400 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; letter-spacing: 1px; margin-right: 10px; }
+.astral-contact .fields { gap: 26px; }
+.astral-contact .row { gap: 28px; }
+.astral-contact label { font-size: 11px; letter-spacing: .2px; margin-bottom: 4px; }
+.astral-contact .field { background: transparent; border: 0; border-bottom: 1px solid #aaa99f; padding: 10px 0; }
+.astral-contact .field:focus { outline: 2px solid var(--accent); outline-offset: 4px; border-bottom-color: var(--accent); }
+.astral-contact .field::placeholder { color: #74766c; font-size: 13px; }
+.astral-contact textarea.field { min-height: 108px; }
+.astral-contact .date-wrap .field { padding-right: 34px; }
+.astral-contact .calendar-icon { right: 4px; }
+.astral-contact .hint { font-size: 10px; }
+.astral-contact .submit { margin-top: 28px; justify-content: center; gap: 40px; min-height: 56px; text-transform: uppercase; letter-spacing: 2px; font-size: 10px; }
+.astral-contact .form-foot { text-align: center; margin-top: 16px; font-size: 10px; }
+.astral-contact .success { border: 1px solid var(--line); padding: 42px 24px; text-align: center; }
+.astral-contact .success h2 { font: 400 42px/1.1 var(--astral-serif); }
+.astral-contact footer { align-items: center; padding: 28px 0; font-size: 11px; }
+.astral-contact footer > span { font: 500 18px var(--astral-serif); letter-spacing: 1px; }
+.astral-contact .contact { gap: 20px; }
+@media (max-width: 760px) {
+  .astral-cover { min-height: 380px; }
+  .astral-nav { padding: 16px 24px; }
+  .astral-cover-image { object-position: 50% 62%; }
+  .astral-signature { padding: 82px 20px 62px; }
+  .astral-signature p { font-size: clamp(40px, 13.8vw, 54px); letter-spacing: 5px; }
+  .astral-contact .page { width: calc(100% - 40px); }
+  .astral-contact main { padding: 36px 0 40px; }
+  .astral-contact .intro { padding-bottom: 32px; }
+  .astral-contact h1 { max-width: none; font-size: 40px; }
+  .astral-contact h1 br { display: block; }
+  .astral-contact fieldset { padding: 20px 20px 28px; }
+  .astral-contact legend { font-size: 25px; }
+  .astral-contact .row { grid-template-columns: 1fr; gap: 24px; }
+  .astral-contact footer { text-align: center; gap: 16px; }
+  .astral-contact .contact { gap: 10px; }
+}

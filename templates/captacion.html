@@ -94,20 +94,41 @@ gtag('config', 'AW-10866273491');
   }
   @media (max-width: 420px) { .row { grid-template-columns: 1fr; gap: 18px; } }
 </style>
+{% if tenant_slug == 'astral-weddings' %}
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='captacion-astral.css', v='20261003') }}">
+{% endif %}
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/flatpickr.min.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/es.js') }}"></script>
 <script defer src="{{ url_for('static', filename='captacion.js', v='20261003-meta') }}"></script>
 </head>
-<body>
+<body{% if tenant_slug == 'astral-weddings' %} class="astral-contact"{% endif %}>
+{% if tenant_slug == 'astral-weddings' %}
+<header class="astral-cover">
+  <img class="astral-cover-image" src="{{ url_for('static', filename='images/astral-contact.jpg') }}" alt="Una pareja de novios en la arquitectura colonial de Guatemala" fetchpriority="high" width="2048" height="1365">
+  <nav class="astral-nav" aria-label="Astral Weddings">
+    <a href="https://astralfilmsgt.com/">Astral</a>
+    <a href="#contact-title">Contacto <span aria-hidden="true">↘</span></a>
+  </nav>
+  <div class="astral-signature">
+    <span class="astral-monogram" aria-hidden="true">A</span>
+    <p>Astral<br>Weddings</p>
+    <span class="eyebrow">Photo &amp; Film · Guatemala</span>
+  </div>
+  <span class="astral-cover-caption">Historias que se sienten vivas.</span>
+</header>
+{% endif %}
 <div class="page">
+  {% if tenant_slug != 'astral-weddings' %}
   <header class="masthead">
     <div class="brand">{{ tenant.name or 'ASTRAL WEDDINGS' }}</div>
     <span class="eyebrow">Photography &amp; Films</span>
   </header>
+  {% endif %}
   <main>
     <section class="intro" aria-labelledby="contact-title">
       <span class="eyebrow">Empecemos una historia</span>
-      <h1 id="contact-title">Cuéntanos<br>sobre tu boda.</h1>
+      <h1 id="contact-title">Cuéntanos <br>sobre tu boda.</h1>
       <p>Las mejores historias empiezan con una conversación. Queremos conocer la tuya.</p>
       <p class="response">Te responderemos en menos de 24 horas.</p>
     </section>
