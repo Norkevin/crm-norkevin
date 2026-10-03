@@ -1,0 +1,15 @@
+{% set google_id = {'norkevin-photography': 'AW-10866273491', 'astral-weddings': 'AW-18491511938'}.get(tenant_slug) %}
+{% set meta_id = {'norkevin-photography': '899434420809998', 'astral-weddings': '28915845924706844'}.get(tenant_slug) %}
+{% set google_conversion = {'norkevin-photography': 'AW-10866273491/BtunCMWu5Y4dENPZuL0o', 'astral-weddings': 'AW-18491511938/Y4ZBCNr-9Y4dEIKpuPFE'}.get(tenant_slug) %}
+{% if google_id %}
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ google_id }}"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('set', 'linker', {domains: {{ (['norkevinweddings.com', 'flowingcrm.com'] if tenant_slug == 'norkevin-photography' else ['astralfilmsgt.com', 'flowingcrm.com']) | tojson }}});
+gtag('js', new Date());
+gtag('config', {{ google_id | tojson }});
+</script>
+<script defer src="{{ url_for('static', filename=('norkevin-meta.js' if tenant_slug == 'norkevin-photography' else 'astral-meta.js'), v='20261003') }}"></script>
+<script defer id="lead-ads-config" data-meta-pixel="{{ meta_id }}" data-google-conversion="{{ google_conversion }}" src="{{ url_for('static', filename='public-lead-ads.js', v='20261003') }}"></script>
+{% endif %}

@@ -84,8 +84,14 @@ def test_brand_contact_details_and_widgets(client, monkeypatch):
     assert 'tel:+50231648254' not in astral
     assert 'AW-10866273491' in norkevin
     assert 'AW-10866273491' not in astral
+    assert 'AW-18491511938' in astral
+    assert 'AW-18491511938' not in norkevin
     assert 'norkevin-meta.js' in norkevin
     assert 'norkevin-meta.js' not in astral
+    assert 'astral-meta.js' in astral
+    assert 'astral-meta.js' not in norkevin
+    assert 'data-meta-pixel="28915845924706844"' in astral
+    assert 'data-meta-pixel="899434420809998"' in norkevin
     for html in [norkevin, astral]:
         assert 'name="nombre_pareja"' in html
         assert 'name="notas"' in html and 'maxlength="5000"' in html
@@ -93,6 +99,19 @@ def test_brand_contact_details_and_widgets(client, monkeypatch):
         assert 'brand@example.com' in html
     legacy = client.get('/captacion/ramiro-cruz-photo').get_data(as_text=True)
     assert 'static/captacion.js' not in legacy
+
+
+@pytest.mark.parametrize('route', ['/captacion/', '/contacto/'])
+def test_public_forms_keep_ads_separate_from_other_brands_and_private_pages(client, route):
+    norkevin = client.get(route + 'norkevin-photography').get_data(as_text=True)
+    astral = client.get(route + 'astral-weddings').get_data(as_text=True)
+    other = client.get(route + 'ramiro-cruz-photo').get_data(as_text=True)
+    for html, own, foreign in [(norkevin, 'AW-10866273491', 'AW-18491511938'),
+                               (astral, 'AW-18491511938', 'AW-10866273491')]:
+        assert own in html and foreign not in html
+        assert 'public-lead-ads.js' in html
+    assert 'public-lead-ads.js' not in other
+    assert 'googletagmanager.com' not in client.get('/login').get_data(as_text=True)
 
 
 def test_fake_phone_is_not_shown_for_astral(client, monkeypatch):

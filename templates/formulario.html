@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+{% include '_public_ads.html' %}
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cotizar mi boda · {{ tenant.name or 'ASTRAL WEDDINGS' }}</title>
@@ -214,7 +215,7 @@ const charCount = document.getElementById('char-count');
 const mensaje = form.querySelector('[name="mensaje"]');
 
 // Pre-poblar con localStorage si ya se lleno antes
-const STORAGE_KEY = 'norkevin_lead_draft_v1';
+const STORAGE_KEY = 'flowing_lead_draft_v1:' + form.elements.tenant_slug.value;
 try {
   const draft = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
   for (const k of Object.keys(draft || {})) {
@@ -236,6 +237,7 @@ mensaje.addEventListener('input', () => { charCount.textContent = mensaje.value.
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (btnSubmit.disabled || form.classList.contains('hidden')) return;
 
   let ok = true;
   form.querySelectorAll('[required]').forEach(input => {
@@ -265,11 +267,12 @@ form.addEventListener('submit', async (e) => {
       body: JSON.stringify(data)
     });
     const d = await r.json();
-    if (d.ok) {
+    if (r.ok && d.ok) {
       try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
       form.classList.add('hidden');
       msgExito.classList.remove('hidden');
       window.scrollTo({top: 0, behavior: 'smooth'});
+      if (typeof window.trackSavedLead === 'function') window.trackSavedLead(d.lead_id);
     } else {
       msgErrorText.textContent = d.error || 'Intenta de nuevo o escríbeme directo a {{ contact_email }}';
       msgError.classList.remove('hidden');

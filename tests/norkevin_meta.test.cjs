@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const test = require('node:test');
 const source = fs.readFileSync('static/norkevin-meta.js', 'utf8');
 
-function visit({ search = '', stored = null, blocked = false, hostname = 'norkevinweddings.com' } = {}) {
+function visit({ search = '', stored = null, blocked = false, hostname = 'norkevinweddings.com', brand = 'norkevin' } = {}) {
   const links = [
     { href: 'https://flowingcrm.com/captacion/norkevin-photography?keep=1' },
     { href: 'https://flowingcrm.com/captacion/astral-weddings' },
@@ -23,7 +23,7 @@ function visit({ search = '', stored = null, blocked = false, hostname = 'norkev
     },
   };
   context.window = context;
-  vm.runInNewContext(source, context);
+  vm.runInNewContext(brand === 'astral' ? fs.readFileSync('static/astral-meta.js', 'utf8') : source, context);
   return { links, stored, inserted, calls: Array.from(context.fbq.queue, args => Array.from(args)) };
 }
 
@@ -45,4 +45,17 @@ test('public pixel uses explicit events and carries only valid Meta ad clicks to
   assert.equal(visit({ search: '?fbclid=bad%3Cvalue' }).links[0].href.includes('fbclid'), false);
   assert.equal(visit({ blocked: true }).links[0].href.includes('fbclid'), false);
   assert.equal(visit({ hostname: 'flowingcrm.com', search: '?fbclid=real_Click-123' }).links[0].href.includes('fbclid'), false);
+});
+
+test('Astral pixel and ad click stay confined to Astral when sharing FLOW', () => {
+  const result = visit({ brand: 'astral', hostname: 'astralfilmsgt.com', search: '?fbclid=actual_astral_Click' });
+  assert.equal(JSON.stringify(result.calls), JSON.stringify([
+    ['set', 'autoConfig', false, '28915845924706844'],
+    ['init', '28915845924706844'],
+    ['trackSingle', '28915845924706844', 'PageView'],
+  ]));
+  assert.equal(result.links[1].href, 'https://flowingcrm.com/captacion/astral-weddings?fbclid=actual_astral_Click');
+  assert.equal(result.links[0].href.includes('fbclid'), false);
+  assert.equal(result.links[2].href.includes('fbclid'), false);
+  assert.equal(visit({ brand: 'astral', hostname: 'astralfilmsgt.com' }).links[1].href.includes('fbclid'), false);
 });

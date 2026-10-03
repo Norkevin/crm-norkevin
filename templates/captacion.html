@@ -1,17 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-{% if tenant_slug == 'norkevin-photography' %}
-<script async src="https://www.googletagmanager.com/gtag/js?id=AW-10866273491"></script>
-<script>
-window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag('set', 'linker', {domains: ['norkevinweddings.com', 'flowingcrm.com']});
-gtag('js', new Date());
-gtag('config', 'AW-10866273491');
-</script>
-<script defer src="{{ url_for('static', filename='norkevin-meta.js', v='20261003') }}"></script>
-{% endif %}
+{% include '_public_ads.html' %}
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Contacto · {{ tenant.name or 'ASTRAL WEDDINGS' }}</title>
@@ -100,7 +90,7 @@ gtag('config', 'AW-10866273491');
 {% endif %}
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/flatpickr.min.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/es.js') }}"></script>
-<script defer src="{{ url_for('static', filename='captacion.js', v='20261003-meta') }}"></script>
+<script defer src="{{ url_for('static', filename='captacion.js', v='20261003-brands') }}"></script>
 </head>
 <body{% if tenant_slug == 'astral-weddings' %} class="astral-contact"{% endif %}>
 {% if tenant_slug == 'astral-weddings' %}
