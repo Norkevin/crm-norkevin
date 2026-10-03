@@ -1910,6 +1910,10 @@ def _step_scheduled_for_job(step, trigger_at, boda_date):
 
 def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
     from datetime import datetime, timedelta
+    if job.get("studio_ninja_workflow") is not None:
+        steps = job["studio_ninja_workflow"]
+        progress = round(sum(s["status"] == "done" for s in steps) * 100 / len(steps)) if steps else 0
+        return steps, progress, job.get("studio_ninja_workflow_name") or "Studio Ninja"
     tmpl = PRODUCTION_WORKFLOW(tenant_id or job.get("tenant_id"))
     try:
         trigger_at = datetime.fromisoformat(job['created'].replace('Z', '+00:00')).replace(tzinfo=None)
@@ -4622,7 +4626,7 @@ def jobs_list():
         try:
             steps, prog, _ = compute_workflow_steps_for_job(
                 j, job_ids_cache=_jobs_job_ids_cache, lead_ids_cache=_jobs_lead_ids_cache)
-            pending = [s for s in steps if s['status'] == 'pending']
+            pending = [s for s in steps if s['status'] == 'pending' and s.get('source_stage') != 'LEAD']
             j['next_task'] = pending[0]['name'] if pending else 'Completado'
             j['workflow_progress'] = prog
         except Exception:
@@ -5734,6 +5738,13 @@ def api_admin_import_studio_ninja():
         return jsonify({'ok': False, 'error': 'Payload invalido: se espera {"jobs": [...]}'}), 400
 
     tenant_id = get_current_tenant_id()
+    if payload.get('mode') == 'active_jobs':
+        from src.studio_ninja_active_import import import_active_jobs
+        try:
+            result = import_active_jobs(sys.modules[__name__], payload['jobs'], tenant_id)
+        except ValueError as exc:
+            return jsonify({'ok': False, 'error': str(exc)}), 400
+        return jsonify(result)
     created = []
     skipped = []
 
@@ -9158,6 +9169,25 @@ def api_job_workflow_task(job_id):
         upsert_job(job)
 
     return jsonify({'ok': True, 'task': task, 'calendar_event': calendar_event})
+
+
+@app.route('/api/jobs/<job_id>/imported-workflow/<step_id>/complete', methods=['POST'])
+def api_job_imported_workflow_complete(job_id, step_id):
+    job = get_job(job_id)
+    if not job:
+        return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
+    for step in job.get('studio_ninja_workflow') or []:
+        if step['id'] == step_id:
+            step['status'] = 'done'
+            step['executed_at'] = datetime.now().isoformat()
+            for task in job.get('manual_workflow_tasks') or []:
+                if task.get('step_id') == step_id:
+                    task['status'] = 'done'
+            if step.get('is_job_complete'):
+                job['status'] = 'Listo'
+            upsert_job(job)
+            return jsonify({'ok': True})
+    return jsonify({'ok': False, 'error': 'Paso no encontrado'}), 404
 
 
 @app.route('/api/jobs/<job_id>/workflow-task/<task_id>/complete', methods=['POST'])
@@ -13997,7 +14027,7 @@ def _prepare_due_workflow_emails(tenant_id=None, now=None, subject_type=None):
             token = _workflow_tenant.set(instance.tenant_id)
             try:
                 record = store.get('leads' if instance.subject_type == 'lead' else 'jobs', instance.subject_id)
-                if not record or record.get('status') in ('Cancelado', 'Archivado', 'Listo', 'Perdido'):
+                if not record or record.get('studio_ninja_workflow') is not None or record.get('studio_ninja_source_id') or record.get('status') in ('Cancelado', 'Archivado', 'Listo', 'Perdido'):
                     continue
                 compute = compute_workflow_steps_for_lead if instance.subject_type == 'lead' else compute_workflow_steps_for_job
                 steps, _, _ = compute(record, tenant_id=instance.tenant_id)

@@ -52,7 +52,7 @@
 
   {% set upcoming = namespace(step=none, task=none) %}
   {% for step in workflow_steps %}
-    {% if not upcoming.step and step.id != 'job_accepted' and step.status not in ['done', 'skipped'] and not step.locked %}{% set upcoming.step = step %}{% endif %}
+    {% if not upcoming.step and step.id != 'job_accepted' and step.source_stage != 'LEAD' and step.status not in ['done', 'skipped'] and not step.locked %}{% set upcoming.step = step %}{% endif %}
   {% endfor %}
   {% for task in job.manual_workflow_tasks or [] %}
     {% if not upcoming.task and task.status != 'done' %}{% set upcoming.task = task %}{% endif %}
@@ -73,6 +73,21 @@
     <aside class="lead-workflow-panel job-workflow" id="job-workflow" aria-labelledby="job-workflow-title">
       <div class="lead-section-heading"><div><h2 id="job-workflow-title">Workflow</h2><p>{{ workflow_name }}</p></div><button class="sn-btn sn-btn-primary" type="button" onclick="openModal('workflow-task-modal')">+ Agregar</button></div>
       <div class="lead-workflow-card">
+        {% if job.studio_ninja_workflow is defined %}
+        <div class="lead-phase-heading"><h3>{{ workflow_name }}</h3><span>{{ workflow_progress }}% completado</span></div>
+        <div class="workflow-steps">
+          {% for step in workflow_steps %}
+          {% if loop.first or step.source_stage != loop.previtem.source_stage %}<div class="lead-phase-heading"><h3>{{ step.source_stage }}</h3></div>{% endif %}
+          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }}">
+            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status == 'done' %}disabled{% else %}onclick='completeImportedStep({{ step.id|tojson }})'{% endif %} aria-label="Completar paso: {{ step.name }}">
+              {% if step.status == 'done' %}<svg fill="currentColor" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8-1.4-1.4L8 11.2 5.4 8.6Z"/></svg>{% endif %}
+            </button>
+            <div class="lead-step-content"><div class="workflow-step-name">{{ step.name }}</div><div class="workflow-timing" style="white-space:pre-line">{{ step.source_details }}</div><div class="sn-muted">{{ 'Completado' if step.status == 'done' else 'Pendiente' }}</div></div>
+          </div>
+          {% endfor %}
+        </div>
+        {% for task in job.manual_workflow_tasks or [] if not task.step_id %}<div class="workflow-step"><button class="workflow-check" type="button" onclick='completeManualTask({{ task.id|tojson }})' aria-label="Completar tarea" {% if task.status == 'done' %}disabled{% endif %}></button><div>{{ task.name }}</div></div>{% endfor %}
+        {% else %}
         {% set delivery_ids = ['envio_galeria', 'pedir_review', 'google_comments', 'job_complete'] %}
         <div class="lead-phase-heading"><h3>Producción</h3><span>{{ workflow_progress or 0 }}% completado</span></div>
         <div class="workflow-steps">
@@ -142,6 +157,7 @@
           <div class="workflow-steps">{% for step in lead_steps %}{% with readonly=true %}{% include 'job_workflow_step.html' %}{% endwith %}{% endfor %}</div>
           <div class="lead-workflow-footer"><a class="lead-template-link" href="/workflow-editor?id=lead_workflow_v1">Editar seguimiento del lead ↗</a></div>
         </details>
+        {% endif %}
         {% endif %}
         <div class="lead-workflow-footer"><a class="lead-template-link" href="/settings/email-templates">Plantillas de correo ↗</a></div>
       </div>
@@ -470,6 +486,7 @@
           </button>
         </div>
         <div class="sn-list-item">
+          {% for document in job.studio_ninja_documents or [] %}<p><a href="{{ document.url }}" target="_blank" rel="noopener">{{ document.label }} ↗</a></p>{% endfor %}
           <div style="white-space:pre-wrap;">{{ job.notas or job.notes or 'Sin notas del job.' }}</div>
           <div class="sn-list-actions">
             <button class="sn-btn sn-btn-sm" type="button" onclick="openModal('notes-modal')">Ver / editar</button>
@@ -1210,6 +1227,11 @@ function togglePortalManualTask(taskId) {
 function deleteManualTask(taskId) {
   apiPost('/api/jobs/' + JOB_ID + '/workflow-task/' + taskId + '/delete', {})
     .then(function() { flashToast('Eliminado', 'success'); setTimeout(function() { location.reload(); }, 400); })
+    .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function completeImportedStep(stepId) {
+  apiPost('/api/jobs/' + JOB_ID + '/imported-workflow/' + stepId + '/complete', {})
+    .then(function() { location.reload(); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 function saveJob(event) {

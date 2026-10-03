@@ -553,7 +553,7 @@ function confirmImportStudioNinja() {
     apiPost('/api/admin/import-studio-ninja', { confirm: typed, payload: payload })
       .then(function(data) {
         closeModal('import-sn-modal');
-        var msg = data.created.length + ' jobs importados';
+        var msg = data.message || (data.created.length + ' jobs importados');
         if (data.skipped.length) msg += ', ' + data.skipped.length + ' ya existian';
         flashToast(msg, 'success');
         setTimeout(function() { location.reload(); }, 900);
