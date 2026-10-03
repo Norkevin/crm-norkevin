@@ -804,9 +804,20 @@ def _lead_date_conflicts(lead, jobs=None):
     return conflicts
 
 
+def _lead_packages_unavailable(lead, step_id, jobs=None):
+    from src.tenant_brand_map import resolve_brand, UnresolvedBrandError
+    if step_id != 'envio_paquetes':
+        return False
+    try:
+        brand = resolve_brand(lead.get('tenant_id'))
+    except UnresolvedBrandError:
+        return False
+    return brand.brand_key == 'norkevin' and bool(_lead_date_conflicts(lead, jobs))
+
+
 def _lead_step_email_template(lead, step_id, template_id, jobs=None):
     template = _get_email_template(template_id)
-    if step_id != 'envio_paquetes' or not _lead_date_conflicts(lead, jobs):
+    if not _lead_packages_unavailable(lead, step_id, jobs):
         return template
     return next((item for item in store.list('email_templates')
                  if item.get('tenant_id') == lead.get('tenant_id') and item.get('activo', True)
@@ -850,7 +861,7 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
         if not to_email:
             return {'completed': False, 'warning': 'Este lead no tiene email'}
         template = _lead_step_email_template(lead, step_id, step.email_template_id)
-        if step_id == 'envio_paquetes' and _lead_date_conflicts(lead):
+        if _lead_packages_unavailable(lead, step_id):
             if not template:
                 return {'completed': False, 'warning': 'La fecha está ocupada. Activa una plantilla Fecha no disponible con contenido.'}
             if template_override_id != template['id']:
@@ -3794,7 +3805,7 @@ def api_lead_send_email(lead_id):
 
     data = request.get_json() or {}
     template = _get_email_template(data.get('template_id'))
-    if data.get('complete_step') and data.get('step_id') == 'envio_paquetes' and _lead_date_conflicts(lead):
+    if data.get('complete_step') and _lead_packages_unavailable(lead, data.get('step_id')):
         step = next((item for item in LEAD_WORKFLOW(lead.get('tenant_id')).steps if item.id == 'envio_paquetes'), None)
         template = _lead_step_email_template(lead, 'envio_paquetes', step.email_template_id if step else None)
         if not template:

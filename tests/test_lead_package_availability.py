@@ -7,7 +7,9 @@ import pytest
 @pytest.fixture
 def booking(auth_client, monkeypatch):
     import app as crm
-    tenant = 'tenant-norkevin'
+    from conftest import login_as_tenant
+    tenant = 'tenant-norkevin-photography'
+    login_as_tenant(auth_client, tenant)
     saved = crm.store.get_tenant_dict('workflow_templates', tenant)
     monkeypatch.setattr(crm.workflow_engine, 'instances', {})
     token = crm._workflow_tenant.set(tenant)
@@ -101,3 +103,11 @@ def test_missing_unavailable_template_blocks_preparation(booking):
     assert response.status_code == 400 and 'ocupada' in response.get_json()['error']
     assert not crm._prepare_due_workflow_emails(now=instance.trigger_at + timedelta(hours=4))
     assert not any(m.get('lead_id') == lead['id'] for m in crm.store.list('pending_emails'))
+
+
+def test_astral_keeps_its_normal_template_even_with_another_booking(booking):
+    crm, client, lead, job, normal, unavailable, instance = booking
+    astral_lead = dict(lead, tenant_id='tenant-norkevin')
+    astral_job = dict(job, tenant_id='tenant-norkevin')
+    assert crm._lead_date_conflicts(astral_lead, jobs=[astral_job])
+    assert not crm._lead_packages_unavailable(astral_lead, 'envio_paquetes', jobs=[astral_job])
