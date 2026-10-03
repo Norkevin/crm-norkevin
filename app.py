@@ -785,8 +785,37 @@ def _complete_job_workflow_step(job, step_id, result_message=None, mail_id=None)
     }
 
 
+def _lead_date_conflicts(lead, jobs=None):
+    """Only this account's active jobs reserve a date, including event ranges."""
+    event_date = _parse_iso_day(lead.get('fecha_tentativa') or lead.get('fecha_evento'))
+    if not event_date or not lead.get('tenant_id'):
+        return []
+    conflicts = []
+    for job in _canonical_jobs(jobs):
+        if (job.get('tenant_id') != lead['tenant_id'] or job.get('lead_id') == lead.get('id')
+                or job.get('id') in (lead.get('lead_id_job'), lead.get('job_id'))
+                or str(job.get('status') or '').strip().lower() in
+                ('archivado', 'archived', 'cancelado', 'cancelada', 'cancelled', 'canceled', 'cotizando', 'draft')):
+            continue
+        start = _parse_iso_day(job.get('boda_date'))
+        end = _parse_iso_day(job.get('end_date')) or start
+        if start and start <= event_date <= end:
+            conflicts.append(job)
+    return conflicts
+
+
+def _lead_step_email_template(lead, step_id, template_id, jobs=None):
+    template = _get_email_template(template_id)
+    if step_id != 'envio_paquetes' or not _lead_date_conflicts(lead, jobs):
+        return template
+    return next((item for item in store.list('email_templates')
+                 if item.get('tenant_id') == lead.get('tenant_id') and item.get('activo', True)
+                 and 'fecha no disponible' in ' '.join((item.get('name') or '').lower().split())
+                 and (item.get('cuerpo') or '').strip()), None)
+
+
 def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_email=True,
-                                  subject_override=None, body_override=None, existing_mail=None):
+                                  subject_override=None, body_override=None, existing_mail=None, template_override_id=None):
     if not step_id:
         return {'completed': False}
 
@@ -820,7 +849,12 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
         to_email = lead.get('email') or ''
         if not to_email:
             return {'completed': False, 'warning': 'Este lead no tiene email'}
-        template = _get_email_template(step.email_template_id)
+        template = _lead_step_email_template(lead, step_id, step.email_template_id)
+        if step_id == 'envio_paquetes' and _lead_date_conflicts(lead):
+            if not template:
+                return {'completed': False, 'warning': 'La fecha está ocupada. Activa una plantilla Fecha no disponible con contenido.'}
+            if template_override_id != template['id']:
+                subject_override = body_override = None
         if not template and not body_override:
             return {'completed': False, 'warning': 'Vincula un Email Template antes de preparar el correo'}
         client = get_client(lead.get('client_id', '')) if lead.get('client_id') else None
@@ -837,7 +871,7 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
             to_email=to_email,
             subject=subject,
             body=body,
-            template_id=step.email_template_id,
+            template_id=(template or {}).get('id') or step.email_template_id,
             lead_id=lead.get('id'),
             client_id=lead.get('client_id') or None,
             source=f'workflow:lead-step:{step_id}',
@@ -869,6 +903,7 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
         'sent': bool(mail_entry and mail_entry.get('status') == 'sent'),
         'queued': bool(mail_entry and mail_entry.get('status') == 'pending'),
         'delivery_status': mail_entry.get('status') if mail_entry else None,
+        'template': mail_entry.get('template_id') if mail_entry else None,
     }
 
 
@@ -1865,12 +1900,13 @@ def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, l
         else:
             status = 'pending'
             executed_at = None
+        template = _lead_step_email_template(lead, step.id, step.email_template_id, jobs_cache)
         steps.append({
             'id': step.id,
             'name': step.name,
             'description': step.description,
-            'email_template_id': step.email_template_id,
-            'email_template_name': (_get_email_template(step.email_template_id) or {}).get('name'),
+            'email_template_id': (template or {}).get('id'),
+            'email_template_name': (template or {}).get('name'),
             'delay_display': step.delay_display,
             'action_type': step.action_type.value if hasattr(step.action_type, 'value') else str(step.action_type),
             'scheduled': scheduled.isoformat() if scheduled else None,
@@ -3248,11 +3284,6 @@ def leads_list():
     from src.mail_tracker import get_tracker
 
     leads = _open_leads()
-    booked_dates = {
-        j.get('boda_date'): j.get('nombre')
-        for j in _canonical_jobs()
-        if j.get('boda_date') and j.get('status') not in ('Archivado',)
-    }
     # Fechas donde hay mas de un lead abierto interesado (estilo Studio Ninja:
     # naranja = "another lead is at the same time"), para ayudar a decidir si
     # aceptar o no una boda cuando hay competencia por la misma fecha.
@@ -3279,6 +3310,7 @@ def leads_list():
                     lead, _jobs_cache,
                     job_ids_cache=_leads_job_ids_cache, lead_ids_cache=_leads_lead_ids_cache)
                 pending = next((s for s in steps if s.get('status') != 'done'), None)
+                lead['next_email_template_id'] = (pending or {}).get('email_template_id')
                 lead['workflow_progress'] = progress
                 lead['next_task'] = pending.get('name') if pending else (lead.get('next_task') or 'Trabajo aceptado')
             except Exception:
@@ -3292,7 +3324,8 @@ def leads_list():
                 lead['created_display'] = lead['created']
         fecha = lead.get('fecha_tentativa')
         lead['boda_date_display'] = _format_pretty_date(fecha) if fecha else None
-        conflict_job = booked_dates.get(fecha) if fecha else None
+        conflicts = _lead_date_conflicts(lead, _jobs_cache)
+        conflict_job = conflicts[0].get('nombre') if conflicts else None
         lead['date_conflict'] = conflict_job
         other_leads_same_date = [i for i in open_leads_by_date.get(fecha, []) if i != lead.get('id')] if fecha else []
         lead['other_lead_conflict'] = bool(fecha) and not conflict_job and bool(other_leads_same_date)
@@ -3657,6 +3690,7 @@ def api_lead_trigger_step(lead_id):
         result_message=data.get('result_message'),
         subject_override=data.get('subject'),
         body_override=data.get('body'),
+        template_override_id=data.get('template_id'),
     )
     if result.get('warning'):
         return jsonify({'ok': False, 'error': result['warning']}), 400
@@ -3760,6 +3794,15 @@ def api_lead_send_email(lead_id):
 
     data = request.get_json() or {}
     template = _get_email_template(data.get('template_id'))
+    if data.get('complete_step') and data.get('step_id') == 'envio_paquetes' and _lead_date_conflicts(lead):
+        step = next((item for item in LEAD_WORKFLOW(lead.get('tenant_id')).steps if item.id == 'envio_paquetes'), None)
+        template = _lead_step_email_template(lead, 'envio_paquetes', step.email_template_id if step else None)
+        if not template:
+            return jsonify({'ok': False, 'error': 'La fecha está ocupada. Activa una plantilla Fecha no disponible con contenido.'}), 400
+        if data.get('template_id') != template['id']:
+            data.pop('subject', None)
+            data.pop('body', None)
+        data['template_id'] = template['id']
     subject = data.get('subject') or (template or {}).get('asunto') or \
         f'Mensaje de {_brand_display_name_for_tenant(lead.get("tenant_id"))}'
     body = data.get('body') or (template or {}).get('cuerpo') or ''
@@ -13883,14 +13926,8 @@ def api_check_date(lead_id):
     if not fecha:
         return jsonify({'ok': False, 'error': 'Sin fecha tentativa. Pedile al cliente su fecha.'}), 400
 
-    # Buscar si hay otra boda en esa fecha
-    conflicts = []
-    for j in _canonical_jobs():
-        if j.get('boda_date') == fecha and j.get('lead_id') != lead_id:
-            conflicts.append({
-                'job_id': j['id'],
-                'client': j.get('nombre', ''),
-            })
+    conflicts = [{'job_id': job['id'], 'client': job.get('nombre', '')}
+                 for job in _lead_date_conflicts(lead)]
 
     return jsonify({
         'ok': True,

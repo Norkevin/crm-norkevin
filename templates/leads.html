@@ -124,6 +124,7 @@
               email: {{ (lead.email or "")|tojson }},
               name: {{ (lead.nombre or "Cliente")|tojson }},
               nextTask: {{ (lead.next_task or "Seguimiento Cliente")|tojson }},
+              nextEmailTemplateId: {{ (lead.next_email_template_id or "")|tojson }},
               date: {{ (lead.fecha_tentativa or "")|tojson }},
               location: {{ (lead.locacion or "")|tojson }}
             })'>
@@ -376,7 +377,7 @@ function openLeadEmailModal(lead) {
   activeLeadForEmail = lead;
   document.getElementById('lead-email-id').value = lead.id;
   document.getElementById('lead-email-to').value = lead.email;
-  var templateId = leadTemplateForTask(lead.nextTask);
+  var templateId = lead.nextEmailTemplateId || leadTemplateForTask(lead.nextTask);
   document.getElementById('lead-email-template').value = templateId;
   if (templateId && findLeadTemplate(templateId)) {
     applyLeadEmailTemplate(templateId);

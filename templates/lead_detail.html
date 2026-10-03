@@ -690,7 +690,7 @@ function submitLeadEmail(event) {
   var stepId = document.getElementById('lead-email-step-id').value;
   var subject = document.getElementById('lead-email-subject').value;
   var body = document.getElementById('lead-email-body').value;
-  var payload = { subject: subject, body: body, send_email: true };
+  var payload = { subject: subject, body: body, send_email: true, template_id: document.getElementById('lead-email-template').value };
   if (stepId) payload.step_id = stepId;
   var request = stepId
     ? apiPost('/api/leads/' + LEAD_ID + '/trigger-step', payload)
