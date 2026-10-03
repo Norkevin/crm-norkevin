@@ -2,161 +2,198 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cuestionario - {{ client.first_name if client else '' }} · {{ brand.display_name }}</title>
-{% include "_document_style.html" %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>{{ questionnaire.name or 'Cuestionario de boda' }} · {{ theme.display_name }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="{{ theme.google_fonts_href }}" rel="stylesheet">
 <style>
-  .q-group { margin-bottom: 26px; }
-  .q-group-title { font-size: 13px; font-weight: 600; color: var(--doc-ink); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--doc-line); }
-  .q-fields { display: grid; grid-template-columns: 1fr; gap: 16px; }
-  .q-fields.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .q-field { margin-bottom: 16px; }
-  .q-fields .q-field { margin-bottom: 0; }
-  .q-field.full { grid-column: 1 / -1; }
-  .q-field label { display: block; font-size: 12.5px; font-weight: 500; color: var(--doc-ink-soft); margin-bottom: 6px; }
-  .q-field input, .q-field textarea {
-    width: 100%; border: 1px solid var(--doc-line); border-radius: 10px; padding: 13px 14px;
-    font-size: 15px; font-family: inherit; color: var(--doc-ink); background: #fff;
-  }
-  .q-radio-group { display: flex; gap: 18px; align-items: center; min-height: 48px; }
-  .q-radio-option { display: inline-flex !important; align-items: center; gap: 7px; margin: 0 !important; color: var(--doc-ink); }
-  .q-radio-option input { width: 18px; height: 18px; padding: 0; }
-  @media (max-width: 480px) {
-    .q-fields.two { grid-template-columns: 1fr; }
-    .q-field input, .q-field textarea { padding: 14px; font-size: 16px; }
-    .q-radio-group { min-height: 44px; }
-  }
-  .q-field input:focus, .q-field textarea:focus { outline: none; border-color: var(--doc-brand); }
-  .q-field textarea { resize: vertical; min-height: 70px; }
+:root { {% include '_document_tokens.html' %} }
+{% include '_document_base.html' %}
+[hidden] { display:none !important; }
+.q-layout > * { min-width:0; }
+.q-layout { display:grid; grid-template-columns:240px minmax(0,1fr); gap:24px; align-items:start; }
+.q-aside { position:sticky; top:20px; }
+.q-progress { padding:20px; margin-bottom:12px; }
+.q-progress progress { width:100%; height:7px; accent-color:var(--primary); margin-top:12px; }
+.q-nav { display:grid; gap:4px; }
+.q-nav button { display:flex; align-items:center; gap:10px; text-align:left; padding:12px; border:0; border-radius:var(--radius-md); color:var(--text-secondary); background:transparent; cursor:pointer; font-size:13px; line-height:1.4; }
+.q-nav button[aria-current="step"] { color:var(--primary-dark); background:var(--primary-soft); font-weight:600; }
+.q-nav-num { display:grid; place-items:center; border:1px solid var(--border-strong); border-radius:8px; width:28px; height:28px; flex-shrink:0; font-size:12px; }
+.q-nav button:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+.q-section { padding:clamp(20px,3vw,32px); margin-bottom:16px; }
+.q-section-head { padding-bottom:24px; border-bottom:1px solid var(--border); margin-bottom:24px; }
+.q-section-head h2 { margin:8px 0; }
+.q-fields { display:grid; grid-template-columns:1fr; gap:24px 20px; }
+.q-fields.two { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.q-field { min-width:0; }
+.q-field.full { grid-column:1/-1; }
+.q-field label, .q-field legend { display:block; margin-bottom:8px; font-size:14px; font-weight:500; line-height:1.5; }
+.q-field input:not([type=radio]), .q-field textarea, .q-field select { width:100%; border:1px solid var(--border-strong); background:var(--surface); color:var(--text-primary); border-radius:var(--radius-md); padding:12px 14px; min-height:46px; font-size:16px; line-height:1.5; }
+.q-field textarea { min-height:108px; resize:vertical; }
+.q-field input:focus, .q-field textarea:focus, .q-field select:focus { outline:2px solid var(--primary); outline-offset:2px; }
+.q-field input:read-only:not([type=radio]), .q-field textarea:read-only { background:var(--surface-2); }
+.q-help { margin:8px 0 0; font-size:12.5px; color:var(--text-secondary); line-height:1.55; }
+.q-details { padding:18px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-md); }
+.q-radio { display:flex; flex-wrap:wrap; gap:10px; }
+.q-radio label { display:flex; align-items:center; gap:8px; min-height:44px; padding:8px 14px; border:1px solid var(--border-strong); border-radius:var(--radius-md); margin:0; cursor:pointer; }
+.q-radio input { accent-color:var(--primary); width:18px; height:18px; }
+.q-radio label:has(:checked) { background:var(--primary-soft); border-color:var(--primary); }
+fieldset.q-field { border:0; padding:0; margin:0; }
+.q-actions { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin:20px 0; }
+.q-actions-right { display:flex; flex-wrap:wrap; gap:8px; }
+.q-notice { padding:18px 22px; margin-bottom:20px; }
+.q-notice h2 { margin-bottom:6px; }
+.q-status { min-height:22px; color:var(--text-secondary); margin:12px 0; }
+.q-status.error { color:var(--danger-text); }
+.q-intro { max-width:74ch; margin-top:14px; }
+@media(max-width:760px) {
+ .q-layout { grid-template-columns:1fr; gap:12px; }
+ .q-aside { position:static; }
+ .q-progress { padding:16px; }
+ .q-nav { display:flex; overflow-x:auto; padding-bottom:8px; }
+ .q-nav button { flex:0 0 auto; max-width:220px; }
+ .q-fields.two { grid-template-columns:1fr; }
+ .q-actions-right { width:100%; }
+ .q-actions-right .btn { flex:1; }
+}
+@media print { .q-aside,.q-actions,.q-status {display:none;} .q-layout {display:block;} .q-section[hidden] {display:block !important;} }
 </style>
 </head>
 <body>
-
-<div class="doc-wrap">
-  <div class="doc-shell">
-
-    <div class="doc-side">
-      <div class="doc-side-brand">
-        <div class="glyph">{{ brand.initial }}</div>
-        <div>
-          <div class="name">{{ brand.display_name }}</div>
-          <div class="tag">PHOTOGRAPHY &amp; FILMS</div>
-        </div>
-      </div>
-      <div class="doc-side-meta">
-        <div class="type">Cuestionario</div>
-        <div class="id">{{ questionnaire.id }}</div>
-        <div class="date">{{ questionnaire.created }}</div>
-      </div>
-      <div class="doc-side-total">
-        <div class="label">{{ questionnaire.name or 'Cuestionario de boda' }}</div>
-        <div class="amount" style="font-size:22px;font-weight:500;">
-          {% if client %}{{ client.first_name }} {{ client.last_name }}{% endif %}
-        </div>
-      </div>
-      <div class="doc-side-status">
-        {% if questionnaire.status == 'Respondido' %}
-        <span class="doc-pill green"><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>Respondido</span>
-        {% else %}
-        <span class="doc-pill amber">Pendiente</span>
-        {% endif %}
-      </div>
-      <div class="doc-side-footer">{{ brand.email }}<br>{{ brand.phone }}</div>
+{% import '_document_parts.html' as ui with context %}
+{% set answered = questionnaire.status == 'Respondido' %}
+{{ ui.topbar(theme, 'Cuestionario', '', 'Vista previa' if preview else ('Respondido' if answered else 'Por completar'), 'success' if answered else 'neutral') }}
+<main class="doc-page doc-body" style="padding-top:24px;">
+  {% if preview %}<div class="card q-notice"><strong>Vista previa de tu plantilla guardada.</strong> Puedes probar los campos; las respuestas no se enviarán. <a href="/settings/questionnaires">Volver al editor</a></div>{% endif %}
+  <section class="hero-card">
+    <div class="hero-card__text">
+      <p class="hero-card__eyebrow">Preparemos su gran día</p>
+      <h1 class="doc-h1" style="max-width:none;">{{ questionnaire.name or 'Cuestionario de boda' }}</h1>
+      <p class="doc-text q-intro">{{ questionnaire.description or 'Cada detalle nos ayuda a contar su historia. Completen lo que ya sepan; pueden guardar sus avances y volver a este enlace.' }}</p>
+      {% if client or job %}<div class="hero-card__meta">
+        {{ ui.meta_item('Preparado para', ((client.first_name or '') ~ ' ' ~ (client.last_name or '')) if client else '', 'users') }}
+        {{ ui.meta_item('Evento', job.nombre if job else '', 'sparkle') }}
+        {{ ui.meta_item('Fecha', job.boda_date if job else '', 'calendar') }}
+      </div>{% endif %}
     </div>
-
-    <div class="doc-main">
-
-      {% if questionnaire.status == 'Respondido' %}
-      <div class="doc-section" style="text-align:center;">
-        <span class="doc-pill green" style="margin-bottom:14px;">
-          <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-          Respuestas enviadas
-        </span>
-        <p style="font-size:12.5px;color:var(--doc-mute);">Gracias! Recibimos tus respuestas el {{ questionnaire.answered_at[:10] if questionnaire.answered_at else '' }}.</p>
-      </div>
-      {% endif %}
-
-      <form id="questionnaire-form" onsubmit="submitQuestionnaireForm(event)">
-        {% for group in groups %}
-        <div class="q-group">
-          <div class="q-group-title">{{ group.group }}</div>
-          <div class="q-fields {% if group.columns == 2 %}two{% endif %}">
-          {% for field in group.fields %}
-          <div class="q-field {% if field.full %}full{% endif %}">
-            <label for="qf-{{ field.id }}">{{ field.label }}</label>
-            {% if field.type == 'textarea' %}
-            <textarea id="qf-{{ field.id }}" name="{{ field.id }}" {% if field.required and questionnaire.status != 'Respondido' %}required{% endif %} {{ 'readonly' if questionnaire.status == 'Respondido' else '' }}>{{ answers.get(field.id, '') }}</textarea>
-            {% elif field.type == 'radio' %}
-            <div class="q-radio-group" id="qf-{{ field.id }}">
-              {% for option in field.options %}
-              <label class="q-radio-option">
-                <input type="radio" name="{{ field.id }}" value="{{ option }}" {% if answers.get(field.id) == option %}checked{% endif %} {% if field.required and questionnaire.status != 'Respondido' %}required{% endif %} {% if questionnaire.status == 'Respondido' %}disabled{% endif %}>
-                <span>{{ option }}</span>
-              </label>
-              {% endfor %}
-            </div>
-            {% else %}
-            <input type="text" id="qf-{{ field.id }}" name="{{ field.id }}" value="{{ answers.get(field.id, '') }}" {% if field.required and questionnaire.status != 'Respondido' %}required{% endif %} {{ 'readonly' if questionnaire.status == 'Respondido' else '' }}>
-            {% endif %}
+  </section>
+  {% if answered %}<div class="card card--accent q-notice" role="status"><h2 class="doc-h2">Respuestas enviadas</h2><p class="doc-text">¡Gracias! Recibimos sus respuestas{{ ' el ' ~ questionnaire.answered_at[:10] if questionnaire.answered_at else '' }}. Aquí pueden consultarlas cuando lo necesiten.</p></div>{% endif %}
+  <div class="q-layout">
+    <aside class="q-aside" aria-label="Progreso y secciones">
+      <div class="card q-progress"><div class="doc-label">{{ 'Sus respuestas' if answered else 'Su progreso' }}</div><p id="q-progress-text" class="doc-text" style="margin-top:8px;"></p><progress id="q-progress" value="0" max="100" aria-label="Preguntas respondidas"></progress></div>
+      <nav class="q-nav" aria-label="Secciones del cuestionario">{% for group in groups %}<button type="button" data-step="{{ loop.index0 }}" aria-controls="q-section-{{ loop.index0 }}"><span class="q-nav-num">{{ '%02d'|format(loop.index) }}</span><span>{{ group.group }}</span></button>{% endfor %}</nav>
+    </aside>
+    <div>
+      <form id="questionnaire-form" novalidate>
+      {% for group in groups %}
+      <section class="card q-section" id="q-section-{{ loop.index0 }}" aria-labelledby="q-heading-{{ loop.index0 }}">
+        <div class="q-section-head"><div class="doc-label">Sección {{ loop.index }} de {{ groups|length }}</div><h2 class="doc-h2" id="q-heading-{{ loop.index0 }}" tabindex="-1">{{ group.group }}</h2><p class="doc-text">{{ group.description or 'Los campos marcados con * son obligatorios. El resto es opcional.' }}</p></div>
+        <div class="q-fields {{ 'two' if group.columns == 2 else '' }}">
+        {% for field in group.fields %}
+          {% set fid = 'qf-' ~ field.id %}
+          {% if field.type == 'radio' %}<fieldset class="q-field {{ 'full' if field.full else '' }}" data-field="{{ field.id }}"><legend>{{ field.label }}{% if field.required and '*' not in field.label %} *{% endif %}</legend>
+            <div class="q-radio">{% for option in field.options %}<label><input type="radio" name="{{ field.id }}" value="{{ option }}" {% if answers.get(field.id) == option %}checked{% endif %} {% if field.required and not answered %}required{% endif %} {% if answered %}disabled{% endif %} aria-describedby="{{ fid }}-help"><span>{{ 'Sí' if option == 'Yes' else option }}</span></label>{% endfor %}</div>
+            <p class="q-help" id="{{ fid }}-help">{{ field.help or '' }}</p>
+          </fieldset>{% else %}
+          <div class="q-field {{ 'full' if field.full else '' }}" data-field="{{ field.id }}">
+            <label for="{{ fid }}">{{ field.label }}{% if field.required and '*' not in field.label %} *{% endif %}</label>
+            {% if field.type == 'textarea' %}<textarea id="{{ fid }}" name="{{ field.id }}" rows="3" maxlength="20000" {% if field.required and not answered %}required{% endif %} {% if answered %}readonly{% endif %} aria-describedby="{{ fid }}-help">{{ answers.get(field.id, '') }}</textarea>
+            {% elif field.type == 'select' %}<select id="{{ fid }}" name="{{ field.id }}" {% if field.required and not answered %}required{% endif %} {% if answered %}disabled{% endif %} aria-describedby="{{ fid }}-help"><option value="">Seleccionen una opción</option>{% for option in field.options %}<option {% if answers.get(field.id) == option %}selected{% endif %}>{{ option }}</option>{% endfor %}</select>
+            {% else %}<input type="{{ field.type if field.type in ['text','email','tel','date','time','number'] else 'text' }}" id="{{ fid }}" name="{{ field.id }}" value="{{ answers.get(field.id, '') }}" maxlength="20000" {% if field.required and not answered %}required{% endif %} {% if answered %}readonly{% endif %} aria-describedby="{{ fid }}-help">{% endif %}
+            <p class="q-help" id="{{ fid }}-help">{{ field.help or '' }}</p>
+          </div>{% endif %}
+          {% if field.details %}
+          {% set details_visible = answers.get(field.id) in field.details.when %}
+          <div class="q-field q-details full" data-details-for="{{ field.id }}" data-when='{{ field.details.when|tojson }}' {% if not details_visible %}hidden{% endif %}>
+            <label for="{{ fid }}-details">{{ field.details.label }} <span class="q-help">(opcional)</span></label>
+            <textarea id="{{ fid }}-details" name="{{ field.id }}__details" rows="3" maxlength="20000" {% if answered %}readonly{% endif %} {% if not details_visible %}disabled{% endif %} aria-describedby="{{ fid }}-details-help">{{ answers.get(field.id ~ '__details', '') }}</textarea>
+            <p class="q-help" id="{{ fid }}-details-help">{{ field.details.help or '' }}</p>
           </div>
-          {% endfor %}
-          </div>
-        </div>
+          {% endif %}
         {% endfor %}
-
-        {% if questionnaire.status != 'Respondido' %}
-        <div class="doc-actions">
-          <button type="submit" class="doc-btn primary full">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 6 9 17l-5-5"/></svg>
-            Enviar respuestas
-          </button>
-          <p class="doc-hint">Puedes guardar y volver mas tarde si te falta informacion; solo vuelve a este enlace.</p>
         </div>
-        {% endif %}
+      </section>
+      {% endfor %}
+      <div class="q-actions">
+        <button type="button" class="btn btn--quiet" id="q-previous">← Anterior</button>
+        <div class="q-actions-right">
+          {% if not answered %}<button type="button" class="btn btn--secondary" id="q-save">Guardar avance</button>{% endif %}
+          <button type="button" class="btn btn--primary" id="q-next">Continuar →</button>
+          {% if not answered %}<button type="submit" class="btn btn--primary" id="q-submit">Enviar respuestas</button>{% endif %}
+        </div>
+      </div>
+      <p class="q-status" id="q-status" role="status" aria-live="polite">{% if questionnaire.saved_at and not answered %}Tienen un avance guardado. Pueden continuar donde lo dejaron.{% endif %}</p>
+      {% if not answered %}<p class="q-help">* Pregunta obligatoria. Usen «Guardar avance» para continuar después desde este mismo enlace.</p>{% endif %}
+      <p class="q-help">Completar este cuestionario no autoriza la publicación de imágenes. Las preferencias de privacidad se confirmarán por separado.</p>
       </form>
-
-      <div class="doc-footer">{{ brand.display_name }} &middot; {{ brand.email }} &middot; {{ brand.phone }}</div>
-
     </div>
-
   </div>
-</div>
-
+</main>
+{{ ui.doc_footer(theme) }}
 <script>
-var QUESTIONNAIRE_ID = {{ questionnaire.id|tojson }};
-function submitQuestionnaireForm(event) {
-  event.preventDefault();
-  var form = document.getElementById('questionnaire-form');
-  var formData = new FormData(form);
-  var answers = {};
-  formData.forEach(function(value, key) { answers[key] = value; });
-
-  var btn = form.querySelector('button[type=submit]');
-  btn.disabled = true;
-  btn.textContent = 'Enviando...';
-
-  fetch('/api/questionnaires/' + QUESTIONNAIRE_ID + '/submit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ answers: answers })
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.ok) {
-        location.reload();
-      } else {
-        alert('Error: ' + (data.error || 'desconocido'));
-        btn.disabled = false;
-        btn.textContent = 'Enviar respuestas';
-      }
-    })
-    .catch(function() {
-      alert('Error de red');
-      btn.disabled = false;
-      btn.textContent = 'Enviar respuestas';
+(() => {
+  const form = document.getElementById('questionnaire-form');
+  const sections = [...form.querySelectorAll('.q-section')];
+  const nav = [...document.querySelectorAll('[data-step]')];
+  const fields = [...form.querySelectorAll('[data-field]')];
+  const details = [...form.querySelectorAll('[data-details-for]')];
+  const previous = document.getElementById('q-previous'), next = document.getElementById('q-next');
+  const submit = document.getElementById('q-submit'), save = document.getElementById('q-save');
+  const status = document.getElementById('q-status');
+  const preview = {{ (preview or false)|tojson }};
+  let step = 0, dirty = false, saving = false, revision = 0;
+  function showStep(index, focus = true) {
+    step = index;
+    sections.forEach((section, i) => section.hidden = i !== step);
+    nav.forEach((button, i) => { if (i === step) button.setAttribute('aria-current', 'step'); else button.removeAttribute('aria-current'); });
+    previous.hidden = step === 0; next.hidden = step === sections.length - 1;
+    if (submit) submit.hidden = step !== sections.length - 1;
+    if (focus) sections[step].querySelector('h2').focus();
+  }
+  function progress() {
+    const count = fields.filter(field => [...field.querySelectorAll('input,textarea,select')].some(input => input.type === 'radio' ? input.checked : input.value.trim())).length;
+    document.getElementById('q-progress').value = fields.length ? count / fields.length * 100 : 0;
+    document.getElementById('q-progress-text').textContent = `${count} de ${fields.length} preguntas respondidas`;
+  }
+  function updateDetails() {
+    details.forEach(box => {
+      const answer = form.elements.namedItem(box.dataset.detailsFor)?.value || '';
+      box.hidden = !JSON.parse(box.dataset.when).includes(answer);
+      box.querySelector('textarea').disabled = box.hidden;
     });
-}
+  }
+  nav.forEach(button => button.addEventListener('click', () => showStep(Number(button.dataset.step))));
+  previous.addEventListener('click', () => showStep(step - 1));
+  next.addEventListener('click', () => showStep(step + 1));
+  form.addEventListener('input', () => { dirty = true; revision++; updateDetails(); progress(); status.textContent = 'Cambios sin guardar'; });
+  window.addEventListener('beforeunload', event => { if (dirty && !preview) { event.preventDefault(); event.returnValue = ''; } });
+  async function send(draft) {
+    if (saving) return;
+    if (!draft) {
+      const invalid = [...form.elements].find(input => input.willValidate && !input.validity.valid);
+      if (invalid) { showStep(sections.indexOf(invalid.closest('.q-section'))); invalid.reportValidity(); return; }
+    }
+    if (preview) { status.textContent = 'Esta es una vista previa. No se guardaron ni enviaron respuestas.'; return; }
+    saving = true; save.disabled = true; submit.disabled = true;
+    const sentRevision = revision;
+    status.classList.remove('error'); status.textContent = draft ? 'Guardando avance…' : 'Enviando respuestas…';
+    const answers = Object.fromEntries(new FormData(form));
+    if (!draft) form.inert = true;
+    try {
+      const response = await fetch({{ ('/api/questionnaires/' ~ questionnaire.id ~ '/submit')|tojson }}, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({answers, draft})});
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || 'No se pudo guardar. Intenten de nuevo.');
+      dirty = revision !== sentRevision;
+      if (!draft) { dirty = false; location.reload(); return; }
+      status.textContent = dirty ? 'Avance guardado. Hay cambios nuevos sin guardar.' : 'Avance guardado. Pueden cerrar esta página y volver al mismo enlace.';
+    } catch (error) { status.classList.add('error'); status.textContent = error.message === 'Failed to fetch' ? 'No hay conexión. Sus respuestas siguen aquí; intenten guardar de nuevo.' : error.message; }
+    finally { saving = false; form.inert = false; save.disabled = false; submit.disabled = false; }
+  }
+  if (save) save.addEventListener('click', () => send(true));
+  form.addEventListener('submit', event => { event.preventDefault(); if (submit) send(false); });
+  showStep(0, false); updateDetails(); progress();
+})();
 </script>
-
 </body>
 </html>

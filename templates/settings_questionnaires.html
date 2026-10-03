@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% block title %}Cuestionarios · {{ current_tenant.name }} CRM{% endblock %}
+{% block header %}Cuestionarios{% endblock %}
+{% block topbar_title %}Settings{% endblock %}
+{% block content %}
+<style>
+.qe-layout > * { min-width:0; }
+.qe-layout { display:grid; grid-template-columns:240px minmax(0,1fr); gap:20px; align-items:start; }
+.qe-sidebar { position:sticky; top:80px; }
+.qe-toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.qe-card { padding:22px; margin-bottom:16px; }
+.qe-layout label { display:block; font-size:12px; font-weight:500; margin-bottom:6px; }
+.qe-layout input:not([type=checkbox]), .qe-layout textarea, .qe-layout select { width:100%; }
+.qe-section-link { display:flex; gap:10px; width:100%; text-align:left; border:0; background:transparent; color:var(--sn-muted); padding:12px; border-radius:var(--sn-radius-md); cursor:pointer; font-size:13px; }
+.qe-section-link[aria-current=true] { background:var(--sn-mint); color:var(--sn-ink); font-weight:600; }
+.qe-section-link span { flex:1; overflow-wrap:anywhere; }
+.qe-question { padding:18px; border:1px solid var(--sn-line); border-radius:var(--sn-radius-md); background:var(--sn-white); margin:14px 0; }
+.qe-question-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
+.qe-question-grid { display:grid; grid-template-columns:1fr 190px; gap:14px; }
+.qe-question-grid .wide { grid-column:1/-1; }
+.qe-flags { display:flex; gap:18px; flex-wrap:wrap; margin-top:14px; }
+.qe-flags label,.qe-apply { display:flex !important; align-items:flex-start; gap:8px; line-height:1.5; }
+.qe-flags input,.qe-apply input { margin-top:3px; accent-color:var(--sn-green); }
+.qe-status { min-height:22px; font-size:13px; margin:10px 0; }
+.qe-footer { position:sticky; bottom:0; background:var(--sn-white); border:1px solid var(--sn-line); border-radius:var(--sn-radius-md); padding:16px; z-index:2; }
+.qe-layout button:focus-visible { outline:2px solid var(--sn-green); outline-offset:2px; }
+@media(max-width:800px) { .qe-layout {grid-template-columns:1fr;} .qe-sidebar {position:static;} #qe-sections {display:flex; overflow-x:auto;} .qe-section-link {min-width:180px;} .qe-question-grid {grid-template-columns:1fr;} .qe-card {padding:16px;} .qe-question-head {flex-wrap:wrap;} }
+</style>
+<section class="sn-page">
+  <div class="sn-page-head">
+    <div><div class="sn-breadcrumbs"><a href="/settings">Settings</a> / Cuestionarios</div><h1 class="sn-page-title" style="margin-top:8px;">Cuestionarios</h1><p class="sn-muted" style="margin-top:8px;">Tu forma de conocer cada historia. Personaliza las preguntas que reciben tus clientes.</p></div>
+    <a class="sn-btn" href="/settings/questionnaires/preview" target="_blank" rel="noopener">Ver plantilla guardada ↗</a>
+  </div>
+  <form id="qe-form" class="qe-layout">
+    <aside class="qe-sidebar">
+      <p class="sn-muted" id="qe-count" style="padding:12px;"></p>
+      <nav id="qe-sections" aria-label="Secciones de la plantilla"></nav>
+      <button type="button" class="sn-btn" id="qe-add-section" style="margin-top:12px;">+ Agregar sección</button>
+    </aside>
+    <div>
+      <div class="sn-card white qe-card">
+        <div class="form-group"><label for="qe-name">Título del cuestionario</label><input id="qe-name" class="form-input" required maxlength="160"></div>
+        <div class="form-group" style="margin-bottom:0;"><label for="qe-description">Mensaje de bienvenida</label><textarea id="qe-description" class="form-input" rows="3" maxlength="2000"></textarea></div>
+      </div>
+      <div id="qe-editor"></div>
+      <div class="qe-footer">
+        <label class="qe-apply"><input type="checkbox" id="qe-apply"><span>Aplicar también a cuestionarios pendientes de esta cuenta.<br><span class="sn-muted">Conserva sus respuestas guardadas. Los cuestionarios ya respondidos no cambian.</span></span></label>
+        <p class="sn-muted" style="font-size:12px;margin:10px 0;">La plantilla se usa en los nuevos cuestionarios de leads, trabajos y envíos automáticos.</p>
+        <div class="qe-toolbar"><button type="submit" class="sn-btn sn-btn-primary" id="qe-save">Guardar plantilla</button><button type="button" class="sn-btn" id="qe-undo" disabled>Deshacer último cambio de estructura</button></div>
+        <p id="qe-status" class="qe-status" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+  </form>
+</section>
+<script>
+(() => {
+ let model = {{ template|tojson }}, selected = 0, dirty = false, revision = 0, undo = null, inputId = 0;
+ const form = document.getElementById('qe-form'), editor = document.getElementById('qe-editor');
+ const nav = document.getElementById('qe-sections'), status = document.getElementById('qe-status');
+ const name = document.getElementById('qe-name'), intro = document.getElementById('qe-description');
+ const types = {text:'Texto corto', textarea:'Texto largo', email:'Correo', tel:'Teléfono', date:'Fecha', time:'Hora', number:'Número', radio:'Una opción', select:'Lista desplegable'};
+ function el(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text) node.textContent = text; return node; }
+ function changed(resetUndo = true) {
+   if (resetUndo) { undo = null; document.getElementById('qe-undo').disabled = true; }
+   dirty = true; revision++; status.textContent = 'Cambios sin guardar';
+ }
+ function structural(action) { undo = {model:JSON.parse(JSON.stringify(model)), selected}; action(); changed(false); render(); document.getElementById('qe-undo').disabled = false; }
+ function button(text, action, disabled=false, label='') { const node=el('button','sn-btn sn-btn-sm',text); node.type='button'; node.disabled=disabled; if(label) node.setAttribute('aria-label',label); node.addEventListener('click',action); return node; }
+ function input(parent, title, value, oninput, options={}) {
+   const wrap=el('div',options.wide ? 'wide' : ''); const label=el('label','',title);
+   const control=el(options.select ? 'select' : options.area ? 'textarea' : 'input','form-input');
+   if(options.select) Object.entries(options.select).forEach(([value,text])=>{const opt=el('option','',text);opt.value=value;control.append(opt);});
+   if(options.area) control.rows=2;
+   control.value=value || ''; if(options.required) control.required=true; if(options.max) control.maxLength=options.max;
+   control.id='qe-input-'+(++inputId); label.htmlFor=control.id;
+   control.addEventListener('input',()=>{oninput(control.value);changed();}); wrap.append(label,control);parent.append(wrap);return control;
+ }
+ function renderNav() {
+   nav.replaceChildren(); model.questions.forEach((group,i)=>{
+     const b=el('button','qe-section-link'); b.type='button';b.setAttribute('aria-current',String(i===selected));
+     b.append(el('small','',String(i+1).padStart(2,'0')),el('span','',group.group || 'Nueva sección'),el('small','',String(group.fields.length)));
+     b.addEventListener('click',()=>{selected=i;render();});nav.append(b);
+   });
+   document.getElementById('qe-count').textContent=`${model.questions.reduce((n,g)=>n+g.fields.length,0)} preguntas · ${model.questions.length} secciones`;
+ }
+ function render() {
+   name.value=model.name; intro.value=model.description; renderNav(); editor.replaceChildren();
+   const group=model.questions[selected]; if(!group) return;
+   const card=el('section','sn-card white qe-card');
+   const tools=el('div','qe-toolbar');tools.style.marginBottom='16px';
+   tools.append(button('↑',()=>structural(()=>{[model.questions[selected-1],model.questions[selected]]=[group,model.questions[selected-1]];selected--;}),selected===0,'Subir sección'),button('↓',()=>structural(()=>{[model.questions[selected+1],model.questions[selected]]=[group,model.questions[selected+1]];selected++;}),selected===model.questions.length-1,'Bajar sección'),button('Eliminar sección',()=>structural(()=>{model.questions.splice(selected,1);selected=Math.max(0,selected-1);}),model.questions.length===1));card.append(tools);
+   input(card,'Nombre de sección',group.group,value=>{group.group=value;renderNav();},{required:true,max:160});
+   input(card,'Descripción de sección',group.description,value=>group.description=value,{area:true,max:2000});
+   group.fields.forEach((field,index)=>{
+     const row=el('div','qe-question'), head=el('div','qe-question-head');
+     head.append(el('strong','',`Pregunta ${index+1}`)); const actions=el('div','qe-toolbar');
+     actions.append(button('↑',()=>structural(()=>{[group.fields[index-1],group.fields[index]]=[field,group.fields[index-1]];}),index===0,`Subir pregunta ${index+1}`),button('↓',()=>structural(()=>{[group.fields[index+1],group.fields[index]]=[field,group.fields[index+1]];}),index===group.fields.length-1,`Bajar pregunta ${index+1}`),button('Eliminar',()=>structural(()=>group.fields.splice(index,1)),false,`Eliminar pregunta ${index+1}`));head.append(actions);row.append(head);
+     const grid=el('div','qe-question-grid');
+     input(grid,'Pregunta',field.label,value=>field.label=value,{area:true,required:true,max:1000});
+     const kind=input(grid,'Tipo de respuesta',field.type,value=>{field.type=value;if(['radio','select'].includes(value)&&!field.options)field.options=['Sí','No','Por confirmar'];},{select:types});
+     kind.addEventListener('change',render);
+     input(grid,'Texto de ayuda (opcional)',field.help,value=>field.help=value,{area:true,wide:true,max:2000});
+     if(['radio','select'].includes(field.type)) {
+       const optionsInput = input(grid,'Opciones (una por línea)',(field.options||[]).join('\n'),value=>{
+         field.options=value.split('\n').map(v=>v.trim()).filter(Boolean);
+         if(field.details) field.details.when=field.details.when.filter(option=>field.options.includes(option));
+       },{area:true,wide:true,required:true});
+       optionsInput.addEventListener('change',render);
+       const detailToggle=el('label','qe-apply wide'), toggle=el('input'); toggle.type='checkbox'; toggle.checked=!!field.details;
+       detailToggle.append(toggle,document.createTextNode('Mostrar un campo de detalles según la respuesta'));
+       toggle.addEventListener('change',()=>{
+         if(toggle.checked) field.details={label:'Detalles',help:'',when:[field.options[0]].filter(Boolean)}; else delete field.details;
+         changed();render();
+       });grid.append(detailToggle);
+       if(field.details) {
+         input(grid,'Título del campo de detalles',field.details.label,value=>field.details.label=value,{required:true,wide:true,max:1000});
+         input(grid,'Ayuda para los detalles',field.details.help,value=>field.details.help=value,{area:true,wide:true,max:2000});
+         const triggers=el('div','wide');triggers.append(el('p','sn-muted','Mostrar detalles al elegir:'));
+         const triggerList=el('div','qe-flags');
+         for(const option of field.options||[]) {
+           const label=el('label'), check=el('input');check.type='checkbox';check.checked=field.details.when.includes(option);
+           check.addEventListener('change',()=>{field.details.when=check.checked ? [...field.details.when,option] : field.details.when.filter(value=>value!==option);changed();});
+           label.append(check,document.createTextNode(option));triggerList.append(label);
+         }
+         triggers.append(triggerList);grid.append(triggers);
+       }
+     }
+     row.append(grid);const flags=el('div','qe-flags');
+     for(const [key,title] of [['required','Obligatoria'],['full','Usar todo el ancho']]) {const label=el('label'),check=el('input');check.type='checkbox';check.checked=!!field[key];check.addEventListener('change',()=>{field[key]=check.checked;changed();});label.append(check,document.createTextNode(title));flags.append(label);}
+     row.append(flags);card.append(row);
+   });
+   card.append(button('+ Agregar pregunta',()=>{structural(()=>group.fields.push({id:'q_'+crypto.randomUUID().replaceAll('-',''),label:'',help:'',type:'textarea',required:false,full:true}));editor.querySelector('.qe-question:last-of-type textarea').focus();}));editor.append(card);
+ }
+ name.addEventListener('input',()=>{model.name=name.value;changed();});intro.addEventListener('input',()=>{model.description=intro.value;changed();});
+ document.getElementById('qe-add-section').addEventListener('click',()=>structural(()=>{model.questions.push({group:'Nueva sección',description:'',columns:2,fields:[{id:'q_'+crypto.randomUUID().replaceAll('-',''),label:'Nueva pregunta',type:'textarea',required:false,full:true}]});selected=model.questions.length-1;}));
+ document.getElementById('qe-undo').addEventListener('click',()=>{if(!undo)return;model=undo.model;selected=undo.selected;undo=null;changed();render();document.getElementById('qe-undo').disabled=true;});
+ window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
+ form.addEventListener('submit',async event=>{
+   event.preventDefault();
+   const invalid=model.questions.findIndex(g=>!g.group.trim()||!g.fields.length||g.fields.some(f=>!f.label.trim()||(['radio','select'].includes(f.type)&&!f.options?.length)));
+   if(invalid>=0){selected=invalid;render();status.textContent='Cada sección necesita un nombre y al menos una pregunta completa.';form.reportValidity();return;}
+   const save=document.getElementById('qe-save');save.disabled=true;const sentRevision=revision;
+   status.textContent='Guardando…';
+   try {
+     const response=await fetch('/api/settings/questionnaires',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...model,apply_pending:document.getElementById('qe-apply').checked})});
+     const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'No se pudo guardar.');
+     dirty=revision!==sentRevision;
+     status.textContent=dirty?'Plantilla guardada. Hay cambios nuevos sin guardar.':`Plantilla guardada.${data.updated ? ' '+data.updated+' cuestionarios pendientes actualizados.' : ' Se usará en nuevos cuestionarios.'}`;
+     document.getElementById('qe-apply').checked=false;
+   } catch(error){status.textContent=error.message==='Failed to fetch'?'No hay conexión. Tus cambios siguen aquí; intenta guardar de nuevo.':error.message;}
+   finally{save.disabled=false;}
+ });
+ render();
+})();
+</script>
+{% endblock %}

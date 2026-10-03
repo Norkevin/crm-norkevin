@@ -3522,6 +3522,7 @@ def lead_detail(lead_id):
                           payments=payments_del_lead,
                           contracts=contracts_del_lead,
                           questionnaires=questionnaires_del_lead,
+                          questionnaire_template_name=_questionnaire_template()['name'],
                           files=files_del_lead,
                           job_vinculado=job_vinculado,
                           mail_log=mail_log,
@@ -3813,10 +3814,13 @@ def api_lead_create_questionnaire(lead_id):
             'created': datetime.now().isoformat()[:10],
             'tenant_id': lead.get('tenant_id') or get_current_tenant_id(),
         }
-    questionnaire['name'] = data.get('name') or questionnaire.get('name') or 'Cuestionario de Bodas Generico'
-    questionnaire['template_name'] = 'Cuestionario de Bodas Generico'
-    questionnaire['questions'] = data.get('questions') or questionnaire.get('questions') or QUESTIONNAIRE_QUESTIONS
-    questionnaire['status'] = data.get('status') or 'Draft'
+    template = _questionnaire_template(lead.get('tenant_id'))
+    questionnaire['name'] = data.get('name') or questionnaire.get('name') or template['name']
+    questionnaire.setdefault('template_name', template['name'])
+    questionnaire.setdefault('description', template['description'])
+    questionnaire['questions'] = data.get('questions') or questionnaire.get('questions') or template['questions']
+    if questionnaire.get('status') != 'Respondido':
+        questionnaire['status'] = data.get('status') or 'Draft'
     store.upsert('questionnaires', questionnaire)
 
     questionnaire_path = f"/questionnaires/{questionnaire['id']}"
@@ -4774,6 +4778,7 @@ def job_detail(job_id):
                           quotes=quotes,
                           contracts=contracts,
                           questionnaires=questionnaires,
+                          questionnaire_template_name=_questionnaire_template()['name'],
                           files=files,
                           email_templates=email_templates,
                           email_template_names=email_template_names,
@@ -8605,6 +8610,56 @@ def api_fix_secondary_clients():
                     'renombrados': renamed, 'ubicaciones': ubicaciones})
 
 
+def _questionnaire_template(tenant_id=None):
+    from copy import deepcopy
+    from src.questionnaire_templates import DEFAULT_QUESTIONS
+    saved = get_settings(tenant_id).get('questionnaire_template')
+    return deepcopy(saved if saved is not None else {
+        'name': 'Cuestionario previo a la boda',
+        'description': 'Cada detalle nos ayuda a preparar su boda. Respondan lo que ya sepan: no necesitan tener todo definido. Los horarios pueden ser tentativos y cambiar más adelante; no hay problema. Pueden dejar datos pendientes, guardar sus avances y volver a este enlace. Si algo no aplica o prefieren hablarlo en privado, indíquenlo.',
+        'questions': DEFAULT_QUESTIONS,
+    })
+
+
+@app.route('/settings/questionnaires')
+def settings_questionnaires():
+    return render_template('settings_questionnaires.html', template=_questionnaire_template())
+
+
+@app.route('/settings/questionnaires/preview')
+def settings_questionnaires_preview():
+    template = _questionnaire_template()
+    return render_template('questionnaire_view.html', questionnaire={
+        'id': 'preview', 'name': template['name'], 'description': template['description'],
+        'status': 'Draft',
+    }, groups=template['questions'], answers={}, job=None, client=None,
+        brand=resolve_pdf_brand(get_current_tenant_id()), theme=_document_theme(get_current_tenant_id()), preview=True)
+
+
+@app.route('/api/settings/questionnaires', methods=['POST'])
+def api_settings_questionnaires_save():
+    from src.questionnaire_templates import validate_template
+    data = request.get_json(silent=True)
+    try:
+        template = validate_template(data)
+    except ValueError as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 400
+    settings = get_settings()
+    settings['questionnaire_template'] = template
+    store.save_tenant_dict('settings', settings)
+    updated = 0
+    if data.get('apply_pending') is True:
+        with store.locked_tables('questionnaires'):
+            for q in store.list('questionnaires'):
+                if q.get('status') == 'Respondido':
+                    continue
+                q.update({'name': template['name'], 'template_name': template['name'],
+                          'description': template['description'], 'questions': template['questions']})
+                store.upsert('questionnaires', q)
+                updated += 1
+    return jsonify({'ok': True, 'updated': updated, 'template': template})
+
+
 @app.route('/questionnaires/<questionnaire_id>')
 def questionnaire_view(questionnaire_id):
     """Vista web del cuestionario (cliente): formulario para completar los detalles de la boda."""
@@ -8622,22 +8677,48 @@ def questionnaire_view(questionnaire_id):
         groups=q.get('questions') or QUESTIONNAIRE_QUESTIONS,
         answers=q.get('answers') or {},
         brand=brand,
+        theme=_document_theme((job.get('tenant_id') if job else None) or q.get('tenant_id')),
     )
 
 
 @app.route('/api/questionnaires/<questionnaire_id>/submit', methods=['POST'])
 def api_questionnaire_submit(questionnaire_id):
     """Guarda las respuestas del cuestionario enviadas por el cliente."""
-    q = store.get('questionnaires', questionnaire_id)
-    if not q:
-        return jsonify({'ok': False, 'error': 'Cuestionario no encontrado'}), 404
-    data = request.get_json() or {}
-    answers = data.get('answers') or {}
-    q['answers'] = answers
-    q['status'] = 'Respondido'
-    q['answered_at'] = datetime.now().isoformat()
-    store.upsert('questionnaires', q)
-    return jsonify({'ok': True, 'questionnaire': q})
+    with store.locked_tables('questionnaires'):
+        q = store.get('questionnaires', questionnaire_id)
+        if not q:
+            return jsonify({'ok': False, 'error': 'Cuestionario no encontrado'}), 404
+        if q.get('status') == 'Respondido':
+            return jsonify({'ok': False, 'error': 'Este cuestionario ya fue enviado.'}), 409
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get('answers'), dict):
+            return jsonify({'ok': False, 'error': 'Respuestas inválidas.'}), 400
+        from src.questionnaire_templates import questionnaire_fields
+        groups = q.get('questions') or QUESTIONNAIRE_QUESTIONS
+        fields = questionnaire_fields(groups)
+        answers = dict(q.get('answers') or {})
+        for key, value in data['answers'].items():
+            if key not in fields or not isinstance(value, str) or len(value) > 20000:
+                return jsonify({'ok': False, 'error': 'Revisa las respuestas enviadas.'}), 400
+            if value and fields[key].get('type') in ('radio', 'select') and value not in fields[key].get('options', []):
+                return jsonify({'ok': False, 'error': 'Selecciona una opción válida.'}), 400
+            answers[key] = value
+        for group in groups:
+            for field in group['fields']:
+                if field.get('details') and answers.get(field['id']) not in field['details']['when']:
+                    answers[field['id'] + '__details'] = ''
+        draft = data.get('draft') is True
+        if not draft:
+            missing = [fid for fid, field in fields.items() if field.get('required') and not answers.get(fid, '').strip()]
+            if missing:
+                return jsonify({'ok': False, 'error': 'Completa las preguntas obligatorias.', 'fields': missing}), 400
+        q['answers'] = answers
+        q['saved_at'] = datetime.now().isoformat()
+        if not draft:
+            q['status'] = 'Respondido'
+            q['answered_at'] = q['saved_at']
+        store.upsert('questionnaires', q)
+        return jsonify({'ok': True, 'questionnaire': q})
 
 
 def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questions=None,
@@ -8690,14 +8771,16 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
             None,
         )
     if questionnaire is None:
+        template = _questionnaire_template(job.get('tenant_id'))
         questionnaire = {
             'id': 'questionnaire-' + uuid.uuid4().hex[:8],
             'lead_id': job.get('lead_id', ''),
             'client_id': job.get('client_id', ''),
             'job_id': job.get('id'),
-            'name': name or 'Cuestionario de Bodas Generico',
-            'template_name': 'Cuestionario de Bodas Generico',
-            'questions': questions or QUESTIONNAIRE_QUESTIONS,
+            'name': name or template['name'],
+            'template_name': template['name'],
+            'description': template['description'],
+            'questions': questions or template['questions'],
             'created': datetime.now().isoformat()[:10],
             'tenant_id': job.get('tenant_id') or get_current_tenant_id(),
         }
@@ -8706,7 +8789,8 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
             questionnaire['name'] = name
         if questions:
             questionnaire['questions'] = questions
-    questionnaire['status'] = status or 'Draft'
+    if questionnaire.get('status') != 'Respondido':
+        questionnaire['status'] = status or 'Draft'
     store.upsert('questionnaires', questionnaire)
 
     questionnaire_path = f"/questionnaires/{questionnaire['id']}"

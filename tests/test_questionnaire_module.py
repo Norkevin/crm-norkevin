@@ -25,6 +25,7 @@ def test_job_questionnaire_can_be_created_opened_and_submitted(auth_client):
 
     resp = auth_client.post(f'/api/jobs/{job_id}/questionnaires', json={
         'name': 'CUESTIONARIO TEST',
+        'questions': app_module.QUESTIONNAIRE_QUESTIONS,
         'subject': 'Detalles de boda',
         'body': 'Hola %client_name%, responde tu cuestionario.',
         'send_email': False,
@@ -49,6 +50,7 @@ def test_job_questionnaire_can_be_created_opened_and_submitted(auth_client):
     submit_resp = auth_client.post(f'/api/questionnaires/{questionnaire_id}/submit', json={
         'answers': {
             'nombre_novia': 'Ana',
+            'nombre_novio': 'Luis',
             'ubicacion_ceremonia_boda': 'Antigua Guatemala',
             'tendra_vals': 'Yes',
         }
@@ -94,4 +96,4 @@ def test_lead_questionnaire_uses_same_real_form(auth_client):
     html = public_resp.get_data(as_text=True)
     assert public_resp.status_code == 200
     assert 'CUESTIONARIO LEAD TEST' in html
-    assert 'Cual es la direccion donde la novia se estara preparando?' in html
+    assert 'id="qf-lugar_arreglo_novia"' in html

@@ -1,0 +1,687 @@
+[
+  {
+    "group": "Sobre ustedes",
+    "description": "Los datos esenciales para preparar su día.",
+    "columns": 2,
+    "fields": [
+      {
+        "id": "nombre_novia",
+        "label": "Nombre completo de la novia",
+        "help": "Si prefieren que usemos otro nombre para dirigirnos a ustedes, pueden indicarlo aquí.",
+        "type": "text",
+        "required": true,
+        "full": false
+      },
+      {
+        "id": "nombre_novio",
+        "label": "Nombre completo del novio",
+        "help": "Si prefieren que usemos otro nombre para dirigirnos a ustedes, pueden indicarlo aquí.",
+        "type": "text",
+        "required": true,
+        "full": false
+      },
+      {
+        "id": "telefono_novia",
+        "label": "¿Cuál es el número de WhatsApp de la novia?",
+        "help": "Incluyan el código de país.",
+        "type": "tel",
+        "required": false,
+        "full": false
+      },
+      {
+        "id": "telefono_novio",
+        "label": "¿Cuál es el número de WhatsApp del novio?",
+        "help": "Incluyan el código de país.",
+        "type": "tel",
+        "required": false,
+        "full": false
+      },
+      {
+        "id": "email_novia",
+        "label": "¿Cuál es el correo electrónico de la novia?",
+        "help": "Escriban el correo que revisa habitualmente.",
+        "type": "email",
+        "required": false,
+        "full": false
+      },
+      {
+        "id": "email_novio",
+        "label": "¿Cuál es el correo electrónico del novio?",
+        "help": "Escriban el correo que revisa habitualmente.",
+        "type": "email",
+        "required": false,
+        "full": false
+      },
+      {
+        "id": "instagram_pareja",
+        "label": "Usuarios de Instagram (opcional)",
+        "help": "Indiquen el usuario de cada uno, si desean compartirlo. Esto no autoriza publicaciones.",
+        "type": "text",
+        "required": false,
+        "full": false
+      },
+      {
+        "id": "fecha_boda",
+        "label": "Fecha de la boda",
+        "help": "Seleccionen la fecha principal. Si habrá celebraciones en otros días, pueden indicarlo al final.",
+        "type": "date",
+        "required": false,
+        "full": false
+      },
+      {
+        "id": "num_invitados",
+        "label": "¿Cuántos invitados esperan aproximadamente?",
+        "help": "Pueden indicar una cifra estimada si aún no tienen el número definitivo.",
+        "type": "number",
+        "required": false,
+        "full": false
+      }
+    ]
+  },
+  {
+    "group": "Coordinación y horarios",
+    "description": "No necesitan tener todo definido. Los horarios pueden ser tentativos y cambiar más adelante.",
+    "columns": 2,
+    "fields": [
+      {
+        "id": "coordinacion_contactos",
+        "label": "¿Quién será nuestro contacto para coordinar la cobertura el día de la boda?",
+        "help": "Nombre, teléfono y relación con ustedes. Puede ser su wedding planner, un familiar o alguien de confianza.",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "itinerario",
+        "label": "¿Ya tienen el itinerario de la boda?",
+        "help": "Si aún está pendiente, podrán compartirlo después.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "Todavía no"
+        ],
+        "details": {
+          "label": "Enlace al itinerario",
+          "help": "Pueden pegar un enlace de Drive, Dropbox u otro servicio.",
+          "when": [
+            "Sí"
+          ]
+        }
+      },
+      {
+        "id": "hora_inicio_cobertura",
+        "label": "¿A qué hora les gustaría que comencemos la cobertura? (hora tentativa)",
+        "help": "Puede ser una hora aproximada y cambiar más adelante. Si aún no la saben, dejen este campo vacío. Confirmaremos el horario según su paquete; las horas de cobertura son continuas.",
+        "type": "time",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "acceso_traslados",
+        "label": "¿Hay indicaciones de acceso o traslado que debamos conocer?",
+        "help": "Por ejemplo: garita, registro de proveedores, parqueo o transporte especial.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Por confirmar"
+        ],
+        "details": {
+          "label": "Indicaciones de acceso o traslado",
+          "help": "Indiquen a qué lugar aplica cada indicación.",
+          "when": [
+            "Sí"
+          ]
+        }
+      },
+      {
+        "id": "plan_lluvia",
+        "label": "¿Tienen un plan alternativo en caso de lluvia?",
+        "help": "Elijan «No aplica» si todos los espacios son cubiertos y no necesitan un cambio.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Por confirmar",
+          "No aplica"
+        ],
+        "details": {
+          "label": "Plan alternativo",
+          "help": "Indiquen el espacio alternativo y quién lo coordina, si ya lo saben.",
+          "when": [
+            "Sí"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "group": "Su historia y prioridades",
+    "description": "Lo que les importa y cómo les gustaría sentirse.",
+    "columns": 2,
+    "fields": [
+      {
+        "id": "historia_pareja",
+        "label": "¿Qué les gustaría compartir sobre su historia como pareja?",
+        "help": "Es opcional. Pueden contar cómo se conocieron o algo que los represente; compartan solo lo que deseen.",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "prioridades",
+        "label": "¿Qué tres momentos o personas les gustaría que prioricemos en la cobertura?",
+        "help": "Por ejemplo: sus familias, la ceremonia, retratos de pareja, amigos o la fiesta.",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "comodidad_camara",
+        "label": "¿Cómo prefieren que los acompañemos frente a la cámara?",
+        "help": "Si cada uno prefiere algo distinto, pueden comentarlo al final.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Con guía para posar",
+          "Con poca intervención",
+          "Una combinación de ambas",
+          "Preferimos conversarlo"
+        ]
+      },
+      {
+        "id": "referencias",
+        "label": "¿Tienen alguna fotografía o idea de referencia que les gustaría compartir?",
+        "help": "Las referencias orientan la cobertura; las adaptaremos al lugar y al tiempo disponible.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No"
+        ],
+        "details": {
+          "label": "Referencias o ideas",
+          "help": "Compartan hasta tres enlaces o describan la idea.",
+          "when": [
+            "Sí"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "group": "Familia y personas importantes",
+    "description": "Compartan solo lo que deseen; los detalles sensibles pueden hablarse en privado.",
+    "columns": 2,
+    "fields": [
+      {
+        "id": "fotos_familia",
+        "label": "¿Qué fotografías con familiares o amigos son imprescindibles para ustedes?",
+        "help": "Escriban los grupos que más les importan, con nombres y relación. Por ejemplo: ambos con la abuela Elena.",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "ausencias_homenajes",
+        "label": "¿Habrá algún homenaje que quieran que documentemos?",
+        "help": "No necesitan explicar el motivo del homenaje.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Preferimos conversarlo en privado"
+        ],
+        "details": {
+          "label": "Homenaje que les gustaría documentar",
+          "help": "Indiquen qué ocurrirá y cuándo, solo si desean compartirlo aquí.",
+          "when": [
+            "Sí"
+          ]
+        }
+      },
+      {
+        "id": "situaciones_familiares",
+        "label": "¿Quieren darnos alguna indicación para organizar las fotografías familiares?",
+        "help": "Pueden indicar lo que necesitan sin explicar los motivos.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Preferimos conversarlo en privado"
+        ],
+        "details": {
+          "label": "Indicaciones para las fotografías familiares",
+          "help": "Por ejemplo: hacer ciertos retratos por separado o evitar reunir a determinadas personas.",
+          "when": [
+            "Sí"
+          ]
+        }
+      },
+      {
+        "id": "hijos_mascotas",
+        "label": "¿Participarán niños o mascotas en algún momento especial?",
+        "help": "Puede ser durante la ceremonia, una entrada o una fotografía.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Por confirmar"
+        ],
+        "details": {
+          "label": "Participantes y momento previsto",
+          "help": "Indiquen sus nombres, qué harán y con quién podemos coordinarnos.",
+          "when": [
+            "Sí"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "group": "Preparativos",
+    "description": "Lugares, acompañantes y horarios aproximados. Pueden dejar pendiente lo que todavía no sepan.",
+    "columns": 2,
+    "fields": [
+      {
+        "id": "lugar_arreglo_novia",
+        "label": "¿Dónde se preparará la novia?",
+        "help": "Nombre del lugar, dirección o enlace de Maps/Waze. Si no cubrirán sus preparativos, escriban «No aplica».",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "lugar_arreglo_novio",
+        "label": "¿Dónde se preparará el novio?",
+        "help": "Nombre del lugar, dirección o enlace de Maps/Waze. Si no cubrirán sus preparativos, escriban «No aplica».",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "horarios_preparativos",
+        "label": "¿A qué hora calculan que estará cada uno listo para vestirse?",
+        "help": "Indiquen una hora tentativa para cada uno. Para la novia, consideren la finalización del maquillaje y peinado. Pueden escribir «Por confirmar» y actualizarlo más adelante. Si no se cubrirán los preparativos, escriban «No aplica».",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "acompanantes_preparativos",
+        "label": "¿Quiénes acompañarán a cada uno durante los preparativos?",
+        "help": "Nombres y relación con ustedes. Si no se cubrirán los preparativos, pueden dejar esta respuesta vacía.",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "encuentro_previo",
+        "label": "¿Quieren verse antes de la ceremonia?",
+        "help": "Elijan «No» si prefieren verse por primera vez durante la ceremonia.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Por confirmar"
+        ],
+        "details": {
+          "label": "Encuentro antes de la ceremonia",
+          "help": "Si ya tienen una idea, indiquen el lugar y una hora tentativa. Pueden dejarlo pendiente y confirmarlo después.",
+          "when": [
+            "Sí"
+          ]
+        }
+      },
+      {
+        "id": "objetos_sentimentales",
+        "label": "¿Hay objetos o detalles con significado especial que quieran que fotografiemos?",
+        "help": "Por ejemplo: cartas, joyería, un recuerdo en el ramo o algún detalle de la decoración.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No"
+        ],
+        "details": {
+          "label": "Objetos o detalles importantes",
+          "help": "Indiquen cuáles son y dónde estarán. No necesitan explicar su significado.",
+          "when": [
+            "Sí"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "group": "Ceremonia y retratos",
+    "description": "Anticipemos los momentos centrales del día.",
+    "columns": 2,
+    "fields": [
+      {
+        "id": "ubicacion_ceremonia_boda",
+        "label": "¿Dónde se celebrará la ceremonia?",
+        "help": "Nombre del lugar, dirección o enlace de Maps/Waze. Si habrá más de una ceremonia, indiquen cada lugar.",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "horario_ceremonia",
+        "label": "¿Cuál es el horario tentativo de la ceremonia?",
+        "help": "Hora aproximada de inicio y finalización. Si aún no está definido, escriban «Por confirmar». Puede cambiar después. Indiquen el horario de la ceremonia, aunque la invitación convoque a los invitados antes.",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "ceremonia_participantes",
+        "label": "¿Qué tipo de ceremonia tendrán?",
+        "help": "Elijan la opción que mejor describa su ceremonia.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Civil",
+          "Religiosa",
+          "Simbólica",
+          "Otro tipo",
+          "Por confirmar"
+        ],
+        "details": {
+          "label": "Participaciones o tradiciones que debamos conocer",
+          "help": "Si aplica, indiquen acompañantes de entrada, lecturas, entrega de anillos u otros momentos especiales.",
+          "when": [
+            "Civil",
+            "Religiosa",
+            "Simbólica",
+            "Otro tipo"
+          ]
+        }
+      },
+      {
+        "id": "entrada_salida_ceremonia",
+        "label": "¿Habrá una entrada o salida especial de la ceremonia?",
+        "help": "Por ejemplo: pétalos, burbujas o música en vivo.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Por confirmar"
+        ],
+        "details": {
+          "label": "Entrada o salida especial",
+          "help": "Indiquen qué ocurrirá y quién lo coordina.",
+          "when": [
+            "Sí"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "group": "Recepción y celebración",
+    "description": "Para estar listos antes de que empiece cada momento.",
+    "columns": 2,
+    "fields": [
+      {
+        "id": "ubicacion_recepcion",
+        "label": "¿La recepción será en el mismo lugar que la ceremonia?",
+        "help": "Si será en otro salón o jardín del mismo lugar, pueden elegir «Sí».",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Por confirmar"
+        ],
+        "details": {
+          "label": "Lugar de la recepción",
+          "help": "Nombre del lugar, dirección o enlace de Maps/Waze.",
+          "when": [
+            "No"
+          ]
+        }
+      },
+      {
+        "id": "ingreso_recepcion",
+        "label": "¿Cómo tienen prevista su entrada a la recepción?",
+        "help": "Si ya tienen una idea, indiquen una hora tentativa y si habrá presentación, coreografía o acompañantes. Si aún no lo han decidido, escriban «Por confirmar». Pueden avisarnos de cambios después.",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "bailes",
+        "label": "¿Tendrán vals, primer baile o bailes con familiares?",
+        "help": "Incluyan aquí cualquiera de esos bailes.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Por confirmar"
+        ],
+        "details": {
+          "label": "Bailes previstos",
+          "help": "Participantes, canciones y orden, solo si ya los tienen definidos. Todo puede quedar pendiente y confirmarse después.",
+          "when": [
+            "Sí"
+          ]
+        }
+      },
+      {
+        "id": "fotos_invitados",
+        "label": "¿Cómo prefieren las fotografías de sus invitados?",
+        "help": "Elijan una preferencia. Coordinaremos las fotos por mesas o grupos según el tiempo disponible.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Mesa por mesa",
+          "Con grupos específicos",
+          "Fotos espontáneas",
+          "Por confirmar"
+        ],
+        "details": {
+          "label": "Grupos de invitados que quieren fotografiar",
+          "help": "Indiquen cuáles son los grupos, con nombres si los conocen.",
+          "when": [
+            "Con grupos específicos"
+          ]
+        }
+      },
+      {
+        "id": "sorpresas_detalles",
+        "label": "¿Habrá alguna sorpresa o presentación que debamos anticipar?",
+        "help": "Si es una sorpresa para su pareja, pueden coordinarnos con el organizador por privado.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Por confirmar"
+        ],
+        "details": {
+          "label": "Contacto o indicaciones para anticipar el momento",
+          "help": "Si es sorpresa, compartan solo el contacto del organizador. No escriban aquí detalles que su pareja no deba conocer.",
+          "when": [
+            "Sí"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "group": "Video y otros proveedores",
+    "description": "Si no contrataron video, pueden omitir las dos primeras preguntas.",
+    "columns": 2,
+    "fields": [
+      {
+        "id": "audio_momentos",
+        "label": "¿Quieren conservar con audio votos, cartas o mensajes especiales?",
+        "help": "Esta pregunta aplica solo si contrataron video.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Por confirmar",
+          "No contratamos video"
+        ],
+        "details": {
+          "label": "Momentos que les gustaría conservar con audio",
+          "help": "Indiquen quién hablará y en qué momento, si ya lo saben. No hace falta una hora exacta. Pueden incluir discursos o brindis y confirmar los detalles después.",
+          "when": [
+            "Sí"
+          ]
+        }
+      },
+      {
+        "id": "estilo_video",
+        "label": "¿Qué estilo les gustaría para su video?",
+        "help": "La elección orienta el montaje; no necesitan conocer términos técnicos.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Emotivo y romántico",
+          "Dinámico y festivo",
+          "Un equilibrio de ambos",
+          "Preferimos su propuesta",
+          "No contratamos video"
+        ],
+        "details": {
+          "label": "Referencias o preferencias para el video",
+          "help": "Pueden compartir canciones, enlaces o algo que prefieren evitar. La música final dependerá de las licencias disponibles y del montaje.",
+          "when": [
+            "Emotivo y romántico",
+            "Dinámico y festivo",
+            "Un equilibrio de ambos",
+            "Preferimos su propuesta"
+          ]
+        }
+      },
+      {
+        "id": "proveedores_audiovisuales",
+        "label": "¿Habrá otros proveedores de fotografía, video o creadores de contenido trabajando ese día?",
+        "help": "Nos ayuda a coordinar la cobertura con los demás equipos.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Por confirmar"
+        ],
+        "details": {
+          "label": "Otros proveedores de fotografía, video o contenido",
+          "help": "Empresa, servicio, persona de contacto y teléfono, si ya los tienen.",
+          "when": [
+            "Sí"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "group": "Privacidad y últimos detalles",
+    "description": "Sus preferencias también forman parte de la planificación.",
+    "columns": 2,
+    "fields": [
+      {
+        "id": "privacidad_captura",
+        "label": "¿Hay personas o momentos que prefieren que no fotografiemos o grabemos?",
+        "help": "No necesitan explicar los motivos.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No",
+          "Preferimos conversarlo en privado"
+        ],
+        "details": {
+          "label": "Indicaciones para respetar su privacidad",
+          "help": "Indiquen cómo podemos reconocer la situación o a la persona.",
+          "when": [
+            "Sí"
+          ]
+        }
+      },
+      {
+        "id": "privacidad_publicacion",
+        "label": "¿Qué prefieren respecto a la publicación de sus fotos y videos?",
+        "help": "Esta respuesta expresa su preferencia; la autorización se confirmará por separado.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Consultar antes de publicar",
+          "Esperar a que publiquemos primero",
+          "Preferimos que no se publiquen",
+          "Lo conversaremos"
+        ],
+        "details": {
+          "label": "Preferencias específicas de privacidad",
+          "help": "Si hay imágenes que sí quieren recibir en privado pero no compartir públicamente, pueden indicarlo aquí.",
+          "when": [
+            "Consultar antes de publicar",
+            "Esperar a que publiquemos primero",
+            "Preferimos que no se publiquen"
+          ]
+        }
+      },
+      {
+        "id": "punto_especial",
+        "label": "¿Hay algo más que les gustaría contarnos para preparar la cobertura?",
+        "help": "Es opcional. Si prefieren hablarlo en privado, indiquen solo cómo contactarlos; no necesitan escribir el asunto.",
+        "type": "textarea",
+        "required": false,
+        "full": true
+      },
+      {
+        "id": "pendientes",
+        "label": "¿Queda algún dato importante por confirmar?",
+        "help": "Podrán compartir los datos pendientes después.",
+        "type": "radio",
+        "required": false,
+        "full": true,
+        "options": [
+          "Sí",
+          "No"
+        ],
+        "details": {
+          "label": "Datos pendientes",
+          "help": "Indiquen qué falta, quién lo confirmará y una fecha aproximada, si la saben.",
+          "when": [
+            "Sí"
+          ]
+        }
+      }
+    ]
+  }
+]

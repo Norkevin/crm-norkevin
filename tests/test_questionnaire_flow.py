@@ -36,7 +36,7 @@ def test_full_questionnaire_flow(auth_client, client):
     assert 'nombre_novia' in resp2.get_data(as_text=True)
 
     resp3 = client.post(f'/api/questionnaires/{qid}/submit',
-                        json={'answers': {'nombre_novia': 'Maria Flow'}})
+                        json={'answers': {'nombre_novia': 'Maria Flow', 'nombre_novio': 'Luis'}})
     assert resp3.status_code == 200
     assert resp3.get_json()['questionnaire']['status'] == 'Respondido'
 

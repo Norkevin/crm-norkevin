@@ -849,7 +849,7 @@
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">Cuestionario</label>
-          <input class="form-input" id="questionnaire-name" value="Cuestionario de Bodas Generico" required>
+          <input class="form-input" id="questionnaire-name" value="{{ questionnaire_template_name }}" required>
         </div>
         <div class="form-group">
           <label class="form-label">Subject</label>
@@ -1091,7 +1091,7 @@ function triggerJobStep(stepId, stepName) {
   var step = stepConfig(stepId, stepName);
   var action = step.actionType;
   if (action === 'send_questionnaire') {
-    openQuestionnaireModal('Cuestionario de Bodas Generico', stepId);
+    openQuestionnaireModal(null, stepId);
     return;
   }
   if (action === 'send_contract') {
@@ -1554,7 +1554,7 @@ function openQuestionnaireModal(name, stepId, existingId) {
   if (questionnaireDefaultBodyRaw === null) {
     questionnaireDefaultBodyRaw = document.getElementById('questionnaire-body').value;
   }
-  document.getElementById('questionnaire-name').value = name || 'Cuestionario de Bodas Generico';
+  document.getElementById('questionnaire-name').value = name || {{ questionnaire_template_name|tojson }};
   document.getElementById('questionnaire-step-id').value = stepId || '';
   document.getElementById('questionnaire-to').value = CLIENT_EMAIL || '';
 
@@ -1581,6 +1581,7 @@ function openQuestionnaireModal(name, stepId, existingId) {
   apiPost('/api/jobs/' + JOB_ID + '/questionnaires/prepare', {})
     .then(function(data) {
       document.getElementById('questionnaire-id').value = data.questionnaire.id;
+      document.getElementById('questionnaire-name').value = name || data.questionnaire.name;
       document.getElementById('questionnaire-id').dataset.url = data.questionnaire_url;
       document.getElementById('questionnaire-template').value = templateId || '';
       applyQuestionnaireTemplate(templateId || '');
