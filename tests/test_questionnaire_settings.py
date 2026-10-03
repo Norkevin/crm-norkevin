@@ -49,7 +49,7 @@ def test_template_applies_to_jobs_leads_and_preview(auth_client, template):
     assert 'Guardar avance' in html and '--font-sans:' in html
 
 
-def test_saves_do_not_change_existing_unless_requested_or_other_tenants(auth_client, template):
+def test_saves_update_pending_but_preserve_completed_forms_and_other_tenants(auth_client, template):
     import app as m
     auth_client.post('/api/settings/questionnaires', json=template)
     pending = create_job_questionnaire(auth_client)
@@ -63,8 +63,6 @@ def test_saves_do_not_change_existing_unless_requested_or_other_tenants(auth_cli
     template['questions'][0]['fields'] = template['questions'][0]['fields'][:1]
     template['name'] = 'Plantilla editada'
     assert auth_client.post('/api/settings/questionnaires', json=template).status_code == 200
-    assert m.store.get('questionnaires', pending['id'])['name'] == 'Nuestra boda'
-    auth_client.post('/api/settings/questionnaires', json={**template, 'apply_pending': True})
     assert m.store.get('questionnaires', pending['id'])['name'] == 'Plantilla editada'
     assert m.store.get('questionnaires', pending['id'])['answers'] == {'nombre': 'Ana'}
     assert m.store.get('questionnaires', answered['id'])['name'] == 'Nuestra boda'
@@ -73,6 +71,52 @@ def test_saves_do_not_change_existing_unless_requested_or_other_tenants(auth_cli
         assert m.store.get('questionnaires', other['id'])['name'] == 'Nuestra boda'
     login_as_tenant(auth_client, 'tenant-q-other')
     assert 'Plantilla editada' not in auth_client.get('/settings/questionnaires').get_data(as_text=True)
+
+
+def test_legacy_job_links_use_settings_and_preserve_saved_answers(auth_client, template):
+    import app as m
+    auth_client.post('/api/settings/questionnaires', json=template)
+    q = create_job_questionnaire(auth_client)
+    legacy = {**q, 'name': 'Cuestionario de Bodas Generico', 'questions': m.QUESTIONNAIRE_QUESTIONS,
+              'answers': {'nombre_novia': 'Ana', 'ubicacion_recepcion': 'Antigua'}}
+    m.store.upsert('questionnaires', legacy)
+    html = auth_client.get(f"/jobs/{q['job_id']}").get_data(as_text=True)
+    assert 'Nuestra boda' in html and 'Cuestionario de Bodas Generico' not in html
+    path = f"/questionnaires/{q['id']}"
+    html = auth_client.get(path).get_data(as_text=True)
+    assert 'Momento favorito' in html and 'Tendras vals?' not in html
+    assert 'Antigua' in html and 'Respuestas guardadas de preguntas anteriores' in html
+    prepared = auth_client.post(f"/api/jobs/{q['job_id']}/questionnaires/prepare", json={}).get_json()['questionnaire']
+    assert prepared['id'] == q['id'] and prepared['questions'] == m._questionnaire_template()['questions']
+    assert prepared['answers'] == legacy['answers']
+    assert len(prepared['answer_history']) == 2
+    assert auth_client.post(f"/api/questionnaires/{q['id']}/submit", json={
+        'answers': {'nombre': 'Ana'}, 'draft': True,
+    }).status_code == 200
+    assert len(m.store.get('questionnaires', q['id'])['answer_history']) == 2
+    m.store.upsert('questionnaires', {**legacy, 'status': 'Respondido'})
+    html = auth_client.get(path).get_data(as_text=True)
+    assert 'Nombre de la novia *' in html and 'Antigua' in html
+    assert 'Cuestionario de Bodas Generico' not in html
+    assert m.store.get('questionnaires', q['id'])['questions'] == legacy['questions']
+
+
+def test_reused_lead_questionnaire_uses_settings_instead_of_legacy_override(auth_client, template):
+    import app as m
+    auth_client.post('/api/settings/questionnaires', json=template)
+    lid = 'lead-linked-' + uuid.uuid4().hex
+    m.upsert_lead({'id': lid, 'Nombre': 'Pareja', 'tenant_id': 'tenant-norkevin'})
+    qid = 'q-linked-' + uuid.uuid4().hex
+    m.store.upsert('questionnaires', {'id': qid, 'lead_id': lid, 'tenant_id': 'tenant-norkevin',
+                                    'questions': m.QUESTIONNAIRE_QUESTIONS, 'status': 'Sent'})
+    q = auth_client.post(f'/api/leads/{lid}/questionnaires', json={
+        'send_email': False, 'name': 'Nombre anterior', 'questions': m.QUESTIONNAIRE_QUESTIONS,
+    }).get_json()['questionnaire']
+    assert q['id'] == qid and q['name'] == template['name'] and q['questions'] == m._questionnaire_template()['questions']
+    jid = 'job-linked-' + uuid.uuid4().hex
+    m.upsert_job({'id': jid, 'lead_id': lid, 'nombre': 'Boda', 'tenant_id': 'tenant-norkevin'})
+    prepared = auth_client.post(f'/api/jobs/{jid}/questionnaires/prepare', json={}).get_json()['questionnaire']
+    assert prepared['id'] == qid and prepared['job_id'] == jid
 
 
 def test_public_draft_final_validation_and_frozen_answers(auth_client, template):

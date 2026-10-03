@@ -418,7 +418,7 @@
             </div>
             <div class="sn-list-actions">
               <a class="sn-btn sn-btn-sm" href="/questionnaires/{{ q.id }}" target="_blank" rel="noopener">Ver</a>
-              <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnaireModal({{ (q.name or "Cuestionario de Bodas Generico")|tojson }}, null, {{ q.id|tojson }})'>Enviar</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick='openQuestionnaireModal({{ (q.name or questionnaire_template_name)|tojson }}, null, {{ q.id|tojson }})'>Enviar</button>
             </div>
           </div>
           {% else %}
@@ -849,7 +849,8 @@
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">Cuestionario</label>
-          <input class="form-input" id="questionnaire-name" value="{{ questionnaire_template_name }}" required>
+          <input class="form-input" id="questionnaire-name" value="{{ questionnaire_template_name }}" readonly>
+          <a class="sn-muted" href="/settings/questionnaires" target="_blank" rel="noopener">Editar preguntas en Settings</a>
         </div>
         <div class="form-group">
           <label class="form-label">Subject</label>
@@ -1594,7 +1595,6 @@ function submitQuestionnaire(event) {
   event.preventDefault();
   apiPost('/api/jobs/' + JOB_ID + '/questionnaires', {
     questionnaire_id: document.getElementById('questionnaire-id').value,
-    name: document.getElementById('questionnaire-name').value,
     subject: document.getElementById('questionnaire-subject').value,
     body: document.getElementById('questionnaire-body').value,
     step_id: document.getElementById('questionnaire-step-id').value,

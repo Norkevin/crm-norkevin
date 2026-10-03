@@ -11,7 +11,7 @@ def questionnaire_fields(groups):
     fields = {f['id']: f for group in groups for f in group['fields']}
     for field in list(fields.values()):
         if field.get('details'):
-            fields[field['id'] + '__details'] = {'type': 'textarea', 'required': False}
+            fields[field['id'] + '__details'] = {'type': 'textarea', 'required': False, 'label': field['details']['label']}
     return fields
 
 

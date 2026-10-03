@@ -44,8 +44,7 @@
       </div>
       <div id="qe-editor"></div>
       <div class="qe-footer">
-        <label class="qe-apply"><input type="checkbox" id="qe-apply"><span>Aplicar también a cuestionarios pendientes de esta cuenta.<br><span class="sn-muted">Conserva sus respuestas guardadas. Los cuestionarios ya respondidos no cambian.</span></span></label>
-        <p class="sn-muted" style="font-size:12px;margin:10px 0;">La plantilla se usa en los nuevos cuestionarios de leads, trabajos y envíos automáticos.</p>
+        <p class="sn-muted" style="font-size:12px;margin:10px 0;">Esta es la plantilla de los cuestionarios de Jobs, leads y envíos automáticos. Al guardar, se actualizan también los pendientes y sus enlaces existentes. Se conservan las respuestas guardadas; los ya respondidos mantienen sus preguntas originales.</p>
         <div class="qe-toolbar"><button type="submit" class="sn-btn sn-btn-primary" id="qe-save">Guardar plantilla</button><button type="button" class="sn-btn" id="qe-undo" disabled>Deshacer último cambio de estructura</button></div>
         <p id="qe-status" class="qe-status" role="status" aria-live="polite"></p>
       </div>
@@ -142,11 +141,10 @@
    const save=document.getElementById('qe-save');save.disabled=true;const sentRevision=revision;
    status.textContent='Guardando…';
    try {
-     const response=await fetch('/api/settings/questionnaires',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...model,apply_pending:document.getElementById('qe-apply').checked})});
+     const response=await fetch('/api/settings/questionnaires',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(model)});
      const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'No se pudo guardar.');
      dirty=revision!==sentRevision;
-     status.textContent=dirty?'Plantilla guardada. Hay cambios nuevos sin guardar.':`Plantilla guardada.${data.updated ? ' '+data.updated+' cuestionarios pendientes actualizados.' : ' Se usará en nuevos cuestionarios.'}`;
-     document.getElementById('qe-apply').checked=false;
+     status.textContent=dirty?'Plantilla guardada. Hay cambios nuevos sin guardar.':`Plantilla guardada.${data.updated ? ' '+data.updated+' cuestionarios pendientes actualizados.' : ' Jobs y leads usarán esta plantilla.'}`;
    } catch(error){status.textContent=error.message==='Failed to fetch'?'No hay conexión. Tus cambios siguen aquí; intenta guardar de nuevo.':error.message;}
    finally{save.disabled=false;}
  });

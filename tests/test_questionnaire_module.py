@@ -42,24 +42,24 @@ def test_job_questionnaire_can_be_created_opened_and_submitted(auth_client):
     public_resp = auth_client.get(f'/questionnaires/{questionnaire_id}')
     assert public_resp.status_code == 200
     html = public_resp.get_data(as_text=True)
-    assert 'CUESTIONARIO TEST' in html
-    assert 'Nombre de la novia *' in html
-    assert 'Cual es la direccion exacta de la recepcion?' in html
-    assert 'Tendras vals?' in html
+    assert 'Cuestionario previo a la boda' in html
+    assert 'Nombre completo de la novia' in html
+    assert 'id="qf-lugar_arreglo_novia"' in html
+    assert 'Tendras vals?' not in html
 
     submit_resp = auth_client.post(f'/api/questionnaires/{questionnaire_id}/submit', json={
         'answers': {
             'nombre_novia': 'Ana',
             'nombre_novio': 'Luis',
             'ubicacion_ceremonia_boda': 'Antigua Guatemala',
-            'tendra_vals': 'Yes',
+            'bailes': 'Sí',
         }
     })
     assert submit_resp.status_code == 200
     stored = app_module.store.get('questionnaires', questionnaire_id)
     assert stored['status'] == 'Respondido'
     assert stored['answers']['ubicacion_ceremonia_boda'] == 'Antigua Guatemala'
-    assert stored['answers']['tendra_vals'] == 'Yes'
+    assert stored['answers']['bailes'] == 'Sí'
 
 
 def test_lead_questionnaire_uses_same_real_form(auth_client):
@@ -95,5 +95,5 @@ def test_lead_questionnaire_uses_same_real_form(auth_client):
     public_resp = auth_client.get(payload['questionnaire_path'])
     html = public_resp.get_data(as_text=True)
     assert public_resp.status_code == 200
-    assert 'CUESTIONARIO LEAD TEST' in html
+    assert 'Cuestionario previo a la boda' in html
     assert 'id="qf-lugar_arreglo_novia"' in html

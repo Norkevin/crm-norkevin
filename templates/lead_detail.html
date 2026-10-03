@@ -307,7 +307,8 @@
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">Cuestionario</label>
-          <input class="form-input" id="lead-questionnaire-name" value="{{ questionnaire_template_name }}" required>
+          <input class="form-input" id="lead-questionnaire-name" value="{{ questionnaire_template_name }}" readonly>
+          <a class="sn-muted" href="/settings/questionnaires" target="_blank" rel="noopener">Editar preguntas en Settings</a>
         </div>
         <div class="form-group">
           <label class="form-label">Subject</label>
@@ -774,9 +775,7 @@ function createQuestionnaire() {
 
 function submitLeadQuestionnaire(event) {
   event.preventDefault();
-  var name = document.getElementById('lead-questionnaire-name').value;
   apiPost('/api/leads/' + LEAD_ID + '/questionnaires', {
-    name: name,
     subject: document.getElementById('lead-questionnaire-subject').value,
     body: document.getElementById('lead-questionnaire-body').value,
     send_email: true

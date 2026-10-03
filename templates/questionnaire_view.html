@@ -129,6 +129,16 @@ fieldset.q-field { border:0; padding:0; margin:0; }
       </form>
     </div>
   </div>
+  {% if questionnaire.answer_history %}
+  <details class="card" style="margin-top:24px;">
+    <summary>Respuestas guardadas de preguntas anteriores</summary>
+    <p class="q-help">Conservamos estos datos cuando se actualizaron las preguntas. Pueden consultarlos aquí mientras completan el cuestionario actual.</p>
+    <dl>{% for previous in questionnaire.answer_history %}
+      <dt style="font-weight:600;margin-top:16px;">{{ previous.label }}</dt>
+      <dd style="margin:6px 0;white-space:pre-wrap;overflow-wrap:anywhere;">{{ previous.value }}</dd>
+    {% endfor %}</dl>
+  </details>
+  {% endif %}
 </main>
 {{ ui.doc_footer(theme) }}
 <script>

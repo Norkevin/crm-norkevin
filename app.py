@@ -3492,7 +3492,7 @@ def lead_detail(lead_id):
         if c.get('lead_id') == lead_id or c.get('job_id') in jobs_del_lead
     ]
     questionnaires_del_lead = [
-        q for q in store.list('questionnaires')
+        _linked_questionnaire(q) for q in store.list('questionnaires')
         if q.get('lead_id') == lead_id or q.get('job_id') in jobs_del_lead
     ]
     files_del_lead = [
@@ -3814,11 +3814,7 @@ def api_lead_create_questionnaire(lead_id):
             'created': datetime.now().isoformat()[:10],
             'tenant_id': lead.get('tenant_id') or get_current_tenant_id(),
         }
-    template = _questionnaire_template(lead.get('tenant_id'))
-    questionnaire['name'] = data.get('name') or questionnaire.get('name') or template['name']
-    questionnaire.setdefault('template_name', template['name'])
-    questionnaire.setdefault('description', template['description'])
-    questionnaire['questions'] = data.get('questions') or questionnaire.get('questions') or template['questions']
+    questionnaire = _linked_questionnaire(questionnaire)
     if questionnaire.get('status') != 'Respondido':
         questionnaire['status'] = data.get('status') or 'Draft'
     store.upsert('questionnaires', questionnaire)
@@ -4710,7 +4706,7 @@ def job_detail(job_id):
         invoice_groups.append(group)
     contracts = [c for c in store.list('contracts') if c.get('job_id') == job_id]
     questionnaires = [
-        q for q in store.list('questionnaires')
+        _linked_questionnaire(q) for q in store.list('questionnaires')
         if q.get('job_id') == job_id or (job.get('lead_id') and q.get('lead_id') == job.get('lead_id'))
     ]
     files = [
@@ -8626,6 +8622,34 @@ def _questionnaire_template(tenant_id=None):
     })
 
 
+def _linked_questionnaire(questionnaire):
+    """Pending client links use Settings; completed forms keep their original questions."""
+    from src.questionnaire_templates import questionnaire_fields
+    q = dict(questionnaire)
+    template = _questionnaire_template(q.get('tenant_id'))
+    if q.get('status') == 'Respondido':
+        if (q.get('name') or '').lower() in ('cuestionario de bodas generico', 'cuestionario de bodas genérico'):
+            q['name'] = template['name']
+        return q
+    old_fields = questionnaire_fields(q.get('questions') or [])
+    new_fields = questionnaire_fields(template['questions'])
+    history = list(q.get('answer_history') or [])
+    for fid, value in (q.get('answers') or {}).items():
+        old = old_fields.get(fid, {})
+        new = new_fields.get(fid)
+        # Retain answers to removed questions or changed input types for review.
+        if value and (new is None or old.get('type') != new.get('type')
+                      or (new.get('type') in ('radio', 'select') and value not in new.get('options', []))):
+            previous = {'id': fid, 'label': old.get('label') or fid, 'value': value}
+            if not any(item['id'] == fid and item['value'] == value for item in history):
+                history.append(previous)
+    if history:
+        q['answer_history'] = history
+    q.update({'name': template['name'], 'template_name': template['name'],
+              'description': template['description'], 'questions': template['questions']})
+    return q
+
+
 @app.route('/settings/questionnaires')
 def settings_questionnaires():
     return render_template('settings_questionnaires.html', template=_questionnaire_template())
@@ -8653,15 +8677,12 @@ def api_settings_questionnaires_save():
     settings['questionnaire_template'] = template
     store.save_tenant_dict('settings', settings)
     updated = 0
-    if data.get('apply_pending') is True:
-        with store.locked_tables('questionnaires'):
-            for q in store.list('questionnaires'):
-                if q.get('status') == 'Respondido':
-                    continue
-                q.update({'name': template['name'], 'template_name': template['name'],
-                          'description': template['description'], 'questions': template['questions']})
-                store.upsert('questionnaires', q)
-                updated += 1
+    with store.locked_tables('questionnaires'):
+        for q in store.list('questionnaires'):
+            if q.get('status') == 'Respondido':
+                continue
+            store.upsert('questionnaires', _linked_questionnaire(q))
+            updated += 1
     return jsonify({'ok': True, 'updated': updated, 'template': template})
 
 
@@ -8671,6 +8692,7 @@ def questionnaire_view(questionnaire_id):
     q = store.get('questionnaires', questionnaire_id)
     if not q:
         abort(404)
+    q = _linked_questionnaire(q)
     job = get_job(q.get('job_id', '')) if q.get('job_id') else None
     client = get_client(q.get('client_id', '')) if q.get('client_id') else None
     brand = resolve_pdf_brand((job.get('tenant_id') if job else None) or q.get('tenant_id'))
@@ -8679,7 +8701,7 @@ def questionnaire_view(questionnaire_id):
         questionnaire=q,
         job=job,
         client=client,
-        groups=q.get('questions') or QUESTIONNAIRE_QUESTIONS,
+        groups=q.get('questions') or _questionnaire_template(q.get('tenant_id'))['questions'],
         answers=q.get('answers') or {},
         brand=brand,
         theme=_document_theme((job.get('tenant_id') if job else None) or q.get('tenant_id')),
@@ -8695,11 +8717,12 @@ def api_questionnaire_submit(questionnaire_id):
             return jsonify({'ok': False, 'error': 'Cuestionario no encontrado'}), 404
         if q.get('status') == 'Respondido':
             return jsonify({'ok': False, 'error': 'Este cuestionario ya fue enviado.'}), 409
+        q = _linked_questionnaire(q)
         data = request.get_json(silent=True)
         if not isinstance(data, dict) or not isinstance(data.get('answers'), dict):
             return jsonify({'ok': False, 'error': 'Respuestas inválidas.'}), 400
         from src.questionnaire_templates import questionnaire_fields
-        groups = q.get('questions') or QUESTIONNAIRE_QUESTIONS
+        groups = q['questions']
         fields = questionnaire_fields(groups)
         answers = dict(q.get('answers') or {})
         for key, value in data['answers'].items():
@@ -8726,9 +8749,9 @@ def api_questionnaire_submit(questionnaire_id):
         return jsonify({'ok': True, 'questionnaire': q})
 
 
-def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questions=None,
+def _create_job_questionnaire(job, *, subject=None, body=None,
                                status=None, template_id=None, send_email=True, host_url=None,
-                               reuse_draft=False, questionnaire_id=None, auto_fire=False):
+                               reuse_draft=True, questionnaire_id=None, auto_fire=False):
     """Crea (o reutiliza) el cuestionario de un job y opcionalmente lo manda.
     Extraido de la ruta para que tanto el modal manual (api_job_create_questionnaire)
     como el disparador automatico por fecha (_auto_fire_due_job_steps) compartan
@@ -8772,29 +8795,23 @@ def _create_job_questionnaire(job, *, name=None, subject=None, body=None, questi
         # fix del lado de leads.
         questionnaire = next(
             (q for q in store.list('questionnaires')
-             if q.get('job_id') == job.get('id') and q.get('status') != 'Respondido'),
+             if (q.get('job_id') == job.get('id') or
+                 (not q.get('job_id') and job.get('lead_id') and q.get('lead_id') == job['lead_id']))
+             and q.get('status') != 'Respondido'),
             None,
         )
     if questionnaire is None:
-        template = _questionnaire_template(job.get('tenant_id'))
         questionnaire = {
             'id': 'questionnaire-' + uuid.uuid4().hex[:8],
             'lead_id': job.get('lead_id', ''),
             'client_id': job.get('client_id', ''),
             'job_id': job.get('id'),
-            'name': name or template['name'],
-            'template_name': template['name'],
-            'description': template['description'],
-            'questions': questions or template['questions'],
             'created': datetime.now().isoformat()[:10],
             'tenant_id': job.get('tenant_id') or get_current_tenant_id(),
         }
-    else:
-        if name:
-            questionnaire['name'] = name
-        if questions:
-            questionnaire['questions'] = questions
+    questionnaire = _linked_questionnaire(questionnaire)
     if questionnaire.get('status') != 'Respondido':
+        questionnaire['job_id'] = job['id']
         questionnaire['status'] = status or 'Draft'
     store.upsert('questionnaires', questionnaire)
 
@@ -8885,10 +8902,8 @@ def api_job_create_questionnaire(job_id):
     data = request.get_json() or {}
     result = _create_job_questionnaire(
         job,
-        name=data.get('name'),
         subject=data.get('subject'),
         body=data.get('body'),
-        questions=data.get('questions'),
         status=data.get('status'),
         template_id=data.get('template_id'),
         send_email=data.get('send_email', True),
@@ -13445,7 +13460,7 @@ def client_portal(client_id):
 
     # Cuestionarios (creados desde el job, ver /api/jobs/<id>/questionnaires)
     questionnaires = [
-        q for q in store.list('questionnaires')
+        _linked_questionnaire(q) for q in store.list('questionnaires')
         if q.get('client_id') == client_id or q.get('job_id') in job_ids
     ]
 
