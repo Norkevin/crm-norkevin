@@ -1,0 +1,112 @@
+/* Shared, compact workspace for Jobs, Leads and Clients. */
+.record-list.sn-page-wide { max-width: 1280px; padding-top: 12px; }
+.record-list .sn-page-head { align-items: center; margin-bottom: 22px; gap: 16px; }
+.record-list .list-eyebrow { margin-bottom: 7px; color: var(--sn-accent-text); font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.record-list .sn-page-title { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -.035em; }
+.record-list .list-count { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 24px; padding: 0 7px; border-radius: 7px; background: var(--sn-mint-soft); color: var(--sn-accent-text); font-size: 12px; font-weight: 600; letter-spacing: 0; }
+.record-list .sn-breadcrumbs { margin-top: 7px; line-height: 1.5; }
+.record-list .sn-actions { gap: 8px; }
+.record-list .sn-btn { border-radius: 8px; box-shadow: none; }
+.record-list .list-panel { background: var(--sn-white); border: 1px solid var(--sn-line); border-radius: 14px; box-shadow: 0 3px 16px rgba(16, 24, 40, .025); }
+.record-list .sn-toolbar { margin: 0; padding: 14px 16px; gap: 12px; border-bottom: 1px solid var(--sn-line); }
+.record-list .sn-toolbar-left { gap: 8px; min-width: 0; }
+.record-list .sn-toolbar-right { min-width: 0; }
+.record-list .sn-select { width: auto; min-width: 160px; padding-right: 32px; }
+.record-list .sn-select, .record-list .sn-search { height: 36px; border: 1px solid var(--sn-line); border-radius: 8px; background-color: var(--sn-white); }
+.record-list .sn-search { width: 230px; padding-left: 32px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.6'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='m16 16 4 4'/%3E%3C/svg%3E"); background-position: 10px center; background-repeat: no-repeat; }
+.record-list :is(.sn-search, .sn-select):focus { border-color: var(--sn-accent-text); box-shadow: 0 0 0 3px var(--sn-mint-soft); }
+.record-list .list-caption { font-size: 12px; font-weight: 500; color: var(--sn-muted); }
+.record-list .sn-table-shell { border: 0; border-radius: 0 0 14px 14px; box-shadow: none; overflow-x: auto; }
+.record-list .sn-table th { height: 38px; padding: 0 16px; background: var(--sn-bg); font-size: 10px; letter-spacing: .06em; }
+.record-list .sn-table td { height: auto; padding: 12px 16px; vertical-align: middle; line-height: 1.45; }
+.record-list .sn-table td.stack-actions { padding: 8px; }
+.record-list .sn-table-row:hover td { background: var(--sn-mint-soft); }
+.record-list .sn-table-row:focus-within td { background: var(--sn-mint-soft); }
+.record-list .sn-menu-dots { width: 32px; height: 36px; margin: 0; border-radius: 7px; }
+.record-list .sn-pagination { margin: 0; padding: 12px 16px; }
+.record-list .sn-pagination:empty { display: none; }
+.record-list .sn-row-avatar-lg { width: 34px; height: 34px; min-width: 34px; border-radius: 10px; font-size: 11px; }
+.record-list .record-name { color: var(--sn-ink); text-decoration: none; font-size: 13px; font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+.record-list .record-name:hover { color: var(--sn-accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.record-list a:focus-visible, .record-list button:focus-visible { outline: 2px solid var(--sn-accent-text); outline-offset: 3px; }
+.record-list .sn-row-name { gap: 10px; min-width: 0; }
+.record-list .sn-mail-status { gap: 5px; }
+.record-list .sn-mail-subject { font-size: 12px; overflow-wrap: anywhere; }
+.record-list .sn-chip { height: 22px; font-size: 10px; font-weight: 600; }
+.record-list .sn-dot { width: 7px; height: 7px; border: 0; background: var(--sn-accent-text); vertical-align: 1px; }
+.record-list .client-primary { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.record-list .client-full-name { display: block; }
+.record-list .client-email-text { font-size: 12px; line-height: 1.4; color: var(--sn-muted); }
+.record-list .client-meta { font-size: 13px; }
+.record-list .job-date { display: flex; align-items: center; gap: 10px; }
+.record-list .date-badge { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 44px; border-radius: 8px; background: var(--sn-mint-soft); line-height: 1; }
+.record-list .date-badge strong { font-size: 18px; font-weight: 600; color: var(--sn-accent-text); }
+.record-list .date-badge em { margin-top: 4px; font-style: normal; font-size: 9px; font-weight: 600; text-transform: uppercase; color: var(--sn-accent-text); }
+.record-list .job-date-meta { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.record-list .job-countdown { color: var(--sn-muted); font-size: 10px; white-space: nowrap; }
+.record-list .job-primary { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.record-list .job-title { display: block; font-size: 13px; line-height: 1.4; font-weight: 600; color: var(--sn-ink); text-decoration: none; white-space: normal; overflow-wrap: anywhere; }
+.record-list .job-title:hover { color: var(--sn-accent-text); text-decoration: underline; text-underline-offset: 3px; }
+.record-list .job-type-text { font-size: 11px; color: var(--sn-muted); }
+.record-list .job-state-row { margin-bottom: 6px; }
+.record-list .job-state-row .sn-chip.violet { background: var(--sn-mint-soft); color: var(--sn-accent-text); }
+.record-list .sn-progress-wrap { max-width: 130px; gap: 7px; }
+.record-list .sn-progress { height: 4px; background: var(--sn-line); }
+.record-list .sn-progress-fill { background: var(--sn-green); }
+.record-list .sn-progress-pct { font-size: 10px; }
+.record-list .job-payment-label { display: none; }
+.record-list .job-pay-chip { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: normal; }
+.record-list .job-pay-chip.green { color: var(--sn-accent-text); }
+.record-list .job-next-content { display: flex; align-items: center; gap: 7px; font-size: 12px; white-space: normal; }
+.record-list .job-next-content svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--sn-muted); }
+.record-list .job-date-range { width: auto; margin: 0; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--sn-line); }
+@media (min-width: 761px) {
+  .record-list #jobs-table { min-width: 900px; }
+  .record-list #leads-table { min-width: 920px; }
+  .record-list #clients-table { min-width: 700px; }
+  .record-list #jobs-table th:nth-child(1) { width: 148px; }
+  .record-list #jobs-table th:nth-child(3) { width: 170px; }
+  .record-list #jobs-table th:nth-child(4) { width: 140px; }
+  .record-list #jobs-table th:nth-child(5) { width: 165px; }
+  .record-list #jobs-table th:last-child { width: 48px; }
+  .record-list #leads-table th:nth-child(1) { width: 112px; }
+  .record-list #leads-table th:nth-child(3) { width: 90px; }
+  .record-list #leads-table th:nth-child(4) { width: 170px; }
+  .record-list #leads-table th:nth-child(5) { width: 180px; }
+  .record-list #leads-table th:nth-child(6) { width: 150px; }
+  .record-list #leads-table th:last-child { width: 48px; }
+  .record-list #clients-table th:nth-child(1) { width: 42%; }
+  .record-list #clients-table th:nth-child(2) { width: 23%; }
+  .record-list #clients-table th:nth-child(3) { width: 18%; }
+  .record-list #clients-table th:last-child { width: 48px; }
+  .record-list #leads-table td[data-label="Boda Date"], .record-list #leads-table td[data-label="Next Task"] { white-space: normal; }
+}
+@media (max-width: 760px) {
+  .record-list.sn-page-wide { padding-top: 0; }
+  .record-list .sn-page-head { align-items: center; flex-direction: row; margin-bottom: 16px; }
+  .record-list .sn-page-title { font-size: 25px; gap: 8px; }
+  .record-list .list-eyebrow { font-size: 9px; margin-bottom: 5px; }
+  .record-list .sn-toolbar { padding: 12px; flex-direction: column; align-items: stretch; }
+  .record-list .sn-toolbar .sn-select, .record-list .sn-toolbar .sn-search { min-width: 0; min-height: 44px; width: 100%; font-size: 16px; }
+  .record-list .sn-toolbar .sn-toolbar-right { width: 100%; }
+  .record-list .list-caption { display: none; }
+  .record-list .sn-toolbar-left:empty { display: none; }
+  .record-list .sn-table-shell.stack-mobile { border: 0; overflow: hidden; }
+  .record-list .stack-mobile .sn-table tr { border-radius: 0; padding: 14px 12px; }
+  .record-list .stack-mobile .sn-menu-dots { width: 44px; height: 44px; }
+  .record-list .record-name { font-size: 14px; }
+  body[data-page="/jobs"] .record-list .stack-mobile .sn-table tr { grid-template-columns: 42px minmax(0, 1fr) 44px; grid-template-areas: "date job menu" "date prog prog" "pay pay pay" "next next next"; gap: 8px 10px; }
+  body[data-page="/jobs"] .record-list #jobs-table td { padding: 0; white-space: normal; }
+  .record-list .job-date { flex-direction: column; gap: 5px; }
+  .record-list .job-date-meta { text-align: center; font-size: 10px; }
+  .record-list .job-countdown { display: none; }
+  .record-list .job-title { font-size: 14px; }
+  body[data-page="/jobs"] .record-list #jobs-table td[data-label="Date"] .date-status-badge { display: inline-flex; }
+  body[data-page="/jobs"] .record-list #jobs-table td[data-label="Avance"] { display: flex; align-items: center; gap: 10px; }
+  .record-list .job-state-row { margin: 0; }
+  body[data-page="/jobs"] .record-list .sn-progress-wrap { flex: 1; max-width: 140px; width: auto; }
+  body[data-page="/jobs"] .record-list #jobs-table td[data-label="Pago"] { grid-area: pay; display: flex; justify-content: space-between; padding-top: 9px; border-top: 1px solid var(--sn-line); }
+  .record-list .job-payment-label { display: block; font-size: 11px; color: var(--sn-muted); }
+  .record-list .job-next-content { font-size: 11px; }
+  body[data-page="/leads"] .record-list #leads-table .date-status-badge { display: inline-flex; }
+}

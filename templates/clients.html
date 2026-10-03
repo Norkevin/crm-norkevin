@@ -5,88 +5,23 @@
 {% block topbar_title %}Clients{% endblock %}
 
 {% block content %}
-<style>
-.clients-page .sn-page-head {
-  margin-bottom: 16px;
-}
-.clients-page .sn-toolbar {
-  margin: 0 0 14px;
-}
-.clients-page #clients-table th {
-  height: 38px;
-  padding: 0 18px;
-}
-.clients-page #clients-table td {
-  height: auto;
-  padding: 10px 18px;
-}
-.clients-page .sn-table-row td {
-  vertical-align: top;
-}
-.clients-page .sn-table-row td.stack-actions,
-.clients-page .sn-table-row td[data-label="Creado"],
-.clients-page .sn-table-row td[data-label="Telefono"],
-.clients-page .sn-table-row td[data-label="Empresa"] {
-  vertical-align: middle;
-}
-.clients-page .client-primary {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.clients-page .client-full-name {
-  display: block;
-  font-size: 14.5px;
-  line-height: 1.3;
-  font-weight: 600;
-  color: var(--sn-ink);
-}
-.clients-page .client-email-text {
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--sn-muted);
-}
-.clients-page .client-meta {
-  color: var(--sn-ink);
-  font-size: 13px;
-  line-height: 1.45;
-}
-.clients-page .sn-menu-dots {
-  margin-top: 2px;
-}
-@media (max-width: 760px) {
-  .clients-page #clients-table td {
-    padding: 13px 18px;
-  }
-  .clients-page .client-primary {
-    gap: 6px;
-  }
-  .clients-page .client-full-name {
-    font-size: 15px;
-  }
-  .clients-page .client-email-text,
-  .clients-page .client-meta {
-    font-size: 13px;
-  }
-}
-</style>
-
-<section class="sn-page-wide clients-page">
+<link rel="stylesheet" href="{{ url_for('static', filename='record-lists.css') }}">
+<section class="sn-page-wide record-list clients-page">
   <div class="sn-page-head">
     <div>
-      <h1 class="sn-page-title">Clientes</h1>
-      <div class="sn-breadcrumbs">Administra la informacion de contacto y el historial de cada cliente.</div>
+      <div class="list-eyebrow">TU DIRECTORIO</div>
+      <h1 class="sn-page-title">Clientes <span class="list-count">{{ clients|length }}</span></h1>
+      <div class="sn-breadcrumbs">Personas, datos de contacto e historias compartidas.</div>
     </div>
     <div class="sn-actions">
       <button class="sn-btn" type="button" onclick="importClients()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 16V4m0 0 4 4m-4-4-4 4M4 20h16"/></svg>
-        Import Clients
+        Importar
       </button>
       <input type="file" id="import-clients-input" accept=".csv,text/csv" style="display:none;" onchange="handleImportFile(this)">
       <a class="sn-btn" href="/api/clients/export.csv">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
-        Export Clients
+        Exportar
       </a>
       <button class="sn-btn sn-btn-primary" type="button" onclick="openClientModal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
@@ -95,10 +30,11 @@
     </div>
   </div>
 
+  <div class="list-panel">
   <div class="sn-toolbar">
-    <div class="sn-toolbar-left"></div>
+    <div class="sn-toolbar-left"><span class="list-caption">Directorio de clientes</span></div>
     <div class="sn-toolbar-right">
-      <input id="client-search" class="sn-search" type="search" placeholder="Buscar clientes..." oninput="filterClients()">
+      <input id="client-search" aria-label="Buscar clientes" class="sn-search" type="search" placeholder="Buscar clientes..." oninput="filterClients()">
     </div>
   </div>
 
@@ -106,11 +42,11 @@
     <table class="sn-table" id="clients-table">
       <thead>
         <tr>
-          <th style="width: 340px;">Cliente</th>
-          <th style="width: 220px;">Empresa</th>
-          <th style="width: 180px;">Telefono</th>
-          <th style="width: 160px;">Creado</th>
-          <th style="width: 44px;"></th>
+          <th>Cliente</th>
+          <th>Empresa</th>
+          <th>Telefono</th>
+          <th>Creado</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -133,7 +69,7 @@
             <div style="display:flex;align-items:center;gap:10px;min-width:0;">
               <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (c.first_name or '?')[:1]|upper }}{{ (c.last_name or '')[:1]|upper }}</span>
               <div class="client-primary">
-                <span class="client-full-name sn-ellipsis">{{ c.first_name or 'Sin nombre' }}{% if c.last_name %} {{ c.last_name }}{% endif %}</span>
+                <a class="client-full-name record-name" href="/clients/{{ c.id }}">{{ c.first_name or 'Sin nombre' }}{% if c.last_name %} {{ c.last_name }}{% endif %}</a>
                 <div class="client-email-text sn-ellipsis">{{ c.email or '—' }}</div>
               </div>
             </div>
@@ -142,7 +78,7 @@
           <td class="sn-ellipsis client-meta" data-label="Telefono">{{ c.phone or '—' }}</td>
           <td class="sn-ellipsis client-meta" data-label="Creado">{{ c.created_display or c.created or '—' }}</td>
           <td class="stack-actions" style="text-align:right;">
-            <button class="sn-menu-dots" type="button" title="Actions" onclick="openClientActions(event, '{{ c.id }}', this.closest('tr').dataset.email)">
+            <button class="sn-menu-dots" type="button" title="Acciones del cliente" aria-label="Acciones de {{ c.first_name }} {{ c.last_name }}" onclick="openClientActions(event, '{{ c.id }}', this.closest('tr').dataset.email)">
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
             </button>
           </td>
@@ -150,7 +86,7 @@
         {% endfor %}
         {% if not clients %}
         <tr>
-          <td colspan="6" style="padding:0;">
+          <td colspan="5" style="padding:0;">
             <div class="sn-empty-state">
               <div class="sn-empty-state-icon">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-4.13a4 4 0 10-4-4 4 4 0 004 4zm6-6a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
@@ -169,6 +105,7 @@
     </table>
   </div>
   <div class="sn-pagination" id="clients-pagination"></div>
+  </div>
 </section>
 
 <div class="modal-overlay" id="client-modal">
@@ -235,7 +172,7 @@
 
 <script>
 function goClient(event, id) {
-  if (event.target.closest('button')) return;
+  if (event.target.closest('button, a')) return;
   window.location.href = '/clients/' + id;
 }
 
@@ -255,7 +192,7 @@ function mostrarSinResultados(vacio) {
   if (fila) return;
   fila = document.createElement('tr');
   fila.id = 'sin-resultados';
-  fila.innerHTML = '<td colspan="6" style="padding:0;">'
+  fila.innerHTML = '<td colspan="5" style="padding:0;">'
     + '<div class="sn-empty-state">'
     + '<h3 class="sn-empty-state-title">Ningun cliente coincide</h3>'
     + '<p class="sn-empty-state-desc">Proba con otras palabras, o limpia el buscador y los filtros para ver todo de nuevo.</p>'

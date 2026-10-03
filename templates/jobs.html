@@ -4,6 +4,7 @@
 {% block subtitle %}{{ jobs|length }} trabajos{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='record-lists.css') }}">
 <style>
 .date-status-badge {
   display: inline-flex;
@@ -18,77 +19,6 @@
 .date-status-badge svg { width: 12px; height: 12px; }
 .date-status-badge.red { background: #fecaca; color: #b3263b; }
 .date-status-badge.orange { background: #fed7aa; color: #b3540a; }
-/* Scoped to Jobs: keep shared tables and their mobile layouts untouched. */
-.jobs-page .sn-page-head { margin-bottom: 24px; align-items: center; }
-.jobs-page .jobs-eyebrow { color: var(--sn-accent-text); font-size: 10px; font-weight: 700; letter-spacing: .16em; margin-bottom: 8px; }
-.jobs-page .sn-page-title { font-size: 30px; letter-spacing: -.035em; }
-.jobs-page .jobs-count { display: inline-flex; vertical-align: middle; margin-left: 8px; padding: 4px 9px; border: 1px solid var(--sn-line); border-radius: 8px; color: var(--sn-muted); font-size: 12px; font-weight: 500; letter-spacing: 0; }
-.jobs-page .sn-breadcrumbs { margin-top: 6px; }
-.jobs-page .sn-toolbar { margin: 0 0 18px; padding: 12px; border: 1px solid var(--sn-line); border-radius: 14px; background: var(--sn-white); gap: 12px; }
-.jobs-page .sn-select { width: 210px; background-color: var(--sn-bg); }
-.jobs-page .sn-search { width: 230px; background-color: var(--sn-bg); }
-.jobs-page .sn-table-shell { border: 1px solid var(--sn-line); border-radius: 16px; overflow-x: auto; }
-.jobs-page #jobs-table th { height: 44px; padding: 0 18px; background: var(--sn-bg); font-size: 10px; letter-spacing: .08em; }
-.jobs-page #jobs-table td { height: auto; padding: 18px; vertical-align: middle; }
-.jobs-page #jobs-table td[data-label="Date"] { white-space: normal; overflow: visible; }
-.jobs-page .job-date { display: flex; align-items: center; gap: 11px; }
-.jobs-page .date-badge { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 48px; min-width: 48px; padding: 9px 0; border: 1px solid var(--sn-line); border-radius: 11px; background: var(--sn-bg); line-height: 1; }
-.jobs-page .date-badge strong { font-size: 21px; font-weight: 600; color: var(--sn-ink); }
-.jobs-page .date-badge em { margin-top: 5px; font-style: normal; font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--sn-muted); }
-.jobs-page .job-date-meta { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--sn-ink); }
-.jobs-page .job-countdown { color: var(--sn-muted); font-size: 11px; white-space: nowrap; }
-.jobs-page .job-primary { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.jobs-page #jobs-table td[data-label="Trabajo"],
-.jobs-page .job-title { white-space: normal; overflow-wrap: anywhere; }
-.jobs-page .job-title { display: block; font-size: 15px; line-height: 1.4; font-weight: 600; color: var(--sn-ink); text-decoration: none; }
-.jobs-page .job-title:hover { color: var(--sn-accent-text); text-decoration: underline; text-underline-offset: 3px; }
-.jobs-page .job-title:focus-visible { outline: 2px solid var(--sn-accent-text); outline-offset: 4px; border-radius: 3px; }
-.jobs-page .job-type-text { font-size: 12px; line-height: 1.4; color: var(--sn-muted); }
-.jobs-page .job-state-row { margin-bottom: 10px; }
-.jobs-page .job-state-row .sn-chip { height: 24px; padding: 0 9px; font-size: 11px; font-weight: 600; }
-.jobs-page .job-state-row .sn-chip.violet { background: var(--sn-mint-soft); color: var(--sn-accent-text); }
-.jobs-page .job-state-row .sn-chip.orange { background: #FDF1DC; color: #97620C; }
-.jobs-page .job-state-row .sn-chip.muted { background: var(--sn-bg); color: var(--sn-muted); }
-.jobs-page .sn-progress-wrap { gap: 9px; }
-.jobs-page .sn-progress { height: 5px; background: var(--sn-line); }
-.jobs-page .sn-progress-fill { background: var(--sn-green); }
-.jobs-page .sn-progress-pct { font-size: 10px; }
-.jobs-page .job-payment-label { display: block; margin-bottom: 5px; font-size: 10px; color: var(--sn-muted); }
-.jobs-page .job-pay-chip { font-size: 13px; font-weight: 600; color: var(--sn-ink); font-variant-numeric: tabular-nums; white-space: normal; }
-.jobs-page .job-pay-chip.green { color: var(--sn-accent-text); }
-.jobs-page .job-next-task { white-space: normal; font-size: 12px; line-height: 1.5; }
-.jobs-page .job-next-content { display: flex; align-items: flex-start; gap: 8px; }
-.jobs-page .job-next-content svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; color: var(--sn-muted); }
-.jobs-page .sn-menu-dots { width: 32px; height: 36px; }
-.jobs-page #jobs-table td.stack-actions { padding-left: 0; padding-right: 12px; }
-@media (min-width: 761px) {
-  .jobs-page #jobs-table { min-width: 980px; }
-}
-@media (max-width: 760px) {
-  .jobs-page .sn-page-head { margin-bottom: 18px; }
-  .jobs-page .jobs-eyebrow { font-size: 10px; }
-  .jobs-page .sn-page-title { font-size: 27px; }
-  .jobs-page .sn-toolbar { padding: 10px; }
-  .jobs-page .sn-search { width: 100%; }
-  .jobs-page .sn-table-shell { overflow: hidden; }
-  body[data-page="/jobs"] .jobs-page .stack-mobile .sn-table tr {
-    grid-template-columns: 52px minmax(0, 1fr) 44px;
-    grid-template-areas: "date job menu" "date prog prog" "pay pay pay" "next next next";
-    gap: 12px; padding: 18px 14px;
-  }
-  body[data-page="/jobs"] .jobs-page #jobs-table td { padding: 0; white-space: normal; }
-  .jobs-page .job-date { flex-direction: column; gap: 6px; }
-  .jobs-page .job-date-meta { text-align: center; font-size: 11px; }
-  .jobs-page .job-countdown { display: none; }
-  body[data-page="/jobs"] .jobs-page #jobs-table td[data-label="Date"] .date-status-badge { display: inline-flex; }
-  .jobs-page .job-state-row { margin-bottom: 7px; }
-  .jobs-page .job-title { font-size: 15px; }
-  body[data-page="/jobs"] .jobs-page #jobs-table td[data-label="Pago"] { grid-area: pay; display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--sn-line); padding-top: 12px; gap: 10px; }
-  .jobs-page .job-payment-label { margin: 0; font-size: 11px; }
-  .jobs-page .job-next-content { font-size: 12px; }
-  .jobs-page .sn-menu-dots { width: 44px; height: 44px; }
-}
-
 /* --- Filtro de rango de fechas (Backlog A, cerrado 27-ago-2026) ---
    Colapsado por defecto en escritorio y en mobile: el toolbar ya tiene 2
    selects + buscador, y agregar 2 inputs de fecha siempre visibles lo
@@ -138,11 +68,11 @@
   }
 }
 </style>
-<section class="sn-page-wide jobs-page">
+<section class="sn-page-wide record-list jobs-page">
   <div class="sn-page-head">
     <div>
-      <div class="jobs-eyebrow">BODAS Y EVENTOS</div>
-      <h1 class="sn-page-title">Trabajos <span class="jobs-count">{{ jobs|length }}</span></h1>
+      <div class="list-eyebrow">BODAS Y EVENTOS</div>
+      <h1 class="sn-page-title">Trabajos <span class="list-count">{{ jobs|length }}</span></h1>
       <div class="sn-breadcrumbs">Sigue el progreso de cada boda o evento, de principio a fin.</div>
     </div>
     <div class="sn-actions">
@@ -157,6 +87,7 @@
     </div>
   </div>
 
+  <div class="list-panel">
   <div class="sn-toolbar">
     <div class="sn-toolbar-left">
       <select id="job-status-filter" aria-label="Filtrar por estado" class="sn-select" onchange="filterJobs()">
@@ -196,12 +127,12 @@
     <table class="sn-table" id="jobs-table">
       <thead>
         <tr>
-          <th style="width: 160px;">Fecha del evento</th>
+          <th>Fecha del evento</th>
           <th>Trabajo</th>
-          <th style="width: 164px;">Estado y avance</th>
-          <th style="width: 136px;">Pago</th>
-          <th style="width: 170px;">Siguiente tarea</th>
-          <th style="width: 48px;" aria-label="Acciones"></th>
+          <th>Estado y avance</th>
+          <th>Pago</th>
+          <th>Siguiente tarea</th>
+          <th aria-label="Acciones"></th>
         </tr>
       </thead>
       <tbody>
@@ -308,6 +239,7 @@
     </table>
   </div>
   <div class="sn-pagination" id="jobs-pagination"></div>
+  </div>
 </section>
 
 <div class="modal-overlay" id="job-modal">

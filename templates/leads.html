@@ -5,6 +5,7 @@
 {% block topbar_title %}Leads{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='record-lists.css') }}">
 <style>
 .date-status-badge {
   display: inline-flex;
@@ -21,16 +22,17 @@
 .date-status-badge.orange { background: #fed7aa; color: #b3540a; }
 .date-status-badge.yellow { background: #fde68a; color: #92610a; }
 </style>
-<section class="sn-page-wide">
+<section class="sn-page-wide record-list leads-page">
   <div class="sn-page-head">
     <div>
-      <h1 class="sn-page-title">Leads</h1>
-      <div class="sn-breadcrumbs">Prospectos nuevos y en seguimiento antes de convertirse en jobs.</div>
+      <div class="list-eyebrow">RELACIONES Y SEGUIMIENTO</div>
+      <h1 class="sn-page-title">Leads <span class="list-count">{{ leads|length }}</span></h1>
+      <div class="sn-breadcrumbs">Cada consulta, su fecha y el siguiente paso.</div>
     </div>
     <div class="sn-actions">
       <a class="sn-btn" href="/api/leads/export.csv">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
-        Export Leads
+        Exportar
       </a>
       <button class="sn-btn sn-btn-primary" type="button" onclick="openLeadModal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
@@ -39,9 +41,10 @@
     </div>
   </div>
 
+  <div class="list-panel">
   <div class="sn-toolbar">
     <div class="sn-toolbar-left">
-      <select id="lead-status-filter" class="sn-select" onchange="filterLeads()">
+      <select id="lead-status-filter" aria-label="Filtrar leads por estado" class="sn-select" onchange="filterLeads()">
         <option value="open">Leads abiertos</option>
         <option value="all">Todos los leads</option>
         <option value="Nuevo">Nuevo</option>
@@ -52,7 +55,7 @@
       </select>
     </div>
     <div class="sn-toolbar-right">
-      <input id="lead-search" class="sn-search" type="search" placeholder="Buscar leads..." oninput="filterLeads()">
+      <input id="lead-search" aria-label="Buscar leads" class="sn-search" type="search" placeholder="Buscar leads..." oninput="filterLeads()">
     </div>
   </div>
 
@@ -60,13 +63,13 @@
     <table class="sn-table" id="leads-table">
       <thead>
         <tr>
-          <th style="width: 170px;">Lead Created</th>
-          <th>Lead Name</th>
-          <th style="width: 160px;">Tipo</th>
-          <th style="width: 185px;">Boda Date</th>
-          <th style="width: 250px;">Mail Status</th>
-          <th style="width: 190px;">Next Task</th>
-          <th style="width: 44px;"></th>
+          <th>Creado</th>
+          <th>Lead</th>
+          <th>Tipo</th>
+          <th>Fecha del evento</th>
+          <th>Última actividad</th>
+          <th>Siguiente paso</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -79,7 +82,7 @@
           <td class="sn-ellipsis stack-full" data-label="Lead Name">
             <div class="sn-row-name">
               <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (lead.nombre or '?')[:1]|upper }}</span>
-              <span>{{ lead.nombre or 'Sin nombre' }}</span>
+              <a class="record-name" href="/leads/{{ lead.id }}">{{ lead.nombre or 'Sin nombre' }}</a>
             </div>
           </td>
           <td class="sn-ellipsis" data-label="Tipo"><span class="sn-dot"></span>{{ lead.tipo_evento or 'BODAS' }}</td>
@@ -100,7 +103,7 @@
                 </span>
               {% endif %}
             {% else %}
-              No date <span class="sn-chip red">?</span>
+              Sin fecha <span class="sn-chip red">?</span>
             {% endif %}
           </td>
           <td data-label="Mail Status">
@@ -110,13 +113,13 @@
               <span class="sn-chip {{ lead.last_mail_chip[0] }}">{{ lead.last_mail_chip[1] }}</span>
             {% else %}
               <div class="sn-mail-subject">{{ lead.fuente or 'Sin actividad reciente' }}</div>
-              <span class="sn-chip gray">NO EMAIL</span>
+              <span class="sn-chip gray">Sin correo</span>
             {% endif %}
             </div>
           </td>
           <td class="sn-ellipsis" data-label="Next Task">{{ lead.next_task or 'Seguimiento Cliente' }}</td>
           <td class="stack-actions" style="text-align:right;">
-            <button class="sn-menu-dots" type="button" title="Actions" onclick='openLeadActions(event, {
+            <button class="sn-menu-dots" type="button" title="Acciones del lead" aria-label="Acciones de {{ lead.nombre }}" onclick='openLeadActions(event, {
               id: {{ lead.id|tojson }},
               email: {{ (lead.email or "")|tojson }},
               name: {{ (lead.nombre or "Cliente")|tojson }},
@@ -150,6 +153,7 @@
     </table>
   </div>
   <div class="sn-pagination" id="leads-pagination"></div>
+  </div>
 </section>
 
 <div class="modal-overlay" id="lead-modal">
@@ -176,7 +180,7 @@
           <input class="form-input" id="lead-type" name="tipo_evento" value="Boda">
         </div>
         <div class="form-group">
-          <label class="form-label" for="lead-date">Boda Date</label>
+          <label class="form-label" for="lead-date">Fecha del evento</label>
           <input class="form-input" id="lead-date" name="fecha_tentativa" type="date">
         </div>
       </div>
@@ -247,7 +251,7 @@ var COMPANY_NAME = {{ (current_tenant.name or 'CRM')|tojson }};
 var activeLeadForEmail = null;
 
 function goLead(event, id) {
-  if (event.target.closest('button')) return;
+  if (event.target.closest('button, a')) return;
   window.location.href = '/leads/' + id;
 }
 
