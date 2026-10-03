@@ -4,8 +4,9 @@ const vm = require('node:vm');
 const test = require('node:test');
 const source = fs.readFileSync('static/captacion.js', 'utf8');
 
-async function submit({ brand = 'norkevin-photography', ok = true, tag = 'working' } = {}) {
+async function submit({ brand = 'norkevin-photography', ok = true, tag = 'working', pixel = 'working' } = {}) {
   const calls = [];
+  const metaCalls = [];
   const nodes = new Map();
   const node = id => {
     if (!nodes.has(id)) nodes.set(id, {
@@ -24,16 +25,21 @@ async function submit({ brand = 'norkevin-photography', ok = true, tag = 'workin
     if (tag === 'throws') throw new Error('Unavailable measurement');
     calls.push(args);
   };
+  if (pixel !== 'blocked') window.fbq = (...args) => {
+    if (pixel === 'throws') throw new Error('Unavailable pixel');
+    metaCalls.push(args);
+  };
   vm.runInNewContext(source, {
     window, document: { getElementById: node },
     FormData: class { *[Symbol.iterator]() { yield ['tenant_slug', brand]; } },
     fetch: async () => ({ ok, json: async () => ({ ok, lead_id: 'lead-test' }) }),
     setTimeout, clearTimeout, AbortController, URLSearchParams,
   });
+  assert.equal(metaCalls.length, 0, 'visiting does not count as a Meta lead');
   assert.equal(calls.length, 0, 'visiting does not count as conversion');
   await form.handlers.submit({ preventDefault() {} });
   await form.handlers.submit({ preventDefault() {} });
-  return { calls, form, success: node('success-msg'), error: node('form-error') };
+  return { calls, metaCalls, form, success: node('success-msg'), error: node('form-error') };
 }
 
 test('only a successfully saved Norkevin inquiry counts once, without personal fields', async () => {
@@ -49,5 +55,23 @@ test('only a successfully saved Norkevin inquiry counts once, without personal f
     assert.equal(result.success.hidden, false);
     assert.equal(result.form.hidden, true);
     assert.equal(result.error.hidden, true);
+  }
+});
+
+
+test('Meta counts a saved Norkevin lead once, independently of Google and without form data', async () => {
+  const saved = await submit();
+  assert.equal(JSON.stringify(saved.metaCalls), JSON.stringify([
+    ['trackSingle', '899434420809998', 'Lead', {}, { eventID: 'lead-test' }],
+  ]));
+  assert.equal((await submit({ ok: false })).metaCalls.length, 0);
+  assert.equal((await submit({ brand: 'astral-weddings' })).metaCalls.length, 0);
+  for (const state of ['blocked', 'throws']) {
+    const result = await submit({ pixel: state });
+    assert.equal(result.success.hidden, false);
+    assert.equal(result.form.hidden, true);
+    assert.equal(result.error.hidden, true);
+    assert.equal(result.calls.length, 1);
+    assert.equal((await submit({ tag: state })).metaCalls.length, 1);
   }
 });

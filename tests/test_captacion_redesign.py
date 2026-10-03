@@ -63,6 +63,8 @@ def test_brand_contact_details_and_widgets(client, monkeypatch):
     assert 'tel:+50231648254' not in astral
     assert 'AW-10866273491' in norkevin
     assert 'AW-10866273491' not in astral
+    assert 'norkevin-meta.js' in norkevin
+    assert 'norkevin-meta.js' not in astral
     for html in [norkevin, astral]:
         assert 'name="notas"' in html and 'maxlength="5000"' in html
         assert 'role="combobox"' in html and 'flatpickr.min.js' in html
