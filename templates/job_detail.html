@@ -34,7 +34,7 @@
     <details class="mobile-event-details" data-mobile-fold open>
       <summary>Detalles del evento <span>{{ job.boda_date|fecha_legible or 'Por definir' }}</span></summary>
     <dl class="lead-event-facts">
-      <div><dt>Fecha del evento</dt><dd>{{ job.boda_date|fecha_legible or 'Por definir' }}</dd></div>
+      <div><dt>Fecha del evento</dt><dd>{{ job.boda_date|fecha_legible or 'Por definir' }}{% if job.end_date and job.end_date != job.boda_date %} — {{ job.end_date|fecha_legible }}{% endif %}</dd></div>
       <div><dt>Lugar</dt><dd>{{ job.location or 'Por definir' }}</dd></div>
       <div><dt>Origen</dt><dd>{{ (lead.fuente if lead else '') or job.lead_source or 'Sin especificar' }}</dd></div>
       <div><dt>Avance del workflow</dt><dd>{{ workflow_progress or 0 }}%</dd></div>
@@ -63,7 +63,7 @@
     <div class="lead-next-icon" aria-hidden="true">↗</div>
     <div class="lead-next-copy">
       <div class="lead-eyebrow">Próximo paso</div>
-      <h2 id="job-next-title">{{ upcoming.step.name if upcoming.step else (upcoming.task.name if upcoming.task else 'Todo al día') }}</h2>
+      <h2 id="job-next-title">{{ (upcoming.step.display_name or upcoming.step.name) if upcoming.step else (upcoming.task.name if upcoming.task else 'Todo al día') }}</h2>
       {% if upcoming.step %}{% with step=upcoming.step %}{% include 'workflow_timing.html' %}{% endwith %}
       {% elif upcoming.task %}<p class="sn-muted">Tarea manual pendiente{% if upcoming.task.start_date %} · {{ upcoming.task.start_date|fecha_legible }}{% if upcoming.task.start_time %}, {{ upcoming.task.start_time }}{% endif %}{% endif %}.</p>
       {% else %}<p class="sn-muted">No hay pasos pendientes disponibles.</p>{% endif %}

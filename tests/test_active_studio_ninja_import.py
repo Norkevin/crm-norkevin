@@ -84,3 +84,18 @@ def test_document_copy_is_scoped_idempotent_and_not_a_signature(auth_client, mon
     assert len(crm.store.list('contracts')) == before
     docs['jobs'][0]['source_id'] = 'not-matching'
     assert run(auth_client, docs).status_code == 400
+
+
+def test_imported_event_span_and_next_stage_label(auth_client):
+    import app as crm
+    data = payload(); entry = data['jobs'][0]
+    entry['source_id'] = '77777'; entry['end_date'] = '2027-01-03'
+    entry['clients'][0]['email'] = 'span-test@example.com'
+    entry['job_name'] = 'Evento de tres días'
+    entry['workflow'].insert(1, {'id': 'sn-event', 'name': 'Nombre del trabajo', 'status': 'pending',
+                                 'source_stage': 'PRODUCTION', 'source_details': 'Location: Prueba\nBoda\n01 Jan 2027 - 03 Jan 2027'})
+    assert run(auth_client, data).status_code == 200
+    job = crm.get_job('boda-sn-active-77777')
+    assert crm.compute_workflow_steps_for_job(job)[0][1]['display_name'] == 'Boda'
+    html = auth_client.get('/calendar?month=2027-01').get_data(as_text=True)
+    assert html.count("openCalendarEvent('/jobs/boda-sn-active-77777')") >= 3

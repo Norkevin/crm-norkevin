@@ -1911,7 +1911,7 @@ def _step_scheduled_for_job(step, trigger_at, boda_date):
 def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
     from datetime import datetime, timedelta
     if job.get("studio_ninja_workflow") is not None:
-        steps = job["studio_ninja_workflow"]
+        steps = [dict(step, display_name="Boda" if "\nBoda\n" in (step.get("source_details") or "") else step["name"]) for step in job["studio_ninja_workflow"]]
         progress = round(sum(s["status"] == "done" for s in steps) * 100 / len(steps)) if steps else 0
         return steps, progress, job.get("studio_ninja_workflow_name") or "Studio Ninja"
     tmpl = PRODUCTION_WORKFLOW(tenant_id or job.get("tenant_id"))
@@ -4627,7 +4627,7 @@ def jobs_list():
             steps, prog, _ = compute_workflow_steps_for_job(
                 j, job_ids_cache=_jobs_job_ids_cache, lead_ids_cache=_jobs_lead_ids_cache)
             pending = [s for s in steps if s['status'] == 'pending' and s.get('source_stage') != 'LEAD']
-            j['next_task'] = pending[0]['name'] if pending else 'Completado'
+            j['next_task'] = (pending[0].get('display_name') or pending[0]['name']) if pending else 'Completado'
             j['workflow_progress'] = prog
         except Exception:
             j['next_task'] = '—'
@@ -6663,6 +6663,7 @@ def calendar_view():
             events.append({
                 'id': 'job-' + job.get('id', ''),
                 'date': job.get('boda_date'),
+                'end_date': job.get('end_date') or job.get('boda_date'),
                 'type': 'job',
                 'title': job.get('nombre', 'Job'),
                 'job_id': job.get('id'),
@@ -6687,7 +6688,7 @@ def calendar_view():
             in_month = day_num != 0
             day = day_num if day_num else 1
             iso_date = f"{year}-{month:02d}-{day:02d}" if in_month else None
-            day_events = [e for e in events if e.get('date', '') == iso_date] if iso_date else []
+            day_events = [e for e in events if e.get('date', '') <= iso_date <= (e.get('end_date') or e.get('date', ''))] if iso_date else []
             cells.append({
                 'day': day if in_month else '',
                 'in_month': in_month,
