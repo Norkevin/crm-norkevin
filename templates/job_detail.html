@@ -40,8 +40,10 @@
       <div><dt>Avance del workflow</dt><dd>{{ workflow_progress or 0 }}%</dd></div>
     </dl>
     <div class="job-booking">
+      {% if job.studio_ninja_workflow is defined %}<div><strong>Trabajo aceptado en Studio Ninja</strong><p>El workflow conserva las etapas completadas y pendientes del origen.</p></div><a class="sn-btn" href="{{ job.studio_ninja_url }}" target="_blank" rel="noopener">Ver original ↗</a>{% else %}
       <div><strong>{{ booking.label }}</strong><p>La reserva se confirma con la cotización aceptada, ambas firmas y la primera cuota cubierta.</p></div>
       <div class="job-booking-checks">{% for check in booking.checks %}<span class="sn-chip {{ 'green' if check.done else 'gray' }}">{{ '✓' if check.done else '○' }} {{ check.label }}</span>{% endfor %}</div>
+      {% endif %}
     </div>
     <div class="lead-secondary-actions">
       {% if lead %}<a href="/leads/{{ lead.id }}" title="Lead original de este job">Ver lead original</a>{% endif %}

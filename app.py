@@ -5738,10 +5738,11 @@ def api_admin_import_studio_ninja():
         return jsonify({'ok': False, 'error': 'Payload invalido: se espera {"jobs": [...]}'}), 400
 
     tenant_id = get_current_tenant_id()
-    if payload.get('mode') == 'active_jobs':
-        from src.studio_ninja_active_import import import_active_jobs
+    if payload.get('mode') in ('active_jobs', 'active_documents'):
+        from src.studio_ninja_active_import import import_active_jobs, import_document_copies
         try:
-            result = import_active_jobs(sys.modules[__name__], payload['jobs'], tenant_id)
+            importer = import_document_copies if payload['mode'] == 'active_documents' else import_active_jobs
+            result = importer(sys.modules[__name__], payload['jobs'], tenant_id)
         except ValueError as exc:
             return jsonify({'ok': False, 'error': str(exc)}), 400
         return jsonify(result)

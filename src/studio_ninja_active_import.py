@@ -154,3 +154,41 @@ def import_active_jobs(crm, entries, tenant_id):
         (updated if existing else created).append(entry['job_name'])
     return {'ok': True, 'created': created, 'updated': updated, 'skipped': skipped,
             'message': f'{len(created)} trabajos creados; {len(updated)} actualizados; {len(skipped)} ya importados'}
+
+
+def import_document_copies(crm, entries, tenant_id):
+    """Save readable source copies as files; never manufacture signed contracts."""
+    from hashlib import sha256
+    from html import escape
+    from pathlib import Path
+    planned = []
+    for entry in entries:
+        job = crm.get_job(entry.get('existing_job_id'))
+        if not job or job.get('tenant_id') != tenant_id or job.get('studio_ninja_active_source_id') != entry.get('source_id'):
+            raise ValueError('Documento sin trabajo importado en esta cuenta')
+        for doc in entry.get('documents', []):
+            url, text = doc.get('url', ''), doc.get('text', '')
+            if not url.startswith('https://app.studioninja.co/') or not text or len(text) > 1000000:
+                raise ValueError('Copia documental inválida')
+            planned.append((job, doc))
+    crm.store.backup_now('files')
+    created, skipped = [], []
+    Path(crm.UPLOADS_DIR).mkdir(parents=True, exist_ok=True)
+    for job, doc in planned:
+        fid = 'file-sn-' + sha256((tenant_id + job['id'] + doc['url']).encode()).hexdigest()[:20]
+        if crm.store.get('files', fid):
+            skipped.append(doc['type']); continue
+        name = f'{doc["type"]} Studio Ninja - copia textual.html'
+        stored = fid + '__copia-studio-ninja.html'
+        body = ('<!doctype html><html lang="es"><meta charset="utf-8"><title>' + escape(name) + '</title>'
+                '<style>body{font:16px/1.6 system-ui;max-width:900px;margin:40px auto;padding:24px}pre{white-space:pre-wrap;font:inherit}</style>'
+                '<h1>' + escape(doc['type']) + ' — Studio Ninja</h1><p>Copia textual de los datos visibles del documento original. '
+                'Conserva el contenido y los estados históricos; las imágenes de firmas y el diseño están en el original.</p>'
+                '<p><a href="' + escape(doc['url'], quote=True) + '">Abrir documento original</a></p><hr><pre>' + escape(doc['text']) + '</pre></html>')
+        Path(crm.UPLOADS_DIR, stored).write_text(body, encoding='utf-8')
+        crm.store.upsert('files', {'id': fid, 'tenant_id': tenant_id, 'job_id': job['id'],
+            'client_id': job.get('client_id'), 'lead_id': job.get('lead_id') or '',
+            'name': name, 'stored': stored, 'size': f'{len(body.encode()) / 1048576:.2f} MB',
+            'status': 'Uploaded', 'created': datetime.now().date().isoformat(), 'source_url': doc['url']})
+        created.append(name)
+    return {'ok': True, 'created': created, 'skipped': skipped, 'message': f'{len(created)} copias documentales guardadas'}

@@ -65,3 +65,22 @@ def test_validates_batch_before_write_and_rejects_other_tenant(auth_client):
     data = payload(); data['jobs'][0]['existing_job_id'] = 'foreign-active-job'
     assert run(auth_client, data).status_code == 400
     assert len(crm.list_jobs()) == before
+
+
+def test_document_copy_is_scoped_idempotent_and_not_a_signature(auth_client, monkeypatch, tmp_path):
+    import app as crm
+    monkeypatch.setattr(crm, 'UPLOADS_DIR', str(tmp_path))
+    data = payload(); data['jobs'][0]['source_id'] = '98765'
+    assert run(auth_client, data).status_code == 200
+    docs = {'mode': 'active_documents', 'jobs': [{
+        'source_id': '98765', 'existing_job_id': 'boda-sn-active-98765',
+        'documents': [{'type': 'Contrato', 'url': 'https://app.studioninja.co/contracts/123',
+                       'text': 'Texto de prueba <script>alert(1)</script>\nSigned on 1 January 2026'}]}]}
+    before = len(crm.store.list('contracts'))
+    assert len(run(auth_client, docs).get_json()['created']) == 1
+    assert len(run(auth_client, docs).get_json()['skipped']) == 1
+    html = next(tmp_path.iterdir()).read_text()
+    assert '&lt;script&gt;' in html and '<script>' not in html
+    assert len(crm.store.list('contracts')) == before
+    docs['jobs'][0]['source_id'] = 'not-matching'
+    assert run(auth_client, docs).status_code == 400
