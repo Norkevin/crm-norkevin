@@ -79,3 +79,19 @@ def test_imported_jobs_and_lost_leads_use_recorded_sources_without_crossing_acco
     assert stats.get('Instagram', {}).get('leads', 0) == 0
     assert stats.get('Google', {}).get('leads', 0) == 0
     assert sum(s['leads'] for s in stats.values()) == 3
+
+
+def test_imported_job_source_can_be_edited_and_reaches_dashboard(account):
+    client, m, tenant, _ = account
+    m.store.upsert('jobs', {'id': 'source-edit', 'nombre': 'Historical wedding',
+                           'tenant_id': tenant, 'status': 'Listo', 'price_total': 8500})
+    response = client.post('/api/jobs/source-edit/update', json={'lead_source': 'Instagram'})
+    assert response.status_code == 200
+    job = m.get_job('source-edit')
+    assert job['lead_source'] == 'Instagram' and job['price_total'] == 8500
+    html = client.get('/jobs/source-edit').get_data(as_text=True)
+    assert 'id="job-lead-source"' in html and 'value="Instagram"' in html
+    stats = dashboard_stats(client, m)
+    assert stats['Instagram']['leads'] == stats['Instagram']['jobs'] == 1
+    assert client.post('/api/jobs/source-edit/update', json={'lead_source': ''}).status_code == 200
+    assert dashboard_stats(client, m)['Sin fuente']['jobs'] == 1

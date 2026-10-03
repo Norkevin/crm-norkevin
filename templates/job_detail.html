@@ -36,7 +36,7 @@
     <dl class="lead-event-facts">
       <div><dt>Fecha del evento</dt><dd>{{ job.boda_date|fecha_legible or 'Por definir' }}</dd></div>
       <div><dt>Lugar</dt><dd>{{ job.location or 'Por definir' }}</dd></div>
-      <div><dt>Origen</dt><dd>{{ (lead.fuente if lead else '') or 'Sin especificar' }}</dd></div>
+      <div><dt>Origen</dt><dd>{{ (lead.fuente if lead else '') or job.lead_source or 'Sin especificar' }}</dd></div>
       <div><dt>Avance del workflow</dt><dd>{{ workflow_progress or 0 }}%</dd></div>
     </dl>
     <div class="job-booking">
@@ -650,6 +650,7 @@
         <div class="form-group"><label class="form-label">Boda date</label><input class="form-input" name="boda_date" type="date" onchange="previewWeddingDate(this.value)" value="{{ job.boda_date or '' }}"></div><div id="date-change-preview" role="status" class="sn-muted" style="grid-column:1/-1;white-space:pre-line;">Al cambiar la fecha se actualizan tareas pendientes relativas a la boda. Las cuotas existentes conservan sus fechas e importes.</div>
         <div class="form-group"><label class="form-label">Estado</label><select class="form-input" name="status"><option>{{ job.status }}</option><option>Cotizando</option><option>Confirmado</option><option>En produccion</option><option>Listo</option><option>Archivado</option></select></div>
       </div>
+      {% if not lead %}<div class="form-group"><label class="form-label" for="job-lead-source">Fuente del trabajo</label><input class="form-input" id="job-lead-source" name="lead_source" value="{{ job.lead_source or '' }}" placeholder="Instagram, Wedding Planner, Recomendacion..."></div>{% endif %}
       <div class="form-group"><label class="form-label">Location</label><input class="form-input" name="location" value="{{ job.location or '' }}"></div>
       <div class="grid-2">
         <div class="form-group"><label class="form-label">Package</label><input class="form-input" name="package" value="{{ job.package or '' }}"></div>

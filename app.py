@@ -9407,6 +9407,7 @@ def api_job_update(job_id):
             'notas': 'notas',
             'notas_produccion': 'notas_produccion',
             'smart_file_url': 'smart_file_url',
+            'lead_source': 'lead_source',
         }
         numeric_mapping = {
             'price_total': 'price_total',
