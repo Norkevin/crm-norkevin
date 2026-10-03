@@ -13,6 +13,7 @@
       <div class="lead-identity">
         <div class="lead-status"><span class="sn-chip {% if lead.status == 'Convertido' %}green{% elif lead.status == 'Perdido' %}red{% else %}cyan{% endif %}">{{ lead.status or 'Nuevo' }}</span><span>{{ lead.tipo_evento or 'Evento por definir' }}</span></div>
         <h1>{{ lead.nombre }}</h1>
+        {% if lead.nombre_pareja %}<div class="lead-contact"><span>Pareja: {{ lead.nombre_pareja }}</span></div>{% endif %}
         <div class="lead-contact"><span>{{ lead.email or 'Sin correo' }}</span><span>{{ lead.telefono or 'Sin teléfono' }}</span></div>
       </div>
       <div class="lead-primary-actions">

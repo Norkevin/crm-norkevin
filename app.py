@@ -6345,6 +6345,10 @@ def api_captacion_submit():
     if not isinstance(notes, str) or len(notes) > 5000:
         return jsonify({'ok': False, 'error': 'Las notas deben tener como máximo 5000 caracteres'}), 400
 
+    partner_name = data.get('nombre_pareja', '')
+    if not isinstance(partner_name, str) or len(partner_name) > 200:
+        return jsonify({'ok': False, 'error': 'El nombre de tu pareja debe tener como máximo 200 caracteres'}), 400
+
     if not data.get('nombre'):
         return jsonify({'ok': False, 'error': 'nombre requerido'}), 400
 
@@ -6359,6 +6363,7 @@ def api_captacion_submit():
     lead = {
         'id': lead_id,
         'nombre': data.get('nombre', ''),
+        'nombre_pareja': partner_name.strip(),
         'email': data.get('email', ''),
         'telefono': data.get('telefono', ''),
         'status': 'Nuevo',
@@ -10475,6 +10480,8 @@ def _notify_new_lead(lead, source_label):
         f'Ubicacion: {lead.get("locacion") or "-"}',
         f'Fuente: {lead.get("fuente") or "-"}',
     ]
+    if lead.get('nombre_pareja'):
+        body_lines += [f'Nombre de su pareja: {lead["nombre_pareja"]}']
     notes = lead.get('notas') or lead.get('notes')
     if notes:
         body_lines += ['', 'Notas:', notes]
