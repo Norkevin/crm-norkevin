@@ -14,7 +14,7 @@ function installEmailPreview(subjectId, bodyId) {
   warning.setAttribute('role', 'status');
   const frame = document.createElement('iframe');
   frame.title = 'Así se verá el correo';
-  frame.setAttribute('sandbox', '');
+  frame.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox');
   frame.style.cssText = 'width:100%;height:420px;border:1px solid #dce3e7;border-radius:12px;background:white;';
   panel.append(warning, frame);
   body.parentElement.append(button, panel);

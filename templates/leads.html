@@ -350,14 +350,14 @@ function renderLeadTemplate(text) {
   return String(text || '')
     .replaceAll(OB + 'nombre' + CB, lead.name || 'Cliente')
     .replaceAll(OB + ' nombre ' + CB, lead.name || 'Cliente')
-    .replaceAll(OB + 'fecha_boda' + CB, lead.date || '')
-    .replaceAll(OB + ' fecha_boda ' + CB, lead.date || '')
-    .replaceAll(OB + 'job_date' + CB, lead.date || '')
-    .replaceAll(OB + ' job_date ' + CB, lead.date || '')
+    .replaceAll(OB + 'fecha_boda' + CB, lead.date || (OB + 'fecha_boda' + CB))
+    .replaceAll(OB + ' fecha_boda ' + CB, lead.date || (OB + ' fecha_boda ' + CB))
+    .replaceAll(OB + 'job_date' + CB, lead.date || (OB + 'job_date' + CB))
+    .replaceAll(OB + ' job_date ' + CB, lead.date || (OB + ' job_date ' + CB))
     .replaceAll(OB + 'locacion' + CB, lead.location || '')
     .replaceAll(OB + ' locacion ' + CB, lead.location || '')
     .replaceAll('%client_name%', lead.name || 'Cliente')
-    .replaceAll('%job_date%', lead.date || '')
+    .replaceAll('%job_date%', lead.date || '%job_date%')
     .replaceAll('%company_name%', COMPANY_NAME);
 }
 

@@ -46,7 +46,7 @@ def render_email_html(subject, body):
         style = ('display:inline-block;background:#38596b;color:white;padding:12px 20px;'
                  'border-radius:6px;text-decoration:none;font-weight:bold;' if label else
                  'color:#38596b;text-decoration:underline;overflow-wrap:anywhere;')
-        return '<a href="' + escape(url, quote=True) + '" style="' + style + '">' + escape(label or url) + '</a>'
+        return '<a href="' + escape(url, quote=True) + '" target="_blank" rel="noopener noreferrer" style="' + style + '">' + escape(label or url) + '</a>'
 
     url_pattern = r'https?://[^\s<>"\[\]]+'
     paragraphs = []

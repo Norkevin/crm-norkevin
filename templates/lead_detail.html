@@ -654,7 +654,7 @@ function renderLeadTemplate(text) {
   var OB = String.fromCharCode(123, 123), CB = String.fromCharCode(125, 125);
   return String(text || '')
     .replaceAll(OB + 'nombre' + CB, LEAD_NAME).replaceAll(OB + ' nombre ' + CB, LEAD_NAME)
-    .replaceAll(OB + 'fecha_boda' + CB, LEAD_DATE).replaceAll(OB + ' fecha_boda ' + CB, LEAD_DATE)
+    .replaceAll(OB + 'fecha_boda' + CB, LEAD_DATE || (OB + 'fecha_boda' + CB)).replaceAll(OB + ' fecha_boda ' + CB, LEAD_DATE || (OB + ' fecha_boda ' + CB))
     .replaceAll(OB + 'locacion' + CB, LEAD_LOCATION).replaceAll(OB + ' locacion ' + CB, LEAD_LOCATION)
     .replaceAll('%client_name%', LEAD_NAME).replaceAll('%job_date%', LEAD_DATE || '%job_date%')
     .replaceAll('%company_name%', COMPANY_NAME);

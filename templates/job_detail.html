@@ -1059,14 +1059,14 @@ function renderTemplate(text) {
   return String(text || '')
     .replaceAll(OB + 'nombre' + CB, CLIENT_NAME)
     .replaceAll(OB + ' nombre ' + CB, CLIENT_NAME)
-    .replaceAll(OB + 'fecha_boda' + CB, JOB_DATE)
-    .replaceAll(OB + ' fecha_boda ' + CB, JOB_DATE)
-    .replaceAll(OB + 'job_date' + CB, JOB_DATE)
-    .replaceAll(OB + ' job_date ' + CB, JOB_DATE)
+    .replaceAll(OB + 'fecha_boda' + CB, JOB_DATE || (OB + 'fecha_boda' + CB))
+    .replaceAll(OB + ' fecha_boda ' + CB, JOB_DATE || (OB + ' fecha_boda ' + CB))
+    .replaceAll(OB + 'job_date' + CB, JOB_DATE || (OB + 'job_date' + CB))
+    .replaceAll(OB + ' job_date ' + CB, JOB_DATE || (OB + ' job_date ' + CB))
     .replaceAll(OB + 'locacion' + CB, JOB_LOCATION)
     .replaceAll(OB + ' locacion ' + CB, JOB_LOCATION)
     .replaceAll('%client_name%', CLIENT_NAME)
-    .replaceAll('%job_date%', JOB_DATE)
+    .replaceAll('%job_date%', JOB_DATE || '%job_date%')
     .replaceAll('%company_name%', COMPANY_NAME);
 }
 
