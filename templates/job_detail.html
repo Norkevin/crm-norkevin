@@ -1831,4 +1831,6 @@ function openMailDetails(button) {
 })();
 </script>
 <script src="{{ url_for('static', filename='workflow-timing.js') }}" defer></script>
+<script src="{{ url_for('static', filename='email-preview.js') }}"></script>
+<script>installEmailPreview("email-subject", "email-body");</script>
 {% endblock %}

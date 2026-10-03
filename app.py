@@ -569,18 +569,19 @@ def _render_message_template(text, *, client=None, lead=None, job=None):
         or (lead or {}).get('fecha_evento')
         or ''
     )
+    boda_date = _format_date_es(boda_date) or boda_date
     location = (job or {}).get('location') or (lead or {}).get('locacion') or (lead or {}).get('ubicacion') or ''
     replacements = {
         '{{nombre}}': name,
         '{{ nombre }}': name,
-        '{{fecha_boda}}': boda_date,
-        '{{ fecha_boda }}': boda_date,
-        '{{job_date}}': boda_date,
-        '{{ job_date }}': boda_date,
+        '{{fecha_boda}}': boda_date or '{{fecha_boda}}',
+        '{{ fecha_boda }}': boda_date or '{{ fecha_boda }}',
+        '{{job_date}}': boda_date or '{{job_date}}',
+        '{{ job_date }}': boda_date or '{{ job_date }}',
         '{{locacion}}': location,
         '{{ locacion }}': location,
         '%client_name%': name,
-        '%job_date%': boda_date,
+        '%job_date%': boda_date or '%job_date%',
         '%company_name%': company_name,
     }
     replacements['$jobName$'] = (job or {}).get('nombre') or ''
@@ -3513,6 +3514,9 @@ def lead_detail(lead_id):
     # Packages para el quote wizard
     packages = _load_packages()
     email_templates = [tpl for tpl in store.list('email_templates') if tpl.get('activo', True)]
+    email_templates = [dict(tpl, asunto=_render_message_template(tpl.get('asunto'), client=client, lead=lead),
+                            cuerpo=_render_message_template(tpl.get('cuerpo'), client=client, lead=lead))
+                       for tpl in email_templates]
 
     return render_template('lead_detail.html',
                           lead=lead,
@@ -3734,6 +3738,17 @@ def api_lead_create_quote(lead_id):
 # ============================================================
 # API: Mail Tracking (enviar email + tracking)
 # ============================================================
+@app.route('/api/email-preview', methods=['POST'])
+def api_email_preview():
+    from src.email_delivery import render_email_html, unresolved_email_fields
+    data = request.get_json() or {}
+    subject, body = data.get('subject', ''), data.get('body', '')
+    if not isinstance(subject, str) or not isinstance(body, str):
+        return jsonify({'ok': False, 'error': 'Asunto y mensaje deben ser texto'}), 400
+    return jsonify({'ok': True, 'html': render_email_html(subject, body),
+                    'unresolved': unresolved_email_fields(subject, body)})
+
+
 @app.route('/api/leads/<lead_id>/send-email', methods=['POST'])
 def api_lead_send_email(lead_id):
     """Envia un email al lead y lo registra en mail_log."""
@@ -4718,6 +4733,9 @@ def job_detail(job_id):
         if f.get('job_id') == job_id or (job.get('lead_id') and f.get('lead_id') == job.get('lead_id'))
     ]
     email_templates = [tpl for tpl in store.list('email_templates') if tpl.get('activo', True)]
+    email_templates = [dict(tpl, asunto=_render_message_template(tpl.get('asunto'), client=client, lead=lead, job=job),
+                            cuerpo=_render_message_template(tpl.get('cuerpo'), client=client, lead=lead, job=job))
+                       for tpl in email_templates]
     email_template_names = {tpl.get('id'): tpl.get('name') for tpl in email_templates}
     mail_log = [
         m for m in store.list('mail_log')
@@ -6200,12 +6218,13 @@ def api_settings_email_template_save():
     import uuid
     data = request.get_json() or {}
     template_id = data.get('id') or ('tpl-' + uuid.uuid4().hex[:8])
+    previous = store.get('email_templates', template_id) or {}
     template = {
         'id': template_id,
         'name': data.get('name', '').strip(),
         'asunto': data.get('asunto', '').strip(),
         'cuerpo': data.get('cuerpo', ''),
-        'adjuntos': data.get('adjuntos', []),
+        'adjuntos': data.get('adjuntos', previous.get('adjuntos', [])),
         'activo': bool(data.get('activo', True)),
         'created': store.get('email_templates', template_id).get('created') if store.get('email_templates', template_id) else datetime.now().isoformat()[:10],
     }
@@ -7762,6 +7781,7 @@ def api_pending_email_detail(pending_id):
     las vuelve a correr. Mostrarlas aca sirve para revisar antes, no para
     autorizar.
     """
+    from src.email_delivery import render_email_html, unresolved_email_fields
     from src import gmail_delivery
     from src.mail_tracker import check_recipient_identity, check_same_tenant
 
@@ -7780,12 +7800,16 @@ def api_pending_email_detail(pending_id):
         motivo, aviso = check_recipient_identity(
             actual, p.get('to'), p.get('client_id'),
             source=p.get('source'), lead_id=p.get('lead_id'))
+    unresolved = unresolved_email_fields(p.get('subject'), p.get('body'))
+    if unresolved and not motivo:
+        motivo = 'Completa antes de enviar: ' + ', '.join(unresolved)
     gmail_ok = gmail_delivery.is_connected(tenant_id=actual)
 
     return jsonify({
         'ok': True,
         'email': _pending_email_view(p),
         'cuerpo': p.get('body') or '',
+        'html': render_email_html(p.get('subject'), p.get('body')),
         'desde': gmail_delivery.connected_email(tenant_id=actual) or None,
         'empresa': tenant.get('name') or actual,
         'cliente_email': (cliente or {}).get('email'),
@@ -10533,7 +10557,8 @@ def _notify_new_lead(lead, source_label):
     notes = lead.get('notas') or lead.get('notes')
     if notes:
         body_lines += ['', 'Notas:', notes]
-    body_lines += ['', f'Ver lead: /leads/{lead.get("id")}']
+    base = (os.environ.get('APP_BASE_URL') or 'https://flowingcrm.com').rstrip('/')
+    body_lines += ['', f'Ver lead: {base}/leads/{url_quote(str(lead.get("id")), safe="")}']
     try:
         # Internal notices are explicitly authorized for automatic delivery.
         # The tracker still verifies this company's lead and configured inbox.

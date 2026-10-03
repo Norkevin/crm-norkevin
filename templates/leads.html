@@ -485,4 +485,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+<script src="{{ url_for('static', filename='email-preview.js') }}"></script>
+<script>installEmailPreview("lead-email-subject", "lead-email-body");</script>
 {% endblock %}

@@ -19,7 +19,6 @@ import os
 import time
 import base64
 import uuid
-from email.mime.text import MIMEText
 from pathlib import Path
 from urllib import request as urlrequest, parse as urlparse
 from urllib.error import HTTPError, URLError
@@ -218,10 +217,8 @@ def send_gmail(to_email, subject, body, *, from_name='Flow CRM', tenant_id=None)
     if not token or not token.get('access_token'):
         return False, 'Token de Gmail invalido, reconecta la cuenta.'
 
-    msg = MIMEText(body or '', 'plain', 'utf-8')
-    msg['To'] = to_email
-    msg['Subject'] = subject
-    msg['From'] = f'{from_name} <{token.get("email", "")}>'
+    from .email_delivery import build_email_message
+    msg = build_email_message(to_email, subject, body, f'{from_name} <{token.get("email", "")}>')
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
 
     req = urlrequest.Request(

@@ -6,6 +6,7 @@ Para envio real, configurar EMAIL_DELIVERY_MODE=real y EMAIL_PROVIDER=smtp
 o EMAIL_PROVIDER=resend con sus credenciales.
 """
 import json
+from html import escape
 import re
 import logging
 import os
@@ -30,6 +31,57 @@ class DeliveryResult:
     status: str = 'sent'
     error: str = ''
     mode: str = 'test'
+
+
+def unresolved_email_fields(subject, body):
+    return sorted(set(re.findall(
+        r'%[A-Za-z][A-Za-z0-9_]*%|\$jobName\$|\{\{[^{}]+\}\}|\[LINK:[^\]]*\]',
+        (subject or '') + '\n' + (body or ''),
+    )))
+
+
+def render_email_html(subject, body):
+    """One escaped, email-compatible layout for delivery and preview."""
+    def link(url, label=None):
+        style = ('display:inline-block;background:#38596b;color:white;padding:12px 20px;'
+                 'border-radius:6px;text-decoration:none;font-weight:bold;' if label else
+                 'color:#38596b;text-decoration:underline;overflow-wrap:anywhere;')
+        return '<a href="' + escape(url, quote=True) + '" style="' + style + '">' + escape(label or url) + '</a>'
+
+    url_pattern = r'https?://[^\s<>"\[\]]+'
+    paragraphs = []
+    for paragraph in re.split(r'\n\s*\n', (body or '').replace('\r\n', '\n').strip()):
+        lines = paragraph.split('\n')
+        rendered = []
+        index = 0
+        while index < len(lines):
+            line = lines[index]
+            if (index + 1 < len(lines) and re.fullmatch(url_pattern, lines[index + 1].strip())
+                    and 0 < len(line.strip()) <= 80 and not re.search(r'https?://|[.!?]', line)):
+                rendered.append(link(lines[index + 1].strip(), line.strip().rstrip(':')))
+                index += 2
+                continue
+            parts = re.split('(' + url_pattern + ')', line)
+            rendered.append(''.join(link(part) if re.fullmatch(url_pattern, part) else escape(part) for part in parts))
+            index += 1
+        paragraphs.append('<p style="margin:0 0 24px;">' + '<br>'.join(rendered) + '</p>')
+    return ('<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+            '<body style="margin:0;background:#f3f5f6;color:#253640;">'
+            '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="padding:24px 12px;">'
+            '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:auto;background:white;border-radius:12px;">'
+            '<tr><td style="padding:28px 24px;border-top:4px solid #38596b;font:16px/1.7 Arial,sans-serif;overflow-wrap:anywhere;">'
+            '<h1 style="font-size:23px;line-height:1.35;margin:0 0 28px;">' + escape(subject or '') + '</h1>'
+            + ''.join(paragraphs) + '</td></tr></table></td></tr></table></body></html>')
+
+
+def build_email_message(to_email, subject, body, from_address):
+    message = EmailMessage()
+    message['From'] = from_address
+    message['To'] = to_email
+    message['Subject'] = subject
+    message.set_content(body or '')
+    message.add_alternative(render_email_html(subject, body), subtype='html')
+    return message
 
 
 def _project_root() -> Path:
@@ -95,6 +147,7 @@ def _send_local(to_email, subject, body, *, attachments=None, metadata=None):
         'to': to_email,
         'subject': subject,
         'body': body or '',
+        'html': render_email_html(subject, body),
         'attachments': attachments or [],
         'metadata': metadata or {},
         'created_at': datetime.now().isoformat(),
@@ -117,11 +170,7 @@ def _send_smtp(to_email, subject, body, *, attachments=None, metadata=None):
 
     port = int(os.environ.get('SMTP_PORT', '587'))
     use_tls = os.environ.get('SMTP_TLS', 'true').lower() not in ('0', 'false', 'no')
-    message = EmailMessage()
-    message['From'] = _from_address()
-    message['To'] = to_email
-    message['Subject'] = subject
-    message.set_content(body or '')
+    message = build_email_message(to_email, subject, body, _from_address())
 
     try:
         if use_tls:
@@ -154,6 +203,7 @@ def _send_resend(to_email, subject, body, *, attachments=None, metadata=None):
         'to': [to_email],
         'subject': subject,
         'text': body or '',
+        'html': render_email_html(subject, body),
     }).encode('utf-8')
     req = urlrequest.Request(
         'https://api.resend.com/emails',
@@ -222,10 +272,7 @@ def send_email(to_email, subject, body='', *, attachments=None, metadata=None):
         return DeliveryResult(ok=False, provider='blocked', status='blocked',
                               error=f'Envio de correo deshabilitado ({motivo})')
 
-    unresolved = re.findall(
-        r'%(?:client_name|2nd_client_name|job_date|company_name|quote_link|contract_link|invoice_link|questionnaire_link|gallery_link)%|\$jobName\$',
-        (subject or '') + '\n' + (body or ''),
-    )
+    unresolved = unresolved_email_fields(subject, body)
     if unresolved:
         return DeliveryResult(ok=False, provider='blocked', status='blocked',
                               error='Completa los campos de la plantilla antes de enviar: ' + ', '.join(sorted(set(unresolved))))

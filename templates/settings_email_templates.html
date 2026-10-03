@@ -131,4 +131,6 @@ function deleteTemplate(id) {
     .catch(function() { flashToast('Error de red', 'error'); });
 }
 </script>
+<script src="{{ url_for('static', filename='email-preview.js') }}"></script>
+<script>installEmailPreview("tpl-asunto", "tpl-cuerpo");</script>
 {% endblock %}

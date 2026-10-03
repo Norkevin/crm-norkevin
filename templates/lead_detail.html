@@ -656,7 +656,8 @@ function renderLeadTemplate(text) {
     .replaceAll(OB + 'nombre' + CB, LEAD_NAME).replaceAll(OB + ' nombre ' + CB, LEAD_NAME)
     .replaceAll(OB + 'fecha_boda' + CB, LEAD_DATE).replaceAll(OB + ' fecha_boda ' + CB, LEAD_DATE)
     .replaceAll(OB + 'locacion' + CB, LEAD_LOCATION).replaceAll(OB + ' locacion ' + CB, LEAD_LOCATION)
-    .replaceAll('%client_name%', LEAD_NAME).replaceAll('%company_name%', COMPANY_NAME);
+    .replaceAll('%client_name%', LEAD_NAME).replaceAll('%job_date%', LEAD_DATE || '%job_date%')
+    .replaceAll('%company_name%', COMPANY_NAME);
 }
 
 function findEmailTemplate(id) {
@@ -811,4 +812,6 @@ document.addEventListener('keydown', function(event) {
 });
 </script>
 <script src="{{ url_for('static', filename='workflow-timing.js') }}" defer></script>
+<script src="{{ url_for('static', filename='email-preview.js') }}"></script>
+<script>installEmailPreview("lead-email-subject", "lead-email-body");</script>
 {% endblock %}
