@@ -151,6 +151,15 @@
       const success = document.getElementById('success-msg');
       success.hidden = false;
       success.focus();
+      // Count a saved inquiry, never a visit, click, failed request or another brand.
+      if (form.elements.tenant_slug.value === 'norkevin-photography' && typeof window.gtag === 'function') {
+        try {
+          window.gtag('event', 'conversion', {
+            send_to: 'AW-10866273491/BtunCMWu5Y4dENPZuL0o',
+            transaction_id: result.lead_id,
+          });
+        } catch (_) { /* Measurement must not turn a saved inquiry into a retry. */ }
+      }
     } catch (failure) {
       error.textContent = failure instanceof TypeError ? 'No pudimos conectar. Tus datos siguen aquí; revisa tu conexión e inténtalo de nuevo.' : failure.message;
       error.hidden = false;
