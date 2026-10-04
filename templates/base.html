@@ -3322,7 +3322,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       </div>
     </div>
     <div class="header-popover-wrap">
-      <button class="sn-icon-button" type="button" title="Notificaciones" onclick="toggleNotifications(event)">
+      <button class="sn-icon-button" type="button" title="Notificaciones" aria-label="Notificaciones" onclick="toggleNotifications(event)">
         <span id="notif-bell-badge">
         {% if unread_notifications_count|default(0) > 0 %}
         <span class="sn-bubble">{{ unread_notifications_count }}</span>

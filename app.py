@@ -1710,19 +1710,14 @@ def _build_recent_notifications(tenant_id, limit=5):
                 continue  # el lead/job fue borrado -- no mostrar un link muerto
             if not _same_tenant_or_legacy(lead or job, tenant_id):
                 continue
-            mail_candidates.append(m)
+            mail_url = f"/leads/{lead['id']}" if lead else f"/jobs/{job['id']}"
+            mail_candidates.append(dict(m, notification_url=mail_url))
         latest_mail = sorted(
             mail_candidates,
             key=lambda mail: str(mail.get('sent_at') or mail.get('opened_at') or ''),
             reverse=True
         )
         for mail in latest_mail:
-            if mail.get('lead_id'):
-                mail_url = f"/leads/{mail.get('lead_id')}"
-            elif mail.get('job_id'):
-                mail_url = f"/jobs/{mail.get('job_id')}"
-            else:
-                mail_url = ''
             recent_notifications.append({
                 'id': f"mail-{mail.get('id')}",
                 'type': 'mail',
@@ -1731,7 +1726,7 @@ def _build_recent_notifications(tenant_id, limit=5):
                 'date': (mail.get('sent_at') or '')[:10] or datetime.now().strftime('%d %b %Y'),
                 'time': '',
                 'age': '',
-                'url': mail_url,
+                'url': mail['notification_url'],
             })
     except Exception:
         recent_notifications = []

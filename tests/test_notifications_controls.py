@@ -1,5 +1,17 @@
 import uuid
+import copy
+import pytest
 from conftest import login_as_tenant
+
+
+@pytest.fixture(autouse=True)
+def restore_notification_data():
+    import app as m
+    snapshots = {table: copy.deepcopy(m.store._read_raw(table))
+                 for table in ('tenants', 'leads', 'jobs', 'mail_log', 'notification_reads')}
+    yield
+    for table, rows in snapshots.items():
+        m.store._save(table, rows)
 
 
 def test_notifications_history_read_state_and_tenant_isolation(client):
@@ -28,3 +40,16 @@ def test_notifications_history_read_state_and_tenant_isolation(client):
     login_as_tenant(client, 'tenant-astral')
     assert notice['id'] not in {n['id'] for n in client.get('/api/notifications/recent').get_json()['notifications']}
     assert client.post('/api/notifications/read', json={'ids': [notice['id']]}).status_code == 404
+
+
+def test_mail_notification_uses_existing_job_when_lead_was_deleted(client):
+    import app as m
+    tenant = 'tenant-norkevin-photography'
+    login_as_tenant(client, tenant)
+    unique = uuid.uuid4().hex
+    m.store.upsert('jobs', {'id': unique, 'tenant_id': tenant, 'nombre': 'Trabajo de prueba'})
+    m.store.upsert('mail_log', {'id': unique, 'tenant_id': tenant, 'lead_id': 'deleted-' + unique,
+                              'job_id': unique, 'status': 'sent', 'sent_at': '2099-02-01'})
+    notification = next(n for n in client.get('/api/notifications/recent').get_json()['notifications']
+                        if n['id'] == 'mail-' + unique)
+    assert notification['url'] == '/jobs/' + unique
