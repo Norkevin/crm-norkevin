@@ -616,7 +616,7 @@ def _inject_link(body, url, placeholders, fallback_label):
 
 
 
-def _render_message_template(text, *, client=None, lead=None, job=None):
+def _render_message_template(text, *, client=None, lead=None, job=None, partner_cache=None):
     text = text or ''
     name = _client_name(client=client, lead=lead, job=job)
     company_name = _brand_display_name_for_tenant(
@@ -645,8 +645,9 @@ def _render_message_template(text, *, client=None, lead=None, job=None):
     }
     replacements['$jobName$'] = (job or {}).get('nombre') or ''
     if '%2nd_client_name%' in text:
-        partner = next((get_client(rel['client_id']) for rel in _job_client_relations(job)
-                        if rel['role'] == ROL_PAREJA), None)
+        partner = (partner_cache.get('client') if partner_cache is not None else
+                   next((get_client(rel['client_id']) for rel in _job_client_relations(job)
+                         if rel['role'] == ROL_PAREJA), None))
         if partner:
             replacements['%2nd_client_name%'] = _client_name(client=partner)
         else:
@@ -849,7 +850,7 @@ def _date_conflict_detail(record, kind):
     parsed = _parse_iso_day(day)
     return {
         'name': record.get('nombre') or record.get('title') or 'Fecha bloqueada',
-        'date': day, 'date_label': _format_pretty_date(day) if day else 'Sin fecha',
+        'date': day, 'date_label': _format_date_es(day) or day or 'Sin fecha',
         'type': kind, 'status': record.get('status') or '',
         'location': record.get('location') or record.get('locacion') or record.get('ubicacion') or '',
         'note': 'Recomendado a Astral' if kind == 'lead' and (record.get('astral_referral_at') or record.get('blocked_date_notice_attempted_at')) else '',
@@ -4986,8 +4987,9 @@ def job_detail(job_id):
         group['next_due_display_es'] = _format_date_es(group.get('next_due')) or group.get('next_due') or '-'
         invoice_groups.append(group)
     contracts = [c for c in store.list('contracts') if c.get('job_id') == job_id]
+    questionnaire_template_cache = _questionnaire_template(job.get('tenant_id'))
     questionnaires = [
-        _linked_questionnaire(q) for q in store.list('questionnaires')
+        _linked_questionnaire(q, template_cache=questionnaire_template_cache) for q in store.list('questionnaires')
         if q.get('job_id') == job_id or (job.get('lead_id') and q.get('lead_id') == job.get('lead_id'))
     ]
     files = [
@@ -4995,8 +4997,10 @@ def job_detail(job_id):
         if f.get('job_id') == job_id or (job.get('lead_id') and f.get('lead_id') == job.get('lead_id'))
     ]
     email_templates = [tpl for tpl in store.list('email_templates') if tpl.get('activo', True)]
-    email_templates = [dict(tpl, asunto=_render_message_template(tpl.get('asunto'), client=client, lead=lead, job=job),
-                            cuerpo=_render_message_template(tpl.get('cuerpo'), client=client, lead=lead, job=job))
+    partner_cache = {'client': next((get_client(rel['client_id']) for rel in _job_client_relations(job)
+                                     if rel['role'] == ROL_PAREJA), None)}
+    email_templates = [dict(tpl, asunto=_render_message_template(tpl.get('asunto'), client=client, lead=lead, job=job, partner_cache=partner_cache),
+                            cuerpo=_render_message_template(tpl.get('cuerpo'), client=client, lead=lead, job=job, partner_cache=partner_cache))
                        for tpl in email_templates]
     email_template_names = {tpl.get('id'): tpl.get('name') for tpl in email_templates}
     mail_log = [
@@ -5202,7 +5206,7 @@ def invoices_list():
             'invoice_id': p.get('invoice_id') or p.get('id'),
             'enlace': p.get('id'),
             'title': quote.get('paquete_nombre') or p.get('concepto') or p.get('invoice_id') or 'Invoice',
-            'client_name': f"{client['first_name']} {client['last_name']}" if client else 'Sin cliente',
+            'client_name': _client_name(client=client) if client else 'Sin cliente',
             'job_name': job.get('nombre') if job else 'Sin job',
             'total': 0.0,
             'paid': 0.0,
@@ -5253,9 +5257,9 @@ def payments_list():
 
     for p in payments_all:
         c = clients.get(p.get('client_id', ''))
-        p['client_name'] = f"{c['first_name']} {c['last_name']}" if c else '—'
+        p['client_name'] = _client_name(client=c) if c else '—'
         j = jobs.get(p.get('job_id', ''))
-        p['job_name'] = j['nombre'] if j else '—'
+        p['job_name'] = j.get('nombre', '') if j else '—'
 
         paid_day = _payment_reporting_day(p) if p.get('status') == 'Pagado' else None
         p['paid_date_display'] = _format_date_es(paid_day) if paid_day else None
@@ -9035,11 +9039,11 @@ def _questionnaire_template(tenant_id=None):
     })
 
 
-def _linked_questionnaire(questionnaire):
+def _linked_questionnaire(questionnaire, template_cache=None):
     """Pending client links use Settings; completed forms keep their original questions."""
     from src.questionnaire_templates import questionnaire_fields
     q = dict(questionnaire)
-    template = _questionnaire_template(q.get('tenant_id'))
+    template = template_cache if template_cache is not None else _questionnaire_template(q.get('tenant_id'))
     if q.get('status') == 'Respondido':
         if (q.get('name') or '').lower() in ('cuestionario de bodas generico', 'cuestionario de bodas genérico'):
             q['name'] = template['name']
@@ -11741,9 +11745,9 @@ def api_payments_export_csv():
 
     for p in payments_all:
         c = clients.get(p.get('client_id', ''))
-        client_name = f"{c['first_name']} {c['last_name']}" if c else ''
+        client_name = _client_name(client=c) if c else ''
         j = jobs.get(p.get('job_id', ''))
-        job_name = j['nombre'] if j else ''
+        job_name = j.get('nombre', '') if j else ''
 
         writer.writerow([
             p.get('invoice_id', ''),
@@ -12285,7 +12289,7 @@ def quotes_list():
 
     for q in quotes:
         client = clients.get(q.get('client_id'))
-        q['client_name'] = f"{client['first_name']} {client['last_name']}" if client else 'Sin cliente'
+        q['client_name'] = _client_name(client=client) if client else 'Sin cliente'
         job = jobs.get(q.get('job_id'))
         lead = leads.get(q.get('lead_id'))
         q['ref_name'] = (job or {}).get('nombre') or (lead or {}).get('nombre') or '—'

@@ -34,6 +34,7 @@ def test_job_warning_names_both_job_and_lead_and_links_to_them(booking):
     assert {item['name'] for item in items} == {other['nombre'], lead['nombre']}
     assert {item['url'] for item in items} == {'/jobs/' + other['id'], '/leads/' + lead['id']}
     assert all(item['date'] == job['boda_date'] and item['date_label'] for item in items)
+    assert all(item['date_label'] == crm._format_date_es(job['boda_date']) for item in items)
     crm.store.delete('jobs', other['id'])
 
 
