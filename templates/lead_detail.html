@@ -34,6 +34,7 @@
       {% if lead.status != 'Convertido' %}<button class="lead-text-button" type="button" onclick="openAcceptJobModal('accept')">Confirmar reserva →</button>{% endif %}
       {% if job_vinculado %}<a href="/jobs/{{ job_vinculado.id }}">Abrir boda →</a>{% endif %}
       <button class="lead-text-button" type="button" onclick="checkDate()">Consultar disponibilidad</button>
+      {% if lead.blocked_date_notice_error %}<p role="alert">Aviso de fecha bloqueada pendiente: {{ lead.blocked_date_notice_error }}. Revisa el correo antes de enviarlo.</p>{% endif %}
       {% if client %}<a href="/portal/{{ client.id }}" target="_blank" rel="noopener">Portal del cliente ↗</a><a href="/clients/{{ client.id }}">Ficha del cliente</a>{% endif %}
       <button class="lead-text-button" type="button" onclick="openAddMenu()">Más acciones</button>
     </div>
@@ -757,7 +758,8 @@ function submitContractSend(event) {
 function checkDate() {
   apiPost('/api/leads/' + LEAD_ID + '/check-date', {})
     .then(function(data) {
-      flashToast(data.disponible ? 'Date available' : 'Date has conflicts', data.disponible ? 'success' : 'error');
+      const blocked = (data.conflicts || []).some(function(c) { return c.type === 'block'; });
+      flashToast(data.disponible ? 'Fecha disponible' : blocked ? 'Fecha bloqueada' : 'Fecha ocupada', data.disponible ? 'success' : 'error');
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }

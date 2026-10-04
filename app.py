@@ -255,7 +255,7 @@ def trigger_workflow_for_lead(lead_id, lead_name, tenant_id=None):
     propio lead (ya conocido en el call site). Si no se pasa, cae a la
     sesion activa -- pensado para no romper algun caller que todavia no
     se actualizo, no como el camino preferido."""
-    return workflow_engine.start_workflow(
+    instance = workflow_engine.start_workflow(
         workflow=LEAD_WORKFLOW(tenant_id),
         subject_type='lead',
         subject_id=lead_id,
@@ -264,6 +264,15 @@ def trigger_workflow_for_lead(lead_id, lead_name, tenant_id=None):
         tenant_id=tenant_id or get_current_tenant_id(),
         auto_prepare=True,
     )
+    token = _workflow_tenant.set(tenant_id or get_current_tenant_id())
+    try:
+        _notify_blocked_date_lead(get_lead(lead_id))
+    except Exception:
+        logger.exception('No se pudo notificar la fecha bloqueada del lead %s', lead_id)
+    finally:
+        _workflow_tenant.reset(token)
+    return instance
+
 
 
 def trigger_workflow_for_quote_accepted(lead_id, lead_name, job_id=None, tenant_id=None):
@@ -786,7 +795,7 @@ def _complete_job_workflow_step(job, step_id, result_message=None, mail_id=None)
 
 
 def _lead_date_conflicts(lead, jobs=None):
-    """Only this account's active jobs reserve a date, including event ranges."""
+    """Active jobs and unreleased blocks reserve dates only in this account."""
     event_date = _parse_iso_day(lead.get('fecha_tentativa') or lead.get('fecha_evento'))
     if not event_date or not lead.get('tenant_id'):
         return []
@@ -801,7 +810,43 @@ def _lead_date_conflicts(lead, jobs=None):
         end = _parse_iso_day(job.get('end_date')) or start
         if start and start <= event_date <= end:
             conflicts.append(job)
+    for block in list_calendar():
+        if (block.get('tenant_id') != lead['tenant_id'] or block.get('type') != 'block'
+                or block.get('released_at')):
+            continue
+        start = _parse_iso_day(block.get('date'))
+        end = _parse_iso_day(block.get('end_date')) or start
+        if start and start <= event_date <= end:
+            conflicts.append(dict(block, nombre=block.get('title') or 'Fecha bloqueada'))
     return conflicts
+
+
+def _notify_blocked_date_lead(lead):
+    """Send the authorized unavailability reply only for newly enrolled native leads.
+
+    Persist the attempt before delivery. A failed/uncertain send needs manual
+    review, never an automatic retry or a retroactive mailing on block creation.
+    """
+    if (not lead or lead.get('blocked_date_notice_attempted_at') or lead.get('source_id')
+            or lead.get('studio_ninja_workflow') or not _lead_packages_unavailable(lead, 'envio_paquetes')
+            or not any(c.get('type') == 'block' for c in _lead_date_conflicts(lead))):
+        return
+    lead['blocked_date_notice_attempted_at'] = datetime.now().isoformat()
+    upsert_lead(lead)
+    result = _complete_lead_workflow_step(lead, 'envio_paquetes')
+    if not result.get('queued'):
+        lead['blocked_date_notice_error'] = result.get('warning') or 'Revisar el correo de fecha bloqueada'
+        upsert_lead(lead)
+        return
+    from src.mail_tracker import get_tracker
+    delivery = get_tracker().approve_and_send(result['mail_id'], sender_tenant_id=lead['tenant_id'],
+                                              actor='sistema:fecha-bloqueada')
+    lead = get_lead(lead['id']) or lead
+    lead['mail_status'] = _lead_mail_status_chip(delivery.get('pendiente') or {})
+    steps, _, _ = compute_workflow_steps_for_lead(lead)
+    pending = next((s for s in steps if s.get('status') not in ('done', 'skipped')), None)
+    lead['next_task'] = pending.get('name') if pending else 'Trabajo aceptado'
+    upsert_lead(lead)
 
 
 def _lead_packages_unavailable(lead, step_id, jobs=None):
@@ -6721,10 +6766,11 @@ def calendar_view():
     from datetime import datetime
     import calendar as _cal
 
-    # Solo tomamos eventos manuales (type='event') de calendar.json: los de
+    # Eventos manuales y bloqueos; los registros históricos de calendar de
     # tipo lead/job son entradas antiguas duplicadas, ya que abajo se generan
     # frescos desde los datos reales del lead/job (con su url correcta).
-    events = [dict(e) for e in list_calendar() if e.get('type') == 'event']
+    events = [dict(e) for e in list_calendar()
+              if e.get('type') in ('event', 'block') and not e.get('released_at')]
     for lead in _open_leads():
         if lead.get('fecha_tentativa'):
             events.append({
@@ -11253,9 +11299,19 @@ def api_calendar_create_event():
     from datetime import datetime as _dt
 
     data = request.get_json() or {}
-    title = data.get('title', '').strip()
+    title = data.get('title') or ''
+    if not isinstance(title, str) or len(title) > 200:
+        return jsonify({'ok': False, 'error': 'El título debe tener como máximo 200 caracteres.'}), 400
+    title = title.strip()
     date_str = data.get('date', '')
-    event_type = data.get('type', 'event')  # 'job' | 'wedding' | 'lead' | 'event'
+    event_type = data.get('type', 'event')
+    end_str = data.get('end_date') or date_str
+    if event_type == 'block':
+        title = title or 'Fecha bloqueada'
+        start = _parse_iso_day(date_str)
+        end = _parse_iso_day(end_str)
+        if not start or not end or start.isoformat() != date_str or end.isoformat() != end_str or end < start:
+            return jsonify({'ok': False, 'error': 'Selecciona fechas válidas; el final debe ser igual o posterior al inicio.'}), 400
 
     if not title or not date_str:
         return jsonify({'ok': False, 'error': 'titulo y fecha requeridos'}), 400
@@ -11263,6 +11319,8 @@ def api_calendar_create_event():
     event = {
         'id': 'evt-' + uuid.uuid4().hex[:8],
         'date': date_str,
+        'end_date': end_str,
+        'tenant_id': get_current_tenant_id(),
         'type': event_type,
         'title': title,
         'job_id': data.get('job_id'),
@@ -11272,6 +11330,16 @@ def api_calendar_create_event():
     }
     store.upsert('calendar', event)
     return jsonify({'ok': True, 'event': event})
+
+
+@app.route('/api/calendar/blocks/<event_id>/release', methods=['POST'])
+def api_calendar_release_block(event_id):
+    block = store.get('calendar', event_id)
+    if not block or block.get('type') != 'block' or block.get('tenant_id') != get_current_tenant_id():
+        return jsonify({'ok': False, 'error': 'Bloqueo no encontrado'}), 404
+    block['released_at'] = block.get('released_at') or datetime.now().isoformat()
+    store.upsert('calendar', block)
+    return jsonify({'ok': True})
 
 
 @app.route('/api/calendar/events/<event_id>', methods=['DELETE'])
@@ -11297,9 +11365,13 @@ def api_calendar_export_ics():
     ]
 
     for evt in events:
+        if evt.get('released_at'):
+            continue
         # Convertir date (YYYY-MM-DD) a formato iCal (YYYYMMDD)
         date_compact = evt.get('date', '').replace('-', '')
-        title = evt.get('title', 'Sin titulo').replace(',', '\\,')
+        end_day = (_parse_iso_day(evt.get('end_date') or evt.get('date')) or date.today()) + timedelta(days=1)
+        title = (evt.get('title', 'Sin titulo').replace('\\', '\\\\').replace('\r\n', '\\n')
+                 .replace('\r', '\\n').replace('\n', '\\n').replace(';', '\\;').replace(',', '\\,'))
 
         # Buscar info adicional del job
         desc_lines = []
@@ -11318,7 +11390,8 @@ def api_calendar_export_ics():
         ics_lines.extend([
             'BEGIN:VEVENT',
             f'DTSTART;VALUE=DATE:{date_compact}',
-            f'DTEND;VALUE=DATE:{date_compact}',
+            f'DTEND;VALUE=DATE:{end_day.strftime("%Y%m%d")}',
+            'TRANSP:OPAQUE',
             f'SUMMARY:{title}',
             f'DESCRIPTION:{desc}',
             f'UID:{evt.get("id", "")}@norkevin-crm',
@@ -11326,7 +11399,7 @@ def api_calendar_export_ics():
         ])
 
     ics_lines.append('END:VCALENDAR')
-    ics_content = '\\r\\n'.join(ics_lines)
+    ics_content = '\r\n'.join(ics_lines)
 
     return Response(ics_content, mimetype='text/calendar', headers={
         'Content-Disposition': 'attachment; filename=norkevin-calendar.ics'
@@ -13941,7 +14014,8 @@ def api_check_date(lead_id):
     if not fecha:
         return jsonify({'ok': False, 'error': 'Sin fecha tentativa. Pedile al cliente su fecha.'}), 400
 
-    conflicts = [{'job_id': job['id'], 'client': job.get('nombre', '')}
+    conflicts = [{'job_id': job['id'], 'client': job.get('nombre', ''),
+                  'type': 'block' if job.get('type') == 'block' else 'job'}
                  for job in _lead_date_conflicts(lead)]
 
     return jsonify({
@@ -13981,10 +14055,7 @@ def api_workflow_step():
     if step_id == 'validar_disponibilidad':
         # Verificar disponibilidad primero
         fecha = lead.get('fecha_tentativa', '')
-        conflicts = []
-        for j in _canonical_jobs():
-            if j.get('boda_date') == fecha and j.get('lead_id') != lead_id:
-                conflicts.append(j)
+        conflicts = _lead_date_conflicts(lead)
         if not conflicts:
             template_id = template_id or 'tpl-paquetes'
             return jsonify({

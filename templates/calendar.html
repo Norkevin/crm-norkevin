@@ -16,6 +16,7 @@
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
         Exportar iCal
       </a>
+      <button class="sn-btn" type="button" onclick="openBlockModal()">Bloquear fecha</button>
       <button class="sn-btn sn-btn-primary" type="button" onclick="openEventModal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
         Nuevo
@@ -45,6 +46,7 @@
         <option value="lead">Leads</option>
         <option value="job">Trabajos</option>
         <option value="event">Eventos</option>
+        <option value="block">Fechas bloqueadas</option>
       </select>
     </div>
   </div>
@@ -62,8 +64,8 @@
           <div class="calendar-day {% if cell.today %}today{% endif %}">{{ cell.day }}</div>
           <div class="calendar-events">
             {% for evt in cell.events[:3] %}
-            <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" onclick="openCalendarEvent('{{ evt.url or '' }}')">
-              <span class="calendar-event-badge {{ evt.type }}">{{ evt.type|capitalize }}</span>
+            <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" data-block-id="{{ evt.id if evt.type == 'block' else '' }}" onclick="openCalendarEvent('{{ evt.url or '' }}', this)">
+              <span class="calendar-event-badge {{ evt.type }}">{{ 'Bloqueada' if evt.type == 'block' else evt.type|capitalize }}</span>
               <span class="calendar-event-title">{{ evt.title }}</span>
             </button>
             {% endfor %}
@@ -71,8 +73,8 @@
             <button class="calendar-event-more" type="button" onclick="toggleMoreEvents(this)">+{{ cell.events|length - 3 }} eventos más</button>
             <div class="calendar-events-hidden" style="display:none;">
               {% for evt in cell.events[3:] %}
-              <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" onclick="openCalendarEvent('{{ evt.url or '' }}')">
-                <span class="calendar-event-badge {{ evt.type }}">{{ evt.type|capitalize }}</span>
+              <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" data-block-id="{{ evt.id if evt.type == 'block' else '' }}" onclick="openCalendarEvent('{{ evt.url or '' }}', this)">
+                <span class="calendar-event-badge {{ evt.type }}">{{ 'Bloqueada' if evt.type == 'block' else evt.type|capitalize }}</span>
                 <span class="calendar-event-title">{{ evt.title }}</span>
               </button>
               {% endfor %}
@@ -102,8 +104,8 @@
             </div>
             <div class="agenda-events">
               {% for evt in cell.events %}
-              <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" onclick="openCalendarEvent('{{ evt.url or '' }}')">
-                <span class="calendar-event-badge {{ evt.type }}">{{ evt.type|capitalize }}</span>
+              <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" data-block-id="{{ evt.id if evt.type == 'block' else '' }}" onclick="openCalendarEvent('{{ evt.url or '' }}', this)">
+                <span class="calendar-event-badge {{ evt.type }}">{{ 'Bloqueada' if evt.type == 'block' else evt.type|capitalize }}</span>
                 <span class="calendar-event-title">{{ evt.title }}</span>
               </button>
               {% endfor %}
@@ -124,7 +126,7 @@
         <div class="upcoming-events-grid">
           {% for e in upcoming_events %}
           {% set date_parts = e.date_label.split(' ') %}
-          <button class="upcoming-event-card {{ e.type }}" type="button" onclick="openCalendarEvent('{{ e.url or '' }}')">
+          <button class="upcoming-event-card {{ e.type }}" type="button" data-block-id="{{ e.id if e.type == 'block' else '' }}" onclick="openCalendarEvent('{{ e.url or '' }}', this)">
             <div class="upcoming-event-daybox">
               <strong>{{ date_parts[0] }}</strong>
               {{ date_parts[1] if date_parts|length > 1 else '' }}
@@ -132,7 +134,7 @@
             <div class="upcoming-event-copy">
               <div class="upcoming-event-title sn-ellipsis">{{ e.title }}</div>
               <div class="upcoming-event-date">
-                <span class="upcoming-event-badge {{ e.type }}">{{ e.type|capitalize }}</span>
+                <span class="upcoming-event-badge {{ e.type }}">{{ 'Bloqueada' if e.type == 'block' else e.type|capitalize }}</span>
                 {% if e.days_away is not none %}
                 <span class="upcoming-event-days">{% if e.days_away == 0 %}Hoy{% elif e.days_away == 1 %}Manana{% else %}{{ e.days_away }}d{% endif %}</span>
                 {% endif %}
@@ -179,6 +181,43 @@
         <button class="sn-btn sn-btn-primary" type="submit">Create Event</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="block-modal">
+  <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="block-modal-title">
+    <h2 class="modal-title" id="block-modal-title">Bloquear fecha</h2>
+    <p>La fecha aparecerá ocupada. Los nuevos leads de Norkevin recibirán el correo de fecha no disponible que recomienda Astral.</p>
+    <form onsubmit="createBlock(event)">
+      <div class="form-group">
+        <label class="form-label" for="block-title">Título (opcional)</label>
+        <input class="form-input" id="block-title" name="title" placeholder="Fecha bloqueada" maxlength="200">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="block-date">Fecha *</label>
+          <input class="form-input" id="block-date" name="date" type="date" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="block-end">Hasta (opcional)</label>
+          <input class="form-input" id="block-end" name="end_date" type="date">
+        </div>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
+        <button class="sn-btn" type="button" onclick="closeBlockModal()">Cancelar</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Bloquear fecha</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="modal-overlay" id="release-block-modal">
+  <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="release-block-title">
+    <h2 class="modal-title" id="release-block-title">Fecha bloqueada</h2>
+    <p>Desbloquear permite nuevas reservas. Los trabajos ya confirmados siguen reservando sus fechas.</p>
+    <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
+      <button class="sn-btn" type="button" onclick="closeBlockModal()">Cerrar</button>
+      <button class="sn-btn sn-btn-primary" type="button" onclick="releaseBlock(this)">Desbloquear fecha</button>
+    </div>
   </div>
 </div>
 
@@ -346,6 +385,8 @@
 }
 .calendar-event-badge.lead { background: #0D9488; }
 .calendar-event-badge.job { background: #2563EB; }
+.calendar-event.block, .upcoming-event-card.block { background: #fff1f2; border-color: #fecdd3; color: #9f1239; }
+.calendar-event-badge.block, .upcoming-event-badge.block { background: #9f1239; }
 .calendar-event-badge.event { background: #D97706; }
 .calendar-event-title {
   width: 100%;
@@ -452,8 +493,44 @@ function filterCalendar() {
   });
 }
 
-function openCalendarEvent(url) {
-  if (url) window.location.href = url;
+let blockOpener;
+function openBlockModal() {
+  blockOpener = document.activeElement;
+  document.getElementById('block-modal').classList.add('open');
+  document.getElementById('block-date').focus();
+}
+function closeBlockModal() {
+  document.getElementById('block-modal').classList.remove('open');
+  document.getElementById('release-block-modal').classList.remove('open');
+  if (blockOpener) blockOpener.focus();
+}
+function createBlock(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('[type="submit"]');
+  const payload = Object.fromEntries(new FormData(form).entries());
+  payload.type = 'block';
+  button.disabled = true;
+  apiPost('/api/calendar/events', payload)
+    .then(function() { location.reload(); })
+    .catch(function(err) { flashToast(err.message, 'error'); button.disabled = false; });
+}
+function releaseBlock(button) {
+  button.disabled = true;
+  const id = document.getElementById('release-block-modal').dataset.blockId;
+  apiPost('/api/calendar/blocks/' + encodeURIComponent(id) + '/release', {})
+    .then(function() { location.reload(); })
+    .catch(function(err) { flashToast(err.message, 'error'); button.disabled = false; });
+}
+function openCalendarEvent(url, button) {
+  if (button && button.dataset.blockId) {
+    blockOpener = button;
+    const modal = document.getElementById('release-block-modal');
+    modal.dataset.blockId = button.dataset.blockId;
+    document.getElementById('release-block-title').textContent = button.querySelector('.calendar-event-title, .upcoming-event-title').textContent;
+    modal.classList.add('open');
+    modal.querySelector('button').focus();
+  } else if (url) window.location.href = url;
 }
 
 function toggleMoreEvents(btn) {
@@ -474,7 +551,15 @@ function changeCalendarView() {
 }
 
 document.addEventListener('keydown', function(event) {
-  if (event.key === 'Escape') closeEventModal();
+  if (event.key === 'Escape') { closeEventModal(); closeBlockModal(); }
+  if (event.key === 'Tab') {
+    const modal = document.querySelector('#block-modal.open, #release-block-modal.open');
+    if (!modal) return;
+    const controls = modal.querySelectorAll('input, button:not([disabled])');
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
 });
 </script>
 {% endblock %}
