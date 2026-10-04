@@ -244,7 +244,7 @@ def reconcile_payments(crm, entries, tenant_id, dry_run=False):
         if len(old_rows) > len(new_rows):
             raise ValueError(f'Hay más pagos existentes que cuotas de origen en {jid}; revisar antes de reemplazar')
         planned.append((entry, deepcopy(job), old_rows, new_rows))
-    result = {'ok': True, 'jobs': len(planned), 'payments': sum(len(p[3]) for p in planned),
+    result = {'ok': True, 'skipped': [], 'jobs': len(planned), 'payments': sum(len(p[3]) for p in planned),
               'paid': float(sum((_money(r['amount']) for p in planned for _, _, r in p[3] if r['status'] == 'Pagado'), Decimal(0))),
               'pending': float(sum((_money(r['amount']) for p in planned for _, _, r in p[3] if r['status'] != 'Pagado'), Decimal(0)))}
     if dry_run:

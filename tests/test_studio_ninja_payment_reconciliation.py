@@ -38,7 +38,8 @@ def test_source_installments_writeoffs_audit_idempotence_and_dashboard(auth_clie
     baseline = {s['year']: s['total'] for s in json.loads(re.search(r'var REVENUE_SERIES = (.*);', baseline_html).group(1))}
     mail_before = {t: len(crm.store.list(t)) for t in ('pending_emails', 'mail_log', 'contracts')}
     preview = deepcopy(data); preview['dry_run'] = True
-    assert post(auth_client, preview).get_json()['payments'] == 4
+    validated = post(auth_client, preview).get_json()
+    assert validated['payments'] == 4 and validated['skipped'] == []
     assert len([p for p in crm.list_payments() if p.get('job_id') == 'reconcile-test']) == 1
     assert post(auth_client, data).status_code == 200
     rows = [p for p in crm.list_payments() if p.get('job_id') == 'reconcile-test']
