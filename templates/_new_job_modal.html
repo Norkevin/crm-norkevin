@@ -1,0 +1,88 @@
+<div class="modal-overlay" id="job-modal">
+  <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="job-modal-title">
+    <h2 class="modal-title" id="job-modal-title">Nuevo job</h2>
+    <form id="job-form" data-return-calendar="{{ 'true' if calendar_grid is defined else 'false' }}" onsubmit="createJob(event)">
+      <div class="form-group">
+        <label class="form-label" for="job-client">Cliente *</label>
+        <select class="form-input" id="job-client" name="client_id" required>
+          <option value="">Selecciona un cliente...</option>
+          {% for c in all_clients %}
+          <option value="{{ c.id }}">{{ c.first_name }} {{ c.last_name }}{% if c.email %} &middot; {{ c.email }}{% endif %}</option>
+          {% endfor %}
+        </select>
+        {% if not all_clients %}
+        <div class="sn-muted" style="font-size:11px;margin-top:6px;">No hay clientes todavia. <a href="/clients">Crea uno primero</a>.</div>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="job-nombre">Nombre del trabajo *</label>
+        <input class="form-input" id="job-nombre" name="nombre" required placeholder="Nombre de la boda">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="job-date">Fecha del evento</label>
+          <input class="form-input" id="job-date" name="boda_date" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="job-type">Tipo</label>
+          <input class="form-input" id="job-type" name="type" value="Boda">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="job-location">Lugar</label>
+        <input class="form-input" id="job-location" name="location" placeholder="Lugar del evento">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="job-package">Paquete</label>
+          <input class="form-input" id="job-package" name="package" placeholder="Paquete">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="job-price">Total</label>
+          <input class="form-input" id="job-price" name="price_total" type="number" min="0" step="0.01" placeholder="0">
+        </div>
+      </div>
+      <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
+        <button class="sn-btn" type="button" onclick="closeJobModal()">Cancelar</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Crear job</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+let jobModalOpener;
+function openJobModal(date) {
+  jobModalOpener = document.activeElement;
+  if (date) document.getElementById('job-date').value = date;
+  document.getElementById('job-modal').classList.add('open');
+  document.getElementById('job-client').focus();
+}
+function closeJobModal() {
+  const modal = document.getElementById('job-modal');
+  if (!modal.classList.contains('open')) return;
+  modal.classList.remove('open');
+  if (jobModalOpener) jobModalOpener.focus();
+}
+function createJob(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('[type="submit"]');
+  button.disabled = true;
+  const payload = Object.fromEntries(new FormData(form).entries());
+  apiPost('/api/jobs/new', payload)
+    .then(function(data) {
+      if (form.dataset.returnCalendar === 'true') location.reload();
+      else window.location.href = '/jobs/' + data.job_id;
+    })
+    .catch(function(err) { flashToast(err.message, 'error'); button.disabled = false; });
+}
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') closeJobModal();
+  if (event.key !== 'Tab' || event.defaultPrevented || !document.getElementById('job-modal').classList.contains('open')) return;
+  const controls = document.getElementById('job-modal').querySelectorAll('input, select, button:not([disabled])');
+  const first = controls[0], last = controls[controls.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
+</script>

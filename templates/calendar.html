@@ -19,7 +19,7 @@
       <button class="sn-btn" type="button" onclick="openBlockModal()">Bloquear fecha</button>
       <button class="sn-btn sn-btn-primary" type="button" onclick="openEventModal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-        Nuevo
+        Nuevo evento
       </button>
     </div>
   </div>
@@ -29,10 +29,10 @@
 
   <div class="sn-toolbar">
     <div class="sn-toolbar-left">
-      <a class="sn-btn sn-btn-sm" href="/calendar?year={{ prev_year }}&month={{ prev_month }}">‹</a>
-      <span class="sn-btn sn-btn-sm" style="background:var(--sn-white);">{{ month_name }} {{ year }}</span>
-      <a class="sn-btn sn-btn-sm" href="/calendar?year={{ next_year }}&month={{ next_month }}">›</a>
-      <a class="sn-btn sn-btn-sm" href="/calendar">Hoy</a>
+      <a class="sn-btn calendar-nav" aria-label="Mes anterior" href="/calendar?year={{ prev_year }}&month={{ prev_month }}">‹</a>
+      <span class="sn-btn calendar-month-label" style="background:var(--sn-white);">{{ month_name }} {{ year }}</span>
+      <a class="sn-btn calendar-nav" aria-label="Mes siguiente" href="/calendar?year={{ next_year }}&month={{ next_month }}">›</a>
+      <a class="sn-btn calendar-today" href="/calendar">Hoy</a>
       <select id="calendar-view" class="sn-select" onchange="changeCalendarView()">
         <option value="month">Mes</option>
         <option value="week">Semana</option>
@@ -51,7 +51,7 @@
     </div>
   </div>
 
-  <p class="sn-muted calendar-block-hint">Toca el número de un día para bloquear esa fecha.</p>
+  <p class="sn-muted calendar-block-hint">Haz clic en un día o en + para agregar un job, crear un evento o bloquear la fecha.</p>
   <div class="calendar-shell">
     <div class="calendar-head">
       {% for day_name in day_names %}
@@ -63,7 +63,11 @@
         {% for cell in week %}
         <div class="calendar-cell {% if not cell.in_month %}muted{% endif %}">
           {% if cell.in_month %}
-          <button class="calendar-day calendar-day-action {% if cell.today %}today{% endif %}" type="button" aria-label="Bloquear fecha {{ cell.iso_date }}" title="Bloquear esta fecha" onclick="openBlockModal('{{ cell.iso_date }}')">{{ cell.day }}</button>
+          <button class="calendar-cell-trigger" type="button" aria-label="Opciones del día {{ cell.iso_date }}" onclick="openDateMenu('{{ cell.iso_date }}')"></button>
+          <div class="calendar-day-header">
+          <button class="calendar-add" type="button" aria-label="Agregar en {{ cell.iso_date }}" onclick="openDateMenu('{{ cell.iso_date }}')">+</button>
+          <button class="calendar-day calendar-day-action {% if cell.today %}today{% endif %}" type="button" aria-label="Opciones de fecha {{ cell.iso_date }}" title="Agregar o bloquear" onclick="openDateMenu('{{ cell.iso_date }}')">{{ cell.day }}</button>
+          </div>
           {% endif %}
           <div class="calendar-events">
             {% for evt in cell.events[:3] %}
@@ -100,7 +104,7 @@
           {% set ns.has_any_event = true %}
           <div class="agenda-day {{ 'today' if cell.today else '' }}">
             <div class="agenda-day-head">
-              <button class="agenda-day-num calendar-day-action" type="button" aria-label="Bloquear fecha {{ cell.iso_date }}" title="Bloquear esta fecha" onclick="openBlockModal('{{ cell.iso_date }}')">{{ cell.day }}</button>
+              <button class="agenda-day-num calendar-day-action" type="button" aria-label="Opciones de fecha {{ cell.iso_date }}" title="Agregar o bloquear" onclick="openDateMenu('{{ cell.iso_date }}')">{{ cell.day }}</button>
               {# El numero del dia ya se ve grande al lado; repetirlo aca
                  daba encabezados tipo "15 Agosto 15". #}
               <span class="agenda-day-label">{{ month_name }}{{ ' · Hoy' if cell.today else '' }}</span>
@@ -153,25 +157,37 @@
   </div>
 </section>
 
+{% include '_new_job_modal.html' %}
+<div class="modal-overlay" id="date-actions-modal">
+  <div class="modal-content calendar-date-menu" role="dialog" aria-modal="true" aria-labelledby="date-actions-title">
+    <h2 class="modal-title" id="date-actions-title">Opciones de fecha</h2>
+    <p class="sn-muted" id="date-actions-label"></p>
+    <div class="calendar-date-actions">
+      <button class="sn-btn" type="button" onclick="chooseDateAction('job')"><strong>Agregar job</strong><span>Reservar un trabajo para un cliente</span></button>
+      <button class="sn-btn" type="button" onclick="chooseDateAction('event')"><strong>Crear evento</strong><span>Agregar una cita o un recordatorio</span></button>
+      <button class="sn-btn" type="button" onclick="chooseDateAction('block')"><strong>Bloquear fecha</strong><span>Marcarla como no disponible</span></button>
+    </div>
+    <div class="sn-actions" style="justify-content:flex-end;margin-top:18px;"><button class="sn-btn" type="button" onclick="closeDateMenu()">Cancelar</button></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="event-modal">
-  <div class="modal-content">
-    <h2 class="modal-title">Add New Event</h2>
+  <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
+    <h2 class="modal-title" id="event-modal-title">Nuevo evento</h2>
     <form id="event-form" onsubmit="createEvent(event)">
       <div class="form-group">
-        <label class="form-label" for="event-title">Title *</label>
+        <label class="form-label" for="event-title">Título *</label>
         <input class="form-input" id="event-title" name="title" required>
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="event-date">Date *</label>
+          <label class="form-label" for="event-date">Fecha *</label>
           <input class="form-input" id="event-date" name="date" type="date" required>
         </div>
         <div class="form-group">
           <label class="form-label" for="event-type">Tipo</label>
           <select class="form-input" id="event-type" name="type">
-            <option value="event">Event</option>
-            <option value="lead">Lead</option>
-            <option value="job">Trabajo</option>
+            <option value="event">Evento</option>
           </select>
         </div>
       </div>
@@ -181,7 +197,7 @@
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
         <button class="sn-btn" type="button" onclick="closeEventModal()">Cancelar</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Create Event</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Crear evento</button>
       </div>
     </form>
   </div>
@@ -232,6 +248,23 @@
   align-items: start;
 }
 .calendar-main { min-width: 0; }
+.calendar-main .calendar-nav { width: 48px; min-height: 44px; padding: 0; font-size: 26px; }
+.calendar-main .calendar-today, .calendar-main .calendar-month-label { min-height: 44px; padding: 0 16px; font-size: 14px; }
+.calendar-cell { position: relative; }
+.calendar-cell-trigger { position: absolute; inset: 0; width: 100%; border: 0; background: transparent; cursor: pointer; }
+.calendar-cell-trigger:focus-visible { outline: 2px solid var(--sn-green); outline-offset: -3px; }
+.calendar-day-header { display: flex; align-items: center; position: relative; z-index: 1; pointer-events: none; }
+.calendar-day-header button { pointer-events: auto; }
+.calendar-add { width: 36px; height: 36px; border-radius: 10px; color: var(--sn-muted); font-size: 22px; cursor: pointer; }
+.calendar-add:hover { background: var(--sn-row); color: var(--sn-ink); }
+.calendar-events { position: relative; z-index: 1; pointer-events: none; }
+.calendar-events button { pointer-events: auto; }
+.calendar-date-menu { max-width: 440px; }
+.calendar-date-actions { display: grid; gap: 10px; margin-top: 18px; }
+.calendar-date-actions .sn-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 68px; padding: 14px 16px; }
+.calendar-date-actions strong { font-size: 14px; }
+.calendar-date-actions span { font-size: 12px; color: var(--sn-muted); font-weight: 400; }
+
 .calendar-block-hint { margin: 0 0 10px; font-size: 12px; }
 .calendar-day-action { cursor: pointer; border: 0; background: transparent; color: inherit; font: inherit; }
 .calendar-day-action:hover { background: var(--sn-surface-hover); }
@@ -479,7 +512,30 @@
 </style>
 
 <script>
-function openEventModal() {
+let calendarDate, calendarDateOpener, calendarEventOpener;
+function openDateMenu(date) {
+  calendarDate = date;
+  calendarDateOpener = document.activeElement;
+  document.getElementById('date-actions-label').textContent = new Intl.DateTimeFormat('es-GT', {weekday:'long', day:'numeric', month:'long', year:'numeric'}).format(new Date(date + 'T12:00:00'));
+  const modal = document.getElementById('date-actions-modal');
+  modal.classList.add('open');
+  modal.querySelector('button').focus();
+}
+function closeDateMenu() {
+  const modal = document.getElementById('date-actions-modal');
+  if (!modal.classList.contains('open')) return;
+  modal.classList.remove('open');
+  if (calendarDateOpener) calendarDateOpener.focus();
+}
+function chooseDateAction(action) {
+  closeDateMenu();
+  if (action === 'job') openJobModal(calendarDate);
+  else if (action === 'event') openEventModal(calendarDate);
+  else if (action === 'block') openBlockModal(calendarDate);
+}
+function openEventModal(date) {
+  calendarEventOpener = document.activeElement;
+  if (date) document.getElementById('event-date').value = date;
   document.getElementById('event-modal').classList.add('open');
   setTimeout(function() { document.getElementById('event-title').focus(); }, 50);
 }
@@ -490,7 +546,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function closeEventModal() {
-  document.getElementById('event-modal').classList.remove('open');
+  const modal = document.getElementById('event-modal');
+  if (!modal.classList.contains('open')) return;
+  modal.classList.remove('open');
+  if (calendarEventOpener) calendarEventOpener.focus();
 }
 
 function createEvent(event) {
@@ -526,6 +585,7 @@ function openBlockModal(date) {
   document.getElementById('block-date').focus();
 }
 function closeBlockModal() {
+  if (!document.querySelector('#block-modal.open, #release-block-modal.open')) return;
   document.getElementById('block-modal').classList.remove('open');
   document.getElementById('release-block-modal').classList.remove('open');
   if (blockOpener) blockOpener.focus();
@@ -577,11 +637,11 @@ function changeCalendarView() {
 }
 
 document.addEventListener('keydown', function(event) {
-  if (event.key === 'Escape') { closeEventModal(); closeBlockModal(); }
+  if (event.key === 'Escape') { closeEventModal(); closeBlockModal(); closeDateMenu(); }
   if (event.key === 'Tab') {
-    const modal = document.querySelector('#block-modal.open, #release-block-modal.open');
+    const modal = document.querySelector('#block-modal.open, #release-block-modal.open, #date-actions-modal.open, #event-modal.open');
     if (!modal) return;
-    const controls = modal.querySelectorAll('input, button:not([disabled])');
+    const controls = modal.querySelectorAll('input, select, textarea, button:not([disabled])');
     const first = controls[0], last = controls[controls.length - 1];
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }

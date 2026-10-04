@@ -6900,6 +6900,7 @@ def calendar_view():
             e['days_away'] = None
 
     return render_template('calendar.html',
+                          all_clients=sorted(_canonical_clients(), key=lambda c: (c.get('first_name') or '').lower()),
                           calendar_grid=calendar_grid,
                           year=year, month=month,
                           month_name=month_names[month],

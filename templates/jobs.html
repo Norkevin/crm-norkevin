@@ -242,57 +242,7 @@
   </div>
 </section>
 
-<div class="modal-overlay" id="job-modal">
-  <div class="modal-content">
-    <h2 class="modal-title">Nueva boda</h2>
-    <form id="job-form" onsubmit="createJob(event)">
-      <div class="form-group">
-        <label class="form-label" for="job-client">Client *</label>
-        <select class="form-input" id="job-client" name="client_id" required>
-          <option value="">Selecciona un cliente...</option>
-          {% for c in all_clients %}
-          <option value="{{ c.id }}">{{ c.first_name }} {{ c.last_name }}{% if c.email %} &middot; {{ c.email }}{% endif %}</option>
-          {% endfor %}
-        </select>
-        {% if not all_clients %}
-        <div class="sn-muted" style="font-size:11px;margin-top:6px;">No hay clientes todavia. <a href="/clients">Crea uno primero</a>.</div>
-        {% endif %}
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="job-nombre">Job name</label>
-        <input class="form-input" id="job-nombre" name="nombre" required placeholder="Nombre de la boda">
-      </div>
-      <div class="grid-2">
-        <div class="form-group">
-          <label class="form-label" for="job-date">Boda date</label>
-          <input class="form-input" id="job-date" name="boda_date" type="date">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="job-type">Tipo</label>
-          <input class="form-input" id="job-type" name="type" value="Boda">
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="job-location">Location</label>
-        <input class="form-input" id="job-location" name="location" placeholder="Lugar del evento">
-      </div>
-      <div class="grid-2">
-        <div class="form-group">
-          <label class="form-label" for="job-package">Package</label>
-          <input class="form-input" id="job-package" name="package" placeholder="Paquete">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="job-price">Total</label>
-          <input class="form-input" id="job-price" name="price_total" type="number" min="0" step="0.01" placeholder="0">
-        </div>
-      </div>
-      <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
-        <button class="sn-btn" type="button" onclick="closeJobModal()">Cancelar</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Create Job</button>
-      </div>
-    </form>
-  </div>
-</div>
+{% include '_new_job_modal.html' %}
 
 <script>
 function goJob(event, id) {
@@ -480,31 +430,6 @@ function openRowMenu(event, jobId) {
     }}
   ]);
 }
-
-function openJobModal() {
-  document.getElementById('job-modal').classList.add('open');
-  setTimeout(function() { document.getElementById('job-client').focus(); }, 50);
-}
-
-function closeJobModal() {
-  document.getElementById('job-modal').classList.remove('open');
-}
-
-function createJob(event) {
-  event.preventDefault();
-  var form = event.currentTarget;
-  var payload = Object.fromEntries(new FormData(form).entries());
-  apiPost('/api/jobs/new', payload)
-    .then(function(data) {
-      flashToast('Job creado', 'success');
-      window.location.href = '/jobs/' + data.job_id;
-    })
-    .catch(function(err) { flashToast(err.message, 'error'); });
-}
-
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') closeJobModal();
-});
 
 document.addEventListener('DOMContentLoaded', function() {
   filterJobs();
