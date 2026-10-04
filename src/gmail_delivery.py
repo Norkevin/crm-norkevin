@@ -197,7 +197,7 @@ def _refresh_if_needed(token, tenant_id=None):
     return token
 
 
-def send_gmail(to_email, subject, body, *, from_name='Flow CRM', tenant_id=None):
+def send_gmail(to_email, subject, body, *, from_name='Flow CRM', tenant_id=None, html_body=None):
     """Manda un correo real via Gmail API usando el token guardado PARA
     ESA CUENTA -- tenant_id explicito porque esto se llama tanto desde
     rutas autenticadas (usa el resolver ambiente si no se pasa nada) como
@@ -218,7 +218,7 @@ def send_gmail(to_email, subject, body, *, from_name='Flow CRM', tenant_id=None)
         return False, 'Token de Gmail invalido, reconecta la cuenta.'
 
     from .email_delivery import build_email_message
-    msg = build_email_message(to_email, subject, body, f'{from_name} <{token.get("email", "")}>')
+    msg = build_email_message(to_email, subject, body, f'{from_name} <{token.get("email", "")}>', html_body=html_body)
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
 
     req = urlrequest.Request(

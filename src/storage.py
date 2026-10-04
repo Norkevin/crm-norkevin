@@ -368,7 +368,7 @@ class JsonStore:
 
     def list(self, table, *, include_archived=False):
         records = self._read_raw(table)
-        if table in ('quotes', 'payments') and not include_archived:
+        if table in ('quotes', 'payments', 'email_templates') and not include_archived:
             records = [r for r in records if not r.get('archived_at')]
         if table in TENANT_SCOPED_TABLES:
             aislar, tenant_id = self._tenant_scope()

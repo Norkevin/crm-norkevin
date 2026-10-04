@@ -88,7 +88,7 @@ def _bootstrap_seed_table(table):
     sube). Sin esto los steps de workflow que 'auto-mandan email' mandan
     correos en blanco (plantillas inexistentes) y el editor de cotizaciones
     arranca sin ningun paquete para elegir."""
-    if store.list(table):
+    if store.list(table, include_archived=True):
         return
     seed_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'seeds', f'{table}.default.json')
     if not os.path.exists(seed_path):
@@ -593,10 +593,27 @@ def _inject_link(body, url, placeholders, fallback_label):
     etc): reemplaza el primer placeholder que encuentre, y si el usuario
     edito el mensaje y borro el placeholder, lo agrega al final igual --
     nunca debe salir un correo sin el link que lo justifica."""
-    for ph in placeholders:
+    section = next((kind for kind in ('contracts', 'questionnaires', 'quotes')
+                    if '/' + kind + '/' in url), None)
+    if '/q/' in url:
+        section = 'quotes'
+    tokens = list(placeholders)
+    if section:
+        singular = {'contracts': 'contract', 'questionnaires': 'questionnaire', 'quotes': 'quote'}[section]
+        tokens.insert(0, '%' + singular + '_link%')
+    replaced = False
+    for ph in tokens:
         if ph in body:
-            return body.replace(ph, url)
+            body = body.replace(ph, url)
+            replaced = True
+    if section:
+        body, count = re.subn(r'https?://[^\s<>]+/portal/[^\s<>#]+#' + section + r'\b',
+                             lambda match: url, body)
+        replaced = replaced or bool(count)
+    if replaced or url in body:
+        return body
     return f"{body}\n\n{fallback_label}:\n{url}"
+
 
 
 def _render_message_template(text, *, client=None, lead=None, job=None):
@@ -3974,7 +3991,11 @@ def api_email_preview():
     subject, body = data.get('subject', ''), data.get('body', '')
     if not isinstance(subject, str) or not isinstance(body, str):
         return jsonify({'ok': False, 'error': 'Asunto y mensaje deben ser texto'}), 400
-    return jsonify({'ok': True, 'html': render_email_html(subject, body),
+    html = render_email_html(subject, body)
+    if data.get('design') == 'proposal':
+        from src.email_delivery import render_email_proposal_html
+        html = render_email_proposal_html(subject, body, _brand_display_name_for_tenant(store.current_tenant_id()))
+    return jsonify({'ok': True, 'html': html,
                     'unresolved': unresolved_email_fields(subject, body)})
 
 
@@ -6441,7 +6462,8 @@ def api_admin_migrate_to_multi_tenant():
 
 @app.route('/settings/email-templates')
 def settings_email_templates():
-    return render_template('settings_email_templates.html', templates=store.list('email_templates'))
+    return render_template('settings_email_templates.html', templates=store.list('email_templates'),
+                           archived_templates=[t for t in store.list('email_templates', include_archived=True) if t.get('archived_at')])
 
 
 @app.route('/settings/email-template-sample/<kind>')
@@ -6489,9 +6511,15 @@ def api_email_template_send_sample(template_id):
     body += ('\n\n— MUESTRA DE FLOWING: ' + template['name'] +
              ' —\nNombre y fecha son de ejemplo. Los enlaces fijos son los de la plantilla; '
              'los documentos y la galería usan destinos de muestra. No se modifica ningún cliente.')
+    html_body = None
+    design = (request.get_json() or {}).get('design')
+    if design == 'proposal':
+        from src.email_delivery import render_email_proposal_html
+        html_body = render_email_proposal_html(subject, body, _brand_display_name_for_tenant(tenant_id))
     with store.locked_tables('mail_log', 'pending_emails'):
         entry = get_tracker().log_email(recipient, subject, body, template_id=template_id,
-            tenant_id=tenant_id, idempotency_key=f'template-sample:{tenant_id}:{batch}:{template_id}')
+            tenant_id=tenant_id, html_body=html_body,
+            idempotency_key=f'template-sample:{tenant_id}:{batch}:{template_id}:{design or "classic"}')
     sent = entry.get('status') == 'sent' and entry.get('delivery_mode') == 'real'
     return jsonify({'ok': sent, 'name': template['name'], 'to': recipient,
                     'status': entry.get('status'), 'message_id': entry.get('delivery_message_id'),
@@ -6551,10 +6579,41 @@ def api_settings_email_template_save():
 
 @app.route('/api/settings/email-templates/<template_id>', methods=['DELETE'])
 def api_settings_email_template_delete(template_id):
-    if not store.get('email_templates', template_id):
+    template = store.get('email_templates', template_id)
+    if not template:
         return jsonify({'ok': False, 'error': 'No encontrado'}), 404
-    store.delete('email_templates', template_id)
+    replacement_id = (request.get_json(silent=True) or {}).get('replacement_id')
+    replacement = _get_email_template(replacement_id) if replacement_id else None
+    if replacement_id and (not replacement or replacement_id == template_id):
+        return jsonify({'ok': False, 'error': 'Plantilla de reemplazo inválida'}), 400
+    workflows = [LEAD_WORKFLOW().to_dict(), PRODUCTION_WORKFLOW().to_dict()]
+    linked = [w for w in workflows if any(step.get('email_template_id') == template_id for step in w['steps'])]
+    if linked and not replacement:
+        return jsonify({'ok': False, 'error': 'Esta plantilla está en uso. Selecciona un reemplazo en el workflow antes de retirarla.'}), 400
+    with store.locked_tables('email_templates', store._tenant_dict_key('workflow_templates')):
+        for workflow in linked:
+            for step in workflow['steps']:
+                if step.get('email_template_id') == template_id:
+                    step['email_template_id'] = replacement_id
+            _persist_workflow_template(_workflow_from_dict(workflow))
+        template['archived_at'] = datetime.now().isoformat()
+        template['archived_active'] = template.get('activo', True)
+        template['activo'] = False
+        store.upsert('email_templates', template)
+    return jsonify({'ok': True, 'recoverable': True})
+
+
+@app.route('/api/settings/email-templates/<template_id>/restore', methods=['POST'])
+def api_settings_email_template_restore(template_id):
+    template = store.get('email_templates', template_id, include_archived=True)
+    if not template or not template.get('archived_at'):
+        return jsonify({'ok': False, 'error': 'Plantilla retirada no encontrada'}), 404
+    template['archived_at'] = None
+    template['activo'] = template.get('archived_active', True)
+    template['archived_active'] = None
+    store.upsert('email_templates', template)
     return jsonify({'ok': True})
+
 
 
 @app.route('/settings/packages')
@@ -13344,7 +13403,9 @@ def api_quote_send(quote_id):
     # dejo la plantilla tal cual como si la edito y el marcador sigue en
     # el texto. Antes de este reemplazo, un envio sin editar el mensaje
     # salia con el link interno viejo (/quotes/<id>) en vez de /q/<token>.
-    body = body.replace('[[QUOTE_LINK]]', quote_url)
+    subject = _render_message_template(subject, client=client, lead=lead, job=job)
+    body = _render_message_template(body, client=client, lead=lead, job=job)
+    body = _inject_link(body, quote_url, ['[[QUOTE_LINK]]'], 'Ver mi cotización')
     # STAGE 2 (agosto 2026): ya no se entrega de inmediato -- se pone en la
     # cola de aprobacion (mail_tracker.queue_email) y espera a que alguien
     # la revise y apruebe en /emails. Preparada y Enviada son estados distintos.
@@ -14092,6 +14153,8 @@ def api_contract_send(contract_id):
     # que no trae el link del contrato, el correo saldria sin forma de
     # firmarlo -- _inject_link garantiza que el link siempre vaya, sea cual
     # sea la plantilla elegida.
+    subject = _render_message_template(subject, client=client, lead=lead, job=job)
+    body = _render_message_template(body, client=client, lead=lead, job=job)
     body = _inject_link(body, contract_url,
                         placeholders=['[LINK AL CONTRATO]', '[LINK DEL CONTRATO]'],
                         fallback_label='Firma tu contrato aqui')

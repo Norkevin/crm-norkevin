@@ -12,6 +12,7 @@
       <div class="sn-breadcrumbs">Correos automaticos que se envian durante el workflow.</div>
     </div>
     <div class="sn-actions">
+      <button class="sn-btn" type="button" id="send-proposal" onclick="sendDesignProposal(this)">Enviarme una propuesta de diseño</button>
       <button class="sn-btn" type="button" id="send-samples" onclick="sendTemplateSamples()">Enviarme todas las muestras</button>
       <button class="sn-btn sn-btn-primary" type="button" onclick="openTemplateModal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
@@ -41,7 +42,7 @@
           </td>
           <td class="stack-actions" style="text-align:right;">
             <button class="sn-btn sn-btn-sm" type="button" onclick='openTemplateModal({{ t|tojson }})'>Editar</button>
-            <button class="sn-btn sn-btn-sm" type="button" onclick="deleteTemplate('{{ t.id }}')" style="color:#b3263b;">Eliminar</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick='deleteTemplate({{ t.id|tojson }}, {{ t.name|tojson }})' style="color:#b3263b;">Eliminar</button>
           </td>
         </tr>
         {% else %}
@@ -50,6 +51,13 @@
       </tbody>
     </table>
   </div>
+  {% if archived_templates %}
+  <details style="margin-top:24px;"><summary>Plantillas retiradas ({{ archived_templates|length }})</summary>
+    {% for t in archived_templates %}
+    <p>{{ t.name }} <button class="sn-btn sn-btn-sm" type="button" onclick='restoreTemplate({{ t.id|tojson }})'>Restaurar</button></p>
+    {% endfor %}
+  </details>
+  {% endif %}
 </section>
 
 <div class="modal-overlay" id="template-modal">
@@ -88,6 +96,19 @@
 </div>
 
 <script>
+async function sendDesignProposal(button) {
+  const templates = {{ templates|tojson }};
+  const template = templates.find(t => t.name === 'Envio De Galeria Norkevin') || templates[0];
+  const progress = document.getElementById('sample-progress');
+  if (!template) return;
+  button.disabled = true;
+  try {
+    const data = await apiPost('/api/settings/email-templates/' + encodeURIComponent(template.id) + '/send-sample', {batch:crypto.randomUUID(), design:'proposal'});
+    if (!data.ok) throw new Error(data.error || 'No se envió');
+    progress.textContent = 'Una propuesta de diseño enviada a ' + data.to + ': ' + template.name + '. El diseño actual sigue vigente.';
+  } catch (error) { progress.textContent = error.message; }
+  finally { button.disabled = false; }
+}
 async function sendTemplateSamples() {
   const button = document.getElementById('send-samples');
   const progress = document.getElementById('sample-progress');
@@ -144,12 +165,17 @@ function submitTemplate(event) {
     .then(function() { flashToast('Plantilla guardada', 'success'); setTimeout(function(){ location.reload(); }, 500); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
-function deleteTemplate(id) {
-  if (!confirm('Eliminar esta plantilla permanentemente?')) return;
-  fetch('/api/settings/email-templates/' + id, { method: 'DELETE' })
+function restoreTemplate(id) {
+  apiPost('/api/settings/email-templates/' + encodeURIComponent(id) + '/restore', {})
+    .then(() => location.reload()).catch(error => flashToast(error.message, 'error'));
+}
+function deleteTemplate(id, name) {
+  const replacements = {'Questionnaire email template': 'Formulario Norkevin', 'COTIZACION NORKEVIN (alternativa)': 'COTIZACION NORKEVIN', 'Paquetes de boda Norkevin (dolares)': 'Paquetes de boda Norkevin'};
+  const replacement = {{ templates|tojson }}.find(t => t.name === replacements[name]);
+  fetch('/api/settings/email-templates/' + id, { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({replacement_id: replacement ? replacement.id : null}) })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.ok) { flashToast('Plantilla eliminada', 'success'); setTimeout(function(){ location.reload(); }, 450); }
+      if (data.ok) { flashToast('Plantilla retirada. Puedes restaurarla abajo.', 'success'); setTimeout(function(){ location.reload(); }, 450); }
       else { flashToast(data.error || 'Error', 'error'); }
     })
     .catch(function() { flashToast('Error de red', 'error'); });

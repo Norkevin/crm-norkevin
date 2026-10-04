@@ -638,7 +638,7 @@ class MailTracker:
 
     def log_email(self, to_email, subject, body='', template_id=None,
                   lead_id=None, job_id=None, attachments=None, tenant_id=None,
-                  idempotency_key=None):
+                  idempotency_key=None, html_body=None):
         """Entrega y registra un email.
 
         tenant_id explicito: mail_log es tenant-scoped, y store.upsert()
@@ -711,7 +711,7 @@ class MailTracker:
             subject,
             body or '',
             attachments=attachments or [],
-            metadata={'lead_id': lead_id, 'job_id': job_id, 'template_id': template_id, 'tenant_id': tenant_id},
+            metadata={'lead_id': lead_id, 'job_id': job_id, 'template_id': template_id, 'tenant_id': tenant_id, 'html_body': html_body},
         )
         entry = {
             'id': 'mail-' + uuid.uuid4().hex[:8],

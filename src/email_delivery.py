@@ -74,13 +74,36 @@ def render_email_html(subject, body):
             + ''.join(paragraphs) + '</td></tr></table></td></tr></table></body></html>')
 
 
-def build_email_message(to_email, subject, body, from_address):
+def render_email_proposal_html(subject, body, company_name):
+    """Optional sample design; regular delivery keeps the current layout."""
+    content, separator, notice = (body or '').partition('\n\n— MUESTRA DE FLOWING:')
+    display_subject = re.sub(r'\s*\[Muestra:[^\]]+\]\s*$', '', subject or '')
+    html = render_email_html(display_subject, content)
+    if separator:
+        footer = '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e9e5dd;font:12px/1.5 Arial,sans-serif;color:#687d80;">' + escape('Muestra de Flowing: ' + notice.strip()) + '</div>'
+        html = html.replace('</td></tr></table></td></tr></table></body></html>', footer + '</td></tr></table></td></tr></table></body></html>')
+    html = html.replace('background:#f3f5f6;color:#253640;', 'background:#f4f1eb;color:#293c43;')
+    html = html.replace('max-width:600px;margin:auto;background:white;border-radius:12px;',
+                        'max-width:600px;margin:auto;background:#fffefb;border-radius:16px;')
+    html = html.replace('padding:28px 24px;border-top:4px solid #38596b;font:16px/1.7 Arial,sans-serif;',
+                        'padding:32px 24px;border-top:4px solid #38596b;font:16px/1.6 Arial,sans-serif;')
+    html = html.replace('margin:0 0 24px;', 'margin:0 0 20px;')
+    html = html.replace('border-radius:6px;text-decoration:none;font-weight:bold;',
+                        'border-radius:8px;text-decoration:none;font-weight:bold;')
+    header = ('<div style="font:12px/1.5 Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;'
+              'color:#687d80;margin-bottom:20px;">' + escape(company_name) + '</div>')
+    html = html.replace('<h1 style="font-size:23px;line-height:1.35;margin:0 0 28px;">',
+                        header + '<h1 style="font:normal 30px/1.25 Georgia,serif;color:#294653;margin:0 0 28px;">')
+    return html
+
+
+def build_email_message(to_email, subject, body, from_address, *, html_body=None):
     message = EmailMessage()
     message['From'] = from_address
     message['To'] = to_email
     message['Subject'] = subject
     message.set_content(body or '')
-    message.add_alternative(render_email_html(subject, body), subtype='html')
+    message.add_alternative(html_body if html_body is not None else render_email_html(subject, body), subtype='html')
     return message
 
 
@@ -147,7 +170,7 @@ def _send_local(to_email, subject, body, *, attachments=None, metadata=None):
         'to': to_email,
         'subject': subject,
         'body': body or '',
-        'html': render_email_html(subject, body),
+        'html': (metadata or {}).get('html_body') or render_email_html(subject, body),
         'attachments': attachments or [],
         'metadata': metadata or {},
         'created_at': datetime.now().isoformat(),
@@ -170,7 +193,7 @@ def _send_smtp(to_email, subject, body, *, attachments=None, metadata=None):
 
     port = int(os.environ.get('SMTP_PORT', '587'))
     use_tls = os.environ.get('SMTP_TLS', 'true').lower() not in ('0', 'false', 'no')
-    message = build_email_message(to_email, subject, body, _from_address())
+    message = build_email_message(to_email, subject, body, _from_address(), html_body=(metadata or {}).get('html_body'))
 
     try:
         if use_tls:
@@ -203,7 +226,7 @@ def _send_resend(to_email, subject, body, *, attachments=None, metadata=None):
         'to': [to_email],
         'subject': subject,
         'text': body or '',
-        'html': render_email_html(subject, body),
+        'html': (metadata or {}).get('html_body') or render_email_html(subject, body),
     }).encode('utf-8')
     req = urlrequest.Request(
         'https://api.resend.com/emails',
@@ -227,7 +250,8 @@ def _send_resend(to_email, subject, body, *, attachments=None, metadata=None):
 def _send_gmail(to_email, subject, body, *, attachments=None, metadata=None):
     from . import gmail_delivery
     tenant_id = (metadata or {}).get('tenant_id')
-    ok, result = gmail_delivery.send_gmail(to_email, subject, body, tenant_id=tenant_id)
+    options = {'html_body': metadata['html_body']} if (metadata or {}).get('html_body') else {}
+    ok, result = gmail_delivery.send_gmail(to_email, subject, body, tenant_id=tenant_id, **options)
     if ok:
         return DeliveryResult(ok=True, provider='gmail', message_id=result, mode='real')
     return DeliveryResult(ok=False, provider='gmail', status='failed', error=result, mode='real')
