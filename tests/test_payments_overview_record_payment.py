@@ -58,7 +58,8 @@ def test_payments_overview_unpaid_filter_includes_late_rows(auth_client):
     pay['due_date'] = '2020-01-01'
     app_module.store.upsert('payments', pay)
 
-    resp = auth_client.get('/payments')
+    # Las cuotas cruzan años; la vista histórica permite revisar ambas.
+    resp = auth_client.get('/payments?year=all')
     html = resp.get_data(as_text=True)
 
     assert 'value="unpaid"' in html, 'la opcion Unpaid del dropdown debe usar el valor unificado'

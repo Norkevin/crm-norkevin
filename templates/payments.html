@@ -2,7 +2,7 @@
 {% block title %}Pagos · {{ current_tenant.name }} CRM{% endblock %}
 {% block header %}Pagos{% endblock %}
 {% block subtitle %}Dashboard &gt; Payments Overview{% endblock %}
-{% block topbar_title %}Payments{% endblock %}
+{% block topbar_title %}Pagos{% endblock %}
 
 {% block content %}
 <style>
@@ -69,7 +69,7 @@
 
   .payments-page .payment-stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
     margin-bottom: 18px;
   }
@@ -77,11 +77,28 @@
     border: 1px solid rgba(16, 24, 40, .04);
     border-radius: var(--sn-radius-lg);
     background: var(--sn-white);
-    padding: 16px 18px;
+    padding: 22px 24px;
     box-shadow: var(--sn-shadow-resting);
   }
   .payments-page .payment-stat-label { font-size: 12px; color: var(--sn-muted); }
-  .payments-page .payment-stat-value { font-size: 22px; font-weight: 700; color: var(--sn-ink); margin-top: 4px; }
+  .payments-page .payment-stat-value { font-size: clamp(22px, 2vw, 30px); font-weight: 700; letter-spacing: -.025em; color: var(--sn-ink); margin-top: 4px; }
+  .payments-page .payment-stat-card.collected { background: linear-gradient(135deg, #edf8f2, var(--sn-white)); border-color: #d9eade; }
+  .payments-page .payment-stat-card.collected .payment-stat-value { color: #14754a; }
+  .payments-page .payment-stat-card.overdue .payment-stat-value { color: #b3263b; }
+  :root[data-theme="dark"] .payments-page .payment-stat-card.collected { background: var(--sn-white); border-color: #32624f; }
+  :root[data-theme="dark"] .payments-page .payment-stat-card.collected .payment-stat-value,
+  :root[data-theme="dark"] .payments-page tr[data-status="Pagado"] .sn-payment-amount { color: #6ee7b7; }
+  :root[data-theme="dark"] .payments-page .payment-stat-card.overdue .payment-stat-value,
+  :root[data-theme="dark"] .payments-page tr[data-status="Late"] .sn-payment-amount { color: #fda4af; }
+  .payment-stat-meta { margin-top: 10px; font-size: 12px; color: var(--sn-muted); line-height: 1.5; }
+  .payments-page .sn-table { table-layout: fixed; width: 100%; }
+  .payments-page .sn-payment-primary { font-size: 14px; }
+  .payments-page .sn-payment-secondary { font-size: 12px; }
+  .payments-page .sn-payment-amount { color: var(--sn-ink); font-size: 16px; font-weight: 600; }
+  .payments-page tr[data-status="Late"] .sn-payment-amount { color: #b3263b; }
+  .payments-page tr[data-status="Pagado"] .sn-payment-amount { color: #14754a; }
+  .payments-ledger-title { font-size: 15px; font-weight: 650; margin: 6px 0 14px; color: var(--sn-ink); }
+  .payments-page .sn-actions { flex-wrap: wrap; }
   @media (max-width: 760px) { .payments-page .payment-stats { grid-template-columns: 1fr; } }
 
   @media (max-width: 900px) {
@@ -103,37 +120,49 @@
 <section class="sn-page-wide payments-page">
   <div class="sn-page-head">
     <div>
-      <h1 class="sn-page-title">Pagos</h1>
-      <div class="sn-breadcrumbs">Cobros pendientes, vencidos y confirmados de todos tus jobs.</div>
+      <h1 class="sn-page-title">{{ "Pagos" if selected_year else "Histórico de pagos" }}</h1>
+      <div class="sn-breadcrumbs">Cobros y vencimientos · {{ selected_year or "Todos los años registrados" }}.</div>
     </div>
     <div class="sn-actions">
+      <form action="/payments" method="get">
+        <label class="sr-only" for="payments-year">Año de pagos</label>
+        <select class="sn-select" id="payments-year" name="year" onchange="this.form.submit()">
+          {% if not selected_year %}<option value="all" selected>Todos los años</option>{% endif %}
+          {% for year in payment_years %}<option value="{{ year }}" {{ 'selected' if year == selected_year else '' }}>{{ year }}{{ ' · Año actual' if year == current_year else '' }}</option>{% endfor %}
+        </select>
+      </form>
       <a class="sn-btn" href="/api/payments/export.csv">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
-        Export Payments
+        Exportar CSV
       </a>
     </div>
   </div>
 
   <div class="payment-stats">
-    <div class="payment-stat-card">
-      <div class="payment-stat-label">Total pendiente</div>
-      <div class="payment-stat-value">Q{{ '{:,.2f}'.format(total_due) }}</div>
-    </div>
-    <div class="payment-stat-card">
-      <div class="payment-stat-label">Atrasado</div>
-      <div class="payment-stat-value">Q{{ '{:,.2f}'.format(total_late) }}</div>
-    </div>
-    <div class="payment-stat-card">
-      <div class="payment-stat-label">Cobrado</div>
+    <div class="payment-stat-card collected">
+      <div class="payment-stat-label">Cobrado · {{ selected_year or 'Histórico' }}</div>
       <div class="payment-stat-value">Q{{ '{:,.2f}'.format(total_paid) }}</div>
+      <div class="payment-stat-meta">{{ annual_finances.paid_count }} cuotas cobradas · por fecha de pago</div>
+    </div>
+    <div class="payment-stat-card">
+      <div class="payment-stat-label">Saldo pendiente · {{ selected_year or 'Histórico' }}</div>
+      <div class="payment-stat-value">Q{{ '{:,.2f}'.format(total_due) }}</div>
+      <div class="payment-stat-meta">{{ annual_finances.due_count }} cuotas abiertas · incluye vencidos</div>
+    </div>
+    <div class="payment-stat-card overdue">
+      <div class="payment-stat-label">Vencido · {{ selected_year or 'Histórico' }}</div>
+      <div class="payment-stat-value">Q{{ '{:,.2f}'.format(total_late) }}</div>
+      <div class="payment-stat-meta">Pendientes cuya fecha de vencimiento ya pasó</div>
     </div>
   </div>
 
+  {% if selected_year %}{% include "_payment_history.html" %}{% endif %}
+  <h2 class="payments-ledger-title">Detalle de cobros · {{ selected_year or 'Todos los años' }} <span id="payments-result-count" class="sn-muted"></span></h2>
   <div class="sn-toolbar">
     <div class="sn-toolbar-left">
       <select id="payment-status-filter" class="sn-select" onchange="filterPayments()">
-        <option value="unpaid">Pendientes</option>
-        <option value="all">Todos</option>
+        <option value="unpaid" {{ 'selected' if default_status == 'unpaid' else '' }}>Pendientes</option>
+        <option value="all" {{ 'selected' if default_status == 'all' else '' }}>Todos</option>
         <option value="Late">Atrasados</option>
         <option value="Pagado">Pagados</option>
       </select>
@@ -148,8 +177,8 @@
       <thead>
         <tr>
           <th style="width:11%;">Estado</th>
-          <th style="width:16%;">Due</th>
-          <th>Client &amp; Job</th>
+          <th style="width:16%;">Fecha</th>
+          <th>Cliente y trabajo</th>
           <th style="width:15%;text-align:right;">Monto</th>
           <th style="width:5%;text-align:right;"></th>
         </tr>
@@ -162,28 +191,30 @@
             onclick="goPayment(event, '{{ p.job_id }}', '{{ p.client_id }}')">
           <td data-label="Estado">
             {% if p.status == 'Late' %}
-              <span class="sn-chip red">Atrasados</span>
+              <span class="sn-chip red">Vencido</span>
             {% elif p.status == 'Pagado' %}
-              <span class="sn-chip green">Pagados</span>
+              <span class="sn-chip green">Cobrado</span>
             {% elif p.original_amount and p.amount is not none and p.amount|float < p.original_amount|float %}
               <span class="sn-chip yellow">Parcial</span>
             {% elif p.days_until %}
               <span class="sn-chip blue">Pendiente</span>
             {% else %}
-              <span class="sn-chip gray">Pendientes</span>
+              <span class="sn-chip gray">Pendiente</span>
             {% endif %}
           </td>
-          <td class="sn-ellipsis" data-label="Due">
+          <td class="sn-ellipsis" data-label="Fecha">
             <div class="sn-payment-due">
-              <span>{{ p.due_date_display or p.due_date or 'No due date' }}</span>
-            {% if p.days_ago %}
+              <span>{{ (p.paid_date_display or 'Sin fecha de cobro') if p.status == 'Pagado' else (p.due_date_display or p.due_date or 'Sin vencimiento') }}</span>
+            {% if p.status == 'Pagado' %}
+              <span class="sn-muted">Cobrado</span>
+            {% elif p.days_ago %}
               <span class="sn-muted" style="color:#b3263b;">(hace {{ p.days_ago }} dias)</span>
             {% elif p.days_until %}
               <span class="sn-muted">(en {{ p.days_until }} dias)</span>
             {% endif %}
             </div>
           </td>
-          <td class="sn-ellipsis stack-full" data-label="Client &amp; Job">
+          <td class="sn-ellipsis stack-full" data-label="Cliente y trabajo">
             <div style="display:flex;align-items:center;gap:10px;min-width:0;">
               <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (p.client_name or '?')[:1]|upper }}</span>
               <div style="min-width:0;">
@@ -199,12 +230,13 @@
             {% endif %}
           </td>
           <td class="stack-actions" style="text-align:right;" onclick="event.stopPropagation()">
-            <button class="sn-menu-dots" type="button" title="Actions" onclick='openPaymentActions(event, {{ p.id|tojson }}, {{ (p.invoice_id or p.id)|tojson }}, {{ (p.job_id or "")|tojson }}, {{ (p.client_id or "")|tojson }}, {{ (p.status or "")|tojson }}, {{ (p.amount or 0)|tojson }})'>
+            <button class="sn-menu-dots" type="button" title="Acciones" aria-label="Acciones del pago" onclick='openPaymentActions(event, {{ p.id|tojson }}, {{ (p.invoice_id or p.id)|tojson }}, {{ (p.job_id or "")|tojson }}, {{ (p.client_id or "")|tojson }}, {{ (p.status or "")|tojson }}, {{ (p.amount or 0)|tojson }})'>
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
             </button>
           </td>
         </tr>
         {% endfor %}
+        {% if payments %}<tr id="payments-filter-empty" style="display:none;"><td colspan="5" style="text-align:center;padding:32px;color:var(--sn-muted);">No hay pagos que coincidan con este filtro.</td></tr>{% endif %}
         {% if not payments %}
         <tr>
           <td colspan="6" style="padding:0;">
@@ -223,15 +255,7 @@
     </table>
   </div>
 
-  <div class="sn-toolbar" style="margin-top:14px;">
-    <div class="sn-muted">Total: {{ payments|length }} invoices</div>
-    <div class="sn-toolbar-right">
-      <span class="sn-muted">Unpaid:</span><span class="sn-money">Q{{ '{:,.2f}'.format(total_unpaid) }}</span>
-      <span class="sn-muted">Esperado:</span><span class="sn-money">Q{{ '{:,.2f}'.format(total_expected or 0) }}</span>
-      <span class="sn-muted">Vencido:</span><span style="color:#b3263b;font-weight:600;">Q{{ '{:,.2f}'.format(total_late) }}</span>
-      <span class="sn-muted">Pagado:</span><span class="sn-money">Q{{ '{:,.2f}'.format(total_paid) }}</span>
-    </div>
-  </div>
+  <div class="sn-muted" style="margin-top:14px;font-size:12px;">{{ payments|length }} cuotas registradas · {{ selected_year or 'Todos los años' }}</div>
   <div class="sn-pagination" id="payments-pagination"></div>
 </section>
 
@@ -307,6 +331,9 @@ function renderPaymentsRows() {
   var pageRows = matched.slice(start, start + PAYMENTS_PAGE_SIZE);
   rows.forEach(function(row) { row.style.display = 'none'; });
   pageRows.forEach(function(row) { row.style.display = ''; });
+  const empty = document.getElementById('payments-filter-empty');
+  if (empty) empty.style.display = matched.length ? 'none' : '';
+  document.getElementById('payments-result-count').textContent = '· ' + matched.length + ' cuotas';
   renderPaymentsPagination(totalPages, matched.length);
 }
 

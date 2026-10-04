@@ -391,6 +391,39 @@ def _visible_billable_payments(tenant_id=None):
         visible.append(payment)
     return visible
 
+def _payment_reporting_day(payment):
+    """Cash belongs to its actual collection date; open installments to their due date."""
+    value = (payment.get('paid_date') or payment.get('fecha_pago')) if payment.get('status') == 'Pagado' else payment.get('due_date')
+    return _parse_iso_day(value)
+
+
+def _payment_financial_summary(payments, today, year=None):
+    """Read-only annual or historical totals. Never infer cash dates from invoice dates."""
+    result = dict(paid=0, pending=0, late=0, due=0, count=0, paid_count=0, due_count=0,
+                  undated_paid=0, undated_due=0)
+    for payment in payments:
+        status = payment.get('status')
+        if status not in ('Pagado', 'Pendiente', 'Late'):
+            continue
+        day = _payment_reporting_day(payment)
+        amount = coerce_amount(payment.get('amount'))
+        if year is not None and (not day or day.year != year):
+            continue
+        result['count'] += 1
+        if status == 'Pagado':
+            result['paid'] += amount
+            result['paid_count'] += 1
+            if not day:
+                result['undated_paid'] += amount
+        else:
+            result['due'] += amount
+            result['due_count'] += 1
+            result['late' if status == 'Late' or (day and day < today) else 'pending'] += amount
+            if not day:
+                result['undated_due'] += amount
+    return result
+
+
 # Helpers individuales (sin filtro tenant)
 def get_lead(lead_id):
     return store.get('leads', lead_id)
@@ -3006,7 +3039,7 @@ def dashboard():
     from datetime import date, timedelta
     import math
 
-    today = date.today()
+    today = datetime.now(ZoneInfo('America/Guatemala')).date()
     today_str = today.isoformat()
 
     # Kevin: la lista de "proximas sesiones" quedaba vacia con datos reales
@@ -3085,9 +3118,11 @@ def dashboard():
 
     # === GRAFICA 2: Pie chart ===
     all_payments = _visible_billable_payments()
-    total_paid = sum(coerce_amount(p.get('amount')) for p in all_payments if p.get('status') == 'Pagado')
-    total_pending = sum(coerce_amount(p.get('amount')) for p in all_payments if p.get('status') == 'Pendiente')
-    total_late = sum(coerce_amount(p.get('amount')) for p in all_payments if p.get('status') == 'Late')
+    annual_finances = _payment_financial_summary(all_payments, today, today.year)
+    financial_history = _payment_financial_summary(all_payments, today)
+    total_paid = annual_finances['paid']
+    total_pending = annual_finances['pending']
+    total_late = annual_finances['late']
 
     total_amount = total_paid + total_pending + total_late
     paid_pct = (total_paid / total_amount) if total_amount > 0 else 0
@@ -3309,6 +3344,7 @@ def dashboard():
     return render_template('dashboard.html',
                            today=today,
                            current_year=today.year,
+                           financial_history=financial_history,
                            upcoming_jobs=upcoming_jobs,
                            recent_leads=recent_leads,
                            workflow_events=workflow_events,
@@ -5072,9 +5108,20 @@ def invoices_list():
 @app.route('/payments')
 def payments_list():
     """Payments Overview estilo Studio Ninja con totales y days_ago."""
-    from datetime import datetime, date
 
-    payments_all = _visible_billable_payments()
+    today = datetime.now(ZoneInfo('America/Guatemala')).date()
+    selected_year = request.args.get('year', type=int) or today.year
+    if not 1 <= selected_year <= 9999:
+        selected_year = today.year
+    if request.args.get('year') == 'all':
+        selected_year = None
+    all_records = _visible_billable_payments()
+    financial_history = _payment_financial_summary(all_records, today)
+    annual_finances = _payment_financial_summary(all_records, today, selected_year)
+    payment_years = sorted({day.year for p in all_records if (day := _payment_reporting_day(p))}
+                           | {today.year} | ({selected_year} if selected_year else set()), reverse=True)
+    payments_all = [p for p in all_records if selected_year is None
+                    or ((day := _payment_reporting_day(p)) and day.year == selected_year)]
     clients = {c['id']: c for c in list_clients()}
     jobs = {j['id']: j for j in list_jobs()}
 
@@ -5084,10 +5131,13 @@ def payments_list():
         j = jobs.get(p.get('job_id', ''))
         p['job_name'] = j['nombre'] if j else '—'
 
+        paid_day = _payment_reporting_day(p) if p.get('status') == 'Pagado' else None
+        p['paid_date_display'] = _format_date_es(paid_day) if paid_day else None
+
         # Calcular days_ago
         try:
             d = datetime.strptime(p.get('due_date', ''), '%Y-%m-%d').date()
-            days = (date.today() - d).days
+            days = (today - d).days
             p['days_ago'] = days if days > 0 else None
             p['days_until'] = abs(days) if days < 0 else None
             p['due_date_display'] = _format_date_es(d)
@@ -5106,18 +5156,21 @@ def payments_list():
         p.get('due_date', '')
     ))
 
-    # Totales
-    total_due = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') != 'Pagado')
-    total_expected = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Pendiente' and p.get('days_until'))
-    total_unpaid = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Pendiente')
-    total_late = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Late')
-    total_paid = sum(coerce_amount(p.get('amount')) for p in payments_all if p.get('status') == 'Pagado')
+    total_due = annual_finances['due']
+    total_unpaid = annual_finances['pending']
+    total_late = annual_finances['late']
+    total_paid = annual_finances['paid']
 
     return render_template('payments.html',
                           payments=payments_all,
                           total_due=total_due,
                           total_unpaid=total_unpaid,
-                          total_expected=total_expected,
+                          current_year=today.year,
+                          selected_year=selected_year,
+                          default_status='unpaid' if selected_year and selected_year >= today.year else 'all',
+                          payment_years=payment_years,
+                          annual_finances=annual_finances,
+                          financial_history=financial_history,
                           total_late=total_late,
                           total_paid=total_paid)
 

@@ -774,16 +774,18 @@
 
   <div class="dashboard-panel-intro" style="margin-top:24px;">
     <div class="dashboard-intro-stat">
-      <div class="dashboard-intro-stat-label">Total cobrado</div>
+      <div class="dashboard-intro-stat-label">Cobrado · {{ current_year }}</div>
       <div class="dashboard-intro-stat-value">Q{{ '{:,.2f}'.format(total_paid) }}</div>
-      <div class="dashboard-intro-stat-meta">Pagos confirmados registrados en el CRM.</div>
+      <div class="dashboard-intro-stat-meta">Pagos confirmados por fecha de cobro en {{ current_year }}.</div>
     </div>
     <div class="dashboard-intro-stat">
-      <div class="dashboard-intro-stat-label">Saldo pendiente</div>
+      <div class="dashboard-intro-stat-label">Saldo pendiente · {{ current_year }}</div>
       <div class="dashboard-intro-stat-value">Q{{ '{:,.2f}'.format(total_unpaid) }}</div>
-      <div class="dashboard-intro-stat-meta">Montos que todavia siguen abiertos en facturas.</div>
+      <div class="dashboard-intro-stat-meta">Cuotas con vencimiento en {{ current_year }}, incluidos los pagos atrasados.</div>
     </div>
   </div>
+
+  {% include "_payment_history.html" %}
 
   <div class="dashboard-section-label">Trabajos recientes</div>
   <div class="dashboard-panel">
@@ -851,7 +853,7 @@
     <div class="dashboard-ring" style="background: conic-gradient(var(--sn-green) 0% {{ collected_pct }}%, var(--sn-line) {{ collected_pct }}% 100%);">
       <div class="dashboard-ring-hole">
         <span class="dashboard-ring-value">{{ collected_pct|round|int }}%</span>
-        <span class="dashboard-ring-label">Cobrado</span>
+        <span class="dashboard-ring-label">{{ current_year }}</span>
       </div>
     </div>
   </div>
@@ -889,7 +891,7 @@
 
   <div class="dashboard-widget-card">
     <div class="dashboard-widget-head">
-      <div class="dashboard-widget-title">Estado de pagos</div>
+      <div class="dashboard-widget-title">Estado de pagos · {{ current_year }}</div>
     </div>
     {% if pie_segments %}
     <div class="dashboard-donut-wrap">
