@@ -474,6 +474,11 @@ class MailTracker:
                 return entry
 
     def approve_and_send(self, pending_id, sender_tenant_id=None, actor=None):
+        # ponytail: one worker; serialize approval/discard to avoid cancelling an in-flight send.
+        with store.locked_tables('pending_emails', 'mail_log'):
+            return self._approve_and_send(pending_id, sender_tenant_id, actor)
+
+    def _approve_and_send(self, pending_id, sender_tenant_id=None, actor=None):
         """Envia un correo que estaba esperando aprobacion.
 
         Vuelve a validar TODO aca, no solo al crearlo: entre que se genero el
@@ -486,6 +491,8 @@ class MailTracker:
             return {'ok': False, 'error': 'No existe ese correo pendiente'}
         if pendiente.get('status') == 'sent':
             return {'ok': False, 'error': 'Ese correo ya fue enviado'}
+        if pendiente.get('status') in (CANCELADO, ENVIANDO):
+            return {'ok': False, 'error': 'Este correo está cancelado o ya se está enviando'}
 
         actual = sender_tenant_id or store.current_tenant_id()
         if not actual:
@@ -604,12 +611,20 @@ class MailTracker:
                                      actor=actor)
 
     def discard_pending(self, pending_id, actor=None):
+        with store.locked_tables('pending_emails', 'mail_log'):
+            return self._discard_pending(pending_id, actor)
+
+    def _discard_pending(self, pending_id, actor=None):
         """Descarta un pendiente sin enviarlo. No se borra: queda como
         evidencia de que se genero y se decidio no mandarlo, y con quien lo
         decidio."""
         pendiente = store.get('pending_emails', pending_id)
         if not pendiente:
             return {'ok': False, 'error': 'No existe ese correo pendiente'}
+        if pendiente.get('status') == CANCELADO:
+            return {'ok': True, 'pendiente': pendiente}
+        if pendiente.get('status') not in (PENDIENTE, BLOQUEADO, FALLO):
+            return {'ok': False, 'error': 'No se puede descartar un correo enviado o en proceso de envío'}
         _anotar(pendiente, CANCELADO, actor=actor, motivo='descartado a mano')
         pendiente['discarded_at'] = datetime.now().isoformat()
         store.upsert('pending_emails', pendiente)

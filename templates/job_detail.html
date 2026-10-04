@@ -80,11 +80,12 @@
         <div class="workflow-steps">
           {% for step in workflow_steps %}
           {% if loop.first or step.source_stage != loop.previtem.source_stage %}<div class="lead-phase-heading"><h3>{{ step.source_stage }}</h3></div>{% endif %}
-          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }}">
-            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status == 'done' %}disabled{% else %}onclick='completeImportedStep({{ step.id|tojson }})'{% endif %} aria-label="Completar paso: {{ step.name }}">
+          <div class="workflow-step {{ 'done' if step.status == 'done' else '' }} {{ 'skipped' if step.status == 'skipped' else '' }}">
+            <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status != 'pending' %}disabled{% else %}onclick='completeImportedStep({{ step.id|tojson }})'{% endif %} aria-label="Completar paso: {{ step.name }}">
               {% if step.status == 'done' %}<svg fill="currentColor" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8-1.4-1.4L8 11.2 5.4 8.6Z"/></svg>{% endif %}
             </button>
-            <div class="lead-step-content"><div class="workflow-step-name">{{ step.name }}</div><div class="workflow-timing" style="white-space:pre-line">{{ step.source_details }}</div><div class="sn-muted">{{ 'Completado' if step.status == 'done' else 'Pendiente' }}</div></div>
+            <div class="lead-step-content"><div class="workflow-step-name">{{ step.name }}</div><div class="workflow-timing" style="white-space:pre-line">{{ step.source_details }}</div><div class="sn-muted">{{ 'Completado' if step.status == 'done' else 'Omitido' if step.status == 'skipped' else 'Pendiente' }}</div></div>
+            <button class="sn-menu-dots" type="button" onclick='openImportedStepActions(event, {{ step.id|tojson }}, {{ step.name|tojson }}, {{ step.status|tojson }})' aria-label="Opciones de {{ step.name }}"></button>
           </div>
           {% endfor %}
         </div>
@@ -1136,10 +1137,18 @@ function triggerJobStep(stepId, stepName) {
     })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
+function openImportedStepActions(event, stepId, stepName, status) {
+  openActionMenu(event, [
+    status === 'pending' ? { label: 'Completar ahora', action: function() { completeImportedStep(stepId); } } : null,
+    ['pending', 'queued', 'failed'].indexOf(status) !== -1 ? { label: 'Omitir este paso', action: function() { skipJobStep(stepId, stepName); } } : null,
+    status === 'skipped' ? { label: 'Volver a incluir', action: function() { unskipJobStep(stepId, stepName); } } : null,
+    status === 'done' ? { label: 'Paso completado', disabled: true } : null
+  ]);
+}
 function openStepActions(event, stepId, stepName, status) {
   openActionMenu(event, [
     status === 'pending' ? { label: 'Completar ahora', action: function() { triggerJobStep(stepId); } } : null,
-    status === 'pending' ? { label: 'Saltar este step', danger: true, confirm: '"' + stepName + '" no se va a enviar para este job. Seguro?', action: function() { skipJobStep(stepId, stepName); } } : null,
+    ['pending', 'queued', 'failed'].indexOf(status) !== -1 ? { label: 'Omitir este paso', action: function() { skipJobStep(stepId, stepName); } } : null,
     status === 'skipped' ? { label: 'Volver a incluir', action: function() { unskipJobStep(stepId, stepName); } } : null,
     { divider: true },
     { label: 'Editar en Workflow Editor', href: '/workflow-editor?id=production_workflow_v1' }

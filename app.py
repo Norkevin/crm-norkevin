@@ -854,6 +854,58 @@ def _lead_date_conflicts(lead, jobs=None):
     return conflicts
 
 
+ASTRAL_REFERRAL_FOLLOWUPS = {'seguimiento_cliente', 'levanta_muertos', 'seguimiento_final'}
+
+
+def _is_astral_referral(lead):
+    if lead.get('astral_referral_at') or lead.get('blocked_date_notice_attempted_at'):
+        return True
+    # Recognize replies prepared before this rule existed; never resend them.
+    from src.tenant_brand_map import resolve_brand, UnresolvedBrandError
+    try:
+        if resolve_brand(lead.get('tenant_id')).brand_key != 'norkevin':
+            return False
+    except UnresolvedBrandError:
+        return False
+    unavailable_templates = {t['id'] for t in store.list('email_templates')
+                             if t.get('tenant_id') == lead.get('tenant_id')
+                             and 'fecha no disponible' in ' '.join((t.get('name') or '').lower().split())}
+    return any(mail.get('lead_id') == lead['id'] and mail.get('tenant_id') == lead.get('tenant_id')
+               and mail.get('template_id') in unavailable_templates and mail.get('status') != 'discarded'
+               for table in ('pending_emails', 'mail_log') for mail in store.list(table))
+
+
+def _stop_astral_referral_followups(lead):
+    """Cancel only the three Norkevin followups, preserving mail/workflow history."""
+    if not _is_astral_referral(lead):
+        return
+    lead_changed = not lead.get('astral_referral_at')
+    if lead_changed:
+        lead['astral_referral_at'] = lead.get('blocked_date_notice_attempted_at') or datetime.now().isoformat()
+    changed = False
+    for instance in _workflow_instances_seguras(subject_type='lead', subject_id=lead['id'], tenant_id=lead['tenant_id']):
+        for step_id in ASTRAL_REFERRAL_FOLLOWUPS:
+            if step_id in instance.step_states and instance.step_states[step_id] not in (StepStatus.DONE, StepStatus.SKIPPED):
+                instance.step_states[step_id] = StepStatus.SKIPPED
+                instance.step_results[step_id] = 'Omitido: fecha no disponible, recomendado a Astral'
+                workflow_engine._log(instance, 'step.skipped', f'{step_id}: recomendado a Astral')
+                changed = True
+    if changed:
+        workflow_engine._save_to_storage()
+    from src.mail_tracker import get_tracker
+    for mail in store.list('pending_emails'):
+        if (mail.get('lead_id') == lead['id'] and mail.get('tenant_id') == lead['tenant_id']
+                and mail.get('source') in {f'workflow:lead-step:{sid}' for sid in ASTRAL_REFERRAL_FOLLOWUPS}
+                and mail.get('status') in ('pending', 'blocked', 'failed')):
+            get_tracker().discard_pending(mail['id'], actor='sistema:recomendado-astral')
+    steps, _, _ = compute_workflow_steps_for_lead(lead)
+    pending = next((step for step in steps if step['status'] not in ('done', 'skipped')), None)
+    next_task = pending['name'] if pending else 'Recomendado a Astral'
+    if lead.get('next_task') != next_task or lead_changed:
+        lead['next_task'] = next_task
+        upsert_lead(lead)
+
+
 def _notify_blocked_date_lead(lead):
     """Send the authorized unavailability reply only for newly enrolled native leads.
 
@@ -878,7 +930,7 @@ def _notify_blocked_date_lead(lead):
     lead['mail_status'] = _lead_mail_status_chip(delivery.get('pendiente') or {})
     steps, _, _ = compute_workflow_steps_for_lead(lead)
     pending = next((s for s in steps if s.get('status') not in ('done', 'skipped')), None)
-    lead['next_task'] = pending.get('name') if pending else 'Trabajo aceptado'
+    lead['next_task'] = pending.get('name') if pending else ('Recomendado a Astral' if _is_astral_referral(lead) else 'Trabajo aceptado')
     upsert_lead(lead)
 
 
@@ -907,6 +959,8 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
                                   subject_override=None, body_override=None, existing_mail=None, template_override_id=None):
     if not step_id:
         return {'completed': False}
+    if _is_astral_referral(lead) and step_id in ASTRAL_REFERRAL_FOLLOWUPS:
+        return {'completed': False, 'warning': 'Este seguimiento se omitió al recomendar Astral'}
 
     if step_id == 'job_accepted':
         result = _convert_lead_to_job(lead, quote=None, status='Confirmado', create_payments=False)
@@ -969,6 +1023,10 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
         )
         lead['mail_status'] = _lead_mail_status_chip(mail_entry)
 
+    if mail_entry and _lead_packages_unavailable(lead, step_id):
+        lead['astral_referral_at'] = lead.get('astral_referral_at') or datetime.now().isoformat()
+        _stop_astral_referral_followups(lead)
+
     if mail_entry:
         _apply_workflow_delivery(instance, step_id, mail_entry)
         mail_entry.update(workflow_instance_id=instance.id, workflow_step_id=step_id)
@@ -979,7 +1037,7 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
 
     steps, _, _ = compute_workflow_steps_for_lead(lead)
     next_pending = next((s for s in steps if s.get('status') not in ('done', 'skipped')), None)
-    lead['next_task'] = next_pending.get('name') if next_pending else 'Trabajo aceptado'
+    lead['next_task'] = next_pending.get('name') if next_pending else ('Recomendado a Astral' if _is_astral_referral(lead) else 'Trabajo aceptado')
     upsert_lead(lead)
 
     action_label = 'preparado para aprobación' if mail_entry else 'completado manualmente'
@@ -2000,6 +2058,8 @@ def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, l
     force_done = _lead_is_converted(lead, jobs_cache)
     steps = []
     for step in tmpl.steps:
+        if _is_astral_referral(lead) and step.id in ASTRAL_REFERRAL_FOLLOWUPS:
+            continue
         scheduled = _step_scheduled_for_job(step, trigger_at, None)
         stored_status = _workflow_state_value(state_map.get(step.id))
         if force_done:
@@ -2063,7 +2123,7 @@ def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None,
     from datetime import datetime, timedelta
     if job.get("studio_ninja_workflow") is not None:
         steps = [dict(step, display_name="Boda" if "\nBoda\n" in (step.get("source_details") or "") else step["name"]) for step in job["studio_ninja_workflow"]]
-        progress = round(sum(s["status"] == "done" for s in steps) * 100 / len(steps)) if steps else 0
+        progress = round(sum(s["status"] in ("done", "skipped") for s in steps) * 100 / len(steps)) if steps else 0
         return steps, progress, job.get("studio_ninja_workflow_name") or "Studio Ninja"
     tmpl = PRODUCTION_WORKFLOW(tenant_id or job.get("tenant_id"))
     try:
@@ -3591,6 +3651,7 @@ def lead_detail(lead_id):
     if not lead:
         abort(404)
 
+    _stop_astral_referral_followups(lead)
     converted_job = _converted_job_for_lead(lead)
     if converted_job:
         return redirect(url_for('job_detail', job_id=converted_job['id']))
@@ -9515,6 +9576,23 @@ def api_job_workflow_task_toggle_portal(job_id, task_id):
     return jsonify({'ok': True, 'show_in_portal': task['show_in_portal']})
 
 
+def _set_imported_job_step_state(job, step_id, status):
+    step = next((s for s in job.get('studio_ninja_workflow') or [] if s['id'] == step_id), None)
+    if not step:
+        return jsonify({'ok': False, 'error': 'Paso no encontrado'}), 404
+    if step['status'] == 'done' or (status == 'pending' and step['status'] != 'skipped'):
+        return jsonify({'ok': False, 'error': 'Solo se pueden omitir pasos pendientes o volver a incluir pasos omitidos'}), 400
+    step['status'] = status
+    step.setdefault('history', []).append({'status': status, 'at': datetime.now().isoformat(), 'actor': _actor_actual()})
+    for task in job.get('manual_workflow_tasks') or []:
+        if task.get('step_id') == step_id:
+            task['status'] = status
+    pending = next((s for s in job['studio_ninja_workflow'] if s['status'] not in ('done', 'skipped') and s.get('source_stage') != 'LEAD'), None)
+    job['next_task'] = pending['name'] if pending else 'Sin pasos pendientes'
+    upsert_job(job)
+    return jsonify({'ok': True, 'step': step['name']})
+
+
 def _get_or_create_job_workflow_instance(job):
     instances = _workflow_instances_seguras(subject_type='job', subject_id=job.get('id'), tenant_id=job.get('tenant_id'))
     if instances:
@@ -9540,6 +9618,9 @@ def api_job_step_skip(job_id, step_id):
     if not job:
         return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
 
+    if job.get('studio_ninja_workflow') is not None:
+        return _set_imported_job_step_state(job, step_id, 'skipped')
+
     tmpl = PRODUCTION_WORKFLOW()
     step = next((s for s in tmpl.steps if s.id == step_id), None)
     if not step:
@@ -9548,6 +9629,14 @@ def api_job_step_skip(job_id, step_id):
     instance = _get_or_create_job_workflow_instance(job)
     if instance.step_states.get(step_id) == StepStatus.DONE:
         return jsonify({'ok': False, 'error': 'Este step ya se completo, no se puede saltar'}), 400
+
+    if instance.step_states.get(step_id) == StepStatus.RUNNING:
+        return jsonify({'ok': False, 'error': 'Este paso se está ejecutando'}), 409
+    from src.mail_tracker import get_tracker
+    for mail in store.list('pending_emails'):
+        if (mail.get('job_id') == job_id and mail.get('workflow_step_id') == step_id
+                and mail.get('status') in ('pending', 'blocked', 'failed')):
+            get_tracker().discard_pending(mail['id'], actor=_actor_actual())
 
     instance.step_states[step_id] = StepStatus.SKIPPED
     workflow_engine._log(instance, 'step.skipped', f'{step.name}: saltado manualmente')
@@ -9561,12 +9650,27 @@ def api_job_step_unskip(job_id, step_id):
     if not job:
         return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
 
+    if job.get('studio_ninja_workflow') is not None:
+        return _set_imported_job_step_state(job, step_id, 'pending')
+
     tmpl = PRODUCTION_WORKFLOW()
     step = next((s for s in tmpl.steps if s.id == step_id), None)
     if not step:
         return jsonify({'ok': False, 'error': 'Step no encontrado'}), 404
 
     instance = _get_or_create_job_workflow_instance(job)
+    if instance.step_states.get(step_id) != StepStatus.SKIPPED:
+        return jsonify({'ok': False, 'error': 'Este paso no está omitido'}), 400
+
+    # Explicitly including a cancelled step authorizes a fresh approval item,
+    # not delivery. Keep the discarded item and its original key in history.
+    for mail in store.list('pending_emails'):
+        if (mail.get('job_id') == job_id and mail.get('workflow_step_id') == step_id
+                and mail.get('status') == 'discarded' and mail.get('idempotency_key')):
+            mail['original_idempotency_key'] = mail.get('original_idempotency_key') or mail['idempotency_key']
+            mail['idempotency_key'] = mail['original_idempotency_key'] + ':discarded:' + mail['id']
+            store.upsert('pending_emails', mail)
+
     instance.step_states[step_id] = StepStatus.PENDING
     workflow_engine._log(instance, 'step.unskipped', f'{step.name}: vuelve a estar activo')
     workflow_engine._save_to_storage()
@@ -14258,6 +14362,8 @@ def _prepare_due_workflow_emails(tenant_id=None, now=None, subject_type=None):
                 record = store.get('leads' if instance.subject_type == 'lead' else 'jobs', instance.subject_id)
                 if not record or record.get('studio_ninja_workflow') is not None or record.get('studio_ninja_source_id') or record.get('status') in ('Cancelado', 'Archivado', 'Listo', 'Perdido'):
                     continue
+                if instance.subject_type == 'lead':
+                    _stop_astral_referral_followups(record)
                 compute = compute_workflow_steps_for_lead if instance.subject_type == 'lead' else compute_workflow_steps_for_job
                 steps, _, _ = compute(record, tenant_id=instance.tenant_id)
                 for step in steps:

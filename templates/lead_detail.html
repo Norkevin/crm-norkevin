@@ -62,6 +62,7 @@
   <div class="lead-workspace">
     <aside class="lead-workflow-panel" id="lead-workflow" aria-labelledby="lead-workflow-title">
       <div class="lead-section-heading"><div><h2 id="lead-workflow-title">Workflow</h2><p>{{ workflow_name }}</p></div><a class="lead-template-link" href="/workflow-editor?id=lead_workflow_v1">Editar plantilla ↗</a></div>
+      {% if lead.astral_referral_at or lead.blocked_date_notice_attempted_at %}<p class="sn-muted">Recomendado a Astral por fecha no disponible. Los seguimientos de Norkevin están desactivados.</p>{% endif %}
       <div class="lead-workflow-card">
         <div class="lead-phase-heading"><h3>Seguimiento</h3><span>{{ lead_steps|selectattr('status', 'equalto', 'done')|list|length }} de {{ lead_steps|length }} completados</span></div>
         <div class="workflow-steps">

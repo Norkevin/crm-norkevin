@@ -29,7 +29,8 @@
 .mail-origen { font-size: 12px; color: var(--sn-muted); }
 .mail-motivo { font-size: 12px; color: #B4232A; margin-top: 3px; }
 .mail-row > * { grid-column: 1; min-width: 0; }
-.mail-estado { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+.mail-estado { grid-column: 2; grid-row: 1 / span 2; align-self: start; display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end; }
+.mail-descartar { color: #B4232A; min-height:36px; }
 .mail-asunto, .mail-origen, .mail-motivo, .mail-aviso { grid-column: 1 / -1; overflow-wrap: anywhere; }
 
 .chip-estado { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
@@ -104,7 +105,7 @@
   <div class="sn-table-shell" style="overflow:hidden;">
     <div id="mail-list">
       {% for e in emails %}
-      <div class="mail-row" data-estado="{{ e.estado }}"
+      <div class="mail-row" data-email-id="{{ e.id }}" data-estado="{{ e.estado }}"
            data-text="{{ ((e.cliente or '') ~ ' ' ~ (e.para or '') ~ ' ' ~ (e.job or '') ~ ' ' ~ (e.empresa or '') ~ ' ' ~ (e.asunto or ''))|lower }}"
            onclick="abrirRevision('{{ e.id }}')">
         <div class="mail-empresa">{{ e.empresa }}</div>
@@ -117,6 +118,9 @@
             {% elif e.estado == 'failed' %}Fallo
             {% else %}Cancelado{% endif %}
           </span>
+          {% if e.estado in ['pending', 'failed', 'blocked'] %}
+          <button type="button" class="sn-btn sn-btn-sm mail-descartar" aria-label="Descartar correo: {{ e.asunto }}" onclick="event.stopPropagation(); descartarCorreo('{{ e.id }}', this)">Descartar</button>
+          {% endif %}
         </div>
         <div class="mail-quien">
           {{ e.cliente or e.para }}{% if e.job %} · {{ e.job }}{% endif %}
@@ -148,7 +152,8 @@
       <p class="sn-muted">Cargando...</p>
     </div>
     <div class="modal-actions" style="margin-top:16px;">
-      <button type="button" class="sn-btn" onclick="cerrarRevision()">Cancelar</button>
+      <button type="button" class="sn-btn" onclick="cerrarRevision()">Cerrar</button>
+      <button type="button" class="sn-btn mail-descartar" id="btn-descartar" style="display:none;" onclick="descartarCorreo(emailActual, this)">Descartar correo</button>
       <!-- Reintentar es MANUAL y solo aparece si el correo fallo por un
            problema tecnico. Un bloqueado nunca se reintenta. -->
       <button type="button" class="sn-btn" id="btn-reintentar"
@@ -197,6 +202,9 @@ function _check(ok, texto) {
 function abrirRevision(id) {
   emailActual = id;
   enviando = false;
+  var descartar = document.getElementById('btn-descartar');
+  descartar.style.display = 'none';
+  descartar.disabled = false;
   var btn = document.getElementById('btn-enviar');
   btn.disabled = true;
   btn.textContent = 'Enviar email';
@@ -248,6 +256,7 @@ function abrirRevision(id) {
       frame.srcdoc = d.html;
       cont.querySelector('.rev-cuerpo').replaceWith(frame);
 
+      document.getElementById('btn-descartar').style.display = ['pending', 'blocked', 'failed'].indexOf(e.estado) !== -1 ? '' : 'none';
       document.getElementById('btn-enviar').disabled = !d.enviable;
       document.getElementById('btn-reintentar').style.display =
         e.reintentable ? '' : 'none';
@@ -347,6 +356,32 @@ function confirmarEnvio() {
       enviando = false;
       flashToast('Error de red', 'error');
     });
+}
+
+async function descartarCorreo(id, button) {
+  if (!id || enviando || button.disabled) return;
+  if (!confirm('¿Descartar este correo? No se enviará y quedará en Cancelados.')) return;
+  button.disabled = true;
+  try {
+    var response = await fetch('/api/pending-emails/' + encodeURIComponent(id) + '/discard', {method:'POST'});
+    var data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'No se pudo descartar');
+    var row = Array.from(document.querySelectorAll('.mail-row')).find(function(r) { return r.dataset.emailId === id; });
+    if (row) {
+      var previous = row.dataset.estado;
+      row.dataset.estado = 'discarded';
+      var chip = row.querySelector('.chip-estado');
+      chip.className = 'chip-estado chip-discarded'; chip.textContent = 'Cancelado';
+      row.querySelector('.mail-descartar').remove();
+      [previous, 'discarded'].forEach(function(state) {
+        var count = document.querySelector('.mail-tab[data-filtro="' + state + '"] .cuenta');
+        if (count) count.textContent = Number(count.textContent) + (state === 'discarded' ? 1 : -1);
+      });
+    }
+    if (emailActual === id) cerrarRevision();
+    filtrarEmails();
+    flashToast('Correo descartado. No se enviará.', 'success');
+  } catch (error) { button.disabled = false; flashToast(error.message, 'error'); }
 }
 
 function cerrarRevision() {
