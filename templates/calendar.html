@@ -51,6 +51,7 @@
     </div>
   </div>
 
+  <p class="sn-muted calendar-block-hint">Toca el número de un día para bloquear esa fecha.</p>
   <div class="calendar-shell">
     <div class="calendar-head">
       {% for day_name in day_names %}
@@ -61,7 +62,9 @@
       {% for week in calendar_grid %}
         {% for cell in week %}
         <div class="calendar-cell {% if not cell.in_month %}muted{% endif %}">
-          <div class="calendar-day {% if cell.today %}today{% endif %}">{{ cell.day }}</div>
+          {% if cell.in_month %}
+          <button class="calendar-day calendar-day-action {% if cell.today %}today{% endif %}" type="button" aria-label="Bloquear fecha {{ cell.iso_date }}" title="Bloquear esta fecha" onclick="openBlockModal('{{ cell.iso_date }}')">{{ cell.day }}</button>
+          {% endif %}
           <div class="calendar-events">
             {% for evt in cell.events[:3] %}
             <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" data-block-id="{{ evt.id if evt.type == 'block' else '' }}" onclick="openCalendarEvent('{{ evt.url or '' }}', this)">
@@ -93,11 +96,11 @@
     {% set ns = namespace(has_any_event=false) %}
     {% for week in calendar_grid %}
       {% for cell in week %}
-        {% if cell.in_month and cell.events %}
+        {% if cell.in_month %}
           {% set ns.has_any_event = true %}
           <div class="agenda-day {{ 'today' if cell.today else '' }}">
             <div class="agenda-day-head">
-              <span class="agenda-day-num">{{ cell.day }}</span>
+              <button class="agenda-day-num calendar-day-action" type="button" aria-label="Bloquear fecha {{ cell.iso_date }}" title="Bloquear esta fecha" onclick="openBlockModal('{{ cell.iso_date }}')">{{ cell.day }}</button>
               {# El numero del dia ya se ve grande al lado; repetirlo aca
                  daba encabezados tipo "15 Agosto 15". #}
               <span class="agenda-day-label">{{ month_name }}{{ ' · Hoy' if cell.today else '' }}</span>
@@ -196,7 +199,7 @@
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label" for="block-date">Fecha *</label>
-          <input class="form-input" id="block-date" name="date" type="date" required>
+          <input class="form-input" id="block-date" name="date" type="date" onchange="syncBlockDates()" required>
         </div>
         <div class="form-group">
           <label class="form-label" for="block-end">Hasta (opcional)</label>
@@ -229,7 +232,14 @@
   align-items: start;
 }
 .calendar-main { min-width: 0; }
+.calendar-block-hint { margin: 0 0 10px; font-size: 12px; }
+.calendar-day-action { cursor: pointer; border: 0; background: transparent; color: inherit; font: inherit; }
+.calendar-day-action:hover { background: var(--sn-surface-hover); }
+.calendar-day-action:focus-visible { outline: 2px solid var(--sn-green); outline-offset: 2px; }
+.agenda-day-head .calendar-day-action { min-width: 44px; min-height: 44px; border-radius: 8px; }
+
 .calendar-sidebar {
+  min-width: 0;
   position: sticky;
   top: 80px;
   padding-top: 54px;
@@ -252,10 +262,15 @@
 }
 .upcoming-events-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 .upcoming-event-card {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -294,7 +309,7 @@
 .upcoming-event-badge.lead { background: #0D9488; }
 .upcoming-event-badge.job { background: #2563EB; }
 .upcoming-event-badge.event { background: #D97706; }
-.upcoming-event-title { font-size: 13.5px; font-weight: 600; color: var(--sn-ink); }
+.upcoming-event-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 600; color: var(--sn-ink); }
 .upcoming-event-date { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 11.5px; color: var(--sn-muted); }
 .upcoming-event-days { font-size: 11px; color: var(--sn-accent-text-dark); font-weight: 600; }
 .upcoming-event-empty {
@@ -494,8 +509,19 @@ function filterCalendar() {
 }
 
 let blockOpener;
-function openBlockModal() {
+function syncBlockDates(force) {
+  const start = document.getElementById('block-date');
+  const end = document.getElementById('block-end');
+  end.min = start.value;
+  if (start.value && (force || !end.value || end.value === end.dataset.syncedDate || end.value < start.value)) {
+    end.value = start.value;
+  }
+  end.dataset.syncedDate = start.value;
+}
+function openBlockModal(date) {
   blockOpener = document.activeElement;
+  if (date) document.getElementById('block-date').value = date;
+  syncBlockDates(Boolean(date));
   document.getElementById('block-modal').classList.add('open');
   document.getElementById('block-date').focus();
 }
