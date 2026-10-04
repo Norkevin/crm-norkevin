@@ -3672,7 +3672,7 @@ def lead_detail(lead_id):
             client = get_client(j.get('client_id', ''))
             prod_steps, _, _ = compute_workflow_steps_for_job(j)
             break
-    if not job_vinculado:
+    if not job_vinculado and not _is_astral_referral(lead):
         for step in prod_tmpl.steps:
             prod_steps.append({
                 'id': step.id,

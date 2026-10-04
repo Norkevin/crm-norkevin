@@ -64,7 +64,9 @@ def test_astral_referral_removes_three_followups_and_cancels_existing_queue(book
     assert crm.store.get('pending_emails', pending['id'])['status'] == 'discarded'
     assert not crm._prepare_due_workflow_emails(now=instance.trigger_at + timedelta(days=100))
     assert not crm._complete_lead_workflow_step(current, 'seguimiento_final')['completed']
-    assert 'seguimiento_final' not in client.get('/leads/' + lead['id']).get_data(as_text=True)
+    html = client.get('/leads/' + lead['id']).get_data(as_text=True)
+    assert 'seguimiento_final' not in html
+    assert 'Reserva y producción' not in html
     for mail in crm.store.list('pending_emails'):
         if mail.get('lead_id') == lead['id']: crm.store.delete('pending_emails', mail['id'])
 

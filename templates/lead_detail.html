@@ -49,7 +49,7 @@
     <div class="lead-next-icon" aria-hidden="true">↗</div>
     <div class="lead-next-copy">
       <div class="lead-eyebrow">Próximo paso</div>
-      <h2 id="lead-next-title">{{ upcoming.step.name if upcoming.step else 'Todo al día' }}</h2>
+      <h2 id="lead-next-title">{{ upcoming.step.name if upcoming.step else 'Recomendado a Astral' if lead.astral_referral_at or lead.blocked_date_notice_attempted_at else 'Todo al día' }}</h2>
       {% if upcoming.step %}{% with step=upcoming.step %}{% include 'workflow_timing.html' %}{% endwith %}
       {% else %}<p class="sn-muted">No hay pasos pendientes disponibles.</p>{% endif %}
     </div>
