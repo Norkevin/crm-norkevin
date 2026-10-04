@@ -6444,6 +6444,60 @@ def settings_email_templates():
     return render_template('settings_email_templates.html', templates=store.list('email_templates'))
 
 
+@app.route('/settings/email-template-sample/<kind>')
+def email_template_sample_document(kind):
+    from src.email_delivery import render_email_html
+    labels = {'invoice': 'Factura', 'quote': 'Cotización', 'contract': 'Contrato',
+              'questionnaire': 'Cuestionario', 'gallery': 'Galería'}
+    if kind not in labels:
+        abort(404)
+    return render_email_html(labels[kind] + ' de muestra',
+        'Este enlace corresponde a una muestra de correo para Kevin Lemus.\n\n'
+        'Los correos reales llevan el enlace del documento o la galería de cada cliente. '
+        'Esta página comprueba el botón y su destino de muestra; no valida un documento real.\n\n'
+        'No se crean reservas, pagos, firmas ni respuestas de clientes.')
+
+
+@app.route('/api/settings/email-templates/<template_id>/send-sample', methods=['POST'])
+def api_email_template_send_sample(template_id):
+    from src import gmail_delivery
+    from src.email_delivery import unresolved_email_fields
+    from src.mail_tracker import get_tracker
+    template = _get_email_template(template_id)
+    if not template:
+        return jsonify({'ok': False, 'error': 'Plantilla no encontrada'}), 404
+    batch = (request.get_json() or {}).get('batch')
+    if not isinstance(batch, str) or not re.fullmatch(r'[a-f0-9-]{36}', batch):
+        return jsonify({'ok': False, 'error': 'Identificador de envío inválido'}), 400
+    tenant_id = store.current_tenant_id()
+    recipient = gmail_delivery.connected_email(tenant_id=tenant_id)
+    if not recipient or not gmail_delivery.is_connected(tenant_id=tenant_id):
+        return jsonify({'ok': False, 'error': 'Conecta tu Gmail para recibir las muestras'}), 400
+    # Samples have no client/job IDs: they cannot change a customer's workflow.
+    demo_client = {'first_name': 'Kevin', 'last_name': 'Lemus', 'tenant_id': tenant_id}
+    demo_job = {'nombre': 'Boda de muestra de Kevin Lemus', 'boda_date': '2027-10-04',
+                'location': 'Antigua Guatemala', 'tenant_id': tenant_id}
+    subject = _render_message_template(template.get('asunto'), client=demo_client, job=demo_job)
+    body = _render_message_template(template.get('cuerpo'), client=demo_client, job=demo_job)
+    for kind in ('invoice', 'quote', 'contract', 'questionnaire', 'gallery'):
+        link = request.url_root.rstrip('/') + url_for('email_template_sample_document', kind=kind)
+        body = body.replace('%' + kind + '_link%', link)
+    unresolved = unresolved_email_fields(subject, body)
+    if unresolved:
+        return jsonify({'ok': False, 'error': 'Variables sin resolver: ' + ', '.join(unresolved)}), 400
+    subject += ' [Muestra: ' + template['name'] + ']'
+    body += ('\n\n— MUESTRA DE FLOWING: ' + template['name'] +
+             ' —\nNombre y fecha son de ejemplo. Los enlaces fijos son los de la plantilla; '
+             'los documentos y la galería usan destinos de muestra. No se modifica ningún cliente.')
+    with store.locked_tables('mail_log', 'pending_emails'):
+        entry = get_tracker().log_email(recipient, subject, body, template_id=template_id,
+            tenant_id=tenant_id, idempotency_key=f'template-sample:{tenant_id}:{batch}:{template_id}')
+    sent = entry.get('status') == 'sent' and entry.get('delivery_mode') == 'real'
+    return jsonify({'ok': sent, 'name': template['name'], 'to': recipient,
+                    'status': entry.get('status'), 'message_id': entry.get('delivery_message_id'),
+                    'error': entry.get('delivery_error') or ('' if sent else 'No hubo entrega real')}), (200 if sent else 400)
+
+
 @app.route('/settings/lead-sources')
 def settings_lead_sources():
     return render_template('settings_lead_sources.html', lead_sources=_configured_lead_sources(include_inactive=True))

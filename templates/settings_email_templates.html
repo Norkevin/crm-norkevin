@@ -12,6 +12,7 @@
       <div class="sn-breadcrumbs">Correos automaticos que se envian durante el workflow.</div>
     </div>
     <div class="sn-actions">
+      <button class="sn-btn" type="button" id="send-samples" onclick="sendTemplateSamples()">Enviarme todas las muestras</button>
       <button class="sn-btn sn-btn-primary" type="button" onclick="openTemplateModal()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
         Nueva Plantilla
@@ -19,6 +20,7 @@
     </div>
   </div>
 
+  <p id="sample-progress" role="status" aria-live="polite"></p>
   <div class="sn-table-shell stack-mobile" style="margin-top:18px;">
     <table class="sn-table">
       <thead>
@@ -86,6 +88,28 @@
 </div>
 
 <script>
+async function sendTemplateSamples() {
+  const button = document.getElementById('send-samples');
+  const progress = document.getElementById('sample-progress');
+  const templates = {{ templates | tojson }};
+  const batch = crypto.randomUUID();
+  button.disabled = true;
+  const results = [];
+  let sent = 0;
+  for (const [index, template] of templates.entries()) {
+    progress.textContent = `Enviando ${index + 1} de ${templates.length}: ${template.name}. Recibirás cada muestra en el Gmail conectado.`;
+    try {
+      const result = await apiPost('/api/settings/email-templates/' + encodeURIComponent(template.id) + '/send-sample', {batch});
+      if (!result.ok) throw new Error(result.error || 'No se envió');
+      sent++;
+      results.push(template.name + ': enviada a ' + result.to);
+    } catch (error) {
+      results.push(template.name + ': ' + error.message);
+    }
+  }
+  progress.textContent = `${sent} de ${templates.length} muestras enviadas. ` + results.join(' · ');
+  button.disabled = false;
+}
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
