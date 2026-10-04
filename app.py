@@ -827,6 +827,20 @@ def _complete_job_workflow_step(job, step_id, result_message=None, mail_id=None)
     }
 
 
+def _date_conflict_detail(record, kind):
+    day = record.get('boda_date') if kind == 'job' else record.get('date') if kind == 'block' else record.get('fecha_tentativa')
+    parsed = _parse_iso_day(day)
+    return {
+        'name': record.get('nombre') or record.get('title') or 'Fecha bloqueada',
+        'date': day, 'date_label': _format_pretty_date(day) if day else 'Sin fecha',
+        'type': kind, 'status': record.get('status') or '',
+        'location': record.get('location') or record.get('locacion') or record.get('ubicacion') or '',
+        'note': 'Recomendado a Astral' if kind == 'lead' and (record.get('astral_referral_at') or record.get('blocked_date_notice_attempted_at')) else '',
+        'url': (f"/calendar?year={parsed.year}&month={parsed.month}" if kind == 'block' and parsed
+                else f"/{'jobs' if kind == 'job' else 'leads'}/{record['id']}"),
+    }
+
+
 def _lead_date_conflicts(lead, jobs=None):
     """Active jobs and unreleased blocks reserve dates only in this account."""
     event_date = _parse_iso_day(lead.get('fecha_tentativa') or lead.get('fecha_evento'))
@@ -3504,7 +3518,10 @@ def leads_list():
         conflicts = _lead_date_conflicts(lead, _jobs_cache)
         conflict_job = conflicts[0].get('nombre') if conflicts else None
         lead['date_conflict'] = conflict_job
+        lead['date_conflict_details'] = [_date_conflict_detail(other, 'block' if other.get('type') == 'block' else 'job') for other in conflicts]
         other_leads_same_date = [i for i in open_leads_by_date.get(fecha, []) if i != lead.get('id')] if fecha else []
+        lead['date_conflict_details'] += [_date_conflict_detail(other, 'lead') for other in leads
+                                          if other.get('id') in other_leads_same_date]
         lead['other_lead_conflict'] = bool(fecha) and not conflict_job and bool(other_leads_same_date)
         lead['date_available'] = bool(fecha) and not conflict_job and not other_leads_same_date
 
@@ -4831,11 +4848,11 @@ def jobs_list():
     other_jobs_by_date = defaultdict(list)
     for j in jobs:
         if j.get('boda_date') and j.get('status') not in ('Archivado',):
-            other_jobs_by_date[j['boda_date']].append(j.get('id'))
+            other_jobs_by_date[j['boda_date']].append(j)
     open_leads_by_date = defaultdict(list)
     for l in _open_leads():
         if l.get('fecha_tentativa'):
-            open_leads_by_date[l['fecha_tentativa']].append(l.get('id'))
+            open_leads_by_date[l['fecha_tentativa']].append(l)
 
     # Una sola lectura de `job_clients` para toda la lista. Antes cada fila
     # llamaba a _job_clients_display(), que por dentro releia la tabla
@@ -4857,7 +4874,9 @@ def jobs_list():
             j['dias_restantes'] = None
             j['boda_date_display'] = None
         fecha = j.get('boda_date')
-        other_jobs_same_date = [i for i in other_jobs_by_date.get(fecha, []) if i != j.get('id')] if fecha else []
+        other_jobs_same_date = [other for other in other_jobs_by_date.get(fecha, []) if other.get('id') != j.get('id')] if fecha else []
+        j['date_conflict_details'] = ([_date_conflict_detail(other, 'job') for other in other_jobs_same_date]
+                                      + [_date_conflict_detail(other, 'lead') for other in open_leads_by_date.get(fecha, [])])
         j['date_conflict'] = bool(other_jobs_same_date)
         j['lead_interest_conflict'] = bool(fecha) and not j['date_conflict'] and bool(open_leads_by_date.get(fecha))
         try:

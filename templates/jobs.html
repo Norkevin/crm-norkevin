@@ -4,6 +4,7 @@
 {% block subtitle %}{{ jobs|length }} trabajos{% endblock %}
 
 {% block content %}
+{% include "_date_conflict_modal.html" %}
 <link rel="stylesheet" href="{{ url_for('static', filename='record-lists.css') }}">
 <style>
 .date-status-badge {
@@ -159,13 +160,13 @@
                 <span class="job-countdown">{{ 'Hoy' if job.dias_restantes == 0 else 'En ' ~ job.dias_restantes ~ ' días' }}</span>
                 {% endif %}
               {% if job.date_conflict %}
-                <span class="date-status-badge red" title="Otra boda ya agendada este mismo dia">
+                <button type="button" class="date-status-badge red" title="Ver detalle de la advertencia" aria-label="Ver advertencia de fecha: {{ job.nombre }}" onclick='openDateConflict(event, {{ job.nombre|tojson }}, {{ job.date_conflict_details|tojson }})'>
                   <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.7 7.3a1 1 0 00-1.4 1.4L8.6 10l-1.3 1.3a1 1 0 101.4 1.4L10 11.4l1.3 1.3a1 1 0 001.4-1.4L11.4 10l1.3-1.3a1 1 0 00-1.4-1.4L10 8.6 8.7 7.3z" clip-rule="evenodd"/></svg>
-                </span>
+                </button>
               {% elif job.lead_interest_conflict %}
-                <span class="date-status-badge orange" title="Un lead abierto esta preguntando por esta misma fecha">
+                <button type="button" class="date-status-badge orange" title="Ver detalle de la advertencia" aria-label="Ver advertencia de fecha: {{ job.nombre }}" onclick='openDateConflict(event, {{ job.nombre|tojson }}, {{ job.date_conflict_details|tojson }})'>
                   <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.486 0l6.516 11.598c.75 1.334-.213 2.986-1.743 2.986H3.484c-1.53 0-2.493-1.652-1.743-2.986L8.257 3.1zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-.25-6.5a.75.75 0 00-1.5 0v3.5a.75.75 0 001.5 0v-3.5z" clip-rule="evenodd"/></svg>
-                </span>
+                </button>
               {% endif %}
               </div>
               </div>

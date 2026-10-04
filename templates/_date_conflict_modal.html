@@ -1,0 +1,50 @@
+<style>
+button.date-status-badge { border:0; cursor:pointer; min-width:30px; min-height:30px; }
+.date-conflict-item { padding:12px 0; border-bottom:1px solid var(--sn-line); }
+.date-conflict-item p { margin:4px 0; font-size:13px; overflow-wrap:anywhere; }
+</style>
+<div class="modal-overlay" id="date-conflict-modal" onclick="if(event.target===this) closeDateConflict()">
+  <div class="modal-content" style="max-width:540px" role="dialog" aria-modal="true" aria-labelledby="date-conflict-title" aria-describedby="date-conflict-summary">
+    <h2 class="modal-title" id="date-conflict-title">Advertencia de fecha</h2>
+    <p id="date-conflict-summary" class="sn-muted"></p>
+    <div id="date-conflict-items" style="max-height:50vh;overflow:auto"></div>
+    <div class="modal-actions"><button type="button" class="sn-btn" id="date-conflict-close" onclick="closeDateConflict()">Cerrar</button></div>
+  </div>
+</div>
+<script>
+var dateConflictOpener = null;
+function openDateConflict(event, subject, items) {
+  event.preventDefault(); event.stopPropagation();
+  dateConflictOpener = event.currentTarget;
+  document.getElementById('date-conflict-summary').textContent = 'Para ' + subject + ', estos registros coinciden en la fecha. Los leads indican interés; no son reservas. La coincidencia de día no confirma un cruce de horarios.';
+  var list = document.getElementById('date-conflict-items');
+  list.replaceChildren();
+  items.forEach(function(item) {
+    var section = document.createElement('div'); section.className = 'date-conflict-item';
+    var name = document.createElement('strong'); name.textContent = item.name; section.appendChild(name);
+    var meta = document.createElement('p');
+    meta.textContent = [item.type === 'lead' ? 'Lead interesado' : item.type === 'block' ? 'Fecha bloqueada' : 'Trabajo agendado', item.date_label, item.status, item.note].filter(Boolean).join(' · ');
+    section.appendChild(meta);
+    if(item.location) { var location = document.createElement('p'); location.textContent = item.location; section.appendChild(location); }
+    var link = document.createElement('a'); link.href = item.url; link.className = 'sn-btn sn-btn-sm';
+    link.textContent = item.type === 'lead' ? 'Ver lead' : item.type === 'block' ? 'Ver calendario' : 'Ver job';
+    section.appendChild(link); list.appendChild(section);
+  });
+  document.getElementById('date-conflict-modal').classList.add('open');
+  document.getElementById('date-conflict-close').focus();
+}
+function closeDateConflict() {
+  var modal = document.getElementById('date-conflict-modal');
+  if(!modal.classList.contains('open')) return;
+  modal.classList.remove('open'); if(dateConflictOpener) dateConflictOpener.focus();
+}
+document.addEventListener('keydown', function(event) {
+  var modal = document.getElementById('date-conflict-modal'); if(!modal.classList.contains('open')) return;
+  if(event.key === 'Escape') { event.preventDefault(); closeDateConflict(); }
+  if(event.key === 'Tab') {
+    var buttons = modal.querySelectorAll('a, button'); var first = buttons[0], last = buttons[buttons.length-1];
+    if(event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if(!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
+});
+</script>
