@@ -286,7 +286,15 @@
                     {% elif m.status == 'clicked' %}<span class="sn-chip green">LINK CLICKED</span>
                     {% else %}<span class="sn-chip yellow">EMAIL SENT</span>{% endif %}
                   </td>
-                  <td class="stack-actions"><button class="sn-btn sn-btn-sm" type="button" onclick="simulateOpen('{{ m.id }}')">Ver</button></td>
+                  <td class="stack-actions">
+                    <button class="sn-btn sn-btn-sm" type="button"
+                      data-subject="{{ m.subject or 'Correo' }}"
+                      data-to="{{ m.to or '' }}"
+                      data-date="{{ (m.sent_at or m.created_at)|fecha_legible or '' }}"
+                      data-body-ref="mail-body-{{ m.id }}"
+                      onclick="openMailDetails(this)">Ver</button>
+                    <script type="application/json" id="mail-body-{{ m.id }}">{{ (m.body or m.body_preview or '')|tojson }}</script>
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -340,6 +348,8 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
     </form>
   </div>
 </div>
+
+{% include "_mail_details.html" %}
 
 <div class="modal-overlay" id="lead-email-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
@@ -710,11 +720,6 @@ function sendEmailToLead() {
   openEmailModal({});
 }
 
-function simulateOpen(mailId) {
-  apiPost('/api/mail/' + mailId + '/opened', {})
-    .then(function() { flashToast('Email opened', 'success'); setTimeout(function() { location.reload(); }, 500); })
-    .catch(function(err) { flashToast(err.message, 'error'); });
-}
 
 function sendPayment(paymentId) {
   apiPost('/api/payments/' + paymentId + '/send', {})

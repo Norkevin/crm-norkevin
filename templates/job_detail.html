@@ -980,23 +980,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
   </div>
 </div>
 
-<div class="modal-overlay" id="mail-detail-modal">
-  <div class="modal-content" style="width:min(720px,100%);">
-    <button type="button" class="modal-close" onclick="closeModal('mail-detail-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title">Mail details</h2>
-    <div class="sn-field-grid" style="margin-bottom:16px;">
-      <div class="sn-field-label">To</div><div class="sn-field-value" id="mail-detail-to"></div>
-      <div class="sn-field-label">Date</div><div class="sn-field-value" id="mail-detail-date"></div>
-      <div class="sn-field-label">Subject</div><div class="sn-field-value" id="mail-detail-subject"></div>
-    </div>
-    <div class="sn-card white">
-      <div id="mail-detail-body" style="white-space:pre-wrap;line-height:1.6;"></div>
-    </div>
-    <div class="sn-actions" style="margin-top:16px;">
-      <button class="sn-btn" type="button" onclick="closeModal('mail-detail-modal')">Cancelar</button>
-    </div>
-  </div>
-</div>
+{% include "_mail_details.html" %}
 
 <script>
 var JOB_ID = '{{ job.id }}';
@@ -1717,22 +1701,6 @@ function openHistoryLog() {
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-function openMailDetails(button) {
-  var body = button.dataset.body || '';
-  var ref = button.dataset.bodyRef ? document.getElementById(button.dataset.bodyRef) : null;
-  if (ref) {
-    try {
-      body = JSON.parse(ref.textContent || '""');
-    } catch (e) {
-      body = ref.textContent || body;
-    }
-  }
-  document.getElementById('mail-detail-to').textContent = button.dataset.to || '-';
-  document.getElementById('mail-detail-date').textContent = button.dataset.date || '-';
-  document.getElementById('mail-detail-subject').textContent = button.dataset.subject || 'Email';
-  document.getElementById('mail-detail-body').textContent = body || 'No message body saved for this older email.';
-  openModal('mail-detail-modal');
-}
 
 // ============================================================
 // Tabs de nivel superior en mobile: Resumen / Workflow / Pagos / Archivos
