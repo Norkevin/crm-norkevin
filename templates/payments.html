@@ -117,15 +117,15 @@
   <div class="payment-stats">
     <div class="payment-stat-card">
       <div class="payment-stat-label">Total pendiente</div>
-      <div class="payment-stat-value">Q{{ '{:,.0f}'.format(total_due) }}</div>
+      <div class="payment-stat-value">Q{{ '{:,.2f}'.format(total_due) }}</div>
     </div>
     <div class="payment-stat-card">
       <div class="payment-stat-label">Atrasado</div>
-      <div class="payment-stat-value">Q{{ '{:,.0f}'.format(total_late) }}</div>
+      <div class="payment-stat-value">Q{{ '{:,.2f}'.format(total_late) }}</div>
     </div>
     <div class="payment-stat-card">
       <div class="payment-stat-label">Cobrado</div>
-      <div class="payment-stat-value">Q{{ '{:,.0f}'.format(total_paid) }}</div>
+      <div class="payment-stat-value">Q{{ '{:,.2f}'.format(total_paid) }}</div>
     </div>
   </div>
 
