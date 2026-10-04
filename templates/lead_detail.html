@@ -11,7 +11,7 @@
   <header class="lead-hero">
     <div class="lead-hero-top">
       <div class="lead-identity">
-        <div class="lead-status"><span class="sn-chip {% if lead.status == 'Convertido' %}green{% elif lead.status == 'Perdido' %}red{% else %}cyan{% endif %}">{{ lead.status or 'Nuevo' }}</span><span>{{ lead.tipo_evento or 'Evento por definir' }}</span></div>
+        <div class="lead-status"><span class="sn-chip {% if lead.status == 'Convertido' %}green{% elif lead.status == 'Perdido' %}red{% else %}cyan{% endif %}">{{ lead.status or 'Nuevo' }}</span><span>{{ lead.tipo_evento or 'Evento por definir' }}</span>{% if lead.date_conflict_details %}<span class="sn-chip red"><span aria-hidden="true">⚠</span> Fecha ocupada</span>{% endif %}</div>
         <h1>{{ lead.nombre }}</h1>
         {% if lead.nombre_pareja %}<div class="lead-contact"><span>Pareja: {{ lead.nombre_pareja }}</span></div>{% endif %}
         <div class="lead-contact"><span>{{ lead.email or 'Sin correo' }}</span><span>{{ lead.telefono or 'Sin teléfono' }}</span></div>
@@ -35,7 +35,7 @@
     <details class="mobile-event-details" data-mobile-fold open>
       <summary>Detalles del evento <span>{{ lead.fecha_tentativa|fecha_legible or 'Por definir' }}</span></summary>
     <dl class="lead-event-facts">
-      <div><dt>Fecha del evento</dt><dd>{{ lead.fecha_tentativa|fecha_legible or 'Por definir' }}</dd></div>
+      <div><dt>Fecha del evento</dt><dd>{{ lead.fecha_tentativa|fecha_legible or 'Por definir' }} {% if lead.date_conflict_details %}<span class="sn-chip red"><span aria-hidden="true">⚠</span> Fecha ocupada</span>{% endif %}</dd></div>
       <div><dt>Lugar</dt><dd>{{ lead.locacion or 'Por definir' }}</dd></div>
       <div><dt>Origen</dt><dd>{{ lead.fuente or 'Sin especificar' }}</dd></div>
       <div><dt>Presupuesto</dt><dd>{{ lead.presupuesto or 'Por definir' }}</dd></div>
