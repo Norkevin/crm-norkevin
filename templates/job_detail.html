@@ -192,13 +192,19 @@
               <div class="sn-list-meta">Pendiente</div>
               <div class="sn-list-title">Q{{ '{:,.2f}'.format(pagos_resumen.pendiente) }}</div>
             </div>
+            {% if pagos_resumen.condonado %}
+            <div style="min-width:120px;">
+              <div class="sn-list-meta">Condonado en Studio Ninja</div>
+              <div class="sn-list-title">Q{{ '{:,.2f}'.format(pagos_resumen.condonado) }}</div>
+            </div>
+            {% endif %}
             <div style="min-width:150px;">
               <div class="sn-list-meta">Proximo pago</div>
               <div class="sn-list-title">
                 {% if pagos_resumen.proximo_pago_fecha %}
                   Q{{ '{:,.2f}'.format(pagos_resumen.proximo_pago_monto) }}
                   <span class="sn-list-meta">{{ pagos_resumen.proximo_pago_fecha|fecha_legible }}</span>
-                {% elif pagos_resumen.esta_pagado %}Pagado por completo{% else %}-{% endif %}
+                {% elif pagos_resumen.condonado and pagos_resumen.esta_pagado %}Sin saldo pendiente{% elif pagos_resumen.esta_pagado %}Pagado por completo{% else %}-{% endif %}
               </div>
             </div>
             <div style="min-width:110px;">

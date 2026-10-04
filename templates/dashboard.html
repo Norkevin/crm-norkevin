@@ -1021,7 +1021,7 @@ var dashboardRange = 'ytd';
 var dashboardMetric = 'revenue';
 
 function money(value) {
-  return 'Q' + Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  return 'Q' + Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function metricLabel(metric) {

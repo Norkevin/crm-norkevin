@@ -4586,6 +4586,7 @@ def _job_payment_summary(job, job_payments):
 
     return {
         'total': total,
+        'condonado': coerce_amount((job or {}).get('studio_ninja_payment_writeoff')),
         'pagado': pagado,
         'pendiente': pendiente,
         'cuotas': len(pagos),
@@ -4597,7 +4598,7 @@ def _job_payment_summary(job, job_payments):
         # Discrepancia entre lo cotizado y lo que suman las cuotas: no se
         # corrige sola (puede ser un descuento legitimo), se expone.
         'descuadre_cotizado_vs_cuotas': (
-            round(total_cotizado - total_cuotas, 2)
+            round(total_cotizado - total_cuotas - coerce_amount((job or {}).get('studio_ninja_payment_writeoff')), 2)
             if total_cotizado and total_cuotas else 0.0),
     }
 
@@ -5810,11 +5811,14 @@ def api_admin_import_studio_ninja():
         return jsonify({'ok': False, 'error': 'Payload invalido: se espera {"jobs": [...]}'}), 400
 
     tenant_id = get_current_tenant_id()
-    if payload.get('mode') in ('active_jobs', 'active_documents'):
-        from src.studio_ninja_active_import import import_active_jobs, import_document_copies
+    if payload.get('mode') in ('active_jobs', 'active_documents', 'reconcile_payments'):
+        from src.studio_ninja_active_import import import_active_jobs, import_document_copies, reconcile_payments
         try:
-            importer = import_document_copies if payload['mode'] == 'active_documents' else import_active_jobs
-            result = importer(sys.modules[__name__], payload['jobs'], tenant_id)
+            if payload['mode'] == 'reconcile_payments':
+                result = reconcile_payments(sys.modules[__name__], payload['jobs'], tenant_id, dry_run=bool(payload.get('dry_run')))
+            else:
+                importer = import_document_copies if payload['mode'] == 'active_documents' else import_active_jobs
+                result = importer(sys.modules[__name__], payload['jobs'], tenant_id)
         except ValueError as exc:
             return jsonify({'ok': False, 'error': str(exc)}), 400
         return jsonify(result)

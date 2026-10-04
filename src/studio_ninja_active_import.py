@@ -192,3 +192,110 @@ def import_document_copies(crm, entries, tenant_id):
             'status': 'Uploaded', 'created': datetime.now().date().isoformat(), 'source_url': doc['url']})
         created.append(name)
     return {'ok': True, 'created': created, 'skipped': skipped, 'message': f'{len(created)} copias documentales guardadas'}
+
+
+def reconcile_payments(crm, entries, tenant_id, dry_run=False):
+    """Replace invoice summaries with source installments, preserving record IDs.
+
+    Write-offs remain invoice metadata, never cash or a collectible payment.
+    All validation precedes writes; backups and per-job snapshots permit recovery.
+    """
+    if not tenant_id or not entries:
+        raise ValueError('Cuenta y trabajos requeridos')
+    planned, seen_jobs, seen_invoices = [], set(), set()
+    all_payments = crm.list_payments(tenant_id)
+    for entry in entries:
+        jid, sid = entry.get('existing_job_id'), str(entry.get('source_id') or '')
+        job = crm.get_job(jid)
+        if not job or job.get('tenant_id') != tenant_id or jid in seen_jobs:
+            raise ValueError('Trabajo inexistente, repetido o de otra cuenta')
+        if not sid.isdigit() or entry.get('source_url') != f'https://app.studioninja.co/jobs/view/{sid}':
+            raise ValueError('Origen del trabajo inválido')
+        if job.get('studio_ninja_active_source_id') and str(job['studio_ninja_active_source_id']) != sid:
+            raise ValueError('El origen no coincide con el trabajo activo')
+        seen_jobs.add(jid)
+        invoices = entry.get('invoices') or []
+        if not invoices:
+            raise ValueError('Facturas requeridas')
+        new_rows = []
+        for invoice in invoices:
+            url = invoice.get('url', '')
+            if not url.startswith('https://app.studioninja.co/invoices/') or not url.rsplit('/', 1)[-1].isdigit() or url in seen_invoices:
+                raise ValueError('Factura de origen inválida o repetida')
+            seen_invoices.add(url)
+            total = _money(invoice['total'])
+            writeoffs = sum((_money(w['amount']) for w in invoice.get('writeoffs', [])), Decimal(0))
+            for w in invoice.get('writeoffs', []):
+                if not w.get('date') or not w.get('due_date'):
+                    raise ValueError('Fechas de condonación requeridas')
+                _day(w['date']); _day(w['due_date'])
+            if sum((_money(p['amount']) for p in invoice['payments']), Decimal(0)) + writeoffs != total:
+                raise ValueError('Cobros, saldo y condonaciones no coinciden con la factura')
+            if not invoice.get('invoice_no'):
+                raise ValueError('Número de factura requerido')
+            for n, row in enumerate(invoice['payments']):
+                if row.get('status') not in ('Pagado', 'Pendiente', 'Late') or not row.get('due_date'):
+                    raise ValueError('Estado o vencimiento inválido')
+                _day(row['due_date']); _day(row.get('paid_date'))
+                if row['status'] == 'Pagado' and not row.get('paid_date'):
+                    raise ValueError('Fecha de cobro requerida')
+                new_rows.append((invoice, n, row))
+        old_rows = [p for p in all_payments if p.get('job_id') == jid and p.get('tipo') != 'team_payment']
+        if len(old_rows) > len(new_rows):
+            raise ValueError(f'Hay más pagos existentes que cuotas de origen en {jid}; revisar antes de reemplazar')
+        planned.append((entry, deepcopy(job), old_rows, new_rows))
+    result = {'ok': True, 'jobs': len(planned), 'payments': sum(len(p[3]) for p in planned),
+              'paid': float(sum((_money(r['amount']) for p in planned for _, _, r in p[3] if r['status'] == 'Pagado'), Decimal(0))),
+              'pending': float(sum((_money(r['amount']) for p in planned for _, _, r in p[3] if r['status'] != 'Pagado'), Decimal(0)))}
+    if dry_run:
+        return dict(result, dry_run=True, message=f'{len(planned)} trabajos validados; sin cambios')
+    for table in ('jobs', 'payments', 'quotes', 'payment_schedules'):
+        crm.store.backup_now(table)
+    now = datetime.now().isoformat()
+    for entry, job, old_rows, new_rows in planned:
+        jid = job['id']
+        schedules = [s for s in crm.store.list('payment_schedules') if s.get('job_id') == jid and s.get('status') == 'active']
+        quotes = [q for q in crm.list_quotes(tenant_id) if q.get('job_id') == jid]
+        job.setdefault('studio_ninja_payment_reconciliation_before', {
+            'job': deepcopy(job), 'payments': deepcopy(old_rows),
+            'quotes': deepcopy(quotes), 'schedules': deepcopy(schedules)})
+        available = sorted(old_rows, key=lambda p: (str(p.get('invoice_id') or ''), str(p.get('cuota') or ''), p['id']))
+        assigned = []
+        # Match unchanged installments first so native payment links survive.
+        for invoice, n, row in new_rows:
+            match = next((p for p in available if p.get('invoice_id') == invoice['invoice_no']
+                          and p.get('due_date') == row['due_date'] and _money(p.get('amount') or 0) == _money(row['amount'])
+                          and p.get('status') == row['status'] and (p.get('paid_date') or '') == (row.get('paid_date') or '')), None)
+            if match:
+                available.remove(match)
+            assigned.append(match)
+        ids_by_invoice = {}
+        for (invoice, n, row), matched in zip(new_rows, assigned):
+            previous = matched or (available.pop(0) if available else {})
+            pid = previous.get('id') or f'pay-sn-reconcile-{entry["source_id"]}-{invoice["url"].rsplit("/", 1)[-1]}-{n}'
+            paid = row['status'] == 'Pagado'
+            crm.store.upsert('payments', dict(previous, id=pid, tenant_id=tenant_id, job_id=jid,
+                client_id=job.get('client_id'), quote_id=None,
+                invoice_id=invoice['invoice_no'], invoice_group_id='sn-invoice-' + invoice['url'].rsplit('/', 1)[-1],
+                concepto=f'Factura Studio Ninja {invoice["invoice_no"]}', amount=row['amount'],
+                original_amount=row['amount'], paid_amount=row['amount'] if paid else 0,
+                status=row['status'], due_date=row['due_date'], paid_date=row.get('paid_date') or '',
+                fecha_pago=row.get('paid_date') or '', cuota=n + 1,
+                studio_ninja_url=invoice['url'], studio_ninja_reconciled_at=now))
+            ids_by_invoice.setdefault(invoice['invoice_no'], []).append(pid)
+        job.update(price_total=float(sum((_money(i['total']) for i in entry['invoices']), Decimal(0))),
+                   studio_ninja_payment_invoices=deepcopy(entry['invoices']),
+                   studio_ninja_payment_reconciled_at=now)
+        writeoff = float(sum((_money(w['amount']) for i in entry['invoices'] for w in i.get('writeoffs', [])), Decimal(0)))
+        job['studio_ninja_payment_writeoff'] = writeoff
+        for quote in quotes:
+            if quote.get('id') == job.get('accepted_quote_id'):
+                quote.update(precio_total=job['price_total'], price_total=job['price_total'], total=job['price_total'])
+                crm.store.upsert('quotes', quote)
+        for schedule in schedules:
+            schedule.update(total_plan=job['price_total'] - writeoff, suma_cuotas=job['price_total'] - writeoff,
+                            cuotas=len(new_rows), payment_ids=[pid for ids in ids_by_invoice.values() for pid in ids])
+            crm.store.upsert('payment_schedules', schedule)
+        crm.upsert_job(job)
+    result['message'] = f'{result["jobs"]} trabajos conciliados; {result["payments"]} cuotas fieles al origen'
+    return result
