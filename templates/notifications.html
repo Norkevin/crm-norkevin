@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Notificaciones · {{ current_tenant.name }} CRM{% endblock %}
+{% block content %}
+<div class="sn-page-head"><div><h1>Notificaciones</h1><p>Actividad de tus leads y trabajos. Las alertas muestran correos fallidos, bloqueados o rebotados.</p></div><button type="button" class="sn-btn" onclick="markNotificationsRead()">Marcar todas como leídas</button></div>
+<div class="sn-card">
+  <div class="sn-notification-tabs" aria-label="Filtrar historial">
+    <button type="button" class="sn-notification-tab active" data-notif-filter="all" aria-pressed="true" onclick="setNotificationFilter('all')">Todas</button>
+    <button type="button" class="sn-notification-tab" data-notif-filter="unread" aria-pressed="false" onclick="setNotificationFilter('unread')">Sin leer</button>
+    <button type="button" class="sn-notification-tab" data-notif-filter="alerts" aria-pressed="false" onclick="setNotificationFilter('alerts')">Alertas</button>
+  </div>
+  <div id="notif-history-list" style="padding:0 20px" aria-live="polite">Cargando notificaciones…</div>
+</div>
+{% endblock %}

@@ -1678,7 +1678,7 @@ def list_all_payments():
 # ============================================================
 import json as _json
 
-def _build_recent_notifications(tenant_id):
+def _build_recent_notifications(tenant_id, limit=5):
     """Leads y correos recientes para la campana de notificaciones. Se usa
     tanto en el render inicial de la pagina como en /api/notifications/recent
     (que el JS del bell consulta cada rato) para que quede reflejado un lead
@@ -1689,13 +1689,13 @@ def _build_recent_notifications(tenant_id):
             _open_leads(tenant_id),
             key=lambda lead: str(lead.get('created') or lead.get('updated') or ''),
             reverse=True
-        )[:3]
+        )
         for lead in latest_leads:
             name = lead.get('nombre') or 'Nuevo lead'
             recent_notifications.append({
                 'id': f"lead-{lead.get('id')}",
                 'type': 'lead',
-                'title': f'New Lead from your FORMULARIO DE CONTACTO {_brand_display_name_for_tenant(tenant_id).upper()}: {name}',
+                'title': f'Nuevo lead: {name}',
                 'date': lead.get('created') or datetime.now().strftime('%d %b %Y'),
                 'time': lead.get('created_time') or '',
                 'age': lead.get('age') or '',
@@ -1715,7 +1715,7 @@ def _build_recent_notifications(tenant_id):
             mail_candidates,
             key=lambda mail: str(mail.get('sent_at') or mail.get('opened_at') or ''),
             reverse=True
-        )[:2]
+        )
         for mail in latest_mail:
             if mail.get('lead_id'):
                 mail_url = f"/leads/{mail.get('lead_id')}"
@@ -1726,7 +1726,8 @@ def _build_recent_notifications(tenant_id):
             recent_notifications.append({
                 'id': f"mail-{mail.get('id')}",
                 'type': 'mail',
-                'title': f"New Email activity: {mail.get('subject') or 'Email'}",
+                'title': f"Actividad de correo: {mail.get('subject') or 'Correo'}",
+                'alert': mail.get('status') in ('failed', 'blocked') or bool(mail.get('bounced_at')),
                 'date': (mail.get('sent_at') or '')[:10] or datetime.now().strftime('%d %b %Y'),
                 'time': '',
                 'age': '',
@@ -1734,7 +1735,11 @@ def _build_recent_notifications(tenant_id):
             })
     except Exception:
         recent_notifications = []
-    return recent_notifications[:5]
+    read_ids = {row.get('notification_id') for row in store.list('notification_reads')}
+    recent_notifications.sort(key=lambda n: (n['date'], n['time']), reverse=True)
+    for notification in recent_notifications:
+        notification['read'] = notification['id'] in read_ids
+    return recent_notifications if limit is None else recent_notifications[:limit]
 
 
 @app.context_processor
@@ -1764,7 +1769,7 @@ def inject_tenant():
         # otras 2 cuentas.
         'all_tenants': [current] if current.get('id') else [],
         'recent_notifications': recent_notifications,
-        'unread_notifications_count': min(len(recent_notifications), 59),
+        'unread_notifications_count': sum(not n['read'] for n in recent_notifications),
         'gmail_connected': gmail_connected,
     }
 
@@ -1774,8 +1779,33 @@ def api_notifications_recent():
     """Lo consulta el JS de la campana de notificaciones cada cierto tiempo
     y al abrirla, para que un lead nuevo se vea reflejado sin recargar."""
     tenant_id = get_current_tenant_id()
-    notifications = _build_recent_notifications(tenant_id) if tenant_id else []
-    return jsonify({'ok': True, 'notifications': notifications, 'count': min(len(notifications), 59)})
+    notifications = _build_recent_notifications(tenant_id, limit=None) if tenant_id else []
+    return jsonify({'ok': True, 'notifications': notifications,
+                    'count': sum(not n['read'] for n in notifications)})
+
+
+@app.route('/notifications')
+def notifications_view():
+    return render_template('notifications.html')
+
+
+@app.route('/api/notifications/read', methods=['POST'])
+def api_notifications_read():
+    tenant_id = get_current_tenant_id()
+    data = request.get_json(silent=True) or {}
+    ids = data.get('ids') if isinstance(data, dict) else None
+    if not isinstance(ids, list) or not all(isinstance(n, str) for n in ids):
+        return jsonify({'ok': False, 'error': 'Notificaciones inválidas'}), 400
+    available = {n['id'] for n in _build_recent_notifications(tenant_id, limit=None)}
+    if any(n not in available for n in ids):
+        return jsonify({'ok': False, 'error': 'Notificación no disponible'}), 404
+    for notification_id in set(ids):
+        store.upsert('notification_reads', {
+            'id': f'{tenant_id}:{notification_id}', 'tenant_id': tenant_id,
+            'notification_id': notification_id, 'read_at': datetime.now().isoformat(),
+        })
+    return jsonify({'ok': True})
+
 
 # HELPERS - Data access via JSON store (NO Notion)
 # ============================================================

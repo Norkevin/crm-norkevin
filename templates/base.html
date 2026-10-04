@@ -803,6 +803,7 @@ body:not(.is-native-app) [data-install-banner] {
   font-weight: 600;
   color: var(--sn-ink);
 }
+.sn-notification-tab { cursor: pointer; border: 0; background: transparent; min-height: 36px; }
 .sn-notification-tab.active { background: var(--sn-surface-hover); }
 .sn-count-pill {
   display: inline-grid;
@@ -858,6 +859,8 @@ a.sn-notification-item:hover {
   font-size: 13px;
   line-height: 1.35;
   font-weight: 500;
+  padding-right: 12px;
+  overflow-wrap: anywhere;
 }
 .sn-notification-meta {
   margin-top: 7px;
@@ -3329,20 +3332,20 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       </button>
       <div class="sn-notifications-menu" id="notifications-menu" onclick="event.stopPropagation()">
         <div class="sn-popover-head">
-          <div class="sn-popover-title">Notifications</div>
-          <button type="button" class="sn-popover-link" onclick="markNotificationsRead()">Mark all as read</button>
+          <div class="sn-popover-title">Notificaciones</div>
+          <button type="button" class="sn-popover-link" onclick="markNotificationsRead()">Marcar todas como leídas</button>
         </div>
-        <div class="sn-notification-tabs">
-          <span class="sn-notification-tab active">All</span>
-          <span class="sn-notification-tab">Unread <span class="sn-count-pill" id="notif-unread-pill">{{ unread_notifications_count|default(0) }}</span></span>
-          <span class="sn-notification-tab">Alerts</span>
+        <div class="sn-notification-tabs" aria-label="Filtrar notificaciones">
+          <button type="button" class="sn-notification-tab active" data-notif-filter="all" aria-pressed="true" onclick="setNotificationFilter('all')">Todas</button>
+          <button type="button" class="sn-notification-tab" data-notif-filter="unread" aria-pressed="false" onclick="setNotificationFilter('unread')">Sin leer <span class="sn-count-pill" id="notif-unread-pill">{{ unread_notifications_count|default(0) }}</span></button>
+          <button type="button" class="sn-notification-tab" data-notif-filter="alerts" aria-pressed="false" onclick="setNotificationFilter('alerts')">Alertas</button>
         </div>
-        <div class="sn-notification-permission">
-          For the best experience, <button type="button" onclick="requestBrowserNotifications()">click here</button> to allow notifications.
+        <div class="sn-notification-permission" id="notification-permission">
+          <button type="button" onclick="requestBrowserNotifications()">Activar notificaciones del navegador</button>
         </div>
         <div class="sn-notification-list" id="notif-list">
           {% for n in recent_notifications %}
-          <a class="sn-notification-item" data-notif-id="{{ n.id }}" onclick="markNotificationRead('{{ n.id }}')" {% if n.url %}href="{{ n.url }}"{% else %}href="javascript:void(0)" style="cursor:default;"{% endif %}>
+          <a class="sn-notification-item" data-notif-id="{{ n.id }}" onclick="return openNotification(event, '{{ n.id }}')" {% if n.url %}href="{{ n.url }}"{% else %}href="javascript:void(0)" style="cursor:default;"{% endif %}>
             {% if n.type == 'mail' %}
             <svg class="sn-notification-icon mail" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
             {% else %}
@@ -3359,13 +3362,13 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
             <svg class="sn-notification-icon mail" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
             <div>
               <div class="sn-notification-title">Sin actividad nueva.</div>
-              <div class="sn-notification-meta">Today</div>
+              <div class="sn-notification-meta">Hoy</div>
             </div>
           </div>
           {% endfor %}
         </div>
         <div class="sn-popover-footer">
-          <a class="sn-btn sn-btn-sm" href="/leads">See all notifications</a>
+          <a class="sn-btn sn-btn-sm" href="/notifications">Ver todas las notificaciones</a>
         </div>
       </div>
     </div>
@@ -3555,79 +3558,110 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-var NOTIF_READ_KEY = 'astral-notif-read-ids';
+var notificationItems = [];
+var notificationFilter = 'all';
+var notificationsLoaded = false;
 
-function getReadNotificationIds() {
-  try { return JSON.parse(localStorage.getItem(NOTIF_READ_KEY) || '[]'); } catch (e) { return []; }
+function setNotificationFilter(filter) {
+  notificationFilter = filter;
+  renderNotifications();
 }
 
-function addReadNotificationId(id) {
-  if (!id) return;
-  var ids = getReadNotificationIds();
-  if (ids.indexOf(id) === -1) {
-    ids.push(id);
-    if (ids.length > 50) ids = ids.slice(ids.length - 50);
-    try { localStorage.setItem(NOTIF_READ_KEY, JSON.stringify(ids)); } catch (e) {}
-  }
-}
-
-function markNotificationRead(id) {
-  addReadNotificationId(id);
-  applyReadState();
-}
-
-function markNotificationsRead() {
-  document.querySelectorAll('#notif-list [data-notif-id]').forEach(function(el) {
-    addReadNotificationId(el.getAttribute('data-notif-id'));
+function renderNotifications() {
+  var unread = notificationItems.filter(function(n) { return !n.read; }).length;
+  document.querySelectorAll('[data-notif-filter]').forEach(function(button) {
+    var active = button.dataset.notifFilter === notificationFilter;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
   });
-  applyReadState();
-  flashToast('Notifications marked as read', 'success');
-}
-
-function applyReadState() {
-  var readIds = getReadNotificationIds();
-  var unread = 0;
-  document.querySelectorAll('#notif-list [data-notif-id]').forEach(function(el) {
-    var isRead = readIds.indexOf(el.getAttribute('data-notif-id')) !== -1;
-    var dot = el.querySelector('.sn-unread-dot');
-    if (dot) dot.style.display = isRead ? 'none' : '';
-    if (!isRead) unread++;
+  var filtered = notificationItems.filter(function(n) {
+    return notificationFilter === 'unread' ? !n.read : notificationFilter === 'alerts' ? n.alert : true;
+  });
+  ['notif-list', 'notif-history-list'].forEach(function(listId) {
+    var list = document.getElementById(listId);
+    if (!list) return;
+    var items = listId === 'notif-list' ? filtered.slice(0, 5) : filtered;
+    list.innerHTML = items.map(function(n) {
+      var meta = [n.date, n.time, n.age].filter(Boolean).map(escapeHtml).join(' | ');
+      return '<a class="sn-notification-item" data-notif-id="' + escapeHtml(n.id) + '" href="' + escapeHtml(n.url || '#') + '">'
+        + (n.type === 'mail' ? MAIL_ICON_SVG : LEAD_ICON_SVG)
+        + '<div><div class="sn-notification-title">' + escapeHtml(n.title) + '</div><div class="sn-notification-meta">' + meta + '</div></div>'
+        + (n.read ? '' : '<span class="sn-unread-dot" aria-label="Sin leer"></span>') + '</a>';
+    }).join('') || '<div class="sn-notification-item">' + (notificationFilter === 'alerts' ? 'No hay alertas de correos fallidos, bloqueados o rebotados.' : notificationFilter === 'unread' ? 'No hay notificaciones sin leer.' : 'Sin actividad nueva.') + '</div>';
+    list.querySelectorAll('[data-notif-id]').forEach(function(link) {
+      link.addEventListener('click', function(event) { openNotification(event, link.dataset.notifId); });
+    });
   });
   var badge = document.getElementById('notif-bell-badge');
-  if (badge) badge.innerHTML = unread > 0 ? '<span class="sn-bubble">' + unread + '</span>' : '';
+  if (badge) badge.innerHTML = unread ? '<span class="sn-bubble">' + unread + '</span>' : '';
   var pill = document.getElementById('notif-unread-pill');
   if (pill) pill.textContent = unread;
 }
 
-function refreshNotifications() {
-  fetch('/api/notifications/recent' + window.location.search)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (!data.ok) return;
-      var list = document.getElementById('notif-list');
-      if (!list) return;
-      if (!data.notifications.length) {
-        list.innerHTML = '<div class="sn-notification-item">' + MAIL_ICON_SVG
-          + '<div><div class="sn-notification-title">Sin actividad nueva.</div><div class="sn-notification-meta">Today</div></div></div>';
-        applyReadState();
-        return;
-      }
-      list.innerHTML = data.notifications.map(function(n) {
-        var meta = [n.date, n.time, n.age].filter(Boolean).map(escapeHtml).join(' | ');
-        var href = n.url ? escapeHtml(n.url) : 'javascript:void(0)';
-        var style = n.url ? '' : ' style="cursor:default;"';
-        var id = escapeHtml(n.id || '');
-        return '<a class="sn-notification-item" data-notif-id="' + id + '" onclick="markNotificationRead(\'' + id + '\')" href="' + href + '"' + style + '>' + (n.type === 'mail' ? MAIL_ICON_SVG : LEAD_ICON_SVG)
-          + '<div><div class="sn-notification-title">' + escapeHtml(n.title) + '</div><div class="sn-notification-meta">' + meta + '</div></div>'
-          + '<span class="sn-unread-dot"></span></a>';
-      }).join('');
-      applyReadState();
-    })
-    .catch(function() {});
+async function markNotificationIds(ids) {
+  var response = await fetch('/api/notifications/read', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: ids})
+  });
+  var data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.error || 'No se pudo guardar la lectura');
+  notificationItems.forEach(function(n) { if (ids.indexOf(n.id) !== -1) n.read = true; });
+  renderNotifications();
+}
+
+async function openNotification(event, id) {
+  event.preventDefault();
+  var link = event.currentTarget;
+  var href = link.getAttribute('href');
+  try {
+    await markNotificationIds([id]);
+    if (href && href !== '#') window.location.href = href;
+  } catch (error) { flashToast(error.message, 'error'); }
+  return false;
+}
+
+async function markNotificationsRead() {
+  try {
+    await markNotificationIds(notificationItems.filter(function(n) { return !n.read; }).map(function(n) { return n.id; }));
+    flashToast('Notificaciones marcadas como leídas', 'success');
+  } catch (error) { flashToast(error.message, 'error'); }
+}
+
+async function refreshNotifications() {
+  try {
+    var response = await fetch('/api/notifications/recent');
+    var data = await response.json();
+    if (!response.ok || !data.ok) throw new Error('No se pudieron cargar las notificaciones');
+    if (notificationsLoaded && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
+      var previousIds = new Set(notificationItems.map(function(n) { return n.id; }));
+      data.notifications.filter(function(n) { return !n.read && !previousIds.has(n.id); }).forEach(function(n) {
+        try {
+          var notice = new Notification('Flow CRM', {body: n.title, tag: n.id});
+          notice.onclick = function() { window.focus(); if (n.url) window.location.href = n.url; notice.close(); };
+        } catch (error) { /* La campana sigue disponible si el navegador impide avisos del sistema. */ }
+      });
+    }
+    notificationItems = data.notifications;
+    notificationsLoaded = true;
+    renderNotifications();
+  } catch (error) {
+    ['notif-list', 'notif-history-list'].forEach(function(id) {
+      var list = document.getElementById(id);
+      if (list && !notificationItems.length) list.textContent = 'No se pudieron cargar las notificaciones. Cierra y vuelve a abrir la campana para reintentar.';
+    });
+  }
+}
+
+function updateNotificationPermission() {
+  var box = document.getElementById('notification-permission');
+  if (!box) return;
+  if (!('Notification' in window)) box.textContent = 'Este navegador no admite notificaciones.';
+  else if (Notification.permission === 'granted') box.textContent = 'Notificaciones del navegador activadas.';
+  else if (Notification.permission === 'denied') box.textContent = 'Notificaciones bloqueadas. Puedes permitirlas desde la configuración de este sitio en el navegador.';
 }
 
 document.addEventListener('DOMContentLoaded', function() {
   refreshNotifications();
+  updateNotificationPermission();
   setInterval(refreshNotifications, 45000);
 });
 
@@ -3639,20 +3673,16 @@ function toggleAccountMenu(e) {
   if (menu && !wasOpen) menu.classList.add('open');
 }
 
-function requestBrowserNotifications() {
-  if (!('Notification' in window)) {
-    flashToast('Este navegador no permite notificaciones aqui', 'error');
+async function requestBrowserNotifications() {
+  if (!('Notification' in window) || Notification.permission !== 'default') {
+    updateNotificationPermission();
     return;
   }
-  Notification.requestPermission().then(function(permission) {
-    if (permission === 'granted') {
-      flashToast('Notifications enabled', 'success');
-    } else {
-      flashToast('Notifications kept off', 'error');
-    }
-  }).catch(function() {
-    flashToast('No se pudieron activar las notificaciones', 'error');
-  });
+  try {
+    var permission = await Notification.requestPermission();
+    updateNotificationPermission();
+    flashToast(permission === 'granted' ? 'Notificaciones activadas' : 'No se activaron las notificaciones', permission === 'granted' ? 'success' : 'error');
+  } catch (error) { flashToast('No se pudieron activar las notificaciones', 'error'); }
 }
 
 function openUpgradeModal(e) {

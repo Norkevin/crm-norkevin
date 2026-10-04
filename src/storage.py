@@ -85,7 +85,7 @@ else:
 TENANT_SCOPED_TABLES = {
     'leads', 'clients', 'jobs', 'quotes', 'payments', 'contracts',
     'questionnaires', 'email_templates', 'packages', 'calendar',
-    'files', 'mail_log',
+    'files', 'mail_log', 'notification_reads',
     # Relacion N a N entre jobs y clientes (agosto 2026): reemplaza el
     # tope de 3 clientes por job. Va scoped como todo lo demas -- una
     # relacion de Astral no puede verse ni escribirse desde Norkevin.
