@@ -150,3 +150,17 @@ def test_owner_notice_warns_about_occupied_date_in_correct_account(booking, monk
     assert 'Fecha ocupada' in calls[0]['subject']
     assert job['nombre'] in calls[0]['body']
     assert calls[0]['tenant_id'] == lead['tenant_id']
+
+
+def test_owner_notice_html_escapes_lead_content_and_has_direct_link(booking, monkeypatch):
+    crm, client, lead, job, *_ = booking
+    crm.store.upsert('jobs', job)
+    calls = []
+    from src.mail_tracker import get_tracker
+    monkeypatch.setattr(get_tracker(), 'send_new_lead_notification', lambda **kwargs: calls.append(kwargs))
+    crm._notify_new_lead(dict(lead, notas='<script>alert(1)</script>'), 'Formulario')
+    html = calls[0]['html_body']
+    assert 'Fecha ocupada' in html and job['nombre'] in html
+    assert '<strong>Email:</strong>' in html and 'Abrir ficha del lead' in html
+    assert '<script>' not in html and '&lt;script&gt;' in html
+    assert '/leads/' + lead['id'] in html

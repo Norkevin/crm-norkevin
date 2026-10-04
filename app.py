@@ -10998,12 +10998,15 @@ def _notify_new_lead(lead, source_label):
     if notes:
         body_lines += ['', 'Notas:', notes]
     base = (os.environ.get('APP_BASE_URL') or 'https://flowingcrm.com').rstrip('/')
-    body_lines += ['', f'Ver lead: {base}/leads/{url_quote(str(lead.get("id")), safe="")}']
+    lead_url = f'{base}/leads/{url_quote(str(lead.get("id")), safe="")}'
+    body_lines += ['', 'Abrir ficha del lead', lead_url]
+    html_body = app.jinja_env.get_template('emails/new_lead.html').render(lead=lead, company_name=tenant.get('name') or 'Flow CRM',
+                                source_label=source_label, conflicts=conflicts, notes=notes, lead_url=lead_url)
     try:
         # Internal notices are explicitly authorized for automatic delivery.
         # The tracker still verifies this company's lead and configured inbox.
         get_tracker().send_new_lead_notification(
-            to_email=to_email, subject=subject, body='\n'.join(body_lines),
+            to_email=to_email, subject=subject, body='\n'.join(body_lines), html_body=html_body,
             lead_id=lead.get('id'), tenant_id=tenant_id,
         )
     except Exception as exc:

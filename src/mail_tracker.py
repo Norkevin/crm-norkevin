@@ -300,7 +300,7 @@ class MailTracker:
 
     def _queue_email(self, to_email, subject, body='', template_id=None,
                     lead_id=None, job_id=None, client_id=None, attachments=None,
-                    tenant_id=None, source=None, idempotency_key=None):
+                    tenant_id=None, source=None, idempotency_key=None, html_body=None):
         """Genera un correo y lo deja ESPERANDO aprobacion. No envia nada.
 
         Kevin, despues del incidente: "ningun email generado por el CRM debe
@@ -423,6 +423,7 @@ class MailTracker:
             'template_id': template_id,
             'subject': subject,
             'body': body or '',
+            'html_body': html_body,
             'attachments': attachments or [],
             'source': source or 'desconocido',
             'idempotency_key': idempotency_key,
@@ -443,7 +444,7 @@ class MailTracker:
             entry['blocked_reason'] = entry['blocked_reason'] or 'sin cuenta activa'
         return entry
 
-    def send_new_lead_notification(self, *, to_email, subject, body, lead_id, tenant_id):
+    def send_new_lead_notification(self, *, to_email, subject, body, lead_id, tenant_id, html_body=None):
         """Auto-deliver only a new internal lead notice; client mail stays queued."""
         key = f'leadnotify:{lead_id}'
         # ponytail: one Render worker; serialize creation and delivery here.
@@ -457,7 +458,7 @@ class MailTracker:
                 return existing
             entry = self.queue_email(
                 to_email, subject, body, lead_id=lead_id, tenant_id=tenant_id,
-                source=NEW_LEAD_NOTIFICATION, idempotency_key=key)
+                source=NEW_LEAD_NOTIFICATION, idempotency_key=key, html_body=html_body)
             if entry.get('status') != PENDIENTE:
                 return entry
             try:
@@ -542,6 +543,7 @@ class MailTracker:
             attachments=pendiente.get('attachments') or [],
             tenant_id=actual,
             idempotency_key=pendiente.get('idempotency_key'),
+            html_body=pendiente.get('html_body'),
         )
         ok = enviado.get('status') == MailStatus.SENT.value
         # Si el correo no salio, distinguir POR QUE: si mail_tracker lo
@@ -679,6 +681,7 @@ class MailTracker:
                 'to': to_email,
                 'subject': subject,
                 'body': body or '',
+                'html_body': html_body,
                 'body_preview': body[:200] if body else '',
                 'template_id': template_id,
                 'lead_id': lead_id,
@@ -718,6 +721,7 @@ class MailTracker:
             'to': to_email,
             'subject': subject,
             'body': body or '',
+            'html_body': html_body,
             'body_preview': body[:200] if body else '',
             'template_id': template_id,
             'lead_id': lead_id,

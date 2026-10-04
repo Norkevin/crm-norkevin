@@ -8,6 +8,7 @@
       <div class="sn-field-label">Asunto</div><div class="sn-field-value" id="mail-detail-subject"></div>
     </div>
     <div class="sn-card white">
+      <iframe id="mail-detail-html" title="Contenido del correo" sandbox="allow-popups allow-popups-to-escape-sandbox" style="display:none;width:100%;height:520px;border:0;"></iframe>
       <div id="mail-detail-body" style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;"></div>
     </div>
     <div class="sn-actions" style="margin-top:16px;">
@@ -31,6 +32,12 @@ function openMailDetails(button) {
   document.getElementById('mail-detail-date').textContent = button.dataset.date || '-';
   document.getElementById('mail-detail-subject').textContent = button.dataset.subject || 'Email';
   document.getElementById('mail-detail-body').textContent = body || 'No se guardó el contenido de este correo antiguo.';
+  var htmlRef = button.dataset.htmlRef ? document.getElementById(button.dataset.htmlRef) : null;
+  var html = htmlRef ? JSON.parse(htmlRef.textContent || '""') : '';
+  var frame = document.getElementById('mail-detail-html');
+  frame.srcdoc = html;
+  frame.style.display = html ? 'block' : 'none';
+  document.getElementById('mail-detail-body').style.display = html ? 'none' : 'block';
   openModal('mail-detail-modal');
 }
 </script>

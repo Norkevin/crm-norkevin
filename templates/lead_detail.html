@@ -302,8 +302,10 @@
                       data-to="{{ m.to or '' }}"
                       data-date="{{ (m.sent_at or m.created_at)|fecha_legible or '' }}"
                       data-body-ref="mail-body-{{ m.id }}"
+                      data-html-ref="mail-html-{{ m.id }}"
                       onclick="openMailDetails(this)">Ver</button>
                     <script type="application/json" id="mail-body-{{ m.id }}">{{ (m.body or m.body_preview or '')|tojson }}</script>
+                    <script type="application/json" id="mail-html-{{ m.id }}">{{ (m.html_body or '')|tojson }}</script>
                   </td>
                 </tr>
                 {% endfor %}

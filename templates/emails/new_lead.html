@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;background:#f3f5f7;color:#1d2935;font:16px/1.6 Arial,sans-serif;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="padding:20px 12px;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:auto;background:#fff;border-radius:12px;"><tr><td style="padding:28px 24px;border-top:4px solid #3f5b70;overflow-wrap:anywhere;">
+<p style="margin:0;color:#607486;font-size:12px;letter-spacing:1px;">{{ company_name }} · NUEVO LEAD</p>
+<h1 style="font-size:26px;line-height:1.3;margin:12px 0 20px;">{{ lead.nombre or 'Sin nombre' }}</h1>
+<div style="background:{{ '#fff3e8' if conflicts else '#eef3f6' }};border-left:4px solid {{ '#c96b12' if conflicts else '#3f5b70' }};padding:16px;margin-bottom:24px;border-radius:6px;">
+<strong>{{ '⚠ Fecha ocupada' if conflicts else 'Fecha solicitada' }}</strong><br>
+<span style="font-size:20px;font-weight:bold;">{{ lead.fecha_tentativa|fecha_legible or 'Por definir' }}</span>
+{% if conflicts %}<p style="margin:8px 0 0;">Coincide con: {% for item in conflicts %}{{ item.nombre or item.title or 'Reserva' }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
+</div>
+<h2 style="font-size:17px;margin:0 0 10px;">Evento</h2>
+<p style="margin:0 0 24px;"><strong>Tipo:</strong> {{ lead.tipo_evento or 'Por definir' }}<br><strong>Lugar:</strong> {{ lead.locacion or 'Por definir' }}{% if lead.nombre_pareja %}<br><strong>Pareja:</strong> {{ lead.nombre_pareja }}{% endif %}</p>
+<h2 style="font-size:17px;margin:0 0 10px;">Contacto</h2>
+<p style="margin:0 0 24px;"><strong>Email:</strong> {{ lead.email or 'No indicado' }}<br><strong>Teléfono:</strong> {{ lead.telefono or 'No indicado' }}<br><strong>Origen:</strong> {{ lead.fuente or source_label }}</p>
+{% if notes %}<h2 style="font-size:17px;margin:0 0 10px;">Mensaje del lead</h2><div style="background:#f5f7f9;padding:14px;border-radius:6px;white-space:pre-wrap;margin-bottom:24px;">{{ notes }}</div>{% endif %}
+<p style="margin:0 0 20px;"><a href="{{ lead_url }}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#3f5b70;color:#fff;padding:13px 22px;border-radius:7px;text-decoration:none;font-weight:bold;">Abrir ficha del lead</a></p>
+<p style="font-size:12px;color:#607486;margin:0;border-top:1px solid #e6ebef;padding-top:16px;">Recibido desde {{ source_label }}.</p>
+</td></tr></table></td></tr></table></body></html>
