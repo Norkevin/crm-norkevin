@@ -17,7 +17,8 @@ def test_public_lead_triggers_email_notification_to_company(client):
     pendientes = app_module.store.list('pending_emails')
     match = [m for m in pendientes if 'Maria Test' in (m.get('subject') or '')]
     assert match, 'deberia haber un correo de notificacion de lead nuevo esperando aprobacion'
-    assert match[0]['status'] == 'pending'
+    assert match[0]['status'] == 'sent'  # aviso interno automático autorizado
+    assert match[0]['source'] == 'auto:new-lead-notify'
     assert match[0]['to']  # manda a algun destinatario configurado
     assert 'Nuevo lead' in match[0]['subject']
 

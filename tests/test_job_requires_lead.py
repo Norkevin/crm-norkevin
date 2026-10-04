@@ -26,7 +26,7 @@ def test_job_creation_with_unknown_client_id_is_rejected(auth_client):
     assert resp.status_code == 404
 
 
-def test_job_creation_with_real_client_succeeds(auth_client):
+def test_job_creation_with_real_client_succeeds(auth_client, sample_business):
     import app as app_module
 
     clients = app_module.store.list('clients')
@@ -43,7 +43,7 @@ def test_job_creation_with_real_client_succeeds(auth_client):
     assert data['job']['client_id'] == client['id']
 
 
-def test_job_creation_from_lead_still_converts_the_lead(auth_client):
+def test_job_creation_from_lead_still_converts_the_lead(auth_client, sample_business):
     import app as app_module
 
     leads = app_module.store.list('leads')

@@ -263,6 +263,7 @@ def test_colision_de_subject_id_con_tenant_id_no_cruza_instancias(auth_client):
         otro = NORKEVIN if tenant_id == ASTRAL else ASTRAL
         login_as_tenant(auth_client, tenant_id, email=f'{tenant_id}@example.invalid')
 
+        auth_client.get('/dashboard')  # contexto de la cuenta que consulta
         seguras = app_module._workflow_instances_seguras(
             subject_type='job', subject_id=subject_id_colisionado)
         assert len(seguras) == 1, f'{tenant_id} deberia ver exactamente 1 instancia, no {len(seguras)}'

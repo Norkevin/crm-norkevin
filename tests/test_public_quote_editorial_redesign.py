@@ -14,6 +14,7 @@ protegida por test_public_quote_experience_bloque_b.py y _bloque_c_a_f.py
 específica -- son asserts sobre JSON y sobre presencia de texto -- así que
 siguen valiendo sin cambios con el nuevo template). Este archivo no repite
 esas pruebas; solo agrega lo que es nuevo o lo que cambió de forma real."""
+import re
 import uuid
 
 from conftest import login_as_tenant
@@ -105,7 +106,7 @@ def test_opciones_multiples_forman_un_radiogroup_accesible_por_teclado(auth_clie
     assert 'tabindex="0"' in html
     # 'Recomendada' (opt.label) solo debe aparecer marcada para la opcion
     # que la tiene -- no en la que no la tiene.
-    assert 'opt-recommended">Recomendada' in html
+    assert re.search(r'<div class="opt-recommended">.*?Recomendada</div>', html, re.S)
 
 
 def test_opcion_sin_label_no_muestra_recomendada(auth_client):
@@ -115,7 +116,7 @@ def test_opcion_sin_label_no_muestra_recomendada(auth_client):
     quote_id = _crear_borrador_con_opcion(auth_client, app_module, ASTRAL, precio_total=9000)
     token = _enviar(auth_client, quote_id)
     r = auth_client.get(f'/q/{token}')
-    assert 'opt-recommended' not in r.get_data(as_text=True)
+    assert '<div class="opt-recommended">' not in r.get_data(as_text=True)
 
 
 def test_extras_siguen_conectados_al_form_de_aceptar(auth_client):
@@ -186,14 +187,14 @@ def test_video_destacado_solo_aparece_si_el_link_es_reconocible(client):
         'login_email': 'norkevin-video@example.com', 'active': True,
     })
     r = client.post('/api/settings/quote-theme', json={
-        'featured_video_url': 'https://www.youtube.com/watch?v=abcDEF1234',
+        'featured_video_url': 'https://www.youtube.com/watch?v=abcDEF12345',
     })
     assert r.status_code == 200
 
     quote_id = _quote_publica_minima(app_module, NORKEVIN, suffix='vid')
     r = client.get(f'/quotes/{quote_id}')
     html = r.get_data(as_text=True)
-    assert 'youtube.com/embed/abcDEF1234' in html
+    assert 'youtube.com/embed/abcDEF12345' in html
 
 
 def test_video_con_link_no_reconocido_no_rompe_la_pagina(client):

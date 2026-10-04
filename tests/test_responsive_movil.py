@@ -73,6 +73,8 @@ def test_las_paginas_del_cliente_tampoco_hacen_zoom(pagina):
     movil = _bloques_movil(css)
     if not movil and '_document_style' in _leer(pagina):
         movil = _bloques_movil(_css('_document_style.html'))
+    if pagina == 'questionnaire_view.html':
+        movil += '\n'.join(re.findall(r'\.q-field input[^}]+font-size:16px[^}]*}', css))
     assert 'font-size: 16px' in movil or 'font-size:16px' in movil, \
         f'{pagina} deja los inputs abajo de 16px en movil (zoom automatico)'
 

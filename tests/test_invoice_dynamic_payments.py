@@ -104,4 +104,5 @@ def test_send_invoice_respects_edited_subject_and_body(auth_client):
     assert mail['body'] == 'Mensaje editado a mano.'
 
     pay = app_module.store.get('payments', pay1_id)
-    assert pay.get('sent_at')
+    assert pay.get('queued_at')
+    assert not pay.get('sent_at')

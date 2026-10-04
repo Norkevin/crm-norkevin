@@ -43,7 +43,7 @@ def test_reminder_preview_returns_404_for_unknown_payment(auth_client):
     assert resp.status_code == 404
 
 
-def test_send_reminder_respects_edited_text_instead_of_regenerating(auth_client, monkeypatch):
+def test_send_reminder_respects_edited_text_instead_of_regenerating(auth_client, monkeypatch, sample_business):
     """Si Kevin edito el mensaje en la vista previa antes de enviarlo, el
     correo que queda esperando aprobacion debe llevar EXACTAMENTE ese
     texto, no uno regenerado.

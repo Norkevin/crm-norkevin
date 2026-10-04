@@ -8,7 +8,7 @@ forzarlo a acomodarse). La celda de nombre ahora usa .stack-full: bloque
 de ancho completo, sin la etiqueta redundante."""
 
 
-def test_stack_full_class_present_on_name_cells(auth_client):
+def test_stack_full_class_present_on_name_cells(auth_client, sample_business):
     import app as app_module
     import uuid
     suffix = uuid.uuid4().hex[:6]
@@ -24,7 +24,7 @@ def test_stack_full_class_present_on_name_cells(auth_client):
     })
 
     for path, table_id in (('/jobs', 'jobs-table'), ('/clients', 'clients-table'),
-                             ('/payments', 'payments-table'), ('/leads', 'leads-table')):
+                             ('/payments?year=all', 'payments-table'), ('/leads', 'leads-table')):
         resp = auth_client.get(path)
         html = resp.get_data(as_text=True)
         assert f'id="{table_id}"' in html

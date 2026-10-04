@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 
@@ -7,7 +8,8 @@ PACKAGES_LINK = "https://drive.google.com/file/d/1irm5P-Oru9fUo55B58y4XBuUrMj76y
 
 
 def _load_json(relative_path):
-    return json.loads((ROOT / relative_path).read_text(encoding="utf-8"))
+    path = ROOT / relative_path if "/seeds/" in relative_path else Path(os.environ["CRM_DATA_DIR"]) / Path(relative_path).name
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def test_astral_wedding_packages_match_confirmed_catalog():
@@ -78,4 +80,4 @@ def test_quote_builder_shows_astral_catalog(auth_client):
     assert "PHOTO GOLD" in html
     assert "GOLD MIX" in html
     assert "Photo Collection" in html
-    assert "Search packages" in html
+    assert "Buscar paquete" in html

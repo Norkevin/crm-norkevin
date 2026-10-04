@@ -21,7 +21,7 @@ def _first_id(table):
     return records[0]['id'] if records else None
 
 
-def test_client_portal_loads_for_real_client(client):
+def test_client_portal_loads_for_real_client(client, sample_business):
     client_id = _first_id('clients')
     assert client_id, 'necesita al menos un client en los datos de prueba'
     resp = client.get(f'/portal/{client_id}')
@@ -75,13 +75,15 @@ def test_quote_view_and_pdf_are_public(client):
     assert resp.mimetype == 'application/pdf'
 
 
-def test_contract_view_and_pdf_are_public(client):
-    contract_id = _first_id('contracts')
-    if not contract_id:
-        pytest.skip('los datos de prueba actuales no tienen contratos')
-    resp = client.get(f'/contracts/{contract_id}')
+def test_contract_view_and_pdf_are_public(auth_client, sample_business):
+    result = auth_client.post('/api/contracts/new', json={'job_id': sample_business['job']['id']})
+    assert result.status_code == 200
+    contract_id = result.get_json()['contract_id']
+    with auth_client.session_transaction() as session:
+        session.clear()
+    resp = auth_client.get(f'/contracts/{contract_id}')
     assert resp.status_code == 200
-    resp = client.get(f'/contracts/{contract_id}/pdf')
+    resp = auth_client.get(f'/contracts/{contract_id}/pdf')
     assert resp.status_code == 200
     assert resp.mimetype == 'application/pdf'
 

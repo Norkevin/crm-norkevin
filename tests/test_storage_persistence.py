@@ -23,6 +23,7 @@ def test_json_store_creates_backup_before_overwrite(_isolated_environment):
 def test_storage_status_endpoint_reports_counts(auth_client):
     import app as app_module
 
+    auth_client.get('/dashboard')  # establecer la cuenta de la petición
     app_module.store.upsert('clients', {'id': 'client-test', 'nombre': 'Cliente Test'})
     app_module.store.upsert('jobs', {'id': 'job-test', 'nombre': 'Job Test'})
 

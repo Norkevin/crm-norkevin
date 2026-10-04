@@ -97,5 +97,5 @@ def test_imported_event_span_and_next_stage_label(auth_client):
     assert run(auth_client, data).status_code == 200
     job = crm.get_job('boda-sn-active-77777')
     assert crm.compute_workflow_steps_for_job(job)[0][1]['display_name'] == 'Boda'
-    html = auth_client.get('/calendar?month=2027-01').get_data(as_text=True)
-    assert html.count("openCalendarEvent('/jobs/boda-sn-active-77777')") >= 3
+    html = auth_client.get('/calendar?year=2027&month=1').get_data(as_text=True)
+    assert html.count("openCalendarEvent('/jobs/boda-sn-active-77777', this)") >= 3

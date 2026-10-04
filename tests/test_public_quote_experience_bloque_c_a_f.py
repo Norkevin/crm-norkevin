@@ -508,7 +508,7 @@ def test_quote_theme_campo_vacio_vuelve_al_default(auth_client):
     assert app_module._quote_theme_for_tenant(ASTRAL)['accent'] == '#abcdef'
 
     auth_client.post('/api/settings/quote-theme', json={'accent': ''})
-    assert app_module._quote_theme_for_tenant(ASTRAL)['accent'] == '#c9a961', \
+    assert app_module._quote_theme_for_tenant(ASTRAL)['accent'] == '#3F5B70', \
         'un campo vaciado debe volver al default, no quedar en blanco'
 
 

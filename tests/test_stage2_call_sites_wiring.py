@@ -19,24 +19,26 @@ switch global sigue siendo la ultima palabra incluso para un pendiente que
 ya paso por aprobacion.
 """
 import uuid
+from contextlib import contextmanager
 from datetime import date, timedelta
 
 import pytest
 
 from conftest import login_as_tenant
 from src.email_delivery import DeliveryResult
+from src.mail_tracker import get_tracker
 
 ASTRAL = 'tenant-norkevin'
 NORKEVIN = 'tenant-norkevin-photography'
 RAMIRO = 'tenant-ramiro-cruz'
 
 
+@contextmanager
 def _ctx(app_module, tenant_id):
-    ctx = app_module.app.test_request_context('/')
-    ctx.push()
-    from flask import session
-    session['tenant_id'] = tenant_id
-    return ctx
+    with app_module.app.test_request_context('/'):
+        from flask import session
+        session['tenant_id'] = tenant_id
+        yield
 
 
 def _make_job_with_client(app_module, tenant_id, suffix, email='wiring@example.com'):
@@ -279,7 +281,7 @@ def test_ramiro_pending_emails_isolated_from_astral_and_norkevin(client):
         app_module.store.upsert('jobs', {
             'id': 'job-ramiro-wiring', 'nombre': 'Boda Ramiro', 'tenant_id': RAMIRO,
         })
-        pendiente_ramiro = app_module.get_tracker().queue_email(
+        pendiente_ramiro = get_tracker().queue_email(
             'cliente@example.com', 'Solo Ramiro', 'cuerpo',
             job_id='job-ramiro-wiring', tenant_id=RAMIRO, source='test',
         )
@@ -317,13 +319,13 @@ def test_kill_switch_prevails_even_through_full_approval_cycle(monkeypatch):
         app_module.store.upsert('jobs', {
             'id': 'job-killswitch-wiring', 'nombre': 'Boda Killswitch', 'tenant_id': ASTRAL,
         })
-        pendiente = app_module.get_tracker().queue_email(
+        pendiente = get_tracker().queue_email(
             'cliente@example.com', 'Prueba kill switch', 'cuerpo',
             job_id='job-killswitch-wiring', tenant_id=ASTRAL, source='test',
         )
         assert pendiente['status'] == 'pending'
 
-        resultado = app_module.get_tracker().approve_and_send(pendiente['id'], sender_tenant_id=ASTRAL)
+        resultado = get_tracker().approve_and_send(pendiente['id'], sender_tenant_id=ASTRAL)
 
     assert resultado['ok'] is False, 'sin el kill switch en 1, nada deberia poder marcarse enviado'
     assert resultado['pendiente']['status'] == 'failed', (

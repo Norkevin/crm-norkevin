@@ -2,7 +2,7 @@
 conftest.py - Fixtures compartidos para todo el test suite.
 
 Reglas de seguridad de estos tests (no negociables):
-  1. NUNCA tocan data/*.json real -- se copian a un directorio temporal y
+  1. NUNCA tocan data/*.json real -- usan semillas versionadas y datos sintéticos en un directorio temporal;
      CRM_DATA_DIR se apunta ahi antes de que CUALQUIER modulo de la app se
      importe. Esto pasa en pytest_configure(), que corre antes de la
      coleccion de tests -- si se hiciera en un fixture normal, un archivo
@@ -20,6 +20,9 @@ import os
 import shutil
 import sys
 import tempfile
+import json
+from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
@@ -35,13 +38,14 @@ def pytest_configure(config):
     importar el orden de coleccion ni lo que cada archivo haga a nivel de
     modulo (parametrize, etc)."""
     global _TMP_DATA_DIR
-    real_data_dir = os.path.join(REPO_ROOT, 'data')
     tmp_dir = tempfile.mkdtemp(prefix='crm_test_data_')
-    if os.path.isdir(real_data_dir):
-        for name in os.listdir(real_data_dir):
-            src = os.path.join(real_data_dir, name)
-            if os.path.isfile(src) and name.endswith('.json'):
-                shutil.copy2(src, os.path.join(tmp_dir, name))
+    # Sólo configuración versionada: nunca depender de clientes locales.
+    for table in ('packages', 'email_templates'):
+        seed = Path(REPO_ROOT) / 'data' / 'seeds' / f'{table}.default.json'
+        records = json.loads(seed.read_text())
+        for record in records:
+            record.setdefault('tenant_id', 'tenant-norkevin')
+        (Path(tmp_dir) / f'{table}.json').write_text(json.dumps(records))
 
     os.environ['ENABLE_WORKFLOW_QUEUE'] = '0'
     os.environ['CRM_DATA_DIR'] = tmp_dir
@@ -88,15 +92,29 @@ def flask_app(_isolated_environment):
 
 @pytest.fixture(autouse=True)
 def _restore_tenants_table(_isolated_environment):
-    """login_as_tenant() hace upsert de tenants sinteticos para pasar la
-    guarda de _require_login (app.py) -- el store es un singleton para
-    toda la sesion de pytest, asi que sin este snapshot/restore esos
-    tenants (o un login_email pisado sobre uno real) se filtran a
-    cualquier test que corra despues en la misma sesion."""
+    """Restaura todos los datos temporales y el motor, no sólo las cuentas.
+
+    Una prueba de colores, pagos o workflow no puede cambiar la siguiente.
+    El nombre se conserva porque otros fixtures declaran esta dependencia.
+    """
     import app as app_module
-    snapshot = [dict(t) for t in app_module.store.list('tenants')]
+    directory = Path(_isolated_environment)
+    snapshot = {p.name: p.read_bytes() for p in directory.glob('*.json')}
+    engine = app_module.workflow_engine
+    state = deepcopy((engine.instances, engine.history, engine.templates))
+    workflow_tenant_token = app_module._workflow_tenant.set(None)
+    for tenant in app_module._MULTI_TENANT_REAL_TENANTS:
+        if app_module.store.get('tenants', tenant['id']) is None:
+            app_module.store.upsert('tenants', dict(tenant))
     yield
-    app_module.store._save('tenants', snapshot)
+    for path in directory.glob('*.json'):
+        if path.name not in snapshot:
+            path.unlink()
+    for name, content in snapshot.items():
+        (directory / name).write_bytes(content)
+    app_module.store._cache.clear()
+    engine.instances, engine.history, engine.templates = state
+    app_module._workflow_tenant.reset(workflow_tenant_token)
 
 
 class RealProviderCallBlocked(AssertionError):
@@ -177,6 +195,21 @@ def auth_client(client):
     return client
 
 
+@pytest.fixture()
+def sample_business(client):
+    """Registros sintéticos para pruebas que necesitan una boda existente."""
+    import app as crm
+    owner = {'tenant_id': 'tenant-norkevin'}
+    customer = dict(owner, id='client-fixture', first_name='Cliente', last_name='Prueba', email='fixture@example.invalid')
+    lead = dict(owner, id='lead-fixture', nombre='Boda de prueba', client_id=customer['id'], email=customer['email'], status='Nuevo')
+    job = dict(owner, id='job-fixture', nombre='Boda de prueba', client_id=customer['id'], status='Confirmado', boda_date='2033-01-01')
+    payment = dict(owner, id='payment-fixture', job_id=job['id'], client_id=customer['id'],
+                   invoice_id='INV-FIXTURE', amount=100, original_amount=100, status='Pendiente', due_date='2033-01-01')
+    for table, record in [('clients', customer), ('leads', lead), ('jobs', job), ('payments', payment)]:
+        crm.store.upsert(table, record)
+    return {'client': customer, 'lead': lead, 'job': job, 'payment': payment}
+
+
 def login_as_tenant(client, tenant_id, email='test@example.com', name='Test User'):
     """Loguea el mismo test client como una cuenta/tenant distinta -- para
     tests de aislamiento que necesitan probar 2+ cuentas en el mismo test
@@ -187,6 +220,9 @@ def login_as_tenant(client, tenant_id, email='test@example.com', name='Test User
     aca para que los tenants de prueba (que no existen en tenants.json)
     sigan pasando esa guarda."""
     import app as app_module
+    # Cerrar la petición anterior antes de cambiar de cuenta. La sesión
+    # conservada por Flask no se actualiza con session_transaction().
+    client._context_stack.close()
     app_module.store.upsert('tenants', {
         'id': tenant_id, 'name': tenant_id, 'login_email': email, 'active': True,
     })

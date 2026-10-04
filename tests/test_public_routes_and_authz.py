@@ -148,23 +148,28 @@ def _fuentes():
     return [RAIZ / 'app.py'] + sorted((RAIZ / 'src').rglob('*.py'))
 
 
-def test_solo_hay_un_hilo_en_segundo_plano_y_no_arranca_solo():
-    """El incidente ocurrio en un hilo sin sesion. Si alguien agrega otro,
-    este test obliga a revisarlo antes de que llegue a produccion."""
-    import app as app_module
-
-    hilos = []
-    for archivo in _fuentes():
-        for n, linea in enumerate(archivo.read_text(encoding='utf-8').splitlines(), 1):
-            if 'threading.Thread' in linea and not linea.strip().startswith('#'):
-                hilos.append(archivo.name + ':' + str(n))
-
-    assert len(hilos) <= 1, (
-        'Aparecio un hilo nuevo en segundo plano: ' + str(hilos) +
-        '. Cada ejecucion fuera de request debe tener empresa explicita.'
-    )
-    assert app_module._reminder_thread_started is False, \
-        'el scheduler no debe arrancar sin ENABLE_REMINDER_SCHEDULER=1'
+def test_los_hilos_conocidos_respetan_cuenta_y_no_envian_solos():
+    """Sólo se admiten la cola de borradores y el scheduler opt-in legado."""
+    import ast
+    import inspect
+    import app as crm
+    targets = []
+    for file in _fuentes():
+        tree = ast.parse(file.read_text(encoding='utf-8'))
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == 'threading' and node.func.attr == 'Thread'):
+                target = next(kw.value for kw in node.keywords if kw.arg == 'target')
+                assert isinstance(target, ast.Name)
+                targets.append(target.id)
+    assert sorted(targets) == ['_reminder_scheduler_loop', '_workflow_queue_loop']
+    assert crm._reminder_thread_started is False
+    queue = inspect.getsource(crm._prepare_due_workflow_emails)
+    assert '_workflow_tenant.set(instance.tenant_id)' in queue
+    assert '_workflow_tenant.reset(token)' in queue
+    assert '.approve_and_send(' not in queue and '.send_email(' not in queue
+    assert "os.environ.get('ENABLE_REMINDER_SCHEDULER') != '1'" in inspect.getsource(crm.start_reminder_scheduler)
 
 
 def test_nadie_llama_a_send_email_saltandose_la_validacion():

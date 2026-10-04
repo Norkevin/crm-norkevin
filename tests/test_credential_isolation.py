@@ -27,8 +27,8 @@ NORKEVIN = 'tenant-norkevin-photography'
 
 def test_el_id_tenant_norkevin_es_en_realidad_astral():
     """Fija el mapeo id -> empresa para que no se 'corrija' al reves."""
-    with open('data/tenants.json', encoding='utf-8') as fh:
-        tenants = {t['id']: t for t in json.load(fh)}
+    import app as crm
+    tenants = {t['id']: t for t in crm.store.list('tenants')}
 
     assert tenants[ASTRAL]['name'] == 'ASTRAL WEDDINGS'
     assert tenants[ASTRAL]['login_email'] == 'astralweddingsgt@gmail.com'
