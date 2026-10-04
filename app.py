@@ -939,21 +939,27 @@ def _stop_astral_referral_followups(lead):
 
 
 def _notify_blocked_date_lead(lead):
-    """Send the authorized unavailability reply only for newly enrolled native leads.
+    """Prepare unavailability replies for native leads; only manual blocks authorize auto-send.
 
     Persist the attempt before delivery. A failed/uncertain send needs manual
     review, never an automatic retry or a retroactive mailing on block creation.
     """
-    if (not lead or lead.get('blocked_date_notice_attempted_at') or lead.get('source_id')
-            or lead.get('studio_ninja_workflow') or not _lead_packages_unavailable(lead, 'envio_paquetes')
-            or not any(c.get('type') == 'block' for c in _lead_date_conflicts(lead))):
+    if (not lead or lead.get('blocked_date_notice_attempted_at') or lead.get('astral_referral_at') or lead.get('source_id')
+            or lead.get('studio_ninja_workflow') or not _lead_packages_unavailable(lead, 'envio_paquetes')):
         return
-    lead['blocked_date_notice_attempted_at'] = datetime.now().isoformat()
+    if any(c.get('type') == 'block' for c in _lead_date_conflicts(lead)):
+        lead['blocked_date_notice_attempted_at'] = datetime.now().isoformat()
+    else:
+        lead['astral_referral_at'] = datetime.now().isoformat()
     upsert_lead(lead)
+    _stop_astral_referral_followups(lead)
     result = _complete_lead_workflow_step(lead, 'envio_paquetes')
     if not result.get('queued'):
         lead['blocked_date_notice_error'] = result.get('warning') or 'Revisar el correo de fecha bloqueada'
         upsert_lead(lead)
+        return
+    # Existing manual-block authorization permits immediate delivery; bookings use approval.
+    if not any(c.get('type') == 'block' for c in _lead_date_conflicts(lead)):
         return
     from src.mail_tracker import get_tracker
     delivery = get_tracker().approve_and_send(result['mail_id'], sender_tenant_id=lead['tenant_id'],
@@ -1785,7 +1791,7 @@ def _build_recent_notifications(tenant_id, limit=5):
             recent_notifications.append({
                 'id': f"lead-{lead.get('id')}",
                 'type': 'lead',
-                'title': f'Nuevo lead: {name}',
+                'title': f'Nuevo lead: {name}' + (' · Fecha ocupada: ' + _format_date_es(lead.get('fecha_tentativa') or lead.get('fecha_evento')) if _lead_date_conflicts(lead) else ''),
                 'date': lead.get('created') or datetime.now().strftime('%d %b %Y'),
                 'time': lead.get('created_time') or '',
                 'age': lead.get('age') or '',
@@ -2109,7 +2115,7 @@ def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, l
         template = _lead_step_email_template(lead, step.id, step.email_template_id, jobs_cache)
         steps.append({
             'id': step.id,
-            'name': step.name,
+            'name': 'Fecha no disponible' if _lead_packages_unavailable(lead, step.id, jobs_cache) else step.name,
             'description': step.description,
             'email_template_id': (template or {}).get('id'),
             'email_template_name': (template or {}).get('name'),
@@ -3687,6 +3693,8 @@ def lead_detail(lead_id):
         abort(404)
 
     _stop_astral_referral_followups(lead)
+    lead['date_conflict_details'] = [_date_conflict_detail(item, 'block' if item.get('type') == 'block' else 'job')
+                                     for item in _lead_date_conflicts(lead)]
     converted_job = _converted_job_for_lead(lead)
     if converted_job:
         return redirect(url_for('job_detail', job_id=converted_job['id']))
@@ -10975,6 +10983,15 @@ def _notify_new_lead(lead, source_label):
         f'Ubicacion: {lead.get("locacion") or "-"}',
         f'Fuente: {lead.get("fuente") or "-"}',
     ]
+    token = _workflow_tenant.set(tenant_id)
+    try:
+        conflicts = _lead_date_conflicts(lead)
+    finally:
+        _workflow_tenant.reset(token)
+    if conflicts:
+        subject += ' · Fecha ocupada'
+        body_lines += ['', 'ADVERTENCIA: la fecha solicitada ya está ocupada.',
+                       'Coincide con: ' + ', '.join(item.get('nombre') or item.get('title') or 'Reserva' for item in conflicts)]
     if lead.get('nombre_pareja'):
         body_lines += [f'Nombre de su pareja: {lead["nombre_pareja"]}']
     notes = lead.get('notas') or lead.get('notes')

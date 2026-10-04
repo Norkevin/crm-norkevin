@@ -22,6 +22,16 @@
         <button class="sn-btn" type="button" onclick="openLeadEdit()">Editar datos</button>
       </div>
     </div>
+    {% if lead.date_conflict_details %}
+    <div class="sn-card white" role="alert" style="margin-top:14px;border-left:4px solid #d97706;">
+      <strong>Fecha ocupada · {{ lead.fecha_tentativa|fecha_legible }}</strong>
+      <p>La fecha solicitada coincide con una reserva:</p>
+      {% for conflict in lead.date_conflict_details %}
+      <p><a href="{{ conflict.url }}">{{ conflict.name }}</a> · {{ conflict.date_label }}</p>
+      {% endfor %}
+      {% if lead.astral_referral_at %}<p>Los seguimientos de Norkevin están cancelados. Revisa en Correos el estado de la respuesta de fecha no disponible.</p>{% else %}<p>Corresponde usar la respuesta de fecha no disponible, no los paquetes habituales.</p>{% endif %}
+    </div>
+    {% endif %}
     <details class="mobile-event-details" data-mobile-fold open>
       <summary>Detalles del evento <span>{{ lead.fecha_tentativa|fecha_legible or 'Por definir' }}</span></summary>
     <dl class="lead-event-facts">

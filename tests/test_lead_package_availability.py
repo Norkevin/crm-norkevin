@@ -111,3 +111,42 @@ def test_astral_keeps_its_normal_template_even_with_another_booking(booking):
     astral_job = dict(job, tenant_id='tenant-norkevin')
     assert crm._lead_date_conflicts(astral_lead, jobs=[astral_job])
     assert not crm._lead_packages_unavailable(astral_lead, 'envio_paquetes', jobs=[astral_job])
+
+
+def test_new_lead_on_booked_date_prepares_alternative_and_cancels_followups(booking):
+    crm, client, lead, job, normal, unavailable, _ = booking
+    from src.workflow import StepStatus
+    crm.store.upsert('jobs', job)
+    template = crm.LEAD_WORKFLOW(lead['tenant_id']).to_dict()
+    for sid in crm.ASTRAL_REFERRAL_FOLLOWUPS:
+        template['steps'].append(dict(template['steps'][0], id=sid, name=sid))
+    crm.store.save_tenant_dict('workflow_templates', {template['id']: template}, lead['tenant_id'])
+    new_lead = dict(lead, id=lead['id'] + '-new')
+    crm.store.upsert('leads', new_lead)
+    instance = crm.trigger_workflow_for_lead(new_lead['id'], new_lead['nombre'], new_lead['tenant_id'])
+    mails = [m for m in crm.store.list('pending_emails') if m.get('lead_id') == new_lead['id']]
+    assert len(mails) == 1
+    assert mails[0]['template_id'] == unavailable
+    assert mails[0]['status'] == 'pending'
+    assert all(instance.step_states[sid] == StepStatus.SKIPPED for sid in crm.ASTRAL_REFERRAL_FOLLOWUPS)
+    crm._notify_blocked_date_lead(crm.get_lead(new_lead['id']))
+    assert len([m for m in crm.store.list('pending_emails') if m.get('lead_id') == new_lead['id']]) == 1
+    html = client.get('/leads/' + new_lead['id']).get_data(as_text=True)
+    assert 'Fecha ocupada' in html and job['nombre'] in html
+    assert 'Los seguimientos de Norkevin están cancelados' in html
+    notifications = crm._build_recent_notifications(lead['tenant_id'], limit=50)
+    notice = next(n for n in notifications if n['id'] == 'lead-' + new_lead['id'])
+    assert 'Fecha ocupada' in notice['title']
+
+
+def test_owner_notice_warns_about_occupied_date_in_correct_account(booking, monkeypatch):
+    crm, client, lead, job, *_ = booking
+    crm.store.upsert('jobs', job)
+    calls = []
+    from src.mail_tracker import get_tracker
+    monkeypatch.setattr(get_tracker(), 'send_new_lead_notification', lambda **kwargs: calls.append(kwargs))
+    crm._notify_new_lead(lead, 'Formulario de contacto')
+    assert len(calls) == 1
+    assert 'Fecha ocupada' in calls[0]['subject']
+    assert job['nombre'] in calls[0]['body']
+    assert calls[0]['tenant_id'] == lead['tenant_id']
