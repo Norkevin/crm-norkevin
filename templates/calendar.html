@@ -569,13 +569,7 @@ function filterCalendar() {
 
 let blockOpener;
 function syncBlockDates(force) {
-  const start = document.getElementById('block-date');
-  const end = document.getElementById('block-end');
-  end.min = start.value;
-  if (start.value && (force || !end.value || end.value === end.dataset.syncedDate || end.value < start.value)) {
-    end.value = start.value;
-  }
-  end.dataset.syncedDate = start.value;
+  syncDateRange('block-date', 'block-end', force);
 }
 function openBlockModal(date) {
   blockOpener = document.activeElement;

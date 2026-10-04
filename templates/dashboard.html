@@ -713,7 +713,7 @@
             <div class="dashboard-range-popover-title">Elegi un rango personalizado</div>
             <div class="dashboard-range-popover-row">
               <label for="dashboard-range-start">Desde</label>
-              <input type="date" id="dashboard-range-start" class="form-input">
+              <input type="date" id="dashboard-range-start" class="form-input" onchange="syncDateRange('dashboard-range-start', 'dashboard-range-end')">
             </div>
             <div class="dashboard-range-popover-row">
               <label for="dashboard-range-end">Hasta</label>
@@ -1070,8 +1070,8 @@ document.addEventListener('click', function(e) {
 function applyCustomDateRange() {
   var start = document.getElementById('dashboard-range-start').value;
   var end = document.getElementById('dashboard-range-end').value;
-  if (!start || !end) {
-    flashToast('Elegi una fecha de inicio y una de fin', 'error');
+  if (!start || !end || end < start) {
+    flashToast('Elige un rango válido: Hasta debe ser igual o posterior a Desde', 'error');
     return;
   }
   fetch('/api/dashboard/custom-range?start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(end))
