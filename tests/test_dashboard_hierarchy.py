@@ -46,6 +46,22 @@ def test_sales_and_charts_render_in_main_column_before_the_side_rail(auth_client
     assert main_idx < sales_idx < rail_idx, \
         'ventas/graficas debe vivir dentro de la columna principal, antes del rail lateral'
 
-    panel_idx = html.find('<div class="dashboard-panel">')
+    panel_idx = html.find('<div class="dashboard-panel" data-mobile-order="11">')
     assert panel_idx != -1 and main_idx < panel_idx < rail_idx, \
         'el panel de analitica debe renderizarse dentro de la columna principal'
+
+
+def test_mobile_dashboard_order_survives_payment_history(auth_client):
+    import re
+    from pathlib import Path
+
+    html = auth_client.get('/dashboard').get_data(as_text=True)
+    for css_class, order in [('dashboard-panel dashboard-greeting', 1),
+                             ('dashboard-panel-intro', 2),
+                             ('dashboard-history', 2)]:
+        assert f'class="{css_class}" data-mobile-order="{order}"' in html
+    assert re.search(r'class="dashboard-panel" data-mobile-order="7">\s*<div class="dashboard-jobs-table-wrap">', html)
+    assert re.search(r'class="dashboard-history" data-mobile-order="2">\s*<details class="payment-history"', html)
+    base = (Path(__file__).parents[1] / 'templates/base.html').read_text()
+    assert '.dashboard-main > :nth-child(' not in base
+    assert '.dashboard-rail > :nth-child(' not in base

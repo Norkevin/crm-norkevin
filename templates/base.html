@@ -266,9 +266,9 @@ svg[stroke="currentColor"] rect {
   background: transparent;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: color .15s ease, transform .1s ease;
+  transition: color .15s ease, background .15s ease;
 }
-.bottom-nav-item:active { transform: scale(.92); }
+.bottom-nav-item:active { background: var(--sn-mint-soft); }
 .bottom-nav-item svg { width: 21px; height: 21px; }
 .bottom-nav-item.active { color: var(--sn-accent-text); }
 
@@ -2912,17 +2912,17 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   body[data-page="/dashboard"] .dashboard-main,
   body[data-page="/dashboard"] .dashboard-rail { display: contents; }
 
-  body[data-page="/dashboard"] .dashboard-rail > :nth-child(1) { order: 1; }  /* saludo */
-  body[data-page="/dashboard"] .dashboard-main > :nth-child(3) { order: 2; }  /* total cobrado */
-  body[data-page="/dashboard"] .dashboard-rail > :nth-child(3) { order: 3; }  /* estado de pagos */
-  body[data-page="/dashboard"] .dashboard-rail > :nth-child(2) { order: 4; }  /* proximas sesiones */
-  body[data-page="/dashboard"] .dashboard-main > :nth-child(6) { order: 5; }  /* leads recientes */
-  body[data-page="/dashboard"] .dashboard-main > :nth-child(4) { order: 6; }  /* label trabajos */
-  body[data-page="/dashboard"] .dashboard-main > :nth-child(5) { order: 7; }  /* trabajos recientes */
-  body[data-page="/dashboard"] .dashboard-rail > :nth-child(4) { order: 8; }
-  body[data-page="/dashboard"] .dashboard-rail > :nth-child(5) { order: 9; }
-  body[data-page="/dashboard"] .dashboard-main > :nth-child(1) { order: 10; } /* label ventas */
-  body[data-page="/dashboard"] .dashboard-main > :nth-child(2) { order: 11; } /* grafica */
+  body[data-page="/dashboard"] [data-mobile-order="1"] { order: 1; }
+  body[data-page="/dashboard"] [data-mobile-order="2"] { order: 2; }
+  body[data-page="/dashboard"] [data-mobile-order="3"] { order: 3; }
+  body[data-page="/dashboard"] [data-mobile-order="4"] { order: 4; }
+  body[data-page="/dashboard"] [data-mobile-order="5"] { order: 5; }
+  body[data-page="/dashboard"] [data-mobile-order="6"] { order: 6; }
+  body[data-page="/dashboard"] [data-mobile-order="7"] { order: 7; }
+  body[data-page="/dashboard"] [data-mobile-order="8"] { order: 8; }
+  body[data-page="/dashboard"] [data-mobile-order="9"] { order: 9; }
+  body[data-page="/dashboard"] [data-mobile-order="10"] { order: 10; }
+  body[data-page="/dashboard"] [data-mobile-order="11"] { order: 11; }
 
   /* Cobrado y Pendiente lado a lado: apilados eran 2 tarjetas de 119px
      cada una solo para mostrar dos numeros. */

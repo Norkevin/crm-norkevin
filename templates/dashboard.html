@@ -689,8 +689,8 @@
 <div class="dashboard-grid">
 <div class="dashboard-main">
 
-  <div class="dashboard-section-label">Ventas y graficas</div>
-  <div class="dashboard-panel">
+  <div class="dashboard-section-label" data-mobile-order="10">Ventas y graficas</div>
+  <div class="dashboard-panel" data-mobile-order="11">
     <div class="dashboard-controls">
       <select id="dashboard-job-type" class="sn-select" style="width:220px;" onchange="updateDashboard()">
         {% for label in job_type_labels %}
@@ -772,7 +772,7 @@
 
   </div>
 
-  <div class="dashboard-panel-intro" style="margin-top:24px;">
+  <div class="dashboard-panel-intro" data-mobile-order="2" style="margin-top:24px;">
     <div class="dashboard-intro-stat">
       <div class="dashboard-intro-stat-label">Cobrado · {{ current_year }}</div>
       <div class="dashboard-intro-stat-value">Q{{ '{:,.2f}'.format(total_paid) }}</div>
@@ -785,10 +785,10 @@
     </div>
   </div>
 
-  {% include "_payment_history.html" %}
+  <div class="dashboard-history" data-mobile-order="2">{% include "_payment_history.html" %}</div>
 
-  <div class="dashboard-section-label">Trabajos recientes</div>
-  <div class="dashboard-panel">
+  <div class="dashboard-section-label" data-mobile-order="6">Trabajos recientes</div>
+  <div class="dashboard-panel" data-mobile-order="7">
     <div class="dashboard-jobs-table-wrap">
       <table class="dashboard-jobs-table">
         <thead>
@@ -820,7 +820,7 @@
     </div>
   </div>
 
-  <div class="dashboard-list-card" style="margin-top:20px;">
+  <div class="dashboard-list-card" data-mobile-order="5" style="margin-top:20px;">
     <div class="dashboard-list-head">
       <div class="dashboard-list-title">Leads recientes</div>
       <a class="sn-btn sn-btn-primary sn-btn-sm" href="/leads?new=1">
@@ -844,7 +844,7 @@
 </div>
 
 <div class="dashboard-rail">
-  <div class="dashboard-panel dashboard-greeting">
+  <div class="dashboard-panel dashboard-greeting" data-mobile-order="1">
     <div class="dashboard-greeting-copy">
       <div class="dashboard-greeting-label">Buen dia,</div>
       <div class="dashboard-greeting-name">{{ session.user_name or 'Kevin' }}</div>
@@ -858,7 +858,7 @@
     </div>
   </div>
 
-  <div class="dashboard-list-card">
+  <div class="dashboard-list-card" data-mobile-order="4">
     <div class="dashboard-list-head">
       <div class="dashboard-list-title">Proximas sesiones y citas</div>
       <a class="sn-btn sn-btn-primary sn-btn-sm" href="/jobs?new=1">
@@ -889,7 +889,7 @@
     {% endfor %}
   </div>
 
-  <div class="dashboard-widget-card">
+  <div class="dashboard-widget-card" data-mobile-order="3">
     <div class="dashboard-widget-head">
       <div class="dashboard-widget-title">Estado de pagos · {{ current_year }}</div>
     </div>
@@ -916,7 +916,7 @@
     {% endif %}
   </div>
 
-  <div class="dashboard-widget-card">
+  <div class="dashboard-widget-card" data-mobile-order="8">
     <div class="dashboard-widget-head">
       <div class="dashboard-widget-title">Actividad reciente</div>
     </div>
@@ -947,7 +947,7 @@
     {% endfor %}
   </div>
 
-  <div class="dashboard-widget-card">
+  <div class="dashboard-widget-card" data-mobile-order="9">
     <div class="dashboard-widget-head">
       <div class="dashboard-widget-title">Fuentes de leads</div>
     </div>
