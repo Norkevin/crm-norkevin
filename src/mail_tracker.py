@@ -571,6 +571,10 @@ class MailTracker:
         return respuesta
 
     def retry_failed(self, pending_id, actor=None, sender_tenant_id=None):
+        with store.locked_tables('pending_emails', 'mail_log'):
+            return self._retry_failed(pending_id, actor, sender_tenant_id)
+
+    def _retry_failed(self, pending_id, actor=None, sender_tenant_id=None):
         """Reintenta un correo que fallo. MANUAL a proposito.
 
         Kevin: "nada de fallo -> enviar automaticamente otra vez". Un

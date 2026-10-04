@@ -367,7 +367,7 @@ async function descartarCorreo(id, button) {
     var data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || 'No se pudo descartar');
     var row = Array.from(document.querySelectorAll('.mail-row')).find(function(r) { return r.dataset.emailId === id; });
-    if (row) {
+    if (row && row.dataset.estado !== 'discarded') {
       var previous = row.dataset.estado;
       row.dataset.estado = 'discarded';
       var chip = row.querySelector('.chip-estado');
