@@ -15,8 +15,9 @@
     }
   </style>
 <link rel="stylesheet" href="{{ url_for('static', filename='client-portal.css') }}">
+<link rel="stylesheet" href="/static/client-design.css?v=20261005">
 </head>
-<body class="portal-client">
+<body class="flow-client portal-client">
 
 <div class="min-h-screen">
 
@@ -39,7 +40,7 @@
     <div class="portal-hero">
       <div class="portal-hero-top">
         <div>
-          <div class="experience-eyebrow">Tu espacio personal</div>
+
           <h1 class="portal-hero-greeting">Hola, {{ client.first_name }}.</h1>
           <div class="portal-hero-sub">
             {% if primary_job %}Cada detalle de tu boda, en un solo lugar.{% else %}Tus propuestas, documentos y recuerdos, siempre a mano.{% endif %}
@@ -106,9 +107,10 @@
   </div>
 
     {% for journey in journeys %}
-    <section class="portal-next-step" aria-label="Próximo paso">
-      <div class="portal-next-copy"><div class="experience-eyebrow">Tu próximo paso · {{ journey.name }}</div>
+    <section class="portal-next-step" aria-label="Tu próximo paso">
+      <div class="portal-next-copy">
       <h2 class="text-lg font-semibold mt-2">{{ journey.action[0] }}</h2>
+      <p class="portal-next-job">{{ journey.name }}</p>
       {% if journey.booking %}
       <p class="text-sm mt-2">{{ journey.booking.label }}</p>
       <ul class="portal-booking-checks">

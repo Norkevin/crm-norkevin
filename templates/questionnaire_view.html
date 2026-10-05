@@ -59,8 +59,9 @@ fieldset.q-field { border:0; padding:0; margin:0; }
 }
 @media print { .q-aside,.q-actions,.q-status {display:none;} .q-layout {display:block;} .q-section[hidden] {display:block !important;} }
 </style>
+<link rel="stylesheet" href="/static/client-design.css?v=20261005">
 </head>
-<body>
+<body class="flow-client">
 {% import '_document_parts.html' as ui with context %}
 {% set answered = questionnaire.status == 'Respondido' %}
 {{ ui.topbar(theme, 'Cuestionario', '', 'Vista previa' if preview else ('Respondido' if answered else 'Por completar'), 'success' if answered else 'neutral') }}

@@ -40,7 +40,7 @@ def test_sales_and_charts_render_in_main_column_before_the_side_rail(auth_client
     resp = auth_client.get('/dashboard')
     html = resp.get_data(as_text=True)
     main_idx = html.find('<div class="dashboard-main">')
-    sales_idx = html.find('Ventas y graficas')
+    sales_idx = html.find('Ventas y gráficas')
     rail_idx = html.find('<div class="dashboard-rail">')
     assert main_idx != -1 and sales_idx != -1 and rail_idx != -1
     assert main_idx < sales_idx < rail_idx, \
@@ -56,7 +56,7 @@ def test_mobile_dashboard_order_survives_payment_history(auth_client):
     from pathlib import Path
 
     html = auth_client.get('/dashboard').get_data(as_text=True)
-    for css_class, order in [('dashboard-panel dashboard-greeting', 1),
+    for css_class, order in [('flow-overview-head', 1),
                              ('dashboard-panel-intro', 2),
                              ('dashboard-history', 2)]:
         assert f'class="{css_class}" data-mobile-order="{order}"' in html

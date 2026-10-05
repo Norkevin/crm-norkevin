@@ -91,8 +91,9 @@
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/flatpickr.min.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/es.js') }}"></script>
 <script defer src="{{ url_for('static', filename='captacion.js', v='20261003-brands') }}"></script>
+<link rel="stylesheet" href="/static/client-design.css?v=20261005">
 </head>
-<body{% if tenant_slug == 'astral-weddings' %} class="astral-contact"{% endif %}>
+<body class="flow-client flow-intake{{ ' astral-contact' if tenant_slug == 'astral-weddings' else '' }}">
 {% if tenant_slug == 'astral-weddings' %}
 <header class="astral-cover">
   <img class="astral-cover-image" src="{{ url_for('static', filename='images/astral-contact.jpg') }}" alt="Una pareja de novios en la arquitectura colonial de Guatemala" fetchpriority="high" width="2048" height="1365">

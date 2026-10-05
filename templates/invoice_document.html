@@ -33,8 +33,9 @@
 }
 {% include '_document_base.html' %}
 </style>
+<link rel="stylesheet" href="/static/client-design.css?v=20261005">
 </head>
-<body>
+<body class="flow-client">
 {% import '_document_parts.html' as ui with context %}
 
 {{ ui.topbar(theme, 'Factura', doc.invoice_id, doc.estado_label, doc.estado_tono) }}
