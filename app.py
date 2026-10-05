@@ -8141,6 +8141,10 @@ def _actor_actual():
 @app.route('/emails')
 def pending_emails_page():
     """Bandeja de correos por aprobar, enviados y bloqueados."""
+    # Recover due drafts even when the background runner has not processed them.
+    tenant_id = get_current_tenant_id()
+    if tenant_id:
+        _prepare_due_workflow_emails(tenant_id=tenant_id)
     pendientes = sorted(store.list('pending_emails'),
                         key=lambda p: p.get('created_at') or '', reverse=True)
     vistas = [_pending_email_view(p) for p in pendientes]

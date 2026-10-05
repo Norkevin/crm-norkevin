@@ -63,6 +63,18 @@
 .rev-ok  { background: #DCFCE7; color: #166534; }
 .rev-mal { background: #FEE2E2; color: #B4232A; }
 .rev-aviso { font-size: 11.5px; color: var(--sn-muted); margin-top: 8px; }
+/* Keep the actions reachable while only the email details scroll. */
+#revision-modal .modal-content { display: flex; flex-direction: column; overflow: hidden; }
+#revision-modal .modal-title { flex: 0 0 auto; }
+#revision-cuerpo { flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+#revision-modal .modal-actions { flex: 0 0 auto; display: flex; flex-wrap: wrap;
+  gap: 8px; border-top: 1px solid var(--sn-line); padding-top: 12px; }
+@media (max-width: 760px) {
+  #revision-modal .modal-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #revision-modal .modal-actions button { width: 100%; }
+  #revision-modal #btn-enviar { grid-column: 1 / -1; }
+}
 </style>
 
 <section class="sn-page-wide">

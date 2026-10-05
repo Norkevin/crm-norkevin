@@ -200,3 +200,34 @@ def test_manual_production_entry_points_share_dispatcher(flow):
     a._sync_mail_delivery({**mail, 'status':'sent'})
     assert a.store.get('contracts', contract['id'])['delivery_status'] == 'sent'
     assert inst.step_states['test_step'] == a.StepStatus.DONE
+
+
+def test_inbox_prepares_overdue_drafts_without_background_runner_or_delivery(flow, monkeypatch):
+    a, client, tenant, tpl = flow
+    configure(a, tenant, tpl)
+    lead, inst = subject(a, tenant)
+    # A foreign due workflow must remain untouched by opening this inbox.
+    foreign = a.workflow_engine.start_workflow(
+        workflow=a.LEAD_WORKFLOW(tenant), subject_type='lead', subject_id='foreign-inbox',
+        tenant_id='tenant-inbox-other', auto_prepare=True,
+        trigger_at=inst.trigger_at,
+    )
+    token = a._workflow_tenant.set(foreign.tenant_id)
+    try:
+        a.store.upsert('leads', {'id': 'foreign-inbox', 'tenant_id': foreign.tenant_id,
+                               'nombre': 'Otra cuenta', 'email': 'other@example.com', 'status': 'Nuevo'})
+    finally:
+        a._workflow_tenant.reset(token)
+    monkeypatch.setattr('src.mail_tracker.send_email',
+                        lambda *args, **kwargs: pytest.fail('Opening the inbox must never deliver mail'))
+    with client.session_transaction() as session:
+        session['tenant_id'] = tenant
+    first = client.get('/emails')
+    assert first.status_code == 200
+    mails = [m for m in a.store.list('pending_emails') if m.get('lead_id') == lead['id']]
+    assert len(mails) == 1 and mails[0]['status'] == 'pending'
+    assert mails[0]['subject'].encode() in first.data
+    assert inst.step_states['test_step'] == a.StepStatus.QUEUED
+    assert client.get('/emails').status_code == 200
+    assert len([m for m in a.store.list('pending_emails') if m.get('lead_id') == lead['id']]) == 1
+    assert all(state == a.StepStatus.PENDING for state in foreign.step_states.values())
