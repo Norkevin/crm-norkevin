@@ -120,7 +120,18 @@ body[data-page] :is(button:disabled,input:disabled,select:disabled){cursor:not-a
 .dashboard-activity-icon{background:transparent;border-radius:0;color:var(--sn-muted)}
 .dashboard-widget-card{padding-bottom:16px}
 .dashboard-widget-card>p,.dashboard-widget-card>.source-bars,.dashboard-donut-wrap{margin-inline:20px}
+.dashboard-jobs-table{min-width:0}
 .dashboard-jobs-table th{background:var(--sn-surface-2);text-transform:none;letter-spacing:0;color:var(--sn-muted)}
+.dashboard-jobs-table .sn-row-avatar-lg{background:var(--sn-mint-soft);color:var(--sn-accent-text);border-radius:50%}
+/* Status colors need their own dark surfaces, not pale fills with dark text. */
+:root[data-theme="dark"] :is(.sn-row-avatar-lg,.entity-avatar){background:var(--sn-mint-soft);color:var(--sn-accent-text)}
+:root[data-theme="dark"] :is(.sn-chip.gray,.badge-muted){background:var(--sn-surface-2);color:var(--sn-muted)}
+:root[data-theme="dark"] :is(.sn-chip.green,.badge-success){background:#223e32;color:#a5dbc0}
+:root[data-theme="dark"] :is(.sn-chip.yellow,.badge-warning){background:#443a25;color:#e9cd94}
+:root[data-theme="dark"] :is(.sn-chip.cyan,.sn-chip.blue,.badge-info){background:#243a49;color:#b1d4eb}
+:root[data-theme="dark"] :is(.sn-chip.red,.sn-chip.pink,.badge-danger){background:#4a2b32;color:#f4b6c2}
+:root[data-theme="dark"] .sn-money{color:#a5dbc0}
+:root[data-theme="dark"] :is(.calendar-event.block,.upcoming-event-card.block){background:#4a2b32;border-color:#71414b;color:#f4b6c2}
 /* Teams retains its own accent while sharing the interface grammar. */
 body:has(.ft){--sn-sidebar-bg:#342f3c;--sn-sidebar-ink:#d4ccd9;--sn-sidebar-active-bg:#51485c;--sn-sidebar-hover:#443c4d}
 .ft{max-width:1440px;padding:0 0 32px;font-family:var(--flow-font)}
