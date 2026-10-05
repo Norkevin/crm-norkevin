@@ -46,7 +46,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
     original_resolver = crm_store.tenant_resolver
     crm_store.tenant_resolver = lambda: getattr(g, 'teams_portal_tenant', None) or original_resolver()
 
-    # Only the new, locally gated portal bypasses CRM-owner login; it authenticates independently below.
+    # Only the enabled member portal bypasses CRM-owner login; it authenticates independently below.
     hooks = app.before_request_funcs.get(None, [])
     for index, hook in enumerate(hooks):
         if hook.__name__ == '_require_login':

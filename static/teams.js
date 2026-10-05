@@ -189,7 +189,7 @@
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'No se pudo crear el código.');
       const output = document.querySelector(`[data-access-output="${button.dataset.access}"]`);
-      output.textContent = `${data.message}\n${data.code}\nAcceso: http://127.0.0.1:5052/teams-portal/login`;
+      output.textContent = `${data.message}\n${data.code}\nAcceso: ${location.origin}/teams-portal/login`;
       output.hidden = false;
     } catch (error) { showError(error.message); }
     finally { button.disabled = false; }
