@@ -1,0 +1,12 @@
+<details class="ft-panel">
+  <summary>Invitaciones de calendario</summary>
+  <p>Revisa el equipo y sus horarios antes de enviar. Cada persona recibe una invitación individual con su rol y sus documentos publicados. La invitación no toma honorarios ni datos bancarios de las fichas.</p>
+  {% if not calendar_email %}<p class="ft-warning">Conecta Google Calendar para esta marca desde <a href="/teams/settings">Configuración</a>.</p>{% endif %}
+  <ul>{% for person in selected.assignments if person.status in ['pendiente','aceptada','reconfirmar','realizada'] %}<li>{{ person.member_name }} · {{ person.member_email or 'Falta correo' }} · {{ person.role }} · {{ person.start|teams_date }} – {{ person.end|teams_date }}</li>{% else %}<li>Comparte las coberturas para definir los destinatarios. Los borradores no reciben invitaciones.</li>{% endfor %}</ul>
+  <form data-command="calendar_sync" data-endpoint="/api/teams/calendar/sync" class="ft-form">
+    <input type="hidden" name="job_id" value="{{ selected.id }}"><input type="hidden" name="invite" value="all">
+    <label class="ft-full">Programar para (opcional)<input type="datetime-local" name="send_at"><small>Vacío: enviar ahora. Hora de esta empresa.</small></label>
+    <button data-calendar-submit data-team="true" class="sn-btn sn-btn-primary" {{ 'disabled' if not calendar_email else '' }}>Enviar al equipo</button>
+  </form>
+  <p class="ft-muted">El envío permanece en cola hasta que Google lo confirme. Los cambios de cobertura y documentos actualizan las invitaciones vinculadas; aceptar en Google no sustituye aceptar las condiciones en el portal.</p>
+</details>

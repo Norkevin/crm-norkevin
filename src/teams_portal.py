@@ -64,7 +64,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
         limit = MAX_FILE_BYTES + 1024*1024 if request.endpoint == 'teams_portal.expense_upload' else 65536
         if request.content_length and request.content_length > limit:
             abort(413)
-        if request.endpoint == 'teams_portal.login':
+        if request.endpoint in ('teams_portal.login','teams_portal.calendar_document'):
             return
         tenant, member_id = session.get('teams_member_tenant'), session.get('teams_member_id')
         if not tenant or not member_id:
@@ -320,7 +320,19 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
     def command():
         member = g.teams_member
         actor = ('Vista de prueba del propietario · ' if session.get('teams_member_preview') else 'Miembro · ') + member['id']
-        return jsonify(store.command(g.teams_portal_tenant, actor, request.get_json(silent=True), read_job, member_id=member['id']))
+        result=store.command(g.teams_portal_tenant, actor, request.get_json(silent=True), read_job, member_id=member['id'])
+        data=request.get_json(silent=True) or {}
+        if data.get('action')=='response' and not app.config.get('FLOW_TEAMS_LOCAL'):
+            from src.google_calendar import connected_email
+            from src.teams import teams_zone
+            if connected_email(g.teams_portal_tenant):
+                import os
+                try:
+                    app.extensions['teams_calendar'].enqueue(g.teams_portal_tenant,read_job(result['record']['job_id']),
+                        os.environ.get('APP_BASE_URL','https://flowingcrm.com').rstrip('/'),
+                        teams_zone(crm_store,g.teams_portal_tenant),app.secret_key)
+                except Exception:app.logger.warning('Calendar update not queued; member response remains saved')
+        return jsonify(result)
 
     @portal.route('/logout', methods=['POST'])
     def logout():
@@ -397,6 +409,30 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             if not any(a['cost_id'] in visible_ids for a in payment['allocations']):
                 abort(404)
         return download(payment)
+
+    @portal.route('/calendar-document/<token>')
+    def calendar_document(token):
+        from datetime import timezone
+        from itsdangerous import URLSafeSerializer, BadSignature
+        try:
+            payload=URLSafeSerializer(app.secret_key,salt='teams-calendar-document').loads(token)
+            if not isinstance(payload,dict) or payload['expires']<datetime.now(timezone.utc).timestamp():abort(404)
+            tenant=payload['tenant']
+            with store.transaction() as db:
+                member=store.get(db,tenant,'member',payload['member'])
+                doc=store.get(db,tenant,'document',payload['document'])
+                if (not member['active'] or member.get('access_version',1)!=payload['access']
+                    or doc['version']!=payload['version'] or not document_visible(store,db,tenant,doc,member['id'])):abort(404)
+                g.teams_portal_tenant=tenant
+                job=read_job(doc['job_id'])
+                if job.get('status') in ('Cancelado','Archivado') or not any(a['member_id']==member['id'] and a['job_id']==job['id']
+                    and a['status'] in VISIBLE_ASSIGNMENTS and a['job_day']==job.get('boda_date')
+                    for a in store.records(db,tenant,'assignment')):abort(404)
+        except (BadSignature,KeyError,TypeError,ValueError):abort(404)
+        # This link authorizes only this published document; it never signs into the portal.
+        if doc.get('file_data'):return download(doc)
+        from flask import Response
+        return Response(doc['title']+'\n\n'+doc['content'],mimetype='text/plain',headers={'Content-Security-Policy':"default-src 'none'; sandbox"})
 
     @portal.route('/documents/<identifier>/download')
     def member_download(identifier):

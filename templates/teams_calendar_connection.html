@@ -1,0 +1,12 @@
+<section class="ft-panel">
+  <div class="ft-section-title"><div><h2>Google Calendar</h2><p class="ft-muted">Calendario e invitaciones separados para cada marca.</p></div><span class="ft-pill">{{ 'Conectado' if calendar_email else 'Sin conectar' }}</span></div>
+  {% if calendar_message %}<p role="status">{{ calendar_message }}</p>{% endif %}
+  {% if calendar_email %}
+    <p>Cuenta conectada: <strong>{{ calendar_email }}</strong>. Las bodas se crean en su calendario principal.</p>
+    <form data-command="calendar_sync" data-endpoint="/api/teams/calendar/sync"><input type="hidden" name="scope" value="weddings"><button class="sn-btn">Sincronizar próximas bodas</button><p class="ft-muted">Solo agrega las bodas al calendario de la marca. Para invitar personas, abre el equipo de la boda.</p></form>
+  {% else %}
+    <p>Conecta el Google de esta marca para ver las bodas e invitar al equipo por correo. Cada persona recibirá su rol, horario y documentos publicados para ella.</p>
+    {% if config.FLOW_TEAMS_LOCAL %}<p class="ft-warning">Las conexiones y envíos están bloqueados en esta propuesta local.</p>{% else %}<a class="sn-btn sn-btn-primary" href="/teams/calendar/connect">Conectar Google Calendar</a>{% endif %}
+  {% endif %}
+  <p class="ft-muted">En cada boda puedes enviar una invitación individual, invitar a todo el equipo publicado o programar el envío. Los enlaces permiten abrir únicamente los documentos publicados para ese destinatario; caducan siete días después de su cobertura. Revocar su acceso o retirar un documento invalida el enlace.</p>
+</section>

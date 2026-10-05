@@ -496,7 +496,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             operations = database.records(db, tenant, 'operation')
             audit = database.records(db, tenant, 'audit')
             extra = {kind: database.records(db, tenant, kind) for kind in (
-                'document', 'receipt', 'notice', 'task', 'expense_request', 'availability', 'advance', 'settlement', 'report', 'config', 'schedule', 'job_classification', 'job_source', 'notion_report')}
+                'document', 'receipt', 'notice', 'task', 'expense_request', 'availability', 'advance', 'settlement', 'report', 'config', 'schedule', 'job_classification', 'job_source', 'notion_report', 'calendar_sync')}
             from src.teams_features import advance_balance, clean
             for advance in extra['advance']:
                 advance['remaining'] = advance_balance(database, db, tenant, advance)
@@ -527,6 +527,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                 c['late'] = any(e['pending'] and e['due_date'] < datetime.now(LOCAL_ZONE).date().isoformat() for e in c['schedule'])
         for a in assignments:
             a['calendar_day'] = a['start'][:10]
+            a['member_email'] = member_map.get(a['member_id'], {}).get('email', '')
             a['cost'] = next((c for c in costs if c.get('assignment_id') == a['id']), None)
             a['member_name'] = member_map.get(a['member_id'], {}).get('name', 'Miembro inactivo')
             a['job_name'] = job_map.get(a['job_id'], {}).get('nombre', 'Evento no disponible')
@@ -595,9 +596,12 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                     payments=[clean(p) for p in visible_payments], operations=operations, audit=audit[-50:][::-1], totals=totals,
                     documents=extra['document'], receipts=extra['receipt'], notices=extra['notice'], tasks=extra['task'],
                     expense_requests=[clean(r) for r in extra['expense_request']], availability=extra['availability'], advances=extra['advance'],
-                    reports=extra['report'], notion_report=extra['notion_report'], team_config=next(iter(extra['config']), {}),
+                    reports=extra['report'], notion_report=extra['notion_report'], calendar_sync=extra['calendar_sync'], team_config=next(iter(extra['config']), {}),
                     role_options=list(dict.fromkeys(r.strip() for r in
                         next(iter(extra['config']), {}).get('roles', DEFAULT_ROLES).splitlines() if r.strip())))
+
+    from src.teams_calendar_routes import register_calendar
+    calendar_email = register_calendar(app, blueprint, crm_store, database, read_job, canonical_jobs)
 
     @blueprint.route('/api/teams/command', methods=['POST'])
     def command():
@@ -730,6 +734,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                                    'document_read':'Lectura confirmada','document_withdraw':'Documento retirado','advance':'Fondo entregado',
                                    'settlement':'Fondo liquidado','advance_return':'Fondo devuelto','expense_review':'Reembolso revisado',
                                    'cost_shared':'Gasto distribuido','schedule':'Cuotas planificadas','job_close':'Operación cerrada','job_reopen':'Operación reabierta'},
+                               calendar_email=calendar_email(session['tenant_id']), calendar_message=session.pop('teams_calendar_message', ''),
                                csrf=session['teams_csrf'], today=datetime.now(LOCAL_ZONE).date().isoformat(), **data)
 
     from src.teams_portal import register_portal

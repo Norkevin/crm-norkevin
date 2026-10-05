@@ -1303,3 +1303,74 @@ def test_notion_upload_is_owner_only_csrf_protected_and_private_to_members(web, 
     bad=owner.post('/api/teams/notion/import',headers={'X-Teams-CSRF':'csrf'},
         data={'file':(io.BytesIO(b'not json'),'notion.json')})
     assert bad.status_code==400
+
+
+def test_calendar_owner_can_send_individually_bulk_schedule_and_cancel_without_sending_in_tests(web,monkeypatch):
+    from datetime import datetime,timedelta
+    from src import google_calendar
+    application,owner,storage=web
+    application.config.update(FLOW_TEAMS_LOCAL=False,FLOW_TEAMS_ENABLED=True)
+    monkeypatch.setattr(google_calendar,'connected_email',lambda tenant:'owner@example.invalid')
+    store=application.extensions['teams'];person=member(store);a=assignment(store,person)
+    run(store,'assignment_publish',id=a['id'],version=a['version'])
+    def post(**fields):
+        return owner.post('/api/teams/calendar/sync',headers={'X-Teams-CSRF':'csrf'},json=dict(job_id='job-1',key=str(uuid4()),**fields))
+    assert owner.post('/api/teams/calendar/sync',json={'job_id':'job-1'}).status_code==403
+    assert post(invite='individual',assignment_id='foreign').status_code==400
+    assert post(invite='individual',assignment_id=a['id']).status_code==200
+    assert {r['identity'] for r in records(store,'calendar_sync')}=={'job:job-1','assignment:'+a['id']}
+    future=(datetime.now()+timedelta(days=1)).strftime('%Y-%m-%dT%H:%M')
+    assert post(invite='all',send_at=future).status_code==200
+    scheduled=next(r for r in records(store,'calendar_sync') if r['identity']=='assignment:'+a['id'])
+    response=owner.post('/api/teams/calendar/cancel-scheduled',headers={'X-Teams-CSRF':'csrf'},json={'id':scheduled['id'],'version':scheduled['version']})
+    assert response.status_code==200 and response.get_json()['record']['status']=='paused'
+    assert post(invite='all',send_at='2020-01-01T12:00').status_code==400
+    assert post(invite='all',send_at=future+'-06:00').status_code==400
+    assert owner.post('/api/teams/calendar/sync',headers={'X-Teams-CSRF':'csrf'},json={'job_id':'missing','invite':'none'}).status_code==404
+    client=member_client(application,owner,person)
+    assert client.post('/api/teams/calendar/sync',headers={'X-Teams-CSRF':'csrf'},json={'job_id':'job-1'}).status_code==404
+    assert 'Invitación de calendario' in owner.get('/teams/jobs/job-1').get_data(as_text=True)
+    before=records(store,'calendar_sync')
+    run(store,'job_classification',job_id='job-1',version=0,state='archived')
+    assert records(store,'calendar_sync')==before
+
+
+def test_calendar_document_link_only_opens_authorized_current_document_and_never_binds_portal_session(web):
+    from zoneinfo import ZoneInfo
+    from src.teams_calendar import events
+    from urllib.parse import urlsplit
+    application,owner,_=web;store=application.extensions['teams'];person=member(store);a=assignment(store,person)
+    run(store,'assignment_publish',id=a['id'],version=a['version'])
+    doc=run(store,'document',job_id='job-1',title='Call sheet',kind='Call sheet',content='Solo información publicada',audience_ids=[person['id']])
+    doc=run(store,'document_publish',id=doc['id'],version=doc['version'])
+    job=dict(id='job-1',nombre='Ejemplo',boda_date='2026-11-14',status='En curso')
+    event=events(store,'brand-a',job,'https://flowingcrm.com',ZoneInfo('America/Guatemala'),application.secret_key)['assignment:'+a['id']]
+    link=next(line for line in event['description'].split('\n\n') if line.startswith('Call sheet: ')).split(': ',1)[1]
+    path=urlsplit(link).path;anonymous=application.test_client()
+    assert anonymous.get(path).status_code==200
+    assert anonymous.get(path).get_data(as_text=True)=='Call sheet\n\nSolo información publicada'
+    with anonymous.session_transaction() as state:assert not state.get('teams_member_id')
+    assert anonymous.get('/teams-portal').status_code==302
+    assert anonymous.get(path+'tampered').status_code==404
+    run(store,'member_revoke',id=person['id'],version=person['version'])
+    assert anonymous.get(path).status_code==404
+
+
+def test_calendar_oauth_checks_owner_brand_state_and_expiry_before_exchanging_code(web,monkeypatch):
+    from datetime import datetime,timezone
+    from src.teams_calendar_routes import finish_calendar_connection
+    from src import google_calendar
+    from flask import session
+    from werkzeug.exceptions import Forbidden
+    application,_,storage=web;calls=[]
+    monkeypatch.setattr(google_calendar,'exchange_code',lambda tenant,code,uri:calls.append((tenant,code)))
+    for tenant,state,expires,authorized in [('brand-a','calendar.good',9999999999,True),
+            ('brand-b','calendar.good',9999999999,False),('brand-a','calendar.other',9999999999,False),
+            ('brand-a','calendar.good',0,False)]:
+        with application.test_request_context('/auth/google/callback?state=calendar.good&code=fake-test-only'):
+            session.update(logged_in=True,tenant_id='brand-a',user_email='owner@example.invalid',
+                teams_calendar_oauth={'tenant':tenant,'state':state,'expires':expires})
+            if authorized:assert finish_calendar_connection(application,storage,'https://flowingcrm.com/auth/google/callback').status_code==302
+            else:
+                with pytest.raises(Forbidden):finish_calendar_connection(application,storage,'https://flowingcrm.com/auth/google/callback')
+    assert calls==[('brand-a','fake-test-only')]

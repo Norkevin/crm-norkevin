@@ -74,6 +74,13 @@
     update();
   });
   dateControls(document);
+  document.querySelectorAll('form[data-command="calendar_sync"] input[name="send_at"]').forEach(input => {
+    const button = input.form.querySelector('[data-calendar-submit]');
+    const update = () => { button.textContent = input.value
+      ? (button.dataset.team ? 'Programar para el equipo' : 'Programar invitación')
+      : (button.dataset.team ? 'Enviar al equipo' : 'Enviar invitación'); };
+    input.addEventListener('input', update); input.addEventListener('change', update); update();
+  });
   document.querySelectorAll('form[data-command="schedule"]').forEach(form => {
     const rows = form.querySelector('[data-schedule-rows]');
     const prototype = rows.firstElementChild.cloneNode(true);

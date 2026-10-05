@@ -5751,6 +5751,10 @@ def auth_google_callback():
     """Recibe el codigo de Google, lo cambia por tokens y los guarda."""
     from src import gmail_delivery
 
+    if request.args.get('state', '').startswith('calendar.'):
+        from src.teams_calendar_routes import finish_calendar_connection
+        return finish_calendar_connection(app, store, _google_redirect_uri())
+
     error = request.args.get('error')
     if error:
         return redirect(url_for('settings', google_status='error', google_msg=error))

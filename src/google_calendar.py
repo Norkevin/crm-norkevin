@@ -1,0 +1,108 @@
+"""Google Calendar connection, separate from Gmail and isolated by brand."""
+import json
+import os
+from pathlib import Path
+import tempfile
+import time
+from urllib.error import HTTPError
+from urllib.parse import quote, urlencode
+from urllib.request import Request, urlopen
+
+from src import gmail_delivery
+from src.tenant_brand_map import resolve_brand, UnresolvedBrandError
+
+SCOPE = 'https://www.googleapis.com/auth/calendar.events'
+BASE = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
+
+
+def token_path(tenant):
+    resolve_brand(tenant)
+    root=Path(os.environ.get('CRM_DATA_DIR') or Path(__file__).resolve().parents[1]/'data')
+    return root / ('google_calendar_token_'+tenant+'.json')
+
+
+def load_token(tenant):
+    try:return json.loads(token_path(tenant).read_text())
+    except (OSError, ValueError, UnresolvedBrandError):return None
+
+
+def save_token(tenant,token):
+    path=token_path(tenant);path.parent.mkdir(parents=True,exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode='w',dir=path.parent,delete=False) as output:
+        json.dump(token,output);temporary=output.name
+    os.chmod(temporary,0o600);os.replace(temporary,path)
+
+
+def connected_email(tenant):
+    token=load_token(tenant) or {}
+    return token.get('email','') if token.get('refresh_token') else ''
+
+
+def authorization_url(redirect_uri,state,tenant):
+    return gmail_delivery.AUTH_URL+'?'+urlencode(dict(client_id=os.environ.get('GOOGLE_CLIENT_ID',''),
+        redirect_uri=redirect_uri,response_type='code',scope=SCOPE+' openid email',access_type='offline',
+        prompt='consent',state=state,login_hint=resolve_brand(tenant).sender_email))
+
+
+def exchange_code(tenant,code,redirect_uri):
+    payload=gmail_delivery._post_form(gmail_delivery.TOKEN_URL,dict(code=code,
+        client_id=os.environ.get('GOOGLE_CLIENT_ID',''),client_secret=os.environ.get('GOOGLE_CLIENT_SECRET',''),
+        redirect_uri=redirect_uri,grant_type='authorization_code'))
+    email=gmail_delivery._fetch_email(payload.get('access_token',''))
+    if email.casefold()!=resolve_brand(tenant).sender_email.casefold():
+        raise ValueError('Conecta la cuenta de Google de esta marca.')
+    if SCOPE not in payload.get('scope','').split() or not payload.get('refresh_token'):
+        raise ValueError('Google no concedió acceso continuo a Calendar. Vuelve a conectar.')
+    save_token(tenant,dict(access_token=payload['access_token'],refresh_token=payload['refresh_token'],
+        expires_at=time.time()+int(payload.get('expires_in',3600))-60,email=email))
+    return email
+
+
+class CalendarClient:
+    def __init__(self,tenant):self.tenant=tenant
+
+    def request(self,method,event_id='',body=None,notify=False):
+        token=load_token(self.tenant)
+        if not token or not token.get('refresh_token'):raise ValueError('Conecta Google Calendar para esta marca.')
+        if token.get('expires_at',0)<=time.time():
+            payload=gmail_delivery._post_form(gmail_delivery.TOKEN_URL,dict(refresh_token=token['refresh_token'],
+                client_id=os.environ.get('GOOGLE_CLIENT_ID',''),client_secret=os.environ.get('GOOGLE_CLIENT_SECRET',''),
+                grant_type='refresh_token'))
+            token.update(access_token=payload['access_token'],expires_at=time.time()+int(payload.get('expires_in',3600))-60)
+            save_token(self.tenant,token)
+        url=BASE+('/'+quote(event_id,safe='') if event_id else '')
+        if notify:url+='?sendUpdates=all'
+        request=Request(url,data=json.dumps(body).encode() if body is not None else None,
+            headers={'Authorization':'Bearer '+token['access_token'],'Content-Type':'application/json'},method=method)
+        with urlopen(request,timeout=15) as response:return json.loads(response.read() or '{}')
+
+    def sync(self,event_id,event,digest,identity):
+        try:previous=self.request('GET',event_id)
+        except HTTPError as error:
+            if error.code not in (404,410):raise
+            previous=None
+        if event is None and previous and previous.get('status')=='cancelled':return previous
+        if previous and previous.get('extendedProperties',{}).get('private',{}).get('flow_identity')!=identity:
+            raise ValueError('El evento de Calendar no pertenece a esta cobertura de Flow.')
+        if event is None:
+            if previous and previous.get('status')!='cancelled':self.request('DELETE',event_id,notify=True)
+            return dict(status='cancelled')
+        if previous and previous.get('status')!='cancelled' and previous.get('extendedProperties',{}).get('private',{}).get('flow_digest')==digest:
+            return previous
+        event=dict(event,extendedProperties={'private':{'flow_identity':identity,'flow_digest':digest}})
+        if previous:
+            # Preserve the guest's Google RSVP when updating role, schedule or documents.
+            if previous.get('attendees') and event.get('attendees'):
+                old=previous['attendees'];new=event['attendees']
+                if {a.get('email') for a in old}=={a.get('email') for a in new}:event.pop('attendees')
+            event['status']='confirmed'
+            return self.request('PATCH',event_id,event,notify=True)
+        try:return self.request('POST',body=dict(event,id=event_id),notify=True)
+        except HTTPError as error:
+            if error.code!=409:raise
+            # An uncertain insert can already exist: deterministic IDs make retry safe.
+            existing=self.request('GET',event_id)
+            tags=existing.get('extendedProperties',{}).get('private',{})
+            if tags.get('flow_identity')!=identity:raise ValueError('Conflicto de identidad del evento de Calendar.')
+            if tags.get('flow_digest')==digest:return existing
+            return self.request('PATCH',event_id,event,notify=True)
