@@ -1311,7 +1311,10 @@ def test_calendar_owner_can_send_individually_bulk_schedule_and_cancel_without_s
     application,owner,storage=web
     application.config.update(FLOW_TEAMS_LOCAL=False,FLOW_TEAMS_ENABLED=True)
     monkeypatch.setattr(google_calendar,'connected_email',lambda tenant:'owner@example.invalid')
-    store=application.extensions['teams'];person=member(store);a=assignment(store,person)
+    store=application.extensions['teams'];person=member(store)
+    with store.transaction() as db:
+        person['email']='photo@flow-qa-84982.com';store.save(db,'brand-a','member',person)
+    a=assignment(store,person)
     run(store,'assignment_publish',id=a['id'],version=a['version'])
     def post(**fields):
         return owner.post('/api/teams/calendar/sync',headers={'X-Teams-CSRF':'csrf'},json=dict(job_id='job-1',key=str(uuid4()),**fields))
@@ -1339,7 +1342,10 @@ def test_calendar_document_link_only_opens_authorized_current_document_and_never
     from zoneinfo import ZoneInfo
     from src.teams_calendar import events
     from urllib.parse import urlsplit
-    application,owner,_=web;store=application.extensions['teams'];person=member(store);a=assignment(store,person)
+    application,owner,_=web;store=application.extensions['teams'];person=member(store)
+    with store.transaction() as db:
+        person['email']='photo@flow-qa-84982.com';store.save(db,'brand-a','member',person)
+    a=assignment(store,person)
     run(store,'assignment_publish',id=a['id'],version=a['version'])
     doc=run(store,'document',job_id='job-1',title='Call sheet',kind='Call sheet',content='Solo información publicada',audience_ids=[person['id']])
     doc=run(store,'document_publish',id=doc['id'],version=doc['version'])

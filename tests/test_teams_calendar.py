@@ -19,7 +19,7 @@ ORIGIN='https://flowingcrm.com'
 def prepared(tmp_path):
     store=TeamsStore(tmp_path/'teams.sqlite3')
     with store.transaction() as db:
-        people=[store.create(db,TENANT,'member',name='Persona '+str(i),email='worker'+str(i)+'@example.invalid',active=True,access_version=1) for i in range(2)]
+        people=[store.create(db,TENANT,'member',name='Persona '+str(i),email='worker'+str(i)+'@flow-qa-84982.com',active=True,access_version=1) for i in range(2)]
         assignments=[store.create(db,TENANT,'assignment',job_id='wedding',member_id=m['id'],status='pendiente',job_day=JOB['boda_date'],role='Fotografía' if i==0 else 'Dron',
             start='2026-11-14T13:00:00-06:00',end='2026-11-14T22:00:00-06:00',instructions='Instrucción real',terms_version=1) for i,m in enumerate(people)]
         document=store.save(db,TENANT,'document',dict(id='document-private',job_id='wedding',status='publicado',audience_ids=[people[0]['id']],title='Call sheet privado',content='Información compartida',kind='Call sheet'))
@@ -154,3 +154,23 @@ def test_send_now_replaces_schedule_and_brands_keep_distinct_event_ids(prepared)
     assert all(r['not_before'] is None for r in rows(store))
     sync.enqueue('tenant-norkevin',JOB,ORIGIN,ZONE,'secret',background=False,invite_ids=[])
     assert not ({r['event_id'] for r in rows(store)} & {r['event_id'] for r in rows(store,tenant='tenant-norkevin')})
+
+
+def test_placeholder_email_cannot_receive_real_calendar_invitation(prepared):
+    from src.teams import TeamsError
+    store,people,assignments,_=prepared
+    with store.transaction() as db:
+        person=store.get(db,TENANT,'member',people[0]['id']);person['email']='placeholder@example.invalid';store.save(db,TENANT,'member',person)
+    with pytest.raises(TeamsError,match='correo válido'):
+        CalendarSync(store).enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False,include_new=True,invite_ids=[assignments[0]['id']])
+    assert rows(store)==[]
+
+
+def test_oauth_requests_calendar_separately_and_explicit_brand_account_selection():
+    from urllib.parse import urlsplit,parse_qs
+    from src.google_calendar import authorization_url,SCOPE
+    params=parse_qs(urlsplit(authorization_url('https://flowingcrm.com/auth/google/callback','calendar.state',TENANT)).query)
+    assert params['scope']==[SCOPE+' openid email']
+    assert params['login_hint']==['norkevinfoto@gmail.com']
+    assert params['prompt']==['select_account consent']
+    assert 'gmail.send' not in params['scope'][0]

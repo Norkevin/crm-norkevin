@@ -41,7 +41,7 @@ def connected_email(tenant):
 def authorization_url(redirect_uri,state,tenant):
     return gmail_delivery.AUTH_URL+'?'+urlencode(dict(client_id=os.environ.get('GOOGLE_CLIENT_ID',''),
         redirect_uri=redirect_uri,response_type='code',scope=SCOPE+' openid email',access_type='offline',
-        prompt='consent',state=state,login_hint=resolve_brand(tenant).sender_email))
+        prompt='select_account consent',state=state,login_hint=resolve_brand(tenant).sender_email))
 
 
 def exchange_code(tenant,code,redirect_uri):

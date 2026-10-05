@@ -42,7 +42,11 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None):
             if eligible_ids is not None and assignment['id'] not in eligible_ids:continue
             person=members[assignment['member_id']];event=None
             if eligible and person['active'] and assignment['status'] in VISIBLE_ASSIGNMENTS and assignment['job_day']==job['boda_date']:
-                if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',person.get('email','')):
+                email=person.get('email','')
+                domain=email.rsplit('@',1)[-1].casefold()
+                if (not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email)
+                    or domain.endswith(('.invalid','.test','.example','.localhost'))
+                    or domain in ('example.com','example.org','example.net')):
                     raise TeamsError('La persona necesita un correo válido para recibir la invitación.')
                 start=datetime.fromisoformat(assignment['start']).replace(tzinfo=zone)
                 end=datetime.fromisoformat(assignment['end']).replace(tzinfo=zone)

@@ -110,7 +110,9 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
     def update_linked_events(response):
         if request.method!='POST' or not 200<=response.status_code<300 or not session.get('logged_in'):return response
         tenant=session.get('tenant_id')
-        if not tenant or app.config.get('FLOW_TEAMS_LOCAL') or not google_calendar.connected_email(tenant):return response
+        owner=crm_store.get('tenants',tenant) if tenant else None
+        if (not owner or session.get('user_email')!=owner.get('login_email')
+            or app.config.get('FLOW_TEAMS_LOCAL') or not google_calendar.connected_email(tenant)):return response
         job_id=None
         if request.endpoint=='teams.command':
             body=request.get_json(silent=True) or {}
