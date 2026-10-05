@@ -1,16 +1,16 @@
 {% extends 'base.html' %}
-{% block title %}Flow Teams · equipo y pagos{% endblock %}
-{% block header %}Flow Teams{% endblock %}
+{% block title %}Teams{% endblock %}
+{% block header %}Teams{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='teams.css') }}">
 <section class="ft sn-page-wide">
   <header class="ft-heading ft-owner-hero">
-    <div><p class="ft-eyebrow">FLOW TEAMS <span class="ft-local-badge">{{ "Propuesta local" if config.FLOW_TEAMS_LOCAL else "Equipo y pagos" }}</span></p><h1>{{ selected.nombre if selected else 'Flow Teams' }}</h1>
+    <div><p class="ft-eyebrow">TEAMS <span class="ft-local-badge">{{ "Propuesta local" if config.FLOW_TEAMS_LOCAL else "Equipo y pagos" }}</span></p><h1>{{ selected.nombre if selected else 'Teams' }}</h1>
       <p class="ft-hero-meta">{{ selected.boda_date|teams_date if selected else 'Equipo, coberturas y pagos' }}{% if selected %} · {{ selected.location }}{% else %} · Control interno{% endif %}</p></div>
     <div class="ft-actions"><nav class="ft-workspace-switch" aria-label="Área de trabajo"><a href="{{ '/jobs/' ~ selected.id if selected else '/dashboard' }}">CRM</a><a href="/teams" aria-current="page">Teams</a></nav>
       {% if config.FLOW_TEAMS_LOCAL %}<details class="ft-brand"><summary class="sn-btn">{{ current_tenant.name }} ▾</summary>{% for b in switches %}<a href="{{ url_for('dev_login',tenant=b.internal_tenant_id,next='/teams') }}">{{ b.display_name }}</a>{% endfor %}</details>{% else %}<span class="ft-pill">{{ current_tenant.name }}</span>{% endif %}</div>
   </header>
-  <nav class="ft-nav" aria-label="Flow Teams">
+  <nav class="ft-nav" aria-label="Teams">
     {% for key,label in [('jobs','Bodas'),('calendar','Calendario'),('payments','Pagos'),('communications','Comunicaciones'),('members','Miembros'),('settings','Configuración')] %}
     <a href="{{ '/teams' if key == 'dashboard' else '/teams/' ~ key }}" class="{{ 'ft-nav-admin' if key == 'members' else '' }}" {% if section == key or (section == 'detail' and key == 'jobs') %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="{{ {'dashboard':'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z','jobs':'M7 5V3m10 2V3M3 9h18M4 5h16v16H4z M8 13h3m-3 4h7','calendar':'M7 5V3m10 2V3M3 9h18M4 5h16v16H4z M8 13h1m6 0h1m-8 4h1m6 0h1','payments':'M3 6h18v14H3z M3 10h18m-5 6h2','communications':'M4 4h16v12H9l-5 4z M8 8h8m-8 4h5','members':'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75M12 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0','settings':'M4 7h16M4 17h16M8 4v6m8 4v6'}.get(key,'') }}"/></svg><span>{{ label }}</span></a>
     {% endfor %}
@@ -29,15 +29,15 @@
   {% if incomplete %}<p class="ft-warning">Estimación incompleta: revisa los costos y la base comercial. Las bodas sin operación configurada no equivalen a costo cero.</p>{% endif %}
   {% endmacro %}
   {% if section in ['dashboard','jobs'] %}
-  <form class="ft-filter" method="get"><label>Año de los eventos <input type="number" name="year" min="2000" max="2100" value="{{ year }}" placeholder="Todos"></label><button class="sn-btn">Filtrar</button><a href="{{ request.path }}">Ver todos</a></form>
+  <form class="ft-filter" method="get"><label>Año de los eventos <input type="number" name="year" min="2000" max="2100" value="{{ year }}" placeholder="Todos"></label><button class="sn-btn">Filtrar</button><a href="{{ request.path }}">Ver todos los activos</a></form>
   {{ metrics(totals.income,totals.cost_total,totals.pending,totals.margin,totals.percent,totals.incomplete,totals.margin_events > 0) }}
   <p class="ft-muted">Margen parcial de {{ totals.margin_events }} de {{ jobs|length }} bodas: referencia {{ totals.margin_income|teams_money }}. Se excluyen eventos sin costos configurados, sin ingreso o cancelados.</p>
 
-  <div class="ft-panel"><div class="ft-section-title"><h2>Bodas · por fecha del evento</h2><span class="ft-muted">Mismo ID que CRM</span></div>
+  <div class="ft-panel"><div class="ft-section-title"><h2>Bodas activas · por fecha del evento</h2><span class="ft-muted">Mismo ID que CRM</span></div>
     <label class="ft-search">Buscar boda <input type="search" data-search="jobs" placeholder="Nombre o lugar"></label>
     <div class="ft-table stack-mobile"><table data-search-table="jobs"><thead><tr><th>Boda</th><th>Equipo</th><th>Costo previsto</th><th>Por pagar</th><th>Margen estimado</th></tr></thead><tbody>
     {% for j in jobs|sort(attribute='boda_date') %}<tr><td data-label="Boda"><a href="{{ url_for('teams.page',job_id=j.id) }}">{{ j.nombre }}</a><small>{{ j.boda_date|teams_date }} · {{ j.location }}</small></td><td data-label="Equipo">{{ j.assignments|length }} asignaciones<small>{{ j.assignments|selectattr('status','equalto','realizada')|list|length }} realizadas</small></td><td data-label="Costo previsto">{{ j.cost_total|teams_money if j.assignments or j.cost_total else 'Sin configurar' }}</td><td data-label="Por pagar">{{ j.pending|teams_money }}</td><td data-label="Margen estimado">{{ j.margin|teams_money if j.income and (j.assignments or j.cost_total) else 'Sin base suficiente' }}<small>{{ 'Estimación incompleta' if j.incomplete else 'Costos revisados · estimación' }}</small></td></tr>
-    {% else %}<tr><td colspan="5">No hay bodas en este período. Los eventos del CRM aparecerán sin duplicarlos.</td></tr>{% endfor %}</tbody></table></div></div>
+    {% else %}<tr><td colspan="5">No hay eventos activos en este período.</td></tr>{% endfor %}</tbody></table></div></div>
   {% elif section == 'members' %}
   <div class="ft-section-title"><div><h2>Directorio del equipo</h2><p class="ft-muted">Los roles describen el trabajo. No conceden acceso a finanzas.</p></div></div>
   <details class="ft-panel"><summary>+ Añadir miembro</summary><form data-command="member" class="ft-form">
@@ -59,7 +59,7 @@
   <div class="ft-two"><article class="ft-panel"><h2>Propuesta funcional en esta computadora</h2><p>Equipo, costos y pagos; portal individual; aceptación de condiciones; documentos privados con versiones y lectura; bandeja de avisos y tareas; fondos para gastos y liquidación; cuotas, gastos compartidos y cierre con corte.</p><a href="/teams/jobs">Abrir una boda ↗</a></article><article class="ft-panel"><h2>Alcance de esta versión</h2><p>{{ "El laboratorio usa escenarios sintéticos y sesiones locales." if config.FLOW_TEAMS_LOCAL else "Teams utiliza las bodas existentes de esta marca y el acceso del propietario del CRM." }}</p><p>Las publicaciones aparecen en el portal individual. Correo, WhatsApp y sincronización de Google Calendar siguen desactivados; las pruebas de avisos no se envían.</p></article></div>
   <div class="ft-panel"><h2>Cómo probar el portal</h2><p>1. En una boda, comparte una cobertura en el portal.</p><p>2. Pulsa “Ver su portal” para revisar la vista individual de prueba.</p><p>3. Responde a la cobertura, publica un documento y confirma su lectura.</p><p>Los avisos quedan en Comunicaciones para aprobar y simular. No se envían a nadie.</p></div>
   {% endif %}
-  <footer class="ft-footer">Flow Teams · {{ "Laboratorio local · bodas de prueba" if config.FLOW_TEAMS_LOCAL else "Operación del equipo" }} · Envío de avisos desactivado · <a href="/teams/roadmap">Ver alcance de la propuesta</a></footer>
+  <footer class="ft-footer">Teams · {{ "Laboratorio local · bodas de prueba" if config.FLOW_TEAMS_LOCAL else "Operación del equipo" }} · Envío de avisos desactivado · <a href="/teams/roadmap">Ver alcance de la propuesta</a></footer>
 </section>
 <script>window.flowTeamsCSRF = {{ csrf|tojson }};</script>
 <script src="{{ url_for('static',filename='teams.js') }}" defer></script>

@@ -3235,7 +3235,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       <span>Dashboard</span>
     </a>
     {% if config.FLOW_TEAMS_LOCAL or config.FLOW_TEAMS_ENABLED %}
-    <a href="/teams" class="sidebar-item" data-nav="/teams"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/></svg><span>Teams · Equipo</span></a>
+    <a href="/teams" class="sidebar-item" data-nav="/teams"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/></svg><span>Teams</span></a>
     {% endif %}
     <a href="/leads" class="sidebar-item" data-nav="/leads">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 6v6l4 2"/></svg>
@@ -3496,7 +3496,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     </a>
     <a class="more-sheet-item" href="{{ '/teams' if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL else '/equipo' }}" data-nav="{{ '/teams' if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL else '/equipo' }}">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span>{{ 'Teams · Equipo' if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL else 'Equipo' }}</span>
+      <span>{{ 'Teams' if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL else 'Equipo' }}</span>
     </a>
   </div>
   <div class="more-sheet-list">

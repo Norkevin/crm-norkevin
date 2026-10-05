@@ -395,7 +395,7 @@ def teams_date(value):
     return result
 
 
-def register_teams(app, crm_store, canonical_jobs, financial_summary):
+def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_active):
     """Owner-only extension; production data stays on the CRM persistent disk."""
     data_dir = Path(crm_store.data_dir)
     database = TeamsStore((data_dir.parent if app.config.get('FLOW_TEAMS_LOCAL') else data_dir) / 'teams.sqlite3')
@@ -444,7 +444,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary):
         commercial = financial_summary(job, [p for p in crm_store.list('payments') if p.get('job_id') == identifier and p.get('tipo') != 'team_payment'])
         return dict(job, reference_income_cents=cents(commercial['total'], imported=True))
 
-    def snapshot(year=None):
+    def snapshot(year=None, *, active_only=False):
         tenant = session['tenant_id']
         jobs = canonical_jobs()
         with database.transaction() as db:
@@ -496,7 +496,9 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary):
                 and datetime.fromisoformat(other['start']) - timedelta(minutes=other['buffer']) < datetime.fromisoformat(a['end']) + timedelta(minutes=a['buffer'])]
         billable = [p for p in crm_store.list('payments') if p.get('tipo') != 'team_payment']
         for j in jobs:
-            commercial = financial_summary(j, [p for p in billable if p.get('job_id') == j['id']])
+            job_payments = [p for p in billable if p.get('job_id') == j['id']]
+            j['es_activo'] = job_is_active(j, job_payments)
+            commercial = financial_summary(j, job_payments)
             j['income'] = cents(commercial['total'], imported=True)
             j['collected'] = cents(commercial['pagado'], imported=True)
             jcosts = [c for c in costs if c['job_id'] == j['id']]
@@ -527,7 +529,8 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary):
             m['paid'] = sum(c['paid'] for c in own)
             m['jobs_count'] = len({a['job_id'] for a in assignments if a['member_id'] == m['id'] and a['status'] not in ('cancelada','rechazada')})
             m['access_version'] = m.get('access_version', 1)
-        visible_jobs = [j for j in jobs if not year or str(j.get('boda_date', '')).startswith(year + '-')]
+        visible_jobs = [j for j in jobs if (not active_only or j['es_activo'])
+                        and (not year or str(j.get('boda_date', '')).startswith(year + '-'))]
         visible_payments = [p for p in payments if not year or p['effective_date'].startswith(year + '-')]
         totals = {key: sum(j[key] for j in visible_jobs) for key in ('income', 'cost_total', 'margin', 'pending', 'paid')}
         totals['cash_out'] = sum(p['amount'] * p['sign'] for p in visible_payments)
@@ -627,7 +630,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary):
         if section == 'dashboard':
             section = 'jobs'
         # Job pages always resolve against the complete authorized set, independently of report filters.
-        data = snapshot(None if job_id else year)
+        data = snapshot(None if job_id else year, active_only=section == 'jobs' and not job_id)
         selected = None
         if job_id:
             read_job(job_id)

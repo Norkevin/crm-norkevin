@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}Ficha privada · Flow Teams{% endblock %}
+{% block title %}Ficha privada · Teams{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static',filename='teams.css') }}">
 <section class="ft sn-page-wide">
-<header class="ft-heading ft-owner-hero"><div><p class="ft-eyebrow">FLOW TEAMS · ADMINISTRACIÓN</p><h1>{{ member.name }}</h1><p class="ft-hero-meta">Ficha privada{% if member.source %} · {{ member.source }}{% endif %}</p></div><a class="sn-btn" href="/teams/members">← Volver a miembros</a></header>
+<header class="ft-heading ft-owner-hero"><div><p class="ft-eyebrow">TEAMS · ADMINISTRACIÓN</p><h1>{{ member.name }}</h1><p class="ft-hero-meta">Ficha privada{% if member.source %} · {{ member.source }}{% endif %}</p></div><a class="sn-btn" href="/teams/members">← Volver a miembros</a></header>
 <p id="ft-feedback" role="alert" hidden></p>
 <div class="ft-panel"><p class="ft-eyebrow">DATOS OPERATIVOS</p><h2>Contacto y habilidades</h2><p>{{ member.phone or 'Teléfono pendiente' }} · {{ member.email or 'Correo pendiente' }}</p><p>{{ (member.skills or [])|join(' · ') }}</p><p>{{ member.instagram or 'Instagram pendiente' }}</p>{% if member.review_name %}<p class="ft-warning">Hay otro registro con este nombre en el archivo original. Se conservan separados hasta revisar su identidad.</p>{% endif %}<a href="/teams/members">Editar contacto desde Miembros ↗</a></div>
 <div class="ft-panel"><p class="ft-eyebrow">SOLO ADMINISTRACIÓN</p><h2>Banco, cuenta e identificación</h2><p class="ft-muted">Esta ficha no aparece en el portal ni en los documentos del equipo.{% if profile.source_id %} Los datos privados pertenecen al mismo registro de origen compartido por Astral y Norkevin.{% endif %}</p>

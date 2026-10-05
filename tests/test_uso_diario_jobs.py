@@ -272,7 +272,7 @@ def test_la_vista_de_jobs_ordena_y_muestra_todos_los_clientes(auth_client, tenan
     html = resp.get_data(as_text=True)
     assert a['first_name'] in html
     assert b['first_name'] in html, 'el segundo cliente no aparece en la lista'
-    assert 'value="relevancia"' in html, 'falta el orden por defecto en el selector'
+    assert 'value="date_asc" selected' in html, 'Fecha más cercana debe ser el orden inicial'
 
 
 # ============================================================

@@ -103,7 +103,7 @@
         <option value="relevancia">Más relevantes</option>
         <option value="created_desc">Más nuevos</option>
         <option value="created_asc">Más antiguos</option>
-        <option value="date_asc">Fecha más cercana</option>
+        <option value="date_asc" selected>Fecha más cercana</option>
         <option value="date_desc">Fecha más lejana</option>
       </select>
       <button type="button" id="job-date-toggle" aria-label="Filtrar por fecha" class="sn-btn job-date-toggle" aria-expanded="false" aria-controls="job-date-range" onclick="toggleJobDateFilter()">
@@ -360,24 +360,14 @@ function renderJobsRows() {
     return statusOk && searchOk && dateOk;
   });
 
-  // Kevin: "actualmente los Jobs aparecen ordenados del mas antiguo al mas
-  // nuevo, y no existe ninguna opcion para cambiar ese orden". El orden que
-  // manda el servidor (jobs_list(), mas cercano primero por dias_restantes)
-  // sigue siendo el default visual ("Proximos eventos primero"), pero ahora
-  // se puede reordenar sin recargar la pagina.
+  // Default: nearest event date. Other orders remain available.
   var dateCmp = function(a, b) { return (a.getAttribute('data-date') || '').localeCompare(b.getAttribute('data-date') || ''); };
   var createdCmp = function(a, b) { return (a.getAttribute('data-created') || '').localeCompare(b.getAttribute('data-created') || ''); };
   if (sortBy === 'created_desc') matched.sort(function(a, b) { return createdCmp(b, a); });
   else if (sortBy === 'created_asc') matched.sort(createdCmp);
   else if (sortBy === 'date_asc') matched.sort(dateCmp);
   else if (sortBy === 'date_desc') matched.sort(function(a, b) { return dateCmp(b, a); });
-  // 'relevancia' (el default) deja EXACTAMENTE el orden que ya trae el
-  // servidor desde _job_orden_relevancia(): eventos futuros primero (el
-  // mas proximo arriba), despues los ya ocurridos (el mas reciente
-  // arriba), y al final los que no tienen fecha. No se reordena en JS
-  // para que servidor e interfaz no puedan discrepar. Antes el <select>
-  // arrancaba en 'date_asc' mientras el servidor ordenaba de otra forma:
-  // lo que se veia al abrir la pagina no correspondia a ninguna opcion.
+  // Relevance preserves the current server order.
 
   var totalPages = Math.max(1, Math.ceil(matched.length / JOBS_PAGE_SIZE));
   if (jobsPage > totalPages) jobsPage = totalPages;

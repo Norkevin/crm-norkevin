@@ -72,7 +72,7 @@ def main():
     import app as crm
     from src.teams import register_teams
     crm.app.config['FLOW_TEAMS_LOCAL'] = True
-    register_teams(crm.app, crm.store, crm._canonical_jobs, crm._job_payment_summary)
+    register_teams(crm.app, crm.store, crm._canonical_jobs, crm._job_payment_summary, crm._job_is_active)
     database = crm.app.extensions['teams']
     for brand in brands:
         with crm.app.test_request_context('/'):

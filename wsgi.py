@@ -1,6 +1,6 @@
 """Entry point para producción con gunicorn."""
 import os
-from app import app, store, _canonical_jobs, _job_payment_summary
+from app import app, store, _canonical_jobs, _job_payment_summary, _job_is_active
 
 # No seeds or development login in production. Existing CRM jobs keep their IDs.
 if (os.environ.get('FLOW_TEAMS_ENABLED', '1') == '1'
@@ -9,7 +9,7 @@ if (os.environ.get('FLOW_TEAMS_ENABLED', '1') == '1'
     from src.teams import register_teams
     app.config.update(FLOW_TEAMS_ENABLED=True, SESSION_COOKIE_SECURE=True,
                       SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax')
-    register_teams(app, store, _canonical_jobs, _job_payment_summary)
+    register_teams(app, store, _canonical_jobs, _job_payment_summary, _job_is_active)
 
 if __name__ == '__main__':
     import os

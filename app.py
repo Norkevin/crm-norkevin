@@ -4340,6 +4340,14 @@ ESTADOS_JOB_ACTIVOS = {'proxima', 'hoy', 'por_cobrar', 'por_cerrar', 'sin_fecha'
 ESTADOS_JOB_COMPLETOS = {'completada'}
 
 
+def _job_is_active(job, job_payments=None):
+    """Share the Jobs active state with Teams, including workflow completion."""
+    if 'workflow_progress' not in job:
+        _, progress, _ = compute_workflow_steps_for_job(job, tenant_id=job.get('tenant_id'))
+        job = dict(job, workflow_progress=progress)
+    return _job_estado_label(job, job_payments)[2] in ESTADOS_JOB_ACTIVOS
+
+
 # Roles de cliente que un job puede tener hoy. El orden importa: es el
 # orden en que se muestran y en que se arma el To: de un correo.
 ROLES_CLIENTE_JOB = (

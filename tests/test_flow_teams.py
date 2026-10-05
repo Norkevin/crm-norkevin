@@ -249,7 +249,7 @@ def web(flask_app, tmp_path):
                                        amount=10000, paid_amount=10000, original_amount=20000))
     application.context_processor(lambda: dict(current_tenant=dict(name='Marca de prueba')))
     application.add_url_rule('/dev/login', endpoint='dev_login', view_func=lambda: 'local login')
-    register_teams(application, storage, lambda: storage.list('jobs'), crm._job_payment_summary)
+    register_teams(application, storage, lambda: storage.list('jobs'), crm._job_payment_summary, crm._job_is_active)
     client = application.test_client()
     with client.session_transaction() as s:
         s.update(logged_in=True, tenant_id='brand-a', user_email='owner@example.invalid', teams_csrf='csrf')
@@ -896,7 +896,7 @@ def test_production_uses_persistent_directory_and_never_seeds_crm(web):
     production.secret_key = 'isolated-production-test'
     production.config['FLOW_TEAMS_ENABLED'] = True
     before = list(Path(storage.data_dir).glob('*.json'))
-    register_teams(production, storage, lambda: [], lambda *_: {})
+    register_teams(production, storage, lambda: [], lambda *_: {}, lambda *_: True)
     database = production.extensions['teams']
     assert Path(database.path) == Path(storage.data_dir) / 'teams.sqlite3'
     assert Path(database.path).stat().st_mode & 0o777 == 0o600
@@ -937,7 +937,7 @@ def test_single_bodas_navigation_and_calendar_explains_buffer(web):
     for path in ('/teams', '/teams/jobs', '/teams/dashboard'):
         html = owner.get(path).data.decode()
         assert '>Resumen<' not in html and '>Bodas<' in html
-        assert 'Bodas · por fecha del evento' in html
+        assert 'Bodas activas · por fecha del evento' in html
     calendar = owner.get('/teams/calendar').data.decode()
     assert 'Margen libre:' in calendar and 'No calcula cuánto tarda el viaje.' in calendar
     assert 'Aún no invitado' in calendar and 'Traslado:' not in calendar
@@ -1015,3 +1015,52 @@ def test_production_member_uses_own_code_not_owner_session(web):
         action='response', key='real-member', id=a['id'], version=a['version'], terms_version=a['terms_version'], status='aceptada'))
     assert response.status_code == 200
     assert records(store, 'assignment')[0]['status'] == 'aceptada'
+
+
+@pytest.mark.parametrize('tenant', ['brand-a', 'brand-b'])
+def test_bodas_overview_uses_active_crm_state_and_totals_without_removing_history(web, tenant):
+    from datetime import date, timedelta
+    from flask import session, template_rendered
+    application, owner, storage = web
+    with owner.session_transaction() as state:
+        state.update(tenant_id=tenant, user_email='owner@example.invalid' if tenant == 'brand-a' else 'other@example.invalid')
+    today = date.today()
+    cases = [
+        ('upcoming-active', today + timedelta(days=10), 'Confirmado', []),
+        ('completed-old', today - timedelta(days=1000), 'Listo', []),
+        ('completed-workflow', today - timedelta(days=100), 'En curso', [{'id':'done', 'name':'Final', 'status':'done'}]),
+        ('cancelled-future', today + timedelta(days=5), 'Cancelado', []),
+        ('archived-future', today + timedelta(days=6), 'Archivado', []),
+        ('no-date-active', None, 'En curso', []),
+    ]
+    with application.test_request_context('/'):
+        session['tenant_id'] = tenant
+        for identifier, event_day, status, workflow in cases:
+            job = dict(id=identifier, tenant_id=tenant, nombre=identifier, status=status,
+                       boda_date=event_day.isoformat() if event_day else '', price_total=12300)
+            if workflow:
+                job['studio_ninja_workflow'] = workflow
+            storage.upsert('jobs', job)
+    captured = []
+    def capture(sender, template, context, **extra):
+        captured.append(context)
+    template_rendered.connect(capture, application)
+    try:
+        for path in ('/teams', '/teams/jobs', '/teams/dashboard', '/teams/jobs?year='+str(today.year)):
+            response = owner.get(path)
+            assert response.status_code == 200
+            html = response.data.decode()
+            assert 'upcoming-active' in html
+            for identifier in ('completed-old', 'completed-workflow', 'cancelled-future', 'archived-future'):
+                assert identifier not in html
+            context = captured[-1]
+            assert all(job['es_activo'] for job in context['jobs'])
+            assert context['totals']['income'] == sum(job['income'] for job in context['jobs'])
+            assert 'No hay eventos activos' not in html
+        assert owner.get('/teams/jobs/completed-old').status_code == 200
+        summary = owner.get('/api/teams/summary').get_json()
+        assert any(job['id'] == 'completed-old' for job in summary['jobs'])
+        assert owner.get('/teams/jobs?year=2000').status_code == 200
+        assert not captured[-1]['jobs']
+    finally:
+        template_rendered.disconnect(capture, application)
