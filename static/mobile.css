@@ -68,3 +68,19 @@
 @media (max-width: 760px) and (display-mode: standalone) {
   body { height: 100vh; }
 }
+/* Only the working area dissolves; the app chrome stays in place. */
+@media (max-width: 760px) {
+  @view-transition { navigation: auto; }
+  .app-header { view-transition-name: flow-header; }
+  .bottom-nav { view-transition-name: flow-navigation; }
+  .main-content { view-transition-name: flow-content; }
+  ::view-transition-group(*) { animation-duration: 140ms; animation-timing-function: cubic-bezier(.16,1,.3,1); }
+  ::view-transition-old(root), ::view-transition-new(root),
+  ::view-transition-group(flow-header), ::view-transition-group(flow-navigation),
+  ::view-transition-old(flow-header), ::view-transition-new(flow-header),
+  ::view-transition-old(flow-navigation), ::view-transition-new(flow-navigation) { animation: none; }
+  .bottom-nav-item.is-pending { background: var(--sn-mint-soft); color: var(--sn-accent-text); }
+}
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}

@@ -1,0 +1,4 @@
+/* Build: npx --yes tailwindcss@3.4.17 -c tools/tailwind.config.cjs -i tools/tailwind-input.css -o static/tailwind.css --minify */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
