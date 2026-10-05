@@ -1,10 +1,8 @@
-/* Client surfaces share craft, while document colors remain tenant-owned. */
-@font-face{font-family:Manrope;src:url('fonts/manrope-variable.ttf') format('truetype');font-weight:200 800;font-style:normal;font-display:swap}
-@font-face{font-family:"Cormorant Garamond";src:url('fonts/cormorant-garamond-variable.ttf') format('truetype');font-weight:300 700;font-style:normal;font-display:swap}
+/* Client surfaces keep tenant-owned document colors. Shared layout and type use Flow tokens. */
 body.flow-client{--flow-font:Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--font-sans:var(--flow-font);--doc-font:var(--flow-font);font-family:var(--flow-font);-webkit-font-smoothing:antialiased}
-.flow-client :is(button,input,select,textarea){font-family:var(--flow-font);caret-color:var(--primary,var(--portal-primary,#365c60))}
-.flow-client ::selection{background:#e2ece7;color:#202d32}
-.flow-client :is(a,button,input,select,textarea,summary):focus-visible{outline:2px solid var(--primary,var(--portal-primary,#365c60));outline-offset:3px}
+.flow-client :is(button,input,select,textarea){font-family:var(--flow-font);caret-color:var(--primary,var(--portal-primary,var(--flow-blue)))}
+.flow-client ::selection{background:var(--flow-blue-soft);color:var(--flow-ink)}
+.flow-client :is(a,button,input,select,textarea,summary):focus-visible{outline:2px solid var(--primary,var(--portal-primary,var(--flow-blue)));outline-offset:3px}
 .flow-client :is(.amount,.opt-price,.meta-value,.summary-card__value,.portal-countdown-num,.portal-payment-details){font-variant-numeric:tabular-nums}
 .flow-client :is(.experience-eyebrow,.hero-card__eyebrow,.eyebrow){display:none}
 .flow-client :is(.card,.opt,.summary-card,.doc-card,.form-card){border-radius:12px;box-shadow:none}
@@ -32,101 +30,105 @@ body.flow-client{--flow-font:Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI"
 .flow-client .q-details{border:0;border-radius:8px}
 .flow-client .term__body{font-size:14px;line-height:1.8;max-width:75ch}
 .flow-client .term__title{font-size:15px;font-weight:600}
-.flow-client.quote-editor{--doc-paper:#f5f5f1;--doc-ink:#202d32;--doc-accent:#365c60;--doc-line:#dfe4e2}
+.flow-client.quote-editor{--doc-paper:var(--flow-canvas);--doc-ink:var(--flow-ink);--doc-accent:var(--flow-blue);--doc-line:var(--flow-line)}
 .flow-client.quote-editor .doc-sidebar{box-shadow:none;border-right:1px solid var(--doc-line)}
 .flow-client.quote-editor .doc-card{border:1px solid var(--doc-line);box-shadow:none}
 .flow-client .doc-shell{border:1px solid var(--doc-line);border-radius:12px;box-shadow:none}
 .flow-client .doc-side{background:var(--doc-brand);border-radius:0}
 .flow-client .doc-side::before,.flow-client .doc-side::after{display:none}
-/* The client's event is the title, documents are the working surface. */
-.flow-client.portal-client{--portal-primary:#365c60;--portal-primary-dark:#28484c;--portal-tint:#e2ece7;--portal-ink:#202d32;--portal-muted:#5e6c72;--portal-line:#d9dfda;background:#f7f6f1;color:var(--portal-ink);font-size:14px}
-.portal-client .portal-header{background:#f7f6f1;border-bottom-color:var(--portal-line);padding-block:20px}
-.portal-client .portal-brand-mark{border:1px solid var(--portal-line);background:transparent;border-radius:50%;color:var(--portal-ink);font-family:"Cormorant Garamond",serif;font-size:24px;font-weight:600}
+/* Portal composition: clear event identity, next action, then documents and payments. */
+.flow-client.portal-client{background:var(--flow-canvas);font-size:14px;color:var(--portal-ink)}
+.portal-client .portal-header{background:#fff;padding-block:18px}
+.portal-client .portal-brand-mark{border-radius:10px;font-family:var(--flow-font);background:var(--portal-tint);color:var(--portal-primary);font-size:18px}
 .portal-client .portal-brand-caption{font-size:12px}
-.portal-client .portal-header-exit{border:0;border-radius:0;padding:0;text-decoration:underline;text-underline-offset:5px;color:var(--portal-ink)}
-.portal-client .portal-shell{max-width:1248px;padding:44px 28px 64px}
-.portal-client .portal-hero{background:transparent;border:0;border-radius:0;padding:0 0 30px}
-.portal-client .portal-hero-top{align-items:flex-start;gap:32px}
-.portal-client .portal-hero-greeting{font-family:"Cormorant Garamond",serif;font-size:54px;font-weight:500;letter-spacing:-.025em;margin:0 0 12px;line-height:1.08}
+.portal-client .portal-shell{max-width:1248px;padding:36px 28px 56px}
+.portal-client .portal-hero{background:#fff;border:1px solid var(--portal-line);border-radius:14px;padding:28px 30px}
+.portal-client .portal-hero-top{align-items:center;gap:28px}
+.portal-client .portal-hero-greeting{font-family:var(--flow-font);font-size:32px;font-weight:700;letter-spacing:-.03em;margin:0 0 10px;line-height:1.3}
 .portal-client .portal-hero-sub{font-size:14px;line-height:1.7;max-width:55ch}
-.portal-client .portal-countdown{background:transparent;border:0;border-left:1px solid var(--portal-line);border-radius:0;padding:4px 0 4px 32px;gap:16px}
-.portal-client .portal-countdown-num{font-family:"Cormorant Garamond",serif;font-size:52px;font-weight:500;letter-spacing:-.02em;color:var(--portal-ink)}
-.portal-client .portal-countdown-label{font-size:12px;line-height:1.6;color:var(--portal-muted)}
-.portal-client .portal-hero-meta{margin-top:30px;padding-top:22px;gap:18px 32px}
-.portal-client .portal-hero-meta-item{font-size:13px;color:var(--portal-ink)}
-.portal-client .portal-journey{margin-top:28px;max-width:560px}
-.portal-client .portal-journey-dot{background:#f7f6f1;border-color:#b9c6bd}
+.portal-client .portal-countdown{background:var(--flow-surface-soft);border:0;border-radius:10px;padding:16px 20px;gap:14px}
+.portal-client .portal-countdown-num{font-family:var(--flow-font);font-size:34px;font-weight:700;letter-spacing:-.03em;color:var(--portal-ink)}
+.portal-client .portal-countdown-label{font-size:13px;line-height:1.5}
+.portal-client .portal-hero-meta{margin-top:24px;padding-top:20px;gap:16px 28px}
+.portal-client .portal-hero-meta-item{font-size:14px;color:var(--portal-ink)}
+.portal-client .portal-journey{margin-top:24px;max-width:640px}
+.portal-client .portal-journey-dot{width:30px;height:30px;font-size:12px;background:#fff;border-color:var(--portal-line)}
+.portal-client .portal-journey-line{top:15px;left:38px}
 .portal-client .portal-journey-step.done .portal-journey-dot{background:var(--portal-primary);color:#fff;border-color:var(--portal-primary)}
-.portal-client .portal-journey-label{font-size:12px}
-.portal-client .portal-next-step{background:#e8eee8;border:1px solid #cfdacf;border-radius:10px;padding:22px 24px;margin-top:0;gap:24px}
-.portal-client .portal-next-step h2{margin:0;font-size:18px;font-weight:600;letter-spacing:-.02em}
-.portal-client .portal-next-copy>p{color:var(--portal-muted);font-size:13px}
-.portal-client .portal-next-job{font-size:12px;color:var(--portal-muted);margin-top:8px}
-.portal-client .portal-content{margin-top:36px;gap:36px}
-.portal-client .portal-content.has-payments{grid-template-columns:minmax(0,1fr) 280px}
-.portal-client .portal-documents-heading h2,.portal-client .portal-card-title{font-size:19px;letter-spacing:-.02em;font-weight:600}
-.portal-client .portal-documents-heading p{font-size:13px;line-height:1.6}
-.portal-client .portal-nav-strip{padding:0;gap:14px;border-radius:0;margin-bottom:24px}
-.portal-client .portal-nav-pill{padding:12px 0;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;font-size:12px;gap:7px}
+.portal-client .portal-journey-label{font-size:13px}
+.portal-client .portal-next-step{background:#fff;border:1px solid var(--portal-line);border-radius:12px;padding:22px 26px;margin-top:20px;gap:24px}
+.portal-client .portal-next-step h2{margin:0;font-size:19px;font-weight:650;letter-spacing:-.02em}
+.portal-client .portal-next-copy>p,.portal-client .portal-next-job{font-size:13px;color:var(--portal-muted)}
+.portal-client .portal-booking-checks{font-size:13px}
+.portal-client .portal-content{margin-top:28px;gap:24px}
+.portal-client .portal-content.has-payments{grid-template-columns:minmax(0,1fr) 300px}
+.portal-client .portal-documents-heading h2,.portal-client .portal-card-title{font-size:20px;letter-spacing:-.02em;font-weight:650}
+.portal-client .portal-documents-heading p{font-size:14px;line-height:1.6}
+.portal-client .portal-nav-strip{padding:0;gap:20px;border-radius:0;margin-bottom:20px}
+.portal-client .portal-nav-pill{padding:12px 0;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;font-size:13px;gap:7px}
 .portal-client .portal-nav-pill.active{background:transparent;color:var(--portal-primary-dark);border-bottom-color:var(--portal-primary)}
-.portal-client .portal-nav-pill .count{background:transparent;border:1px solid var(--portal-line);border-radius:4px;font-size:10px;min-width:18px}
+.portal-client .portal-nav-pill .count{background:var(--flow-surface-soft);border-radius:5px;font-size:11px;min-width:20px}
 .portal-client .portal-nav-pill:hover{background:transparent;color:var(--portal-primary)}
 .portal-client .portal-section{background:#fff;border:1px solid var(--portal-line);border-radius:12px;padding:24px}
-.portal-client .portal-section-head .portal-nav-icon{background:transparent;border-radius:0;width:auto;height:auto}
+.portal-client .portal-section-head .portal-nav-icon{background:transparent;width:auto;height:auto}
 .portal-client .portal-section-head{padding-bottom:18px;border-bottom:1px solid var(--portal-line);margin-bottom:0}
-.portal-client .portal-section-head h2{font-size:15px;font-weight:600}
-.portal-client .portal-item{background:transparent;border:0;border-bottom:1px solid var(--portal-line);border-radius:0;padding:24px 0}
+.portal-client .portal-section-head h2{font-size:16px;font-weight:650}
+.portal-client .portal-item{background:transparent;border:0;border-bottom:1px solid var(--portal-line);border-radius:0;padding:20px 0}
 .portal-client .portal-item:last-child{border-bottom:0;padding-bottom:0}
-.portal-client .portal-item .text-lg{font-size:22px}
-.portal-client .portal-action-group{border:0;padding-top:8px;gap:10px}
-.portal-client .portal-action{font-size:13px;font-weight:600;border-radius:7px;min-height:44px;border-color:#bdcac1}
+.portal-client .portal-item .text-lg{font-size:24px;font-weight:650}
+.portal-client .portal-action-group{border:0;padding-top:4px;gap:10px}
+.portal-client .portal-action{font-size:14px;font-weight:600;border-radius:8px;min-height:44px;border-color:var(--portal-line)}
 .portal-client .portal-action.primary{border-color:var(--portal-primary)}
 .portal-client .portal-payment-card{background:#fff;border:1px solid var(--portal-line);border-radius:12px;padding:24px;position:sticky;top:24px}
-.portal-client .portal-payment-details .text-2xl{font-size:29px;letter-spacing:-.025em}
-.portal-client .portal-progress-track{height:4px;border-radius:0}
-.portal-client .portal-progress-fill{border-radius:0}
-.portal-client .portal-badge{font-size:11px;border-radius:4px}
+.portal-client .portal-payment-details .text-2xl{font-size:30px;font-weight:700;letter-spacing:-.025em}
+.portal-client .portal-progress-track{height:6px;border-radius:4px;background:var(--flow-surface-soft)}
+.portal-client .portal-progress-fill{border-radius:4px}
+.portal-client .portal-badge{font-size:12px;border-radius:5px}
 .portal-client #modal-sign>div{max-height:calc(100dvh - 32px);overflow-y:auto;border-radius:12px;overscroll-behavior:contain}
 /* Public intake remains a form, with visible labels and a quiet canvas. */
-.flow-client.flow-intake{background:#f7f6f1}
+.flow-client.flow-intake{background:var(--flow-canvas)}
 .flow-intake .form-card{border-radius:12px;box-shadow:none}
-.flow-intake .field{border:1px solid #cad2cc;background:#fff;border-radius:8px;min-height:46px;color:#202d32}
-.flow-intake :is(input,textarea)::placeholder{color:#64726b;opacity:1}
-.flow-intake .btn-primary{background:#365c60;border-radius:8px;min-height:46px}
-.flow-intake .btn-primary:hover:not(:disabled){background:#28484c;transform:none;box-shadow:none}
+.flow-intake .field{border:1px solid var(--flow-line-strong);background:#fff;border-radius:8px;min-height:46px;color:var(--flow-ink)}
+.flow-intake :is(input,textarea)::placeholder{color:var(--flow-muted);opacity:1}
 .flow-intake .masthead{box-shadow:none}
-/* Entry screen: a studio sign and one clear sign-in task. */
-body.flow-login{margin:0;background:#f5f5f1;color:#202d32;overflow:auto;font-family:var(--flow-font)}
-.flow-login::before,.flow-login::after{display:none}
-.flow-login .login-stars,.flow-login>svg{display:none}
-.flow-login .login-shell{position:relative;min-height:100dvh;max-width:none;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:0;padding:0}
-.flow-login .login-hero{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:64px max(40px,10vw);background:#20353a;color:#edf5f1;border:0}
-.flow-login .login-hero-logo{width:160px;height:auto;margin-bottom:60px}
-.flow-login .login-hero-title{font-size:44px;font-weight:600;letter-spacing:-.035em;line-height:1.15;margin:0 0 24px}
-.flow-login .login-hero-tag{font-size:15px;line-height:1.8;color:#c5d3d4;max-width:34ch}
-.flow-login .login-hero-features{display:none}
-.flow-login .login-hero-trust{margin-top:64px;border:0;padding:0;font-size:12px;color:#c5d3d4}
-.flow-login .login-panel{background:transparent;display:flex;align-items:center;justify-content:center;padding:48px}
-.flow-login .login-card{border:0;background:transparent;border-radius:0;box-shadow:none;padding:0;width:100%;max-width:380px;text-align:left;backdrop-filter:none}
+/* Sign-in shares one bounded surface, with a brand panel and a clear access task. */
+body.flow-login{margin:0;background:var(--flow-canvas);color:var(--flow-ink);overflow:auto;font-family:var(--flow-font);min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding:40px 24px;box-sizing:border-box}
+.flow-login *{box-sizing:border-box}
+.flow-login .login-shell{width:100%;max-width:1080px;margin:auto;display:grid;grid-template-columns:45% 55%;min-height:580px;background:#fff;border:1px solid var(--flow-line);border-radius:16px;overflow:hidden}
+.flow-login .login-hero{display:flex;flex-direction:column;justify-content:center;padding:48px;background:var(--flow-sidebar);color:#fff}
+.flow-login .login-hero-logo{width:150px;height:auto;margin-bottom:36px;align-self:flex-start}
+.flow-login .login-hero-title{font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1.25;margin:0 0 18px}
+.flow-login .login-hero-tag{font-size:15px;line-height:1.7;color:#C5D3E5;margin:0 0 28px}
+.flow-login .login-hero-features{display:grid;gap:18px}
+.flow-login .login-feature{display:flex;gap:12px;align-items:start}
+.flow-login .login-feature-icon{color:#9AC5FF;flex:0 0 24px}
+.flow-login .login-feature-icon svg{width:22px;height:22px}
+.flow-login .login-feature-title{font-size:14px;font-weight:600}
+.flow-login .login-feature-desc{font-size:12px;line-height:1.6;color:#C5D3E5;margin-top:3px}
+.flow-login .login-hero-trust{display:none}
+.flow-login .login-panel{display:flex;align-items:center;justify-content:center;padding:48px 52px}
+.flow-login .login-card{width:100%;max-width:380px;text-align:left}
 .flow-login .login-card-logo{display:none}
-.flow-login .login-welcome{font-size:28px;letter-spacing:-.035em;font-weight:650;color:#202d32}
-.flow-login .login-welcome-sub{font-size:14px;line-height:1.7;color:#5e6c72;margin:12px 0 32px}
-.flow-login .login-btn{background:#fff;border:1px solid #c9d2d0;border-radius:8px;color:#202d32;min-height:52px;box-shadow:none;font-size:14px;justify-content:center}
-.flow-login .login-btn:hover{background:#edf2ef;transform:none;box-shadow:none}
-.flow-login .login-footer{font-size:12px;color:#5e6c72;margin-top:24px;text-align:center}
-.flow-login .login-error{background:#fcf1ed;color:#a23926;border:1px solid #e4c7bd;border-radius:8px}
+.flow-login .login-welcome{font-size:28px;letter-spacing:-.03em;font-weight:700;margin:0 0 12px}
+.flow-login .login-welcome-sub{font-size:15px;line-height:1.7;color:var(--flow-muted);margin:0 0 28px}
+.flow-login .login-btn{display:flex;align-items:center;justify-content:center;gap:12px;text-decoration:none;background:#fff;border:1px solid var(--flow-line-strong);border-radius:9px;color:var(--flow-ink);min-height:52px;font-size:14px;font-weight:600;padding:12px;transition:background-color .16s,border-color .16s}
+.flow-login .login-btn svg{width:20px;height:20px;flex-shrink:0}
+.flow-login .login-btn:hover{background:var(--flow-blue-soft);border-color:var(--flow-blue)}
+.flow-login .login-footer{font-size:13px;line-height:1.6;color:var(--flow-muted);margin-top:24px;text-align:center}
+.flow-login .login-error{background:var(--flow-danger-soft);color:var(--flow-danger);border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.6;margin-bottom:20px}
+.flow-login .login-page-footer{font-size:12px;color:var(--flow-muted);margin:24px 0 0;text-align:center}
 @media(max-width:1000px){.portal-client .portal-content.has-payments{gap:24px;grid-template-columns:minmax(0,1fr) 250px}.portal-client .portal-nav-strip{gap:10px}}
 @media(max-width:760px){
   .flow-client .hero-card__name{font-size:30px}.flow-client .hero-card__text{padding:20px 0}
   .flow-client :is(input,textarea,select){font-size:16px}
   .portal-client .portal-header{padding:14px 18px;position:static;gap:12px}
   .portal-client .portal-shell{padding:28px 18px 40px}
-  .portal-client .portal-hero{padding-bottom:24px}
-  .portal-client .portal-hero-top{gap:20px}
-  .portal-client .portal-hero-greeting{font-size:40px;margin:0 0 12px}
+  .portal-client .portal-hero{padding:22px 20px}
+  .portal-client .portal-hero-top{gap:20px;align-items:flex-start}
+  .portal-client .portal-hero-greeting{font-size:28px;margin:0 0 10px}
   .portal-client .portal-hero-sub{font-size:13px}
-  .portal-client .portal-countdown{width:auto;border:0;padding:0;gap:12px}
-  .portal-client .portal-countdown-num{font-size:36px}
+  .portal-client .portal-countdown{width:auto;border:0;padding:12px 14px;gap:12px}
+  .portal-client .portal-countdown-num{font-size:28px}
   .portal-client .portal-hero-meta{margin-top:22px;padding-top:20px;gap:12px}
   .portal-client .portal-journey{margin-top:24px}.portal-client .portal-journey-label{font-size:11px}
   .portal-client .portal-next-step{padding:20px;gap:16px}
@@ -137,13 +139,15 @@ body.flow-login{margin:0;background:#f5f5f1;color:#202d32;overflow:auto;font-fam
   .portal-client .portal-nav-pill{flex-shrink:0;font-size:13px;padding:12px 0;min-height:46px}
   .portal-client .portal-section{padding:20px}.portal-client .portal-item{padding:20px 0}
   .portal-client #portal-tabs,.portal-client .portal-panel{scroll-margin-top:16px}
-  .flow-login .login-shell{grid-template-columns:1fr}
-  .flow-login .login-hero{padding:32px 24px;justify-content:flex-start}
+  .flow-login .login-shell{grid-template-columns:1fr;min-height:0;max-width:480px}
+  .flow-login .login-hero{padding:28px 24px;justify-content:flex-start}
   .flow-login .login-hero-logo{width:120px;margin-bottom:24px}
   .flow-login .login-hero-title{font-size:30px;margin-bottom:12px}
   .flow-login .login-hero-tag{font-size:13px;max-width:40ch}
   .flow-login .login-hero-trust{display:none}
-  .flow-login .login-panel{padding:40px 24px;min-height:0;align-items:flex-start}
+  .flow-login .login-hero-features{display:none}
+  body.flow-login{padding:20px 16px;justify-content:flex-start}
+  .flow-login .login-panel{padding:32px 24px;min-height:0;align-items:flex-start}
   .flow-login .login-welcome{font-size:26px}
 }
 @media(prefers-reduced-motion:reduce){.flow-client *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}

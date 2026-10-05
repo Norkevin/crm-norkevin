@@ -20,7 +20,7 @@ def test_login_page_still_only_offers_google_auth_no_fake_fields(client, monkeyp
     monkeypatch.setattr('src.google_login.is_configured', lambda: True)
     resp = client.get('/login')
     html = resp.get_data(as_text=True)
-    assert 'Iniciar sesion con Google' in html
+    assert 'Iniciar sesión con Google' in html
     assert '/auth/google/login/start' in html
     assert 'type="password"' not in html, 'no hay login por password de verdad, no se debe fingir uno'
 
@@ -43,8 +43,11 @@ def test_login_error_messages_still_render(client):
     assert 'no tiene acceso a este CRM' in html
 
 
-def test_login_hero_hidden_on_narrow_viewports_via_media_query(client):
-    resp = client.get('/login')
-    html = resp.get_data(as_text=True)
-    assert '@media (max-width: 900px)' in html
-    assert '.login-hero { display: none; }' in html
+def test_login_uses_shared_styles_for_narrow_viewports(client):
+    html = client.get('/login').get_data(as_text=True)
+    assert '/static/flow-tokens.css?' in html
+    assert '/static/client-design.css?' in html
+    css = client.get('/static/client-design.css').get_data(as_text=True)
+    assert '@media(max-width:760px)' in css
+    assert '.flow-login .login-shell{grid-template-columns:1fr' in css
+    assert '.flow-login .login-hero-features{display:none}' in css

@@ -41,7 +41,7 @@
 
 <div class="sn-page-head">
   <div>
-    <h1 class="sn-page-title">Configuracion</h1>
+    <h1 class="sn-page-title">Configuración</h1>
     <div class="sn-breadcrumbs">Empresa, apariencia, integraciones y datos de la cuenta.</div>
   </div>
 </div>
@@ -101,7 +101,7 @@
     </button>
     <div class="settings-tile clickable" style="cursor:default;">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-      <h4>Configuracion de correo</h4>
+      <h4>Configuración de correo</h4>
       {% if gmail_connected %}
         <p style="color: var(--sn-accent-text);font-weight:600;">Gmail conectado: {{ gmail_email }}</p>
         <button class="sn-btn sn-btn-sm mt-2" type="button" onclick="disconnectGmail()">Desconectar</button>
@@ -115,7 +115,7 @@
     </div>
     <div class="settings-tile clickable" style="cursor:default;">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-      <h4>Payment Links (Recurrente)</h4>
+      <h4>Enlaces de pago (Recurrente)</h4>
       {% if recurrente_status.status == 'connected' %}
         <p style="color: var(--sn-accent-text);font-weight:600;">Conectado &middot; llave ...{{ recurrente_status.masked_key[-4:] }}</p>
         {% if recurrente_status.mode == 'test' %}
@@ -179,12 +179,12 @@
   <div class="settings-grid">
     <a href="{{ captacion_url }}" target="_blank" rel="noopener" class="settings-tile clickable">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-      <h4>Contact Form <span class="sn-green">&rarr;</span></h4>
+      <h4>Formulario de contacto <span class="sn-green">&rarr;</span></h4>
       <p>Comparte o incrusta este link, es unico para tu cuenta: {{ captacion_url }}</p>
     </a>
     <a href="/settings/lead-sources" class="settings-tile clickable">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z"/></svg>
-      <h4>Lead Sources <span class="sn-green">&rarr;</span></h4>
+      <h4>Orígenes de leads <span class="sn-green">&rarr;</span></h4>
       <p>Edita Instagram, Google, Wedding Planner y cualquier origen nuevo.</p>
     </a>
   </div>
@@ -198,17 +198,17 @@
   <div class="settings-grid">
     <a href="/settings/email-templates" class="settings-tile clickable">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-      <h4>Email Templates <span class="sn-green">&rarr;</span></h4>
+      <h4>Plantillas de correo <span class="sn-green">&rarr;</span></h4>
       <p>{{ email_templates_count }} plantillas. Click para ver, crear y editar.</p>
     </a>
     <a href="/settings/packages" class="settings-tile clickable">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-      <h4>Products &amp; Packages <span class="sn-green">&rarr;</span></h4>
+      <h4>Productos y paquetes <span class="sn-green">&rarr;</span></h4>
       <p>{{ packages_count }} paquetes. Click para ver, crear y editar.</p>
     </a>
     <a href="/workflow-editor" class="settings-tile clickable">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-      <h4>Workflow Templates <span class="sn-green">&rarr;</span></h4>
+      <h4>Plantillas de workflow <span class="sn-green">&rarr;</span></h4>
       <p>{{ templates|length }} configurados. Click para editar.</p>
     </a>
     <a href="/settings/questionnaires" class="settings-tile clickable">

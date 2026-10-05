@@ -3,216 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Iniciar sesion &middot; Flow CRM</title>
-<style>
-  :root {
-    --lg-navy-1: #04070f;
-    --lg-navy-2: #0a1230;
-    --lg-navy-3: #0e1a3d;
-    --lg-blue: #0ea5e9;
-    --lg-cyan: #22d3ee;
-    --lg-text-soft: #9AA6BC;
-    --lg-text-faint: #6B7690;
-    --lg-line: rgba(255,255,255,.10);
-  }
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0; min-height: 100%;
-    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    color: #fff;
-  }
-  body {
-    position: relative;
-    overflow-x: hidden;
-    background: radial-gradient(120% 90% at 15% 10%, var(--lg-navy-3) 0%, var(--lg-navy-2) 45%, var(--lg-navy-1) 100%);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-  /* Resplandor diagonal que cruza todo el fondo -- une visualmente los dos
-     paneles en vez de una costura dura entre "hero oscuro" y "form claro". */
-  .login-glow {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 0;
-  }
-  .login-stars {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background-image:
-      radial-gradient(1.4px 1.4px at 20% 30%, rgba(255,255,255,.35), transparent),
-      radial-gradient(1.4px 1.4px at 65% 15%, rgba(255,255,255,.28), transparent),
-      radial-gradient(1px 1px at 85% 60%, rgba(255,255,255,.3), transparent),
-      radial-gradient(1.2px 1.2px at 40% 75%, rgba(255,255,255,.22), transparent),
-      radial-gradient(1px 1px at 10% 85%, rgba(255,255,255,.2), transparent),
-      radial-gradient(1.4px 1.4px at 92% 30%, rgba(255,255,255,.25), transparent);
-    background-repeat: no-repeat;
-  }
-
-  .login-shell {
-    position: relative;
-    z-index: 1;
-    flex: 1;
-    min-height: 100vh;
-    display: grid;
-    grid-template-columns: 1.1fr 1fr;
-    gap: clamp(24px, 4vw, 64px);
-    align-items: center;
-    max-width: 1160px;
-    margin: 0 auto;
-    width: 100%;
-  }
-
-  /* Panel izquierdo -- solo presentacion */
-  .login-hero {
-    padding: 56px 64px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-width: 0;
-  }
-  .login-hero-logo { height: 38px; width: auto; display: block; margin-bottom: 44px; align-self: flex-start; }
-  .login-hero-title {
-    font-size: 38px;
-    font-weight: 800;
-    line-height: 1.2;
-    letter-spacing: -.01em;
-    margin: 0 0 14px;
-    max-width: 480px;
-  }
-  .login-hero-tag {
-    font-size: 15px;
-    color: var(--lg-text-soft);
-    line-height: 1.6;
-    max-width: 420px;
-    margin: 0 0 40px;
-  }
-  .login-hero-features { display: flex; flex-direction: column; gap: 20px; }
-  .login-feature { display: flex; align-items: flex-start; gap: 14px; max-width: 340px; }
-  .login-feature-icon {
-    width: 38px;
-    height: 38px;
-    flex-shrink: 0;
-    border-radius: 10px;
-    background: rgba(56, 189, 248, .12);
-    border: 1px solid rgba(56, 189, 248, .25);
-    color: var(--lg-cyan);
-    display: grid;
-    place-items: center;
-  }
-  .login-feature-icon svg { width: 18px; height: 18px; }
-  .login-feature-title { font-size: 13.5px; font-weight: 600; color: #fff; }
-  .login-feature-desc { font-size: 12px; color: var(--lg-text-faint); margin-top: 2px; line-height: 1.5; }
-  .login-hero-trust {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 44px;
-    font-size: 12px;
-    color: var(--lg-text-faint);
-  }
-  .login-hero-trust svg { width: 15px; height: 15px; color: var(--lg-cyan); flex-shrink: 0; }
-  .login-hero-trust b { color: #fff; font-weight: 600; }
-
-  /* Panel derecho -- formulario real, tarjeta "de vidrio" sobre el mismo fondo */
-  .login-panel {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 32px;
-    min-width: 0;
-  }
-  .login-card {
-    width: 100%;
-    max-width: 400px;
-    background: rgba(255,255,255,.035);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid var(--lg-line);
-    border-radius: 20px;
-    padding: 40px 34px;
-    box-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 30px 60px -20px rgba(0,0,0,.55);
-  }
-  .login-card-logo { height: 32px; width: auto; display: block; margin: 0 auto 28px; }
-  .login-welcome { font-size: 21px; font-weight: 700; margin: 0 0 6px; color: #fff; text-align: center; }
-  .login-welcome-sub { font-size: 13px; color: var(--lg-text-soft); margin: 0; text-align: center; line-height: 1.5; }
-  .login-btn {
-    margin-top: 26px;
-    width: 100%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    height: 48px;
-    border-radius: 12px;
-    background: #fff;
-    color: #1a1f2e;
-    font-size: 14.5px;
-    font-weight: 600;
-    text-decoration: none;
-    box-shadow: 0 10px 24px -8px rgba(0,0,0,.35);
-    transition: opacity .15s ease, transform .1s ease;
-  }
-  .login-btn:hover { opacity: .92; }
-  .login-btn:active { transform: scale(.99); }
-  .login-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
-  .login-error {
-    margin-top: 18px;
-    padding: 10px 14px;
-    border-radius: 10px;
-    background: rgba(244, 63, 94, .12);
-    border: 1px solid rgba(244, 63, 94, .3);
-    color: #FDA4AF;
-    font-size: 12px;
-    text-align: left;
-    line-height: 1.5;
-  }
-  .login-footer { margin-top: 26px; font-size: 11px; color: var(--lg-text-faint); text-align: center; }
-
-  .login-page-footer {
-    position: relative;
-    z-index: 1;
-    text-align: center;
-    font-size: 11px;
-    color: var(--lg-text-faint);
-    padding: 18px 16px 22px;
-  }
-
-  @media (max-width: 900px) {
-    .login-shell { grid-template-columns: 1fr; }
-    .login-hero { display: none; }
-    .login-panel { min-height: calc(100vh - 48px); padding: 24px; }
-  }
-</style>
-<link rel="stylesheet" href="/static/client-design.css?v=20261005">
+<title>Iniciar sesión &middot; Flow CRM</title>
+<link rel="preload" href="/static/fonts/manrope-variable.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="/static/flow-tokens.css?v=20261005-modern">
+<link rel="stylesheet" href="/static/client-design.css?v=20261005-modern">
 </head>
 <body class="flow-client flow-login">
-<svg class="login-glow" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
-  <defs>
-    <linearGradient id="waveGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0"/>
-      <stop offset="45%" stop-color="#38bdf8" stop-opacity=".85"/>
-      <stop offset="60%" stop-color="#22d3ee" stop-opacity=".7"/>
-      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
-    </linearGradient>
-    <filter id="waveGlow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
-  <path d="M -100 120 C 260 40, 420 380, 760 420 S 1180 220, 1560 520" stroke="url(#waveGrad)" stroke-width="2.5" fill="none" filter="url(#waveGlow)" opacity=".8"/>
-  <path d="M -100 260 C 300 180, 460 520, 800 540 S 1220 340, 1600 660" stroke="url(#waveGrad)" stroke-width="1.5" fill="none" filter="url(#waveGlow)" opacity=".35"/>
-</svg>
-<div class="login-stars"></div>
-
 <div class="login-shell">
   <div class="login-hero">
     <img class="login-hero-logo" src="/static/logo-flow-crm-dark.png" alt="Flow CRM">
@@ -224,8 +20,8 @@
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-4.13a4 4 0 10-4-4 4 4 0 004 4zm6-6a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
         </div>
         <div>
-          <div class="login-feature-title">Gestion de clientes</div>
-          <div class="login-feature-desc">Todos los datos de tus clientes organizados y al dia.</div>
+          <div class="login-feature-title">Gestión de clientes</div>
+          <div class="login-feature-desc">Todos los datos de tus clientes organizados y al día.</div>
         </div>
       </div>
       <div class="login-feature">
@@ -243,7 +39,7 @@
         </div>
         <div>
           <div class="login-feature-title">Pagos y facturas</div>
-          <div class="login-feature-desc">Manda links de pago y cobra mas rapido.</div>
+          <div class="login-feature-desc">Manda links de pago y cobra más rápido.</div>
         </div>
       </div>
     </div>
@@ -256,7 +52,7 @@
   <div class="login-panel">
     <div class="login-card">
       <img class="login-card-logo" src="/static/logo-flow-crm-dark.png" alt="Flow CRM">
-      <h2 class="login-welcome">Inicia sesion</h2>
+      <h2 class="login-welcome">Inicia sesión</h2>
       <p class="login-welcome-sub">Ingresa con la cuenta de Google autorizada para tu empresa</p>
 
       {% set error = request.args.get('error') %}
@@ -267,9 +63,9 @@
         {% elif error == 'not_configured' %}
           Falta configurar GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET en el servidor.
         {% elif error == 'state_invalido' %}
-          La sesion de inicio expiro, intenta de nuevo.
+          La sesión de inicio expiró, intenta de nuevo.
         {% else %}
-          No se pudo iniciar sesion: {{ error }}
+          No se pudo iniciar sesión: {{ error }}
         {% endif %}
       </div>
       {% endif %}
@@ -277,10 +73,10 @@
       {% if google_configured %}
       <a class="login-btn" href="/auth/google/login/start?next={{ next_path }}">
         <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M23.5 12.27c0-.79-.07-1.54-.19-2.27H12v4.3h6.47c-.28 1.5-1.13 2.77-2.4 3.62v3h3.88c2.27-2.09 3.55-5.17 3.55-8.65z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3c-1.08.72-2.45 1.15-4.05 1.15-3.11 0-5.75-2.1-6.69-4.92H1.3v3.09C3.27 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.31 14.32A7.2 7.2 0 0 1 4.94 12c0-.8.14-1.58.37-2.32V6.59H1.3A11.98 11.98 0 0 0 0 12c0 1.94.46 3.77 1.3 5.41z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.45-3.45C17.94 1.19 15.23 0 12 0 7.31 0 3.27 2.7 1.3 6.59l4.01 3.09C6.25 6.85 8.89 4.75 12 4.75z"/></svg>
-        Iniciar sesion con Google
+        Iniciar sesión con Google
       </a>
       {% else %}
-      <div class="login-error">Google no esta configurado todavia en el servidor.</div>
+      <div class="login-error">Google no está configurado todavía en el servidor.</div>
       {% endif %}
 
       <div class="login-footer">Acceso restringido a cuentas autorizadas</div>

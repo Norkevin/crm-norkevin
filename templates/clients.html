@@ -5,7 +5,7 @@
 {% block topbar_title %}Clients{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='record-lists.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='record-lists.css') }}?v=20261005-modern">
 <section class="sn-page-wide record-list clients-page">
   <div class="sn-page-head">
     <div>
@@ -163,7 +163,7 @@
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
         <button class="sn-btn" type="button" onclick="closeClientModal()">Cancelar</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Create Client</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Crear cliente</button>
       </div>
     </form>
   </div>

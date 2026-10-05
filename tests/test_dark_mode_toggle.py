@@ -24,10 +24,14 @@ def test_base_template_defines_dark_surface_levels_not_just_invert(auth_client):
     assert ':root[data-theme="dark"]' in html
     # Deben existir al menos 3 niveles de superficie distintos entre si
     # (fondo, tarjeta/input, hover) -- no solo negro puro repetido.
-    assert '#05070a' in html, 'el fondo oscuro (canvas) debe seguir partiendo de este tono'
-    assert '--sn-white: #090d12' in html
-    assert '--sn-surface-hover: #121a23' in html
-    assert '--sn-ink: #f3f6f9' in html, 'el texto primario debe aclararse en modo oscuro'
+    assert 'flow-tokens.css' in html
+    css = auth_client.get('/static/flow-tokens.css').get_data(as_text=True)
+    dark = css.split(':root[data-theme="dark"]', 1)[1].split('}', 1)[0]
+    import re
+    colors = dict(re.findall(r'(--flow-[\w-]+):\s*(#[0-9A-Fa-f]+)', dark))
+    levels = [colors[key] for key in ('--flow-canvas', '--flow-surface', '--flow-hover')]
+    assert len(set(levels)) == 3, 'fondo, tarjeta y hover necesitan niveles distintos'
+    assert colors['--flow-ink'] not in levels, 'el texto debe contrastar con las superficies'
 
 
 def test_base_template_exposes_set_app_theme_function(auth_client):

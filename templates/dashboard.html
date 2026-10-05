@@ -221,11 +221,11 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  width: 230px;
+  width: min(340px, 100%);
   cursor: pointer;
 }
 .dashboard-range-trigger svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--sn-muted); }
-.dashboard-range-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-range-trigger span { white-space: normal; text-align: left; font-size: 12px; line-height: 1.5; }
 .dashboard-range-popover {
   display: none;
   position: absolute;
@@ -663,11 +663,11 @@
     <div class="dashboard-controls">
       <select id="dashboard-job-type" class="sn-select" style="width:220px;" onchange="updateDashboard()">
         {% for label in job_type_labels %}
-        <option value="{{ label }}">{{ label }}</option>
+        <option value="{{ label }}">{{ 'Todos los tipos' if label == 'All Job Types' else label }}</option>
         {% endfor %}
       </select>
       <div class="dashboard-control-right">
-        <div class="segmented" aria-label="Date range">
+        <div class="segmented" aria-label="Período del gráfico">
           <button type="button" data-range="7" onclick="setDashboardRange('7')">7 días</button>
           <button type="button" data-range="30" onclick="setDashboardRange('30')">30 días</button>
           <button type="button" data-range="mtd" onclick="setDashboardRange('mtd')">Mes</button>
@@ -731,8 +731,8 @@
           <svg id="dashboard-chart" viewBox="0 0 900 380" preserveAspectRatio="none" role="img" aria-label="Dashboard chart"></svg>
           <div class="chart-tooltip" id="dashboard-chart-tooltip"></div>
           <div class="chart-legend" id="dashboard-chart-legend">
-            <span><i class="legend-dot" style="background:#0D9488;"></i>Current period</span>
-            <span><i class="legend-dot" style="background:#9CA3AF;"></i>Comparison</span>
+            <span><i class="legend-dot" style="background:#0D9488;"></i>Período actual</span>
+            <span><i class="legend-dot" style="background:#9CA3AF;"></i>Comparación</span>
           </div>
         </div>
       </div>
@@ -835,9 +835,9 @@
       {% endif %}
       <span class="dashboard-event-copy">
         <span class="dashboard-event-title">{{ j.nombre }}</span>
-        <span class="dashboard-event-sub">{{ j.location or 'Sin ubicacion' }}</span>
+        <span class="dashboard-event-sub">{{ j.boda_date|fecha_es }} · {{ j.location or 'Sin ubicación' }}</span>
       </span>
-      <span class="sn-chip green">Job</span>
+      <span class="sn-chip blue">Trabajo</span>
     </a>
     {% else %}
     <div class="text-center py-6 text-ink-soft text-sm">Sin sesiones proximas</div>
@@ -890,7 +890,7 @@
       </span>
       <span class="dashboard-activity-copy">
         <span class="dashboard-activity-title">{{ n.title }}</span>
-        <span class="dashboard-activity-meta">{{ n.age or n.date or '' }}</span>
+        <span class="dashboard-activity-meta">{{ n.age or (n.date|fecha_es) or '' }}</span>
       </span>
     {% if n.url %}
     </a>
@@ -946,7 +946,7 @@
       <thead>
         <tr>
           <th>Estado</th>
-          <th>Lead Source</th>
+          <th>Origen del lead</th>
           <th>Consultas / bodas</th>
           <th>Trabajos</th>
           <th>Total (%)</th>
@@ -1076,7 +1076,7 @@ function smoothPath(points) {
   return d;
 }
 
-var METRIC_COLORS = { leads: '#0D9488', sessions: '#2563EB', payments: '#D97706', revenue: '#0F766E' };
+var METRIC_COLORS = { leads: '#7252C7', sessions: '#2563EB', payments: '#087443', revenue: '#2563EB' };
 
 function niceCeil(value) {
   // El tope del eje salia del maximo crudo (Q10,743), asi que las 5 marcas

@@ -5,7 +5,7 @@
 
 {% block content %}
 {% include "_date_conflict_modal.html" %}
-<link rel="stylesheet" href="{{ url_for('static', filename='record-lists.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='record-lists.css') }}?v=20261005-modern">
 <style>
 .date-status-badge {
   display: inline-flex;
@@ -151,10 +151,10 @@
               <div class="job-date" aria-label="{{ job.boda_date|fecha_legible }}">
               <span class="date-badge">
                 <strong>{{ job.boda_date[8:10] }}</strong>
-                <em>{{ (job.boda_date|fecha_legible).split(' ')[1][:3] if job.boda_date|fecha_legible else '' }}</em>
+                <em>{{ (job.boda_date|fecha_legible).split(' ')[2][:3] if job.boda_date|fecha_legible else '' }}</em>
               </span>
               <div class="job-date-meta">
-                <span>{{ job.boda_date[:4] }}</span>
+                <span>{{ job.boda_date|fecha_es }}</span>
                 {% if job.dias_restantes is not none and job.dias_restantes >= 0 %}
                 <span class="job-countdown">{{ 'Hoy' if job.dias_restantes == 0 else 'En ' ~ job.dias_restantes ~ ' días' }}</span>
                 {% endif %}

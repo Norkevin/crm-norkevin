@@ -42,7 +42,7 @@
 .record-list .date-badge { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 44px; border-radius: 8px; background: var(--sn-mint-soft); line-height: 1; }
 .record-list .date-badge strong { font-size: 18px; font-weight: 600; color: var(--sn-accent-text); }
 .record-list .date-badge em { margin-top: 4px; font-style: normal; font-size: 9px; font-weight: 600; text-transform: uppercase; color: var(--sn-accent-text); }
-.record-list .job-date-meta { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.record-list .job-date-meta { display: flex; flex-direction: column; gap: 3px; font-size: 12px; white-space: normal; }
 .record-list .job-countdown { color: var(--sn-muted); font-size: 10px; white-space: nowrap; }
 .record-list .job-primary { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .record-list .job-title { display: block; font-size: 13px; line-height: 1.4; font-weight: 600; color: var(--sn-ink); text-decoration: none; white-space: normal; overflow-wrap: anywhere; }
@@ -89,10 +89,10 @@
   .record-list .stack-mobile .sn-table tr { border-radius: 0; padding: 14px 12px; }
   .record-list .stack-mobile .sn-menu-dots { width: 44px; height: 44px; }
   .record-list .record-name { font-size: 14px; }
-  body[data-page="/jobs"] .record-list .stack-mobile .sn-table tr { grid-template-columns: 42px minmax(0, 1fr) 44px; grid-template-areas: "date job menu" "date prog prog" "pay pay pay" "next next next"; gap: 8px 10px; }
+  body[data-page="/jobs"] .record-list .stack-mobile .sn-table tr { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px; grid-template-areas: "job job menu" "date date date" "prog prog prog" "pay pay pay" "next next next"; gap: 8px 10px; }
   body[data-page="/jobs"] .record-list #jobs-table td { padding: 0; white-space: normal; }
-  .record-list .job-date { flex-direction: column; gap: 5px; }
-  .record-list .job-date-meta { text-align: center; font-size: 10px; }
+  .record-list .job-date { flex-direction: row; gap: 10px; }
+  .record-list .job-date-meta { text-align: left; font-size: 13px; }
   .record-list .job-countdown { display: none; }
   .record-list .job-title { font-size: 14px; }
   body[data-page="/jobs"] .record-list #jobs-table td[data-label="Date"] .date-status-badge { display: inline-flex; }

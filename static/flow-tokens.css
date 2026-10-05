@@ -1,0 +1,42 @@
+/* Shared palette and scale. Module accents are separate from document branding. */
+@font-face{font-family:Manrope;src:url('fonts/manrope-variable.ttf') format('truetype');font-weight:200 800;font-style:normal;font-display:swap}
+:root{
+  --flow-font:Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --flow-canvas:#F7F9FC;--flow-surface:#FFFFFF;--flow-surface-soft:#F1F5F9;--flow-hover:#EDF3FC;
+  --flow-ink:#172B4D;--flow-muted:#596A80;--flow-line:#E2E8F0;--flow-line-strong:#C7D2E1;
+  --flow-blue:#2563EB;--flow-blue-hover:#1D4ED8;--flow-blue-soft:#EFF5FF;--flow-blue-text:#2563EB;
+  --flow-violet:#7252C7;--flow-violet-hover:#5E3FAF;--flow-violet-soft:#F3EFFF;--flow-violet-text:#6844B7;
+  --flow-success:#087443;--flow-success-soft:#EAF8F0;--flow-warning:#8A4B0F;--flow-warning-soft:#FFF6E4;
+  --flow-danger:#B42335;--flow-danger-soft:#FFF0F2;
+  --flow-sidebar:#142536;--flow-sidebar-ink:#C5D3E5;--flow-sidebar-hover:#213B54;
+  --sn-green:var(--flow-blue);--sn-green-dark:var(--flow-blue-hover);--sn-green-active:#1E40AF;
+  --sn-accent-text:var(--flow-blue-text);--sn-accent-text-dark:var(--flow-blue-text);
+  --sn-canvas:var(--flow-canvas);--sn-bg:var(--flow-canvas);--sn-white:var(--flow-surface);
+  --sn-row:var(--flow-surface-soft);--sn-panel:var(--flow-surface-soft);--sn-surface-2:var(--flow-surface-soft);--sn-surface-hover:var(--flow-hover);
+  --sn-ink:var(--flow-ink);--sn-muted:var(--flow-muted);--sn-soft:var(--flow-muted);--sn-disabled:#8090A6;
+  --sn-line:var(--flow-line);--sn-line-dark:var(--flow-line-strong);--sn-mint:var(--flow-blue-soft);--sn-mint-soft:var(--flow-blue-soft);
+  --sn-yellow:#D97706;--sn-yellow-soft:var(--flow-warning-soft);--sn-pink:var(--flow-danger);--sn-red:var(--flow-danger);--sn-red-soft:var(--flow-danger-soft);
+  --sn-blue:var(--flow-blue);--sn-cyan:var(--flow-blue);--sn-cyan-soft:var(--flow-blue-soft);--sn-success:var(--flow-success);--sn-success-soft:var(--flow-success-soft);
+  --sn-focus-ring:rgb(37 99 235 / 16%);--sn-overlay:rgb(15 23 42 / 55%);
+  --sn-shadow-soft:rgb(23 43 77 / 3%);--sn-shadow-card:rgb(23 43 77 / 3%);
+  --sn-shadow-resting:none;--sn-shadow-hover:none;--sn-shadow-modal:0 24px 80px rgb(23 43 77 / 16%);
+  --sn-radius-sm:8px;--sn-radius-md:10px;--sn-radius-lg:12px;--sn-radius-xl:16px;
+  --sn-sidebar-width:232px;--sn-sidebar-bg:var(--flow-sidebar);--sn-sidebar-ink:var(--flow-sidebar-ink);
+  --sn-sidebar-active-bg:var(--flow-blue);--sn-sidebar-hover:var(--flow-sidebar-hover);--sn-topbar-height:72px;
+  --flow-control-height:40px;
+  --content-max:1540px;--content-readable:1180px;--content-detail:1320px;--page-padding-x:32px;--page-padding-y:28px;
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;--flow-canvas:#0E1726;--flow-surface:#18263A;--flow-surface-soft:#203149;--flow-hover:#283D58;
+  --flow-ink:#EDF3FC;--flow-muted:#B3C3D9;--flow-line:#344963;--flow-line-strong:#4A6381;
+  --flow-blue-soft:#20375B;--flow-blue-text:#A6C5FF;--flow-violet-soft:#352951;--flow-violet-text:#CEBDFF;
+  --flow-success:#9BE0BB;--flow-success-soft:#1B3A30;--flow-warning:#F4D397;--flow-warning-soft:#443822;
+  --flow-danger:#FFB5C3;--flow-danger-soft:#492A37;--flow-sidebar:#101E30;
+  --sn-overlay:rgb(4 9 17 / 72%);--sn-focus-ring:rgb(166 197 255 / 20%);
+}
+body:has(.ft),.ft{
+  --sn-green:var(--flow-violet);--sn-green-dark:var(--flow-violet-hover);--sn-green-active:var(--flow-violet-hover);
+  --sn-accent-text:var(--flow-violet-text);--sn-accent-text-dark:var(--flow-violet-text);
+  --sn-mint:var(--flow-violet-soft);--sn-mint-soft:var(--flow-violet-soft);--sn-sidebar-active-bg:var(--flow-violet);
+}
+@media(max-width:760px){:root{--flow-control-height:44px}}

@@ -80,7 +80,7 @@
 <section class="sn-page-wide">
   <div class="sn-page-head">
     <div>
-      <h1 class="sn-page-title">Emails</h1>
+      <h1 class="sn-page-title">Correos</h1>
       <div class="sn-breadcrumbs">
         Las respuestas de Norkevin a fechas bloqueadas y los nuevos avisos internos se envían automáticamente. Los demás correos requieren tu aprobación.
       </div>
@@ -139,7 +139,7 @@
         </div>
         <div class="mail-asunto">{{ e.asunto }}</div>
         <div class="mail-origen">
-          Generado por {{ e.origen }}{% if e.creado %} · {{ e.creado[:16]|replace('T', ' ') }}{% endif %}
+          Generado por {{ e.origen }}{% if e.creado %} · {{ e.creado|fecha_es }}{% if e.creado|length >= 16 %} · {{ e.creado[11:16] }}{% endif %}{% endif %}
         </div>
         {% if e.aviso_interno %}<div class="mail-origen">Aviso interno para ti · correo de la empresa verificado</div>{% endif %}
         {% if e.motivo_bloqueo %}
@@ -289,7 +289,7 @@ function historial(pasos) {
   // reconstruir que paso, cuando y quien lo hizo.
   if (!pasos || !pasos.length) { return ''; }
   var filas = pasos.map(function(h) {
-    var cuando = (h.cuando || '').slice(0, 16).replace('T', ' ');
+    var cuando = formatFlowDate(h.cuando, true);
     return '<div>' + escapar(cuando) + ' · '
          + escapar(ETIQUETA_ESTADO[h.a] || h.a) + ' · ' + escapar(h.actor || '')
          + (h.motivo ? ' — ' + escapar(h.motivo) : '') + '</div>';

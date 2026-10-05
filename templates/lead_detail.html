@@ -284,7 +284,7 @@
           {% if mail_log %}
           <div class="sn-table-shell stack-mobile" style="border-radius:0;border:0;">
             <table class="sn-table">
-              <thead><tr><th>Date</th><th>To</th><th>Subject</th><th>Estado</th><th></th></tr></thead>
+              <thead><tr><th>Fecha</th><th>Para</th><th>Asunto</th><th>Estado</th><th></th></tr></thead>
               <tbody>
                 {% for m in mail_log %}
                 <tr>
@@ -333,7 +333,7 @@
           <a class="sn-muted" href="/settings/questionnaires" target="_blank" rel="noopener">Editar preguntas en Settings</a>
         </div>
         <div class="form-group">
-          <label class="form-label">Subject</label>
+          <label class="form-label">Asunto</label>
           <input class="form-input" id="lead-questionnaire-subject" value="¡Esto es importante para tu boda!" required>
         </div>
       </div>
@@ -380,12 +380,12 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">To</label>
+          <label class="form-label">Para</label>
           <input class="form-input" id="lead-email-to" value="{{ lead.email or '' }}" readonly>
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Subject</label>
+        <label class="form-label">Asunto</label>
         <input class="form-input" id="lead-email-subject" required>
       </div>
       <div class="form-group">
@@ -407,11 +407,11 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
     <form onsubmit="submitContractSend(event)">
       <input type="hidden" id="contract-send-id">
       <div class="form-group">
-        <label class="form-label">To</label>
+        <label class="form-label">Para</label>
         <input class="form-input" id="contract-send-to" value="{{ lead.email or '' }}" readonly>
       </div>
       <div class="form-group">
-        <label class="form-label">Subject</label>
+        <label class="form-label">Asunto</label>
         <input class="form-input" id="contract-send-subject" required>
       </div>
       <div class="form-group">
@@ -451,16 +451,16 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label" for="lead-location">Location</label>
+        <label class="form-label" for="lead-location">Lugar</label>
         <input class="form-input" id="lead-location" name="ubicacion" value="{{ lead.locacion or '' }}">
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="lead-source">Lead Source</label>
+          <label class="form-label" for="lead-source">Origen del lead</label>
           <input class="form-input" id="lead-source" name="fuente" value="{{ lead.fuente or '' }}">
         </div>
         <div class="form-group">
-          <label class="form-label" for="lead-budget">Budget</label>
+          <label class="form-label" for="lead-budget">Presupuesto</label>
           <input class="form-input" id="lead-budget" name="presupuesto" value="{{ lead.presupuesto or '' }}">
         </div>
       </div>

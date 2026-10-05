@@ -59,7 +59,7 @@ def test_events_follow_selected_range_and_tenant(client, tenant):
         for range_key in ('7', '30', 'mtd', 'ytd'):
             assert data[range_key]['jobTypes']['All Job Types']['totals']['sessions'] == 2
             assert data[range_key]['jobTypes']['Boda religiosa']['totals']['sessions'] == 2
-        assert '31 diciembre' in data['ytd']['dateLabel']
+        assert f'31 de diciembre de {today.year}' in data['ytd']['dateLabel']
         assert '<div class="metric-label">Eventos</div>' in html
 
         # A rescheduled/deleted extra event immediately leaves this range.

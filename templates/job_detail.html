@@ -14,11 +14,11 @@
         <div class="lead-contact">{% if client %}<span>{{ client.first_name }} {{ client.last_name or '' }}</span><span>{{ client.email or 'Sin correo' }}</span><span>{{ client.phone or 'Sin teléfono' }}</span>{% else %}<span>Sin cliente principal asociado</span>{% endif %}</div>
       </div>
       <div class="lead-primary-actions" style="position:relative;">
-        {% if config.FLOW_TEAMS_LOCAL or config.FLOW_TEAMS_ENABLED %}<a class="sn-btn" href="{{ url_for('teams.page', job_id=job.id) }}">Abrir en Teams</a>{% endif %}
+
         <button class="sn-btn sn-btn-primary" type="button" onclick="toggleAddMenu(event)">+ Nuevo documento</button>
         {% if client %}<a class="sn-btn job-portal-button" href="/portal/{{ client.id }}" target="_blank" rel="noopener">Portal del cliente ↗</a>{% endif %}
-        <button class="sn-btn" type="button" onclick="sendClientEmail()">Redactar correo</button>
-        <button class="sn-btn" type="button" onclick="openModal('job-edit-modal')">Editar trabajo</button>
+
+
       <div id="add-menu" class="tenant-menu" style="right:0;top:38px;">
         <button class="tenant-menu-item" type="button" onclick="createMultiOptionQuote()">Cotizacion</button>
         <button class="tenant-menu-item" type="button" onclick="openModal('invoice-modal')">Factura</button>
@@ -46,11 +46,14 @@
       <div class="job-booking-checks">{% for check in booking.checks %}<span class="sn-chip {{ 'green' if check.done else 'gray' }}">{{ '✓' if check.done else '○' }} {{ check.label }}</span>{% endfor %}</div>
       {% endif %}
     </div>
+    </details>
     <div class="lead-secondary-actions">
+      {% if config.FLOW_TEAMS_LOCAL or config.FLOW_TEAMS_ENABLED %}<a class="lead-text-button" href="{{ url_for('teams.page', job_id=job.id) }}">Abrir en Teams</a>{% endif %}
+      <button class="lead-text-button" type="button" onclick="sendClientEmail()">Redactar correo</button>
+      <button class="lead-text-button" type="button" onclick="openModal('job-edit-modal')">Editar trabajo</button>
       {% if lead %}<a href="/leads/{{ lead.id }}" title="Lead original de este job">Ver lead original</a>{% endif %}
       <button class="lead-text-button" type="button" onclick="openHistoryLog()">Historial del trabajo</button>
     </div>
-    </details>
   </header>
 
   {% set upcoming = namespace(step=none, task=none) %}
@@ -568,7 +571,7 @@
         </div>
         <div class="sn-table-shell stack-mobile">
           <table class="sn-table">
-            <thead><tr><th style="width:110px;">Date</th><th style="width:160px;">To</th><th>Subject</th><th style="width:70px;"></th></tr></thead>
+            <thead><tr><th style="width:110px;">Fecha</th><th style="width:160px;">Para</th><th>Asunto</th><th style="width:70px;"></th></tr></thead>
             <tbody>
             {% for mail in mail_log %}
               <tr>
@@ -678,7 +681,7 @@
         <div class="form-group"><label class="form-label">Estado</label><select class="form-input" name="status"><option>{{ job.status }}</option><option>Cotizando</option><option>Confirmado</option><option>En produccion</option><option>Listo</option><option>Archivado</option></select></div>
       </div>
       {% if not lead %}<div class="form-group"><label class="form-label" for="job-lead-source">Fuente del trabajo</label><input class="form-input" id="job-lead-source" name="lead_source" value="{{ job.lead_source or '' }}" placeholder="Instagram, Wedding Planner, Recomendacion..."></div>{% endif %}
-      <div class="form-group"><label class="form-label">Location</label><input class="form-input" name="location" value="{{ job.location or '' }}"></div>
+      <div class="form-group"><label class="form-label">Lugar</label><input class="form-input" name="location" value="{{ job.location or '' }}"></div>
       <div class="grid-2">
         <div class="form-group"><label class="form-label">Package</label><input class="form-input" name="package" value="{{ job.package or '' }}"></div>
         <div class="form-group"><label class="form-label">Total</label><input class="form-input" name="price_total" type="number" step="0.01" value="{{ job.price_total or 0 }}"></div>
@@ -794,12 +797,12 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">To</label>
+          <label class="form-label">Para</label>
           <input class="form-input" id="email-to" value="{{ all_recipient_emails or (lead.email if lead else '') }}" readonly title="Se envia a cliente principal, secundario y wedding planner si estan vinculados">
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Subject</label>
+        <label class="form-label">Asunto</label>
         <input class="form-input" id="email-subject" required>
       </div>
       <div class="form-group">
@@ -832,12 +835,12 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">To</label>
+          <label class="form-label">Para</label>
           <input class="form-input" id="contract-send-to" readonly>
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Subject</label>
+        <label class="form-label">Asunto</label>
         <input class="form-input" id="contract-send-subject" required>
       </div>
       <div class="form-group">
@@ -870,7 +873,7 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">To</label>
+          <label class="form-label">Para</label>
           <input class="form-input" id="questionnaire-to" readonly>
         </div>
       </div>
@@ -881,7 +884,7 @@
           <a class="sn-muted" href="/settings/questionnaires" target="_blank" rel="noopener">Editar preguntas en Settings</a>
         </div>
         <div class="form-group">
-          <label class="form-label">Subject</label>
+          <label class="form-label">Asunto</label>
           <input class="form-input" id="questionnaire-subject" value="¡Esto es importante para tu boda!" required>
         </div>
       </div>

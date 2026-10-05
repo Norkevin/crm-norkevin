@@ -27,20 +27,20 @@
   <div class="calendar-layout">
     <div class="calendar-main">
 
-  <div class="sn-toolbar">
+  <div class="sn-toolbar calendar-toolbar">
     <div class="sn-toolbar-left">
-      <a class="sn-btn calendar-nav" aria-label="Mes anterior" href="/calendar?year={{ prev_year }}&month={{ prev_month }}">‹</a>
-      <span class="sn-btn calendar-month-label" style="background:var(--sn-white);">{{ month_name }} {{ year }}</span>
-      <a class="sn-btn calendar-nav" aria-label="Mes siguiente" href="/calendar?year={{ next_year }}&month={{ next_month }}">›</a>
+      <a class="sn-btn calendar-nav" aria-label="Mes anterior" href="/calendar?year={{ prev_year }}&month={{ prev_month }}"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m15 18-6-6 6-6"/></svg></a>
+      <h2 class="calendar-month-label">{{ month_name }} {{ year }}</h2>
+      <a class="sn-btn calendar-nav" aria-label="Mes siguiente" href="/calendar?year={{ next_year }}&month={{ next_month }}"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m9 6 6 6-6 6"/></svg></a>
       <a class="sn-btn calendar-today" href="/calendar">Hoy</a>
-      <select id="calendar-view" class="sn-select" onchange="changeCalendarView()">
+      <select aria-label="Vista del calendario" id="calendar-view" class="sn-select" onchange="changeCalendarView()">
         <option value="month">Mes</option>
         <option value="week">Semana</option>
         <option value="day">Día</option>
       </select>
     </div>
     <div class="sn-toolbar-right">
-      <span class="sn-muted">Filtrar:</span>
+      <label class="sn-muted calendar-filter-label" for="calendar-filter">Mostrar</label>
       <select id="calendar-filter" class="sn-select" onchange="filterCalendar()">
         <option value="all">Todo</option>
         <option value="lead">Leads</option>
@@ -51,7 +51,7 @@
     </div>
   </div>
 
-  <p class="sn-muted calendar-block-hint">Haz clic en un día o en + para agregar un job, crear un evento o bloquear la fecha.</p>
+  <p class="sn-muted calendar-block-hint">Selecciona el número de un día para agregar un trabajo, crear un evento o bloquear la fecha.</p>
   <div class="calendar-shell">
     <div class="calendar-head">
       {% for day_name in day_names %}
@@ -63,16 +63,14 @@
         {% for cell in week %}
         <div class="calendar-cell {% if not cell.in_month %}muted{% endif %}">
           {% if cell.in_month %}
-          <button class="calendar-cell-trigger" type="button" aria-label="Opciones del día {{ cell.iso_date }}" onclick="openDateMenu('{{ cell.iso_date }}')"></button>
           <div class="calendar-day-header">
-          <button class="calendar-add" type="button" aria-label="Agregar en {{ cell.iso_date }}" onclick="openDateMenu('{{ cell.iso_date }}')">+</button>
-          <button class="calendar-day calendar-day-action {% if cell.today %}today{% endif %}" type="button" aria-label="Opciones de fecha {{ cell.iso_date }}" title="Agregar o bloquear" onclick="openDateMenu('{{ cell.iso_date }}')">{{ cell.day }}</button>
+          <button class="calendar-day calendar-day-action {% if cell.today %}today{% endif %}" type="button" aria-label="Opciones de fecha {{ cell.iso_date|fecha_es }}" title="Agregar o bloquear" onclick="openDateMenu('{{ cell.iso_date }}')">{{ cell.day }}</button>
           </div>
           {% endif %}
           <div class="calendar-events">
             {% for evt in cell.events[:3] %}
             <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" data-block-id="{{ evt.id if evt.type == 'block' else '' }}" onclick="openCalendarEvent('{{ evt.url or '' }}', this)">
-              <span class="calendar-event-badge {{ evt.type }}">{{ 'Bloqueada' if evt.type == 'block' else evt.type|capitalize }}</span>
+              <span class="calendar-event-badge {{ evt.type }}">{{ {'block':'Bloqueada','job':'Trabajo','lead':'Lead','event':'Evento'}.get(evt.type, evt.type|capitalize) }}</span>
               <span class="calendar-event-title">{{ evt.title }}</span>
             </button>
             {% endfor %}
@@ -81,7 +79,7 @@
             <div class="calendar-events-hidden" style="display:none;">
               {% for evt in cell.events[3:] %}
               <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" data-block-id="{{ evt.id if evt.type == 'block' else '' }}" onclick="openCalendarEvent('{{ evt.url or '' }}', this)">
-                <span class="calendar-event-badge {{ evt.type }}">{{ 'Bloqueada' if evt.type == 'block' else evt.type|capitalize }}</span>
+                <span class="calendar-event-badge {{ evt.type }}">{{ {'block':'Bloqueada','job':'Trabajo','lead':'Lead','event':'Evento'}.get(evt.type, evt.type|capitalize) }}</span>
                 <span class="calendar-event-title">{{ evt.title }}</span>
               </button>
               {% endfor %}
@@ -104,7 +102,7 @@
           {% set ns.has_any_event = true %}
           <div class="agenda-day {{ 'today' if cell.today else '' }}">
             <div class="agenda-day-head">
-              <button class="agenda-day-num calendar-day-action" type="button" aria-label="Opciones de fecha {{ cell.iso_date }}" title="Agregar o bloquear" onclick="openDateMenu('{{ cell.iso_date }}')">{{ cell.day }}</button>
+              <button class="agenda-day-num calendar-day-action" type="button" aria-label="Opciones de fecha {{ cell.iso_date|fecha_es }}" title="Agregar o bloquear" onclick="openDateMenu('{{ cell.iso_date }}')">{{ cell.day }}</button>
               {# El numero del dia ya se ve grande al lado; repetirlo aca
                  daba encabezados tipo "15 Agosto 15". #}
               <span class="agenda-day-label">{{ month_name }}{{ ' · Hoy' if cell.today else '' }}</span>
@@ -112,7 +110,7 @@
             <div class="agenda-events">
               {% for evt in cell.events %}
               <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" data-block-id="{{ evt.id if evt.type == 'block' else '' }}" onclick="openCalendarEvent('{{ evt.url or '' }}', this)">
-                <span class="calendar-event-badge {{ evt.type }}">{{ 'Bloqueada' if evt.type == 'block' else evt.type|capitalize }}</span>
+                <span class="calendar-event-badge {{ evt.type }}">{{ {'block':'Bloqueada','job':'Trabajo','lead':'Lead','event':'Evento'}.get(evt.type, evt.type|capitalize) }}</span>
                 <span class="calendar-event-title">{{ evt.title }}</span>
               </button>
               {% endfor %}
@@ -141,7 +139,7 @@
             <div class="upcoming-event-copy">
               <div class="upcoming-event-title sn-ellipsis">{{ e.title }}</div>
               <div class="upcoming-event-date">
-                <span class="upcoming-event-badge {{ e.type }}">{{ 'Bloqueada' if e.type == 'block' else e.type|capitalize }}</span>
+                <span class="upcoming-event-badge {{ e.type }}">{{ {'block':'Bloqueada','job':'Trabajo','lead':'Lead','event':'Evento'}.get(e.type, e.type|capitalize) }}</span>
                 {% if e.days_away is not none %}
                 <span class="upcoming-event-days">{% if e.days_away == 0 %}Hoy{% elif e.days_away == 1 %}Manana{% else %}{{ e.days_away }}d{% endif %}</span>
                 {% endif %}
@@ -163,7 +161,7 @@
     <h2 class="modal-title" id="date-actions-title">Opciones de fecha</h2>
     <p class="sn-muted" id="date-actions-label"></p>
     <div class="calendar-date-actions">
-      <button class="sn-btn" type="button" onclick="chooseDateAction('job')"><strong>Agregar job</strong><span>Crear un trabajo para un cliente</span></button>
+      <button class="sn-btn" type="button" onclick="chooseDateAction('job')"><strong>Agregar trabajo</strong><span>Crear un trabajo para un cliente</span></button>
       <button class="sn-btn" type="button" onclick="chooseDateAction('event')"><strong>Crear evento</strong><span>Agregar una cita o un recordatorio</span></button>
       <button class="sn-btn" type="button" onclick="chooseDateAction('block')"><strong>Bloquear fecha</strong><span>Marcarla como no disponible</span></button>
     </div>

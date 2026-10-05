@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{% block title %}{{ current_tenant.name }} · Flow CRM{% endblock %}</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#3F5B70">
+<meta name="theme-color" content="#142536">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -22,116 +22,14 @@
 {% if request.path.startswith('/jobs/') %}
 <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
 {% endif %}
-<link rel="stylesheet" href="/static/tailwind.css?v=20261005">
+<link rel="stylesheet" href="/static/tailwind.css?v=20261005-modern">
+<link rel="stylesheet" href="/static/flow-tokens.css?v=20261005-modern">
 <style>
-:root {
-  /* v5: tokens exactos del brief de rediseno integral de Kevin -- se
-     mantienen los *nombres* de variable existentes (--sn-green, etc.) para
-     no romper los ~100+ usos ya escritos en toda la app, pero los valores
-     ahora son los que Kevin definio explicitamente (paleta, radios,
-     sombras, anchos). Mismo patron de "cambiar el valor, no el nombre" que
-     v1-v4. */
-  --sn-green: #3F5B70;
-  --sn-green-dark: #30495D;
-  --sn-green-active: #263D4F;
-  --sn-accent-text: #3F5B70;
-  --sn-accent-text-dark: #30495D;
-  --sn-mint: #E4ECF2;
-  --sn-mint-soft: #EEF3F6;
-  --sn-ink: #111827;
-  --sn-muted: #667085;
-  --sn-soft: #98A2B3;
-  --sn-disabled: #B5BDC9;
-  --sn-line: #E7EAF0;
-  --sn-line-dark: #D7DCE5;
-  --sn-row: #EFF2F5;
-  --sn-panel: #EFF2F5;
-  --sn-white: #ffffff;
-  --sn-yellow: #F59E0B;
-  --sn-yellow-soft: #FFF5DF;
-  --sn-pink: #f43f5e;
-  --sn-cyan: #4F7CFF;
-  --sn-cyan-soft: #EDF2FF;
-  --sn-blue: #4F7CFF;
-  --sn-red: #EF5B5B;
-  --sn-red-soft: #FEEEEE;
-  --sn-success: #2FB66D;
-  --sn-success-soft: #EAF8F0;
-  /* Fondo general de la app -- Kevin: "fondo muy claro" en el brief. */
-  --sn-canvas: #F5F7F9;
-  /* Niveles de superficie -- separados de --sn-white/--sn-row para que el
-     tema oscuro pueda distinguir tarjeta vs input vs hover sin que todo
-     colapse al mismo gris. */
-  --sn-surface-2: #EFF2F5;
-  --sn-surface-hover: #F0F4F7;
-  --sn-focus-ring: rgba(63,91,112, .15);
-  --sn-shadow-soft: rgba(16, 24, 40, .04);
-  --sn-shadow-card: rgba(16, 24, 40, .045);
-  --sn-overlay: rgba(15, 18, 22, .6);
-  /* Escala de elevacion segun brief: shadow-xs/sm/card/modal. */
-  --sn-shadow-resting: 0 1px 2px rgba(16, 24, 40, .03), 0 3px 10px rgba(16, 24, 40, .04);
-  --sn-shadow-hover: 0 8px 24px rgba(16, 24, 40, .045);
-  --sn-shadow-modal: 0 24px 80px rgba(16, 24, 40, .16);
-  --sn-radius-sm: 8px;
-  --sn-radius-md: 12px;
-  --sn-radius-lg: 16px;
-  --sn-radius-xl: 20px;
-  /* Contenedor con ancho maximo -- brief pide 1540px para contenido normal,
-     1180px para lectura (documentos/formularios), 1320px para detalle. */
-  --content-max: 1540px;
-  --content-readable: 1180px;
-  --content-detail: 1320px;
-  --page-padding-x: 40px;
-  --page-padding-y: 32px;
-  /* Sidebar clara con icono+texto, ancho del brief (248px). */
-  --sn-sidebar-width: 248px;
-  --sn-sidebar-bg: #FBFBFD;
-  --sn-sidebar-ink: var(--sn-muted);
-  --sn-sidebar-active-bg: var(--sn-mint-soft);
-  --sn-sidebar-hover: var(--sn-surface-hover);
-  --sn-topbar-height: 72px;
-}
-
-/* Kevin: 'ver todo en modo oscuro para cuando trabajo de noche no
-   molestarme la vista', despues pidio pulirlo con niveles de superficie
-   reales en vez del truco de invertir colores (que no permite distinguir
-   fondo/tarjeta/input/hover porque todo es la misma imagen invertida).
-   Estas variables se redefinen aca y el resto del CSS las usa en vez de
-   colores fijos, asi que un solo bloque cubre toda la app sin reescribir
-   cada template. Toggle en Settings, persistido en localStorage y
-   aplicado sin flash via el script inline en <head>. */
-:root[data-theme="dark"] {
-  --sn-accent-text: #9BB6CA;
-  --sn-accent-text-dark: #BDD0DE;
-  --sn-canvas: #05070a;
-  --sn-white: #090d12;
-  --sn-row: #0d131a;
-  --sn-panel: #0d131a;
-  --sn-surface-2: #0d131a;
-  --sn-surface-hover: #121a23;
-  --sn-line: #1d2631;
-  --sn-line-dark: #2b3745;
-  --sn-ink: #f3f6f9;
-  --sn-muted: #aab4c0;
-  --sn-soft: #7f8a98;
-  --sn-mint: #233747;
-  --sn-mint-soft: #192A37;
-  --sn-focus-ring: rgba(155,182,202, .22);
-  --sn-shadow-soft: rgba(0, 0, 0, .35);
-  --sn-shadow-card: rgba(0, 0, 0, .45);
-  --sn-shadow-resting: 0 1px 2px rgba(0, 0, 0, .3), 0 1px 3px rgba(0, 0, 0, .35);
-  --sn-shadow-hover: 0 4px 14px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
-  --sn-overlay: rgba(0, 0, 0, .72);
-  --sn-sidebar-bg: var(--sn-row);
-  --sn-sidebar-active-bg: var(--sn-mint);
-  --sn-sidebar-hover: var(--sn-surface-hover);
-}
-
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
   min-height: 100%;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--flow-font);
   background: var(--sn-canvas);
   color: var(--sn-ink);
   -webkit-font-smoothing: antialiased;
@@ -2614,41 +2512,17 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   /* body[data-page] antepuesto: payments.html define .payment-stats en su
      propio <style>, que va despues de este y ganaria por orden. */
   body[data-page="/payments"] .payment-stats {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0;
-    background: var(--sn-white);
-    border: 1px solid var(--sn-line);
-    border-radius: var(--m-radius);
-    overflow: hidden;
-    margin-bottom: var(--m-gap);
+    display:grid;grid-template-columns:1fr;gap:0;background:var(--sn-white);
+    border:1px solid var(--sn-line);border-radius:var(--m-radius);overflow:hidden;margin-bottom:var(--m-gap);
   }
   body[data-page="/payments"] .payment-stat-card {
-    min-width: 0;
-    padding: 9px 8px 10px;
-    background: transparent;
-    border: none;
-    border-right: 1px solid var(--sn-line);
-    border-radius: 0;
-    box-shadow: none;
-    text-align: center;
+    display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 12px;
+    padding:14px 16px;background:transparent;border:0;border-bottom:1px solid var(--sn-line);border-radius:0;text-align:left;
   }
-  body[data-page="/payments"] .payment-stat-card:last-child { border-right: none; }
-  body[data-page="/payments"] .payment-stat-label {
-    font-size: 10.5px;
-    line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  body[data-page="/payments"] .payment-stat-value {
-    font-size: 15px;
-    line-height: 1.25;
-    letter-spacing: -.02em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+  body[data-page="/payments"] .payment-stat-card:last-child {border-bottom:0;}
+  body[data-page="/payments"] .payment-stat-label {font-size:13px;line-height:1.5;align-self:center;}
+  body[data-page="/payments"] .payment-stat-value {font-size:20px;line-height:1.5;margin:0;white-space:nowrap;}
+  body[data-page="/payments"] .payment-stat-meta {grid-column:1/-1;margin-top:0;font-size:12px;}
 
   /* --- Inicio: se desbordaba a lo ancho --- */
   /* Un hijo de flex/grid trae min-width:auto de fabrica, o sea "no me
@@ -3209,7 +3083,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 </style>
 <!-- Load the shell before first paint; final links retain page override order. -->
 <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css', v='20261005-fluid') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='flow-design.css', v='20261005b') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='flow-design.css', v='20261005-modern') }}">
 </head>
 <body data-page="{{ request.path }}">
 <script>
@@ -3232,7 +3106,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   <div class="sidebar-nav">
     <a href="/dashboard" class="sidebar-item" data-nav="/dashboard">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 22V12h6v10"/></svg>
-      <span>Dashboard</span>
+      <span>Inicio</span>
     </a>
     {% if config.FLOW_TEAMS_LOCAL or config.FLOW_TEAMS_ENABLED %}
     <a href="/teams" class="sidebar-item" data-nav="/teams"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/></svg><span>Teams</span></a>
@@ -3243,15 +3117,15 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     </a>
     <a href="/clients" class="sidebar-item" data-nav="/clients">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span>Clients</span>
+      <span>Clientes</span>
     </a>
     <a href="/jobs" class="sidebar-item" data-nav="/jobs">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-      <span>Jobs</span>
+      <span>Trabajos</span>
     </a>
     <a href="/calendar" class="sidebar-item" data-nav="/calendar">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 2v4M8 2v4M3 10h18"/></svg>
-      <span>Calendar</span>
+      <span>Calendario</span>
     </a>
     {# Kevin: "hay que quitar la pestaña de quotes e invoices porque al final
        salen dentro de los jobs". Las rutas /quotes y /invoices siguen vivas
@@ -3259,11 +3133,11 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
        abriendo), solo se quitan del menu. #}
     <a href="/emails" class="sidebar-item" data-nav="/emails">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-      <span>Emails</span>
+      <span>Correos</span>
     </a>
     <a href="/payments" class="sidebar-item" data-nav="/payments">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M1 10h22"/></svg>
-      <span>Payments</span>
+      <span>Pagos</span>
     </a>
   </div>
   <div class="sidebar-bottom">
@@ -3273,16 +3147,16 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
         {% else %}{{ (session.user_name or session.user_email or 'K')[:1]|upper }}{% endif %}
       </span>
       <span class="sidebar-account-copy">
-        <span class="sidebar-account-tenant">{{ current_tenant.name|default('Flow CRM') }}</span>
-        <span class="sidebar-account-email">{{ session.user_name or session.user_email or '' }}</span>
+        <span class="sidebar-account-tenant">{{ session.user_name or 'Mi cuenta' }}</span>
+        <span class="sidebar-account-email">Cuenta activa</span>
       </span>
     </div>
-    <button type="button" class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Colapsar sidebar">
+    <button type="button" class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Colapsar navegación">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 6l-6 6 6 6M20 6l-6 6 6 6"/></svg>
     </button>
     <a href="/settings" class="sidebar-item" data-nav="/settings">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      <span>Settings</span>
+      <span>Configuración</span>
     </a>
   </div>
 </nav>
@@ -3296,7 +3170,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
   <nav class="topnav" aria-label="Principal">
     <a href="/dashboard" class="topnav-item" data-nav="/dashboard">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 22V12h6v10"/></svg>
-      <span class="topnav-label">Dashboard</span>
+      <span class="topnav-label">Inicio</span>
     </a>
     <a href="/leads" class="topnav-item" data-nav="/leads">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 6v6l4 2"/></svg>
@@ -3304,27 +3178,27 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     </a>
     <a href="/clients" class="topnav-item" data-nav="/clients">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span class="topnav-label">Clients</span>
+      <span class="topnav-label">Clientes</span>
     </a>
     <a href="/jobs" class="topnav-item" data-nav="/jobs">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-      <span class="topnav-label">Jobs</span>
+      <span class="topnav-label">Trabajos</span>
     </a>
     <a href="/calendar" class="topnav-item" data-nav="/calendar">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 2v4M8 2v4M3 10h18"/></svg>
-      <span class="topnav-label">Calendar</span>
+      <span class="topnav-label">Calendario</span>
     </a>
     <a href="/payments" class="topnav-item" data-nav="/payments">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M1 10h22"/></svg>
-      <span class="topnav-label">Payments</span>
+      <span class="topnav-label">Pagos</span>
     </a>
     <a href="/settings" class="topnav-item" data-nav="/settings">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      <span class="topnav-label">Settings</span>
+      <span class="topnav-label">Configuración</span>
     </a>
   </nav>
 
-  <a class="mobile-brand" href="/dashboard" aria-label="Flow CRM · Inicio">Flow <span>CRM</span></a>
+  <a class="mobile-brand" href="/dashboard" aria-label="Flow CRM · Inicio"><span class="mobile-brand-title">Flow <b>CRM</b></span><span class="mobile-tenant" title="{{ current_tenant.name }}">{{ current_tenant.name }}</span></a>
   <div class="header-search-wrap">
     <div class="header-search">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" stroke-width="1.8"/><path stroke-linecap="round" stroke-width="1.8" d="M21 21l-4.3-4.3"/></svg>
@@ -3341,7 +3215,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       <div class="tenant-menu" id="quick-add-menu" style="right:0;top:calc(100% + 8px);">
         <a class="tenant-menu-item" href="/clients?new=1">Nuevo cliente</a>
         <a class="tenant-menu-item" href="/leads?new=1">Nuevo lead</a>
-        <a class="tenant-menu-item" href="/jobs?new=1">Nuevo job</a>
+        <a class="tenant-menu-item" href="/jobs?new=1">Nuevo trabajo</a>
         <a class="tenant-menu-item" href="/calendar?new=1">Nuevo evento</a>
       </div>
     </div>
@@ -3377,7 +3251,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
             {% endif %}
             <div>
               <div class="sn-notification-title">{{ n.title }}</div>
-              <div class="sn-notification-meta">{{ n.date }}{% if n.time %} | {{ n.time }}{% endif %}{% if n.age %} | {{ n.age }}{% endif %}</div>
+              <div class="sn-notification-meta">{{ n.date|fecha_es }}{% if n.time %} | {{ n.time }}{% endif %}{% if n.age %} | {{ n.age }}{% endif %}</div>
             </div>
             <span class="sn-unread-dot"></span>
           </a>
@@ -3415,8 +3289,8 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
             <div class="sn-account-email">{{ session.user_email or '' }}</div>
           </div>
         </div>
-        <a class="sn-account-row" href="/settings">Settings</a>
-        <a class="sn-account-row" href="/logout">Sign Out</a>
+        <a class="sn-account-row" href="/settings">Configuración</a>
+        <a class="sn-account-row" href="/logout">Cerrar sesión</a>
       </div>
     </div>
   </div>
@@ -3488,7 +3362,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     </a>
     <a class="more-sheet-item" href="/emails" data-nav="/emails">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-      <span>Emails</span>
+      <span>Correos</span>
     </a>
     <a class="more-sheet-item" href="/payments" data-nav="/payments">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M1 10h22"/></svg>
@@ -3613,7 +3487,7 @@ function renderNotifications() {
     if (!list) return;
     var items = listId === 'notif-list' ? filtered.slice(0, 5) : filtered;
     list.innerHTML = items.map(function(n) {
-      var meta = [n.date, n.time, n.age].filter(Boolean).map(escapeHtml).join(' | ');
+      var meta = [formatFlowDate(n.date), n.time, n.age].filter(Boolean).map(escapeHtml).join(' | ');
       return '<a class="sn-notification-item" data-notif-id="' + escapeHtml(n.id) + '" href="' + escapeHtml(n.url || '#') + '">'
         + (n.type === 'mail' ? MAIL_ICON_SVG : LEAD_ICON_SVG)
         + '<div><div class="sn-notification-title">' + escapeHtml(n.title) + '</div><div class="sn-notification-meta">' + meta + '</div></div>'
@@ -3808,7 +3682,7 @@ function handleGlobalSearch(event) {
       .then(function(r) { return r.json(); })
       .then(function(data) {
         var items = data.results || [];
-        var typeLabels = { lead: 'Lead', job: 'Job', client: 'Cliente', payment: 'Pago', quote: 'Cotizacion' };
+        var typeLabels = { lead: 'Lead', job: 'Trabajo', client: 'Cliente', payment: 'Pago', quote: 'Cotizacion' };
         if (!items.length) {
           box.innerHTML = '<div class="header-search-empty">Sin resultados para "' + _escapeHtml(q) + '"</div>';
         } else {
@@ -4160,8 +4034,8 @@ document.addEventListener('keydown', function(e) {
 </script>
 
 <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css', v='20261005-fluid') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='flow-design.css', v='20261005b') }}">
-<script src="{{ url_for('static', filename='date-range.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='flow-design.css', v='20261005-modern') }}">
+<script src="{{ url_for('static', filename='date-range.js') }}?v=20261005-modern"></script>
 <script src="{{ url_for('static', filename='mobile.js') }}" defer></script>
 <script src="{{ url_for('static', filename='mobile-navigation.js', v='20261005') }}" defer></script>
 <script>

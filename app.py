@@ -62,7 +62,7 @@ def _format_date_es(value):
     day = value if isinstance(value, date) else _parse_iso_day(value)
     if not day:
         return ''
-    return f"{day.day} {MONTH_NAMES_ES.get(day.month, '')} {day.year}"
+    return f"{day.day} de {MONTH_NAMES_ES.get(day.month, '')} de {day.year}"
 
 
 
@@ -115,7 +115,7 @@ _bootstrap_seed_table('packages')
 app = Flask(__name__)
 
 # Filtro Jinja compartido: cualquier plantilla puede escribir
-# `{{ fecha|fecha_es }}` y obtener "28 noviembre 2026" en vez de la fecha
+# `{{ fecha|fecha_es }}` y obtener "28 de noviembre de 2026" en vez de la fecha
 # ISO con la que se guarda. Registrarlo como filtro -- y no depender de que
 # cada vista precalcule un campo *_display -- es lo que garantiza que no se
 # vuelva a colar un "2026-11-28" en un documento que ve el cliente: si
@@ -3048,10 +3048,10 @@ def _compute_custom_range_payload(start_day, end_day):
 
     days = [start_day + _timedelta(days=i) for i in range(total_days)]
     if total_days > 62:
-        labels = [d.strftime('%d %b') if d.day in (1, 15) else '' for d in days]
+        labels = [f'{d.day} {MONTH_NAMES_ES[d.month][:3]}' if d.day in (1, 15) else '' for d in days]
     else:
-        labels = [d.strftime('%d %b') for d in days]
-    date_label = f"{start_day.strftime('%d %b %Y')} - {end_day.strftime('%d %b %Y')}"
+        labels = [f'{d.day} {MONTH_NAMES_ES[d.month][:3]}' for d in days]
+    date_label = f"{_format_date_es(start_day)} — {_format_date_es(end_day)}"
     base_keys = [d.isoformat() for d in days]
     keys_index = {key: idx for idx, key in enumerate(base_keys)}
 
@@ -3227,7 +3227,7 @@ def dashboard():
     for i in range(5, -1, -1):
         d = today - timedelta(days=30 * i)
         month_key = d.strftime('%Y-%m')
-        month_label = d.strftime('%b')
+        month_label = MONTH_NAMES_ES[d.month][:3]
         monthly_income.append({'key': month_key, 'label': month_label, 'amount': 0})
 
     for p in list_payments():
@@ -3326,17 +3326,17 @@ def dashboard():
         if range_key == '7':
             start_day = today - timedelta(days=6)
             days = [start_day + timedelta(days=i) for i in range(7)]
-            return days, [d.strftime('%d %b') for d in days], f"{start_day.strftime('%d %b %Y')} - {today.strftime('%d %b %Y')}"
+            return days, [f'{d.day} {MONTH_NAMES_ES[d.month][:3]}' for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
         if range_key == '30':
             start_day = today - timedelta(days=29)
             days = [start_day + timedelta(days=i) for i in range(30)]
-            return days, [d.strftime('%d %b') for d in days], f"{start_day.strftime('%d %b %Y')} - {today.strftime('%d %b %Y')}"
+            return days, [f'{d.day} {MONTH_NAMES_ES[d.month][:3]}' for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
         if range_key == 'ytd':
             months = [date(today.year, m, 1) for m in range(1, 13)]
-            return months, [d.strftime('%b') for d in months], f"1 enero {today.year} - 31 diciembre {today.year}"
+            return months, [MONTH_NAMES_ES[d.month][:3] for d in months], f"1 de enero de {today.year} — 31 de diciembre de {today.year}"
         start_day = today.replace(day=1)
         days = [start_day + timedelta(days=i) for i in range((today - start_day).days + 1)]
-        return days, [d.strftime('%d %b') for d in days], f"{start_day.strftime('%d %b %Y')} - {today.strftime('%d %b %Y')}"
+        return days, [f'{d.day} {MONTH_NAMES_ES[d.month][:3]}' for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
 
     def _bucket_key(day, range_key):
         if not day:
@@ -3443,7 +3443,7 @@ def dashboard():
                 revenue_by_year[due_day.year][due_day.month - 1] += amount
                 projected_by_year[due_day.year][due_day.month - 1] += amount
 
-    year_palette = ['#2563EB', '#3F5B70', '#F59E0B', '#DC2626', '#059669', '#0891B2']
+    year_palette = ['#2563EB', '#7252C7', '#0891B2', '#D97706', '#059669', '#475569']
     sorted_years = sorted(set(revenue_by_year.keys()) | set(paid_by_year.keys()) | set(projected_by_year.keys()))
     revenue_comparison_series = []
     for idx, yr in enumerate(sorted_years):
@@ -3486,9 +3486,9 @@ def dashboard():
 
 
 def _format_pretty_date(value):
-    """'2027-05-08' -> 'Sat, 08 May 2027' (formato Studio Ninja)."""
+    """Display a stored day in Spanish without changing the date."""
     try:
-        return datetime.strptime(str(value)[:10], '%Y-%m-%d').strftime('%a, %d %b %Y')
+        return _format_date_es(value) or value
     except Exception:
         return value
 
@@ -3534,7 +3534,7 @@ def leads_list():
         # Fechas estilo SN + indicador de disponibilidad (rojo = ya hay boda ese dia)
         if lead.get('created'):
             try:
-                lead['created_display'] = datetime.strptime(str(lead['created'])[:10], '%Y-%m-%d').strftime('%d %b %Y')
+                lead['created_display'] = _format_date_es(lead['created']) or lead['created']
             except Exception:
                 lead['created_display'] = lead['created']
         fecha = lead.get('fecha_tentativa')
@@ -3842,7 +3842,7 @@ def clients_list():
             if payment.get('client_id') == client_id and payment.get('status') != 'Pagado'
         )
         try:
-            client['created_display'] = datetime.strptime(str(client.get('created'))[:10], '%Y-%m-%d').strftime('%d %b %Y')
+            client['created_display'] = _format_date_es(client.get('created')) or client.get('created')
         except Exception:
             client['created_display'] = client.get('created')
     # c.get('created', '') solo usa el default si la KEY no existe -- un
@@ -14021,8 +14021,7 @@ def client_portal(client_id):
         try:
             d = datetime.strptime(primary_job['boda_date'], '%Y-%m-%d').date()
             days_until_wedding = (d - date.today()).days
-            month_names_es = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-            wedding_date_label = f"{d.day} de {month_names_es[d.month]}, {d.year}"
+            wedding_date_label = _format_date_es(d)
         except ValueError:
             pass
 
@@ -14076,6 +14075,7 @@ def client_portal(client_id):
                           primary_job=primary_job,
                           days_until_wedding=days_until_wedding,
                           wedding_date_label=wedding_date_label,
+                          portal_primary=_quote_theme_for_tenant(client.get('tenant_id')).get('primary', '#2563EB'),
                           quotes=quotes,
                           payments=payments,
                           invoice_groups=invoice_groups,

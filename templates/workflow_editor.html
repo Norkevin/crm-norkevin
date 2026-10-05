@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Workflow Templates · {{ current_tenant.name }} CRM{% endblock %}
-{% block header %}Workflow Templates{% endblock %}
+{% block title %}Plantillas de workflow · {{ current_tenant.name }} CRM{% endblock %}
+{% block header %}Plantillas de workflow{% endblock %}
 {% block subtitle %}Configura las secuencias automaticas que se disparan segun los eventos{% endblock %}
 
 {% block topbar_title %}Workflows{% endblock %}
@@ -37,7 +37,7 @@
        ============================================================ -->
   <aside class="sn-card white">
     <div class="sn-card-head">
-      <div class="sn-card-title" style="font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--sn-muted);">Templates</div>
+      <div class="sn-card-title" style="font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--sn-muted);">Plantillas</div>
       <button type="button" onclick="newTemplate()" class="sn-btn-link" style="font-size:12px;">+ Nuevo</button>
     </div>
     <div id="template-list">
@@ -46,7 +46,7 @@
               data-template-id="{{ t.id }}"
               class="wfe-tpl-item {{ 'active' if t.id == selected_id else '' }}">
         <div class="wfe-tpl-name">{{ t.name }}</div>
-        <div class="wfe-tpl-meta">{{ t.steps|length }} steps &middot; {{ t.trigger_type }}</div>
+        <div class="wfe-tpl-meta">{{ t.steps|length }} pasos &middot; {{ t.trigger_type }}</div>
       </button>
       {% endfor %}
     </div>
@@ -55,8 +55,8 @@
 
     <h3 class="wfe-section-label">Conexión con clientes</h3>
     <p class="sn-muted">{{ 'Nuevos leads' if selected.id == 'lead_workflow_v1' else 'Al aceptar la cotización' if selected.id == 'production_workflow_v1' else 'Plantilla manual' }}. Cada paso usa el email y el plazo configurados aquí.</p>
-    <p class="sn-muted">Los nuevos workflows preparan correos cada minuto al vencer su plazo. Revisa y aprueba el envío en <a href="/emails">Emails</a>. Los workflows antiguos conservan su ejecución manual.</p>
-    <a href="/settings/email-templates" class="sn-btn-link">Administrar Email Templates</a>
+    <p class="sn-muted">Los nuevos workflows preparan correos cada minuto al vencer su plazo. Revisa y aprueba el envío en <a href="/emails">Correos</a>. Los workflows antiguos conservan su ejecución manual.</p>
+    <a href="/settings/email-templates" class="sn-btn-link">Administrar plantillas de correo</a>
 
     <div class="wfe-divider"></div>
 
@@ -65,7 +65,7 @@
       Guardar cambios
     </button>
     <button type="button" onclick="testWorkflow()" class="sn-btn" style="width:100%;margin-top:8px;">
-      Test con lead ficticio
+      Probar con lead ficticio
     </button>
   </aside>
 
@@ -95,11 +95,11 @@
       <div class="sn-card-head">
         <div class="sn-card-title">
           <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4m6-12h4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4M8 12h8"/></svg>
-          Steps del workflow
+          Pasos del workflow
         </div>
         <button type="button" onclick="addStep()" class="sn-btn sn-btn-sm sn-btn-primary">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
-          Agregar step
+          Agregar paso
         </button>
       </div>
 
@@ -108,7 +108,7 @@
         <div class="workflow-rail {{ rail_class }}">{{ rail_label }}</div>
         <div class="workflow-steps" id="steps-container">
           {% set action_labels = {
-            'send_email': 'Enviar email',
+            'send_email': 'Enviar correo',
             'send_contract': 'Enviar contrato',
             'send_questionnaire': 'Enviar cuestionario',
             'send_invoice': 'Enviar invoice',
@@ -187,7 +187,7 @@
       {% else %}
       <div class="wfe-empty">
         <svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        <p>No hay steps todavia. Haz clic en "Agregar step" para empezar.</p>
+        <p>Todavía no hay pasos. Haz clic en "Agregar paso" para empezar.</p>
       </div>
       {% endif %}
     </div>
@@ -247,7 +247,7 @@
         <div class="form-group">
           <label class="form-label">Accion (que hace)</label>
           <select id="step-action-input" name="action_type" class="form-input">
-            <option value="send_email">Enviar email</option>
+            <option value="send_email">Enviar correo</option>
             <option value="send_contract">Enviar contrato</option>
             <option value="send_questionnaire">Enviar cuestionario</option>
             <option value="send_invoice">Enviar invoice</option>
@@ -256,7 +256,7 @@
             <option value="create_task">Crear tarea interna</option>
             <option value="change_status">Cambiar status</option>
             <option value="notify_owner">Notificar al dueno</option>
-            <option value="link_job">Crear Job (magic)</option>
+            <option value="link_job">Crear trabajo</option>
             <option value="archive">Archivar</option>
             <option value="noop">Marcador (sin accion)</option>
           </select>

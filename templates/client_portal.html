@@ -6,18 +6,17 @@
 <title>Portal del cliente · {{ client.first_name }} · {{ brand.display_name }}</title>
 <link rel="stylesheet" href="/static/tailwind.css?v=20261005">
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="/static/fonts/manrope-variable.ttf" as="font" type="font/ttf" crossorigin>
   <style>
     @media (max-width: 760px) {
       .portal-client input, .portal-client select, .portal-client textarea { font-size: 16px; }
     }
   </style>
-<link rel="stylesheet" href="{{ url_for('static', filename='client-portal.css') }}">
-<link rel="stylesheet" href="/static/client-design.css?v=20261005">
+<link rel="stylesheet" href="{{ url_for('static', filename='client-portal.css', v='20261005-modern') }}">
+<link rel="stylesheet" href="/static/flow-tokens.css?v=20261005-modern">
+<link rel="stylesheet" href="/static/client-design.css?v=20261005-modern">
 </head>
-<body class="flow-client portal-client">
+<body class="flow-client portal-client" style="--portal-brand-primary:{{ portal_primary }};">
 
 <div class="min-h-screen">
 

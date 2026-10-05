@@ -6,7 +6,7 @@
 
 {% block content %}
 {% include "_date_conflict_modal.html" %}
-<link rel="stylesheet" href="{{ url_for('static', filename='record-lists.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='record-lists.css') }}?v=20261005-modern">
 <style>
 .date-status-badge {
   display: inline-flex;
@@ -166,7 +166,7 @@
     <h2 class="modal-title">Nuevo lead</h2>
     <form id="lead-form" onsubmit="createLead(event)">
       <div class="form-group">
-        <label class="form-label" for="lead-name">Lead Name *</label>
+        <label class="form-label" for="lead-name">Nombre *</label>
         <input class="form-input" id="lead-name" name="nombre" required>
       </div>
       <div class="grid-2">
@@ -191,7 +191,7 @@
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="lead-source">Lead Source</label>
+          <label class="form-label" for="lead-source">Origen del lead</label>
           <select class="form-input" id="lead-source" name="fuente">
             {% for source in lead_sources %}
             <option value="{{ source.name }}">{{ source.label }}</option>
@@ -199,17 +199,17 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="lead-budget">Budget</label>
+          <label class="form-label" for="lead-budget">Presupuesto</label>
           <input class="form-input" id="lead-budget" name="presupuesto">
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label" for="lead-location">Location</label>
+        <label class="form-label" for="lead-location">Lugar</label>
         <input class="form-input" id="lead-location" name="locacion">
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
         <button class="sn-btn" type="button" onclick="closeLeadModal()">Cancelar</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Create Lead</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Crear lead</button>
       </div>
     </form>
   </div>
@@ -231,11 +231,11 @@
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">To</label>
+        <label class="form-label">Para</label>
         <input class="form-input" id="lead-email-to" readonly>
       </div>
       <div class="form-group">
-        <label class="form-label">Subject</label>
+        <label class="form-label">Asunto</label>
         <input class="form-input" id="lead-email-subject" required>
       </div>
       <div class="form-group">
