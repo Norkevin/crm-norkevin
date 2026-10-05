@@ -3022,14 +3022,11 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     font-size: 13px;
   }
   .sn-card { padding: 16px; }
-  /* Las tablas anchas (Leads tiene 7 columnas) dejan de forzar scroll: se
+  /* Las tablas anchas dejan de forzar scroll: se
      permite que las celdas se corten con elipsis en vez de empujar. */
   .sn-table { table-layout: fixed; }
   .sn-table th,
   .sn-table td { overflow: hidden; text-overflow: ellipsis; }
-  /* Columnas prescindibles en pantalla chica de laptop. */
-  #leads-table th:nth-child(1),
-  #leads-table td:nth-child(1) { display: none; }
   .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 

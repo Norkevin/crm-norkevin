@@ -6,6 +6,7 @@ estaban metidas en el patron generico label-izquierda/valor-derecha
 overflow-x:auto de una regla vieja que escondia el desborde en vez de
 forzarlo a acomodarse). La celda de nombre ahora usa .stack-full: bloque
 de ancho completo, sin la etiqueta redundante."""
+import re
 
 
 def test_stack_full_class_present_on_name_cells(auth_client, sample_business):
@@ -28,7 +29,7 @@ def test_stack_full_class_present_on_name_cells(auth_client, sample_business):
         resp = auth_client.get(path)
         html = resp.get_data(as_text=True)
         assert f'id="{table_id}"' in html
-        assert 'class="sn-ellipsis stack-full"' in html, f'{path} deberia usar stack-full en la celda de nombre'
+        assert re.search(r'<td[^>]*class="[^"]*\bstack-full\b[^"]*"', html), f'{path} deberia usar stack-full en la celda de nombre'
 
 
 def test_stack_mobile_shell_does_not_allow_silent_horizontal_scroll(auth_client):

@@ -3556,12 +3556,14 @@ def leads_list():
             lead['last_mail_subject'] = last.get('subject') or ''
             if last.get('status') in ('opened', 'clicked'):
                 when = (last.get('opened_at') or last.get('sent_at') or '')[:10]
-                lead['last_mail_chip'] = ('cyan', f'EMAIL OPENED ON {_format_pretty_date(when)[5:].upper()}' if when else 'EMAIL OPENED')
+                lead['last_mail_chip'] = ('cyan', 'Correo abierto')
+                lead['last_mail_date'] = when
             elif last.get('status') == 'sent':
                 when = (last.get('sent_at') or '')[:10]
-                lead['last_mail_chip'] = ('yellow', f'EMAIL SENT ON {_format_pretty_date(when)[5:].upper()}' if when else 'EMAIL SENT')
+                lead['last_mail_chip'] = ('green', 'Correo enviado')
+                lead['last_mail_date'] = when
             else:
-                lead['last_mail_chip'] = ('gray', (last.get('status') or 'NO EMAIL').upper())
+                lead['last_mail_chip'] = ('gray', {'pending': 'Pendiente de aprobación', 'sending': 'Enviando', 'failed': 'Falló el envío', 'blocked': 'Bloqueado', 'discarded': 'Descartado', 'bounced': 'Rebotó'}.get(last.get('status'), 'Registrado'))
 
     leads.sort(key=lambda l: l.get('created') or '', reverse=True)
     email_templates = [tpl for tpl in store.list('email_templates') if tpl.get('activo', True)]

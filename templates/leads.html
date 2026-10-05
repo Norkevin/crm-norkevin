@@ -64,10 +64,8 @@
     <table class="sn-table" id="leads-table">
       <thead>
         <tr>
-          <th>Creado</th>
-          <th>Lead</th>
-          <th>Tipo</th>
-          <th>Fecha del evento</th>
+          <th>Persona</th>
+          <th>Evento</th>
           <th>Última actividad</th>
           <th>Siguiente paso</th>
           <th></th>
@@ -79,17 +77,20 @@
             data-status="{{ lead.status or 'Nuevo' }}"
             data-text="{{ (lead.nombre ~ ' ' ~ (lead.email or '') ~ ' ' ~ (lead.tipo_evento or '') ~ ' ' ~ (lead.fuente or ''))|lower }}"
             onclick="goLead(event, '{{ lead.id }}')">
-          <td class="sn-ellipsis" data-label="Creado">{{ lead.created_display or lead.created or '—' }}</td>
-          <td class="sn-ellipsis stack-full" data-label="Lead Name">
+          <td class="lead-person stack-full" data-label="Persona">
             <div class="sn-row-name">
-              <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (lead.nombre or '?')[:1]|upper }}</span>
-              <a class="record-name" href="/leads/{{ lead.id }}">{{ lead.nombre or 'Sin nombre' }}</a>
+              <span class="sn-row-avatar-lg" aria-hidden="true">{{ (lead.nombre or '?')[:1]|upper }}</span>
+              <div class="lead-primary">
+                <a class="record-name" href="/leads/{{ lead.id }}">{{ lead.nombre or 'Sin nombre' }}</a>
+                <span class="lead-meta">{{ lead.status or 'Nuevo' }}{% if lead.created %} · Recibido {{ lead.created[:10]|fecha_legible }}{% endif %}</span>
+              </div>
             </div>
           </td>
-          <td class="sn-ellipsis" data-label="Tipo"><span class="sn-dot"></span>{{ lead.tipo_evento or 'BODAS' }}</td>
-          <td class="sn-ellipsis" data-label="Boda Date">
+          <td class="lead-event" data-label="Evento">
+            <div class="lead-primary">
+              <div class="lead-event-date">
             {% if lead.boda_date_display %}
-              {{ lead.fecha_tentativa|fecha_legible }}
+              <time datetime="{{ lead.fecha_tentativa }}">{{ lead.fecha_tentativa|fecha_legible }}</time>
               {% if lead.date_conflict %}
                 <button type="button" class="date-status-badge red" title="Ver detalle de la advertencia" aria-label="Ver advertencia de fecha: {{ lead.nombre }}" onclick='openDateConflict(event, {{ lead.nombre|tojson }}, {{ lead.date_conflict_details|tojson }})'>
                   <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.7 7.3a1 1 0 00-1.4 1.4L8.6 10l-1.3 1.3a1 1 0 101.4 1.4L10 11.4l1.3 1.3a1 1 0 001.4-1.4L11.4 10l1.3-1.3a1 1 0 00-1.4-1.4L10 8.6 8.7 7.3z" clip-rule="evenodd"/></svg>
@@ -100,25 +101,28 @@
                 </button>
               {% elif lead.date_available %}
                 <span class="date-status-badge yellow" title="Fecha disponible">
-                  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.3.7l2.5 2.5a1 1 0 001.4-1.4L11 9.6V6z" clip-rule="evenodd"/></svg>
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 10 3 3 7-7"/></svg>
                 </span>
               {% endif %}
             {% else %}
-              Sin fecha <span class="sn-chip red">?</span>
+              <span class="lead-meta">Fecha por definir</span>
             {% endif %}
+              </div>
+              <span class="lead-meta">{{ lead.tipo_evento or 'Boda' }}</span>
+            </div>
           </td>
-          <td data-label="Mail Status">
-            <div class="sn-mail-status">
+          <td class="lead-activity" data-label="Última actividad">
+            <div class="lead-primary">
             {% if lead.last_mail_subject %}
-              <div class="sn-mail-subject">{{ lead.last_mail_subject|truncate(32) }}</div>
-              <span class="sn-chip {{ lead.last_mail_chip[0] }}">{{ lead.last_mail_chip[1] }}</span>
+              <div class="lead-activity-state {{ lead.last_mail_chip[0] }}"><span class="lead-state-dot" aria-hidden="true"></span>{{ lead.last_mail_chip[1] }}{% if lead.last_mail_date %}<time datetime="{{ lead.last_mail_date }}">{{ lead.last_mail_date|fecha_legible }}</time>{% endif %}</div>
+              <span class="lead-mail-subject" title="{{ lead.last_mail_subject }}">{{ lead.last_mail_subject }}</span>
             {% else %}
-              <div class="sn-mail-subject">{{ lead.fuente or 'Sin actividad reciente' }}</div>
-              <span class="sn-chip gray">Sin correo</span>
+              <span class="lead-meta">Sin correos todavía</span>
+              <span class="lead-mail-subject">{{ lead.fuente or 'Consulta nueva' }}</span>
             {% endif %}
             </div>
           </td>
-          <td class="sn-ellipsis" data-label="Next Task">{{ lead.next_task or 'Seguimiento Cliente' }}</td>
+          <td class="lead-next" data-label="Siguiente paso"><span>{{ lead.next_task or 'Seguimiento cliente' }}</span></td>
           <td class="stack-actions" style="text-align:right;">
             <button class="sn-menu-dots" type="button" title="Acciones del lead" aria-label="Acciones de {{ lead.nombre }}" onclick='openLeadActions(event, {
               id: {{ lead.id|tojson }},
@@ -136,7 +140,7 @@
         {% endfor %}
         {% if not leads %}
         <tr>
-          <td colspan="7" style="padding:0;">
+          <td colspan="5" style="padding:0;">
             <div class="sn-empty-state">
               <div class="sn-empty-state-icon">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-4.13a4 4 0 10-4-4 4 4 0 004 4zm6-6a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
@@ -273,7 +277,7 @@ function mostrarSinResultados(vacio) {
   if (fila) return;
   fila = document.createElement('tr');
   fila.id = 'sin-resultados';
-  fila.innerHTML = '<td colspan="7" style="padding:0;">'
+  fila.innerHTML = '<td colspan="5" style="padding:0;">'
     + '<div class="sn-empty-state">'
     + '<h3 class="sn-empty-state-title">Ningun lead coincide</h3>'
     + '<p class="sn-empty-state-desc">Proba con otras palabras, o limpia el buscador y los filtros para ver todo de nuevo.</p>'
