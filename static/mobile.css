@@ -62,3 +62,9 @@
   body[data-page="/dashboard"] .dashboard-panel-intro { margin-top: 0 !important; }
   body[data-page="/dashboard"] .header-search input { font-size: 16px; }
 }
+/* Installed iOS apps can undercount dvh by the status-bar safe area.
+   vh includes the full standalone screen; keep dvh for browser toolbars.
+   WebKit: https://bugs.webkit.org/show_bug.cgi?id=254868 */
+@media (max-width: 760px) and (display-mode: standalone) {
+  body { height: 100vh; }
+}
