@@ -1,0 +1,5 @@
+<details class="ft-job-menu"><summary class="sn-btn" aria-label="Acciones de {{ job.nombre }}">Acciones</summary><div>
+{% if job.teams_state != 'archived' %}<button type="button" class="sn-btn" data-classify="archived" data-job-id="{{ job.id }}" data-version="{{ job.classification_version }}" data-before="{{ job.teams_state }}">Archivar en Teams</button>{% endif %}
+{% if job.teams_state != 'not_applicable' %}<button type="button" class="sn-btn" data-classify="not_applicable" data-job-id="{{ job.id }}" data-version="{{ job.classification_version }}" data-before="{{ job.teams_state }}" data-commitments="{{ 'true' if job.has_commitments else 'false' }}">Marcar como no aplica</button>{% endif %}
+{% if job.teams_state != 'included' %}<button type="button" class="sn-btn" data-classify="included" data-job-id="{{ job.id }}" data-version="{{ job.classification_version }}" data-before="{{ job.teams_state }}">Volver a incluir en Teams</button>{% endif %}
+</div></details>

@@ -50,6 +50,17 @@ def pay(store, cost, amount='500', **overrides):
     return run(store, 'payment', **fields)
 
 
+
+def member_client(application, owner, person):
+    issued = owner.post('/api/teams/access', headers={'X-Teams-CSRF':'csrf'}, json={'member_id':person['id']})
+    assert issued.status_code == 200
+    client = application.test_client()
+    client.get('/teams-portal/login')
+    with client.session_transaction() as state:
+        csrf = state['teams_login_csrf']
+    assert client.post('/teams-portal/login', data={'csrf':csrf, 'code':issued.get_json()['code']}).status_code == 302
+    return client
+
 def test_partial_payment_does_not_duplicate_cost_and_reversal_reopens_balance(teams):
     cost = approved(teams, member(teams))
     payment = pay(teams, cost)
@@ -497,7 +508,7 @@ def test_portal_private_views_documents_csrf_and_revocation(web):
     response = owner.post('/teams-portal/command',headers={'X-Teams-CSRF':csrf},json=dict(action='cost',key='forbidden'))
     assert response.status_code == 403
     response = owner.post('/teams-portal/command',headers={'X-Teams-CSRF':csrf},json=dict(action='document_read',key='foreign',id=doc['id'],version=doc['version']))
-    assert response.status_code == 404
+    assert response.status_code == 403
     assert owner.get('/teams-portal/documents/'+doc['id']+'/download').status_code == 404
     run(store,'member_revoke',id=person['id'],version=person['version'])
     assert owner.get('/teams-portal/summary').status_code == 403
@@ -699,19 +710,19 @@ def test_expense_attachment_retry_private_download_and_approval(web):
     from io import BytesIO
     application, owner, _ = web
     store=application.extensions['teams']; person=member(store)
-    a=publish(store,assignment(store,person)); owner.get('/teams/preview/'+person['id'])
-    with owner.session_transaction() as s: csrf=s['teams_portal_csrf']
+    a=publish(store,assignment(store,person)); client=member_client(application,owner,person)
+    with client.session_transaction() as s: csrf=s['teams_portal_csrf']
     def upload():
-        return owner.post('/teams-portal/expenses/upload',headers={'X-Teams-CSRF':csrf},data=dict(
+        return client.post('/teams-portal/expenses/upload',headers={'X-Teams-CSRF':csrf},data=dict(
             key='receipt-once',assignment_id=a['id'],description='Gasolina',amount='100',evidence='',
             file=(BytesIO(b'%PDF-1.4\nFAKE RECEIPT'),'recibo.pdf')))
     first=upload(); assert first.status_code==200
     receipt=first.get_json()['record']; assert 'file_data' not in receipt
     assert upload().get_json()==first.get_json() and len(records(store,'expense_request'))==1
     assert len(records(store,'cost'))==1
-    data=owner.get('/teams-portal/summary').get_json()
+    data=client.get('/teams-portal/summary').get_json()
     assert data['expense_requests'][0]['file_name']=='recibo.pdf' and 'file_data' not in str(data)
-    assert owner.get('/teams-portal/expenses/'+receipt['id']+'/download').status_code==200
+    assert client.get('/teams-portal/expenses/'+receipt['id']+'/download').status_code==200
     assert owner.get('/teams/expenses/'+receipt['id']+'/download').status_code==200
     other=run(store,'member',name='Otro',email='other@example.invalid',role='Foto')
     owner.get('/teams/preview/'+other['id'])
@@ -725,10 +736,10 @@ def test_expense_attachment_retry_private_download_and_approval(web):
 def test_expense_files_reject_html_oversize_zero_amount_and_missing_csrf(web):
     from io import BytesIO
     application,owner,_=web; store=application.extensions['teams']; person=member(store)
-    a=publish(store,assignment(store,person)); owner.get('/teams/preview/'+person['id'])
-    with owner.session_transaction() as s: csrf=s['teams_portal_csrf']
+    a=publish(store,assignment(store,person)); client=member_client(application,owner,person)
+    with client.session_transaction() as s: csrf=s['teams_portal_csrf']
     def upload(raw,name,amount='100',headers=None):
-        return owner.post('/teams-portal/expenses/upload',headers=headers if headers is not None else {'X-Teams-CSRF':csrf},
+        return client.post('/teams-portal/expenses/upload',headers=headers if headers is not None else {'X-Teams-CSRF':csrf},
             data=dict(key=str(uuid4()),assignment_id=a['id'],description='No',amount=amount,evidence='Referencia',file=(BytesIO(raw),name)))
     assert upload(b'<script>bad</script>','recibo.pdf').status_code==400
     assert upload(b'%PDF-'+b'x'*(10*1024*1024),'grande.pdf').status_code==400
@@ -752,7 +763,7 @@ def test_personal_payment_summary_multiple_jobs_and_history_filter(web):
     assert 'Secreto ajeno' not in str(data) and 'price_total' not in str(data) and 'margin' not in str(data)
     filtered=owner.get('/teams-portal/summary?year=2027').get_json()
     assert not filtered['history'] and filtered['totals']==data['totals']
-    assert 'Todos tus importes' in owner.get('/teams-portal/').data.decode()
+    assert 'Mis pagos' in owner.get('/teams-portal/').data.decode()
 
 
 def test_private_member_fields_excluded_from_summary_portal_audit_and_result(web):
@@ -882,9 +893,9 @@ def test_attachment_limit_ten_megabytes_and_larger_member_receipt(web):
         file_fields(dict(file_data=base64.b64encode(exact+b'x').decode(),file_name='comprobante.txt'))
     app, owner, _ = web; store = app.extensions['teams']
     person = member(store); coverage = publish(store, assignment(store, person))
-    owner.get('/teams/preview/'+person['id'])
-    with owner.session_transaction() as session: token = session['teams_portal_csrf']
-    result = owner.post('/teams-portal/expenses/upload', headers={'X-Teams-CSRF':token}, data=dict(
+    client = member_client(app,owner,person)
+    with client.session_transaction() as session: token = session['teams_portal_csrf']
+    result = client.post('/teams-portal/expenses/upload', headers={'X-Teams-CSRF':token}, data=dict(
         key='large-expense-proof',assignment_id=coverage['id'],description='Gasto de prueba',amount='10',
         file=(BytesIO(b'%PDF-proof'+b'x'*(6*1024*1024)), 'gasto.pdf')))
     assert result.status_code == 200 and result.get_json()['record']['file_name']=='gasto.pdf'
@@ -937,7 +948,7 @@ def test_single_bodas_navigation_and_calendar_explains_buffer(web):
     for path in ('/teams', '/teams/jobs', '/teams/dashboard'):
         html = owner.get(path).data.decode()
         assert '>Resumen<' not in html and '>Bodas<' in html
-        assert 'Bodas activas · por fecha del evento' in html
+        assert 'Próximas' in html and 'Por pagar al equipo' in html
     calendar = owner.get('/teams/calendar').data.decode()
     assert 'Margen libre:' in calendar and 'No calcula cuánto tarda el viaje.' in calendar
     assert 'Aún no invitado' in calendar and 'Traslado:' not in calendar
@@ -1018,7 +1029,7 @@ def test_production_member_uses_own_code_not_owner_session(web):
 
 
 @pytest.mark.parametrize('tenant', ['brand-a', 'brand-b'])
-def test_bodas_overview_uses_active_crm_state_and_totals_without_removing_history(web, tenant):
+def test_bodas_views_use_event_dates_and_leave_crm_states_and_financial_history_intact(web, tenant):
     from datetime import date, timedelta
     from flask import session, template_rendered
     application, owner, storage = web
@@ -1051,16 +1062,244 @@ def test_bodas_overview_uses_active_crm_state_and_totals_without_removing_histor
             assert response.status_code == 200
             html = response.data.decode()
             assert 'upcoming-active' in html
-            for identifier in ('completed-old', 'completed-workflow', 'cancelled-future', 'archived-future'):
+            for identifier in ('completed-old', 'completed-workflow', 'no-date-active'):
                 assert identifier not in html
             context = captured[-1]
-            assert all(job['es_activo'] for job in context['jobs'])
-            assert context['totals']['income'] == sum(job['income'] for job in context['jobs'])
+            assert all(job['teams_phase'] == 'upcoming' for job in context['jobs'])
+            assert context['totals']['income'] == sum(job['income'] for job in owner.get('/api/teams/summary').get_json()['jobs'])
             assert 'No hay eventos activos' not in html
         assert owner.get('/teams/jobs/completed-old').status_code == 200
         summary = owner.get('/api/teams/summary').get_json()
         assert any(job['id'] == 'completed-old' for job in summary['jobs'])
         assert owner.get('/teams/jobs?year=2000').status_code == 200
-        assert not captured[-1]['jobs']
+        assert captured[-1]['jobs']  # The new date views replace the old event-year filter.
     finally:
         template_rendered.disconnect(capture, application)
+
+
+def test_classification_is_reversible_persistent_and_preserves_finances_and_crm(web):
+    application, owner, storage = web
+    store = application.extensions['teams']; person = member(store)
+    a = publish(store, assignment(store, person)); respond(store, person, a)
+    cost = records(store, 'cost')[0]; pay(store, cost)
+    before = owner.get('/api/teams/summary').get_json()
+    with application.test_request_context('/'):
+        from flask import session
+        session['tenant_id'] = 'brand-a'
+        original = deepcopy(storage.get('jobs','job-1'))
+    def classify(state, version, **extra):
+        return owner.post('/api/teams/command', headers={'X-Teams-CSRF':'csrf'}, json=dict(
+            action='job_classification',key=str(uuid4()),job_id='job-1',state=state,version=version,**extra))
+    result = classify('archived',0); assert result.status_code == 200
+    assert '/teams/jobs/job-1' not in owner.get('/teams/jobs').data.decode()
+    assert '/teams/jobs/job-1' in owner.get('/teams/jobs?view=archived').data.decode()
+    reopened = TeamsStore(store.path)
+    assert records(reopened,'job_classification')[0]['state'] == 'archived'
+    after = owner.get('/api/teams/summary').get_json()
+    assert after['totals'] == before['totals']
+    assert after['assignments'] == before['assignments'] and after['costs'] == before['costs'] and after['payments'] == before['payments']
+    assert classify('included',1).status_code == 200
+    assert '/teams/jobs/job-1' in owner.get('/teams/jobs').data.decode()
+    assert classify('not_applicable',2).status_code == 409
+    assert classify('not_applicable',2,confirmed=True).status_code == 200
+    assert '/teams/jobs/job-1' in owner.get('/teams/jobs?view=not_applicable').data.decode()
+    assert classify('included',3).status_code == 200
+    assert classify('archived',3).status_code == 409
+    assert classify('hidden',4).status_code == 400
+    with application.test_request_context('/'):
+        session['tenant_id'] = 'brand-a'
+        assert storage.get('jobs','job-1') == original
+    owner.get('/teams/preview/'+person['id'])
+    assert owner.get('/teams-portal/summary').get_json()['fee_summary']['pending'] == 100000
+    assert classify('archived',4).status_code == 200
+    assert owner.get('/teams-portal/summary').get_json()['fee_summary']['pending'] == 100000
+    assert b'Q1,000.00' in owner.get('/teams/payments').data
+
+
+def test_classification_is_scoped_idempotent_and_requires_owner_and_csrf(web):
+    application, owner, _ = web
+    store = application.extensions['teams']
+    payload=dict(action='job_classification',key='same',job_id='job-1',state='archived',version=0)
+    assert owner.post('/api/teams/command',json=payload).status_code == 403
+    result=owner.post('/api/teams/command',headers={'X-Teams-CSRF':'csrf'},json=payload)
+    assert result.status_code == 200
+    assert owner.post('/api/teams/command',headers={'X-Teams-CSRF':'csrf'},json=payload).get_json() == result.get_json()
+    assert len(records(store,'job_classification')) == 1
+    with owner.session_transaction() as state:
+        state.update(tenant_id='brand-b',user_email='other@example.invalid')
+    assert owner.post('/api/teams/command',headers={'X-Teams-CSRF':'csrf'},json=dict(payload,key='other')).status_code == 404
+    assert not records(store,'job_classification','brand-b')
+    # The generic entity key must not collide if tenants have matching source identifiers.
+    run(store,'job_classification',tenant='brand-b',job_id='job-1',state='not_applicable',version=0)
+    assert records(store,'job_classification','brand-b')[0]['state']=='not_applicable'
+    assert records(store,'job_classification')[0]['state']=='archived'
+
+
+def test_date_views_include_ongoing_events_and_search_stays_scoped(web):
+    from datetime import date,timedelta
+    from flask import session
+    application,owner,storage=web
+    today=date.today()
+    with application.test_request_context('/'):
+        session['tenant_id']='brand-a'
+        for identifier,day,end in [('ongoing',today-timedelta(days=1),today+timedelta(days=1)),('past',today-timedelta(days=3),today-timedelta(days=2)),('undated',None,None)]:
+            storage.upsert('jobs',dict(id=identifier,tenant_id='brand-a',nombre=identifier,boda_date=day.isoformat() if day else '',end_date=end.isoformat() if end else '',status='En curso'))
+        session['tenant_id']='brand-b'
+        storage.upsert('jobs',dict(id='foreign-secret',tenant_id='brand-b',nombre='foreign-secret',boda_date=today.isoformat(),status='En curso'))
+    html=owner.get('/teams/jobs').data.decode()
+    assert '/teams/jobs/ongoing' in html and '/teams/jobs/past' not in html and '/teams/jobs/undated' not in html
+    assert '/teams/jobs/past' in owner.get('/teams/jobs?view=past').data.decode()
+    assert 'Sin fecha' in owner.get('/teams/jobs?view=all&q=undated').data.decode()
+    assert 'Buscar en todas las bodas' in owner.get('/teams/jobs?q=past').data.decode()
+    assert 'foreign-secret' not in owner.get('/teams/jobs?view=all').data.decode()
+    assert owner.get('/teams/jobs?view=invalid').status_code == 400
+    assert owner.get('/teams/jobs?q='+'x'*201).status_code == 400
+
+
+def test_teams_zone_uses_configured_company_and_ongoing_coverage(web):
+    from datetime import date
+    from src.teams import teams_zone,job_phase
+    _,_,storage=web
+    storage.save_tenant_dict('settings',dict(company=dict(timezone='Pacific/Auckland')),tenant_id='brand-a')
+    assert teams_zone(storage,'brand-a').key=='Pacific/Auckland'
+    assert teams_zone(storage,'brand-b').key=='America/Guatemala'
+    job=dict(boda_date='2026-10-04')
+    assert job_phase(job,[dict(end='2026-10-06T01:00',status='aceptada')],date(2026,10,5))=='upcoming'
+    assert job_phase(job,[dict(end='2026-10-06T01:00',status='cancelada')],date(2026,10,5))=='past'
+
+
+@pytest.mark.parametrize('local',[True,False])
+def test_preview_is_read_only_for_all_member_mutations(web,local):
+    application,owner,_=web;application.config.update(FLOW_TEAMS_LOCAL=local,FLOW_TEAMS_ENABLED=True)
+    store=application.extensions['teams'];person=member(store);a=publish(store,assignment(store,person))
+    owner.get('/teams/preview/'+person['id'])
+    with owner.session_transaction() as state: csrf=state['teams_portal_csrf']
+    for action in ('response','expense_request','document_read','availability','task_complete','job_classification'):
+        response=owner.post('/teams-portal/command',headers={'X-Teams-CSRF':csrf},json=dict(action=action,key=str(uuid4()),id=a['id']))
+        assert response.status_code==403
+    assert owner.post('/teams-portal/expenses/upload',headers={'X-Teams-CSRF':csrf},data={}).status_code==403
+    html=owner.get('/teams-portal/').data.decode()
+    assert 'Solo lectura' in html and 'Volver a administración' in html
+    assert 'data-command="response"' not in html and 'data-command="expense_request"' not in html
+    assert records(store,'assignment')[0]['status']=='pendiente'
+
+
+def test_real_personal_link_authenticates_outside_owner_and_cannot_access_peer(web):
+    from urllib.parse import urlparse,parse_qs
+    application,owner,_=web;store=application.extensions['teams']
+    person=member(store);other=run(store,'member',name='Peer secret',role='Video')
+    publish(store,assignment(store,person));publish(store,assignment(store,other,slot='Video'))
+    issued=owner.post('/api/teams/access',headers={'X-Teams-CSRF':'csrf'},json=dict(member_id=person['id'])).get_json()
+    parsed=urlparse(issued['login_url'])
+    assert parsed.path=='/teams-portal/login' and parse_qs(parsed.fragment)['access']==[issued['code']]
+    assert '/preview/' not in issued['login_url'] and not parsed.query
+    client=application.test_client();client.get(parsed.path)
+    with client.session_transaction() as state: csrf=state['teams_login_csrf'];assert 'logged_in' not in state
+    assert client.post(parsed.path,data=dict(code=issued['code'],csrf=csrf)).status_code==302
+    data=client.get('/teams-portal/summary').get_json()
+    assert data['member']['id']==person['id'] and data['preview'] is False and 'Peer secret' not in str(data)
+    with client.session_transaction() as state: csrf=state['teams_portal_csrf']
+    assert client.post('/teams-portal/command',headers={'X-Teams-CSRF':csrf},json=dict(action='payment',key='deny')).status_code==403
+    assert client.post('/teams-portal/command',headers={'X-Teams-CSRF':csrf},json=dict(action='job_classification',key='deny-classify')).status_code==403
+    assert client.get('/teams/members/'+other['id']).status_code==404
+
+
+def test_confirmed_partial_settled_counts_and_real_installments(web):
+    application,owner,_=web;store=application.extensions['teams'];person=member(store)
+    a=publish(store,assignment(store,person));respond(store,person,a)
+    cost=records(store,'cost')[0]
+    run(store,'schedule',cost_id=cost['id'],version=cost['version'],plan='2026-10-05 500\n2026-11-01 500\n2026-11-14 500')
+    owner.get('/teams/preview/'+person['id'])
+    unpaid=owner.get('/teams-portal/summary').get_json()['fee_summary']
+    assert (unpaid['amount'],unpaid['paid'],unpaid['pending'],unpaid['count'])==(150000,0,150000,0)
+    first=pay(store,cost,'500');pay(store,cost,'400')
+    data=owner.get('/teams-portal/summary').get_json();fee=data['costs'][0]
+    assert (data['fee_summary']['paid'],data['fee_summary']['pending'],data['fee_summary']['count'])==(90000,60000,2)
+    assert (fee['schedule_completed'],fee['schedule_count'])==(1,3)
+    assert fee['next_payment']==dict(date='2026-11-01',amount=10000)
+    pay(store,cost,'600')
+    assert owner.get('/teams-portal/summary').get_json()['fee_summary']['pending']==0
+    assert owner.get('/teams-portal/summary').get_json()['fee_summary']['count']==3
+    run(store,'reverse',id=first['id'],reason='Correction',effective_date='2026-10-06')
+    data=owner.get('/teams-portal/summary').get_json()
+    assert (data['fee_summary']['paid'],data['fee_summary']['pending'],data['fee_summary']['count'])==(100000,50000,2)
+    assert len(data['history'])==4 and {p['status'] for p in data['history']}=={'Anulado','Corrección','Recibido'}
+
+
+def test_history_uses_payment_year_and_general_summary_ignores_filter_and_classification(web):
+    application,owner,_=web;store=application.extensions['teams'];person=member(store)
+    a=publish(store,assignment(store,person));respond(store,person,a);cost=records(store,'cost')[0]
+    pay(store,cost,'500',effective_date='2025-12-30');pay(store,cost,'400',effective_date='2027-01-02')
+    run(store,'job_classification',job_id='job-1',state='not_applicable',version=0,confirmed=True)
+    owner.get('/teams/preview/'+person['id'])
+    first=owner.get('/teams-portal/summary?year=2025').get_json();second=owner.get('/teams-portal/summary?year=2027').get_json()
+    assert first['history_fee_total']==50000 and second['history_fee_total']==40000
+    assert first['fee_summary']==second['fee_summary'] and first['fee_summary']['pending']==60000
+    assert first['history_years']==['2027','2025']
+    assert len(owner.get('/teams-portal/summary?year=all').get_json()['history'])==2
+
+
+def test_unconfirmed_fees_funds_and_reimbursements_are_not_confirmed_debt(web):
+    application,owner,_=web;store=application.extensions['teams'];person=member(store)
+    a=publish(store,assignment(store,person));fee=records(store,'cost')[0]
+    pay(store,fee,'500')
+    expense=run(store,'cost',job_id='job-1',member_id=person['id'],category='Transporte',description='Reembolso',amount='100')
+    expense=run(store,'cost_status',id=expense['id'],version=expense['version'],status='aprobado')
+    pay(store,expense,'100');run(store,'advance',job_id='job-1',member_id=person['id'],amount='200',effective_date='2026-10-05',reference='Fondo')
+    owner.get('/teams/preview/'+person['id']);data=owner.get('/teams-portal/summary').get_json()
+    assert (data['fee_summary']['amount'],data['fee_summary']['paid'],data['fee_summary']['pending'])==(0,50000,0)
+    assert data['fee_summary']['unconfirmed']==1 and data['fee_summary']['advance_paid']==50000
+    assert data['history_fee_count']==1 and data['history_fee_total']==50000 and data['history_reimbursements']==10000
+    assert data['totals']['funds_remaining']==20000
+
+
+def test_multi_coverage_payment_is_counted_once_and_detail_amounts_are_allocated(web):
+    application,owner,_=web;store=application.extensions['teams'];person=member(store)
+    first=publish(store,assignment(store,person));second=publish(store,assignment(store,person,job='job-2',start='2026-12-01T13:00',end='2026-12-01T22:00'))
+    respond(store,person,first);respond(store,person,second)
+    costs=records(store,'cost');pay(store,costs[0],'900',allocations=[dict(cost_id=costs[0]['id'],amount='500'),dict(cost_id=costs[1]['id'],amount='400')])
+    owner.get('/teams/preview/'+person['id']);data=owner.get('/teams-portal/summary').get_json()
+    assert data['fee_summary']['count']==1 and data['fee_summary']['paid']==90000
+    assert sorted(c['movements'][0]['amount'] for c in data['costs'])==[40000,50000]
+    assert all(j['fee_count']==1 for j in data['financial_jobs'])
+
+
+def test_legacy_undated_and_overpaid_movements_remain_visible_without_invented_dates(web):
+    application,owner,_=web;store=application.extensions['teams'];person=member(store)
+    a=publish(store,assignment(store,person));respond(store,person,a);cost=records(store,'cost')[0]
+    payment=pay(store,cost,'500')
+    with store.transaction() as db:
+        payment.pop('effective_date');payment['amount']=200000;payment['allocations'][0]['amount']=200000
+        store.save(db,'brand-a','payment',payment)
+    owner.get('/teams/preview/'+person['id']);data=owner.get('/teams-portal/summary?year=all').get_json()
+    assert data['history'][0]['date'] is None and data['fee_summary']['overpaid']
+    assert data['fee_summary']['pending']==-50000 and data['fee_summary']['progress']>100
+    assert b'Sin fecha de pago' in owner.get('/teams-portal/?year=all').data
+    assert not owner.get('/teams-portal/summary?year=2026').get_json()['history']
+
+
+def test_notion_upload_is_owner_only_csrf_protected_and_private_to_members(web, monkeypatch):
+    import io
+    import json
+    from types import SimpleNamespace
+    import src.teams_notion as notion
+    application, owner, storage=web
+    monkeypatch.setattr(notion,'resolve_brand',lambda tenant:SimpleNamespace(brand_key='norkevin'))
+    payload=dict(jobs=[{'url':'https://app.notion.com/p/'+'a'*32,'EMPRESA':'NORKEVIN',
+                       'BODA':'Ejemplo','date:Fecha del evento:start':'2026-11-14',
+                       'Primera Camara':'Nombre administrativo privado'}],payments=[])
+    def upload(client,csrf=None):
+        return client.post('/api/teams/notion/import',headers={'X-Teams-CSRF':csrf or ''},
+                           data={'file':(io.BytesIO(json.dumps(payload).encode()),'notion.json')})
+    assert upload(owner).status_code==403
+    anonymous=application.test_client();assert upload(anonymous,'csrf').status_code==404
+    assert upload(owner,'csrf').status_code==200
+    assert 'Nombre administrativo privado' in owner.get('/teams/jobs/job-1').get_data(as_text=True)
+    assert 'Última vinculación de Notion' in owner.get('/teams/settings').get_data(as_text=True)
+    person=member(application.extensions['teams']);assignment(application.extensions['teams'],person)
+    worker=member_client(application,owner,person)
+    assert 'Nombre administrativo privado' not in worker.get('/teams-portal').get_data(as_text=True)
+    assert upload(worker,'csrf').status_code==404
+    bad=owner.post('/api/teams/notion/import',headers={'X-Teams-CSRF':'csrf'},
+        data={'file':(io.BytesIO(b'not json'),'notion.json')})
+    assert bad.status_code==400

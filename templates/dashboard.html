@@ -5,6 +5,8 @@
 
 {% block content %}
 <style>
+.dashboard-year-picker{margin:12px 0;color:var(--sn-muted);font-size:13px}.dashboard-year-picker summary{cursor:pointer;width:max-content;padding:8px 0;color:var(--sn-ink)}.dashboard-year-picker p{max-width:60ch}.dashboard-year-picker #dashboard-year-options{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0}.dashboard-year-picker label{display:flex;gap:8px;align-items:center;cursor:pointer;min-height:36px}.dashboard-year-picker input{accent-color:var(--sn-green)}
+
 .dashboard-shell {
   width: 100%;
   max-width: var(--content-max);
@@ -727,6 +729,11 @@
           </button>
         </div>
 
+        <details class="dashboard-year-picker" id="dashboard-year-picker">
+          <summary>Años visibles</summary>
+          <p>Desmarca un año para quitar su línea, cifra y etiqueta del comparativo. Puedes volver a mostrarlo aquí.</p>
+          <div id="dashboard-year-options"></div>
+        </details>
         <div class="chart-frame">
           <svg id="dashboard-chart" viewBox="0 0 900 380" preserveAspectRatio="none" role="img" aria-label="Dashboard chart"></svg>
           <div class="chart-tooltip" id="dashboard-chart-tooltip"></div>
@@ -1297,6 +1304,30 @@ var CURRENT_YEAR = {{ current_year|tojson }};
 // disponibles pero ocultas, el usuario las puede prender desde la leyenda.
 // Si el año en curso no tiene datos todavia, no ocultamos nada (mejor
 // mostrar lo que haya que dejar la grafica en blanco).
+var excludedRevenueYears = new Set();
+var revenueYearsPreferenceKey = 'flow-dashboard-years:' + {{ current_tenant.id|tojson }};
+try {
+  var savedRevenueYears = JSON.parse(localStorage.getItem(revenueYearsPreferenceKey) || '[]');
+  if (Array.isArray(savedRevenueYears)) excludedRevenueYears = new Set(savedRevenueYears.filter(function(y) { return /^\d{4}$/.test(String(y)); }).map(String));
+} catch (_) { /* Storage unavailable: the dashboard remains usable. */ }
+function setRevenueYearIncluded(year, included) {
+  year = String(year);
+  if (included) { excludedRevenueYears.delete(year); hiddenRevenueYears.delete(year); }
+  else excludedRevenueYears.add(year);
+  try { localStorage.setItem(revenueYearsPreferenceKey, JSON.stringify(Array.from(excludedRevenueYears))); } catch (_) {}
+  updateDashboard();
+}
+function renderRevenueYearOptions() {
+  var options = document.getElementById('dashboard-year-options');
+  if (options.children.length) return;
+  REVENUE_SERIES.forEach(function(series) {
+    var label = document.createElement('label');
+    var checkbox = document.createElement('input'); checkbox.type = 'checkbox';
+    checkbox.checked = !excludedRevenueYears.has(String(series.year));
+    checkbox.addEventListener('change', function() { setRevenueYearIncluded(series.year, checkbox.checked); });
+    label.append(checkbox, document.createTextNode(String(series.year))); options.append(label);
+  });
+}
 var hiddenRevenueYears = new Set();
 if (REVENUE_SERIES.some(function(s) { return String(s.year) === String(CURRENT_YEAR); })) {
   REVENUE_SERIES.forEach(function(s) {
@@ -1330,7 +1361,7 @@ function drawRevenueComparisonChart() {
     return;
   }
 
-  var visibleSeries = REVENUE_SERIES.filter(function(s) { return !hiddenRevenueYears.has(String(s.year)); });
+  var visibleSeries = REVENUE_SERIES.filter(function(s) { return !hiddenRevenueYears.has(String(s.year)) && !excludedRevenueYears.has(String(s.year)); });
   var allValues = [];
   visibleSeries.forEach(function(s) { allValues = allValues.concat(s.values); });
   var max = niceCeil(Math.max(1, Math.max.apply(null, allValues.concat([0]))));
@@ -1426,7 +1457,7 @@ function drawRevenueComparisonChart() {
 function revenueLegendHtml() {
   // Extraido para que la rama de barras de mobile use exactamente la misma
   // leyenda que la de lineas, en vez de duplicarla.
-  return REVENUE_SERIES.map(function(s) {
+  return REVENUE_SERIES.filter(function(s) { return !excludedRevenueYears.has(String(s.year)); }).map(function(s) {
     var isHidden = hiddenRevenueYears.has(String(s.year));
     return '<button type="button" class="chart-legend-toggle" style="opacity:' + (isHidden ? '.4' : '1') + ';" onclick="toggleRevenueYear(\'' + s.year + '\')">'
       + '<i class="legend-dot" style="background:' + s.color + ';"></i>' + s.year
@@ -1436,6 +1467,8 @@ function revenueLegendHtml() {
 }
 
 function updateDashboard() {
+  renderRevenueYearOptions();
+  document.getElementById('dashboard-year-picker').hidden = dashboardMetric !== 'revenue';
   var range = DASHBOARD_DATA[dashboardRange] || DASHBOARD_DATA.mtd;
   var payload = currentDashboardPayload();
   document.getElementById('dashboard-leads-value').textContent = payload.totals.leads || 0;

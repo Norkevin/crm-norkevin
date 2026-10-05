@@ -8,7 +8,7 @@ import secrets
 
 from flask import Blueprint, abort, g, jsonify, redirect, render_template, request, send_file, session, url_for
 
-from src.teams import LOCAL_ZONE, TeamsError, now, text
+from src.teams import LOCAL_ZONE, TeamsError, now, text, teams_zone
 from src.teams_features import VISIBLE_ASSIGNMENTS, advance_balance, cost_amount, document_visible, file_fields, MAX_FILE_BYTES
 
 
@@ -82,7 +82,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                 abort(403)
         g.teams_portal_tenant, g.teams_member = tenant, member
         if request.method == 'POST':
-            if session.get('teams_member_preview') and not local and request.endpoint != 'teams_portal.logout':
+            if session.get('teams_member_preview') and request.endpoint != 'teams_portal.logout':
                 raise TeamsError('La vista previa es de consulta. El miembro responde desde su acceso individual.', 403)
             token = session.get('teams_portal_csrf')
             if not token or not secrets.compare_digest(request.headers.get('X-Teams-CSRF', ''), token):
@@ -130,7 +130,8 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             store.create(db, session['tenant_id'], 'audit', action='access_issue', actor=session['user_email'],
                          created_at=now(), before=None, after=dict(id=member['id']))
         # The raw code is returned once, never written to the audit, URL, outbox or idempotency table.
-        return jsonify(ok=True, code=token, message='Código individual de un solo uso. Caduca en 24 horas. No se ha enviado.')
+        return jsonify(ok=True, code=token, login_url=url_for('teams_portal.login', _external=True) + '#access=' + token,
+                       message='Enlace privado de un solo uso. Caduca en 24 horas. No se ha enviado.')
 
     @portal.route('/login', methods=['GET', 'POST'])
     def login():
@@ -180,7 +181,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             jobs = {}
             for identifier in job_ids:
                 job = read_job(identifier)
-                jobs[identifier] = {k: job.get(k) for k in ('id', 'nombre', 'boda_date', 'location', 'status')}
+                jobs[identifier] = {k: job.get(k) for k in ('id', 'nombre', 'boda_date', 'end_date', 'location', 'status')}
             published = {a['id'] for a in store.records(db, tenant, 'assignment') if a['member_id'] == member['id']
                          and (a.get('published_at') or a['status'] in VISIBLE_ASSIGNMENTS)}
             cost_rows = [c for c in store.records(db, tenant, 'cost') if c['beneficiary'] == member['id']
@@ -191,7 +192,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                 paid = store.paid(db, tenant, c['id'])
                 costs.append(dict(id=c['id'], job_id=c['job_id'], category=c['category'], description=c['description'],
                                   amount=cost_amount(c), paid=paid, pending=cost_amount(c)-paid if c['status'] in ('aprobado','incurrido') else 0,
-                                  status=c['status'], honorarium=bool(c.get('assignment_id'))))
+                                  status=c['status'], honorarium=bool(c.get('assignment_id')), assignment_id=c.get('assignment_id'), schedule_id=c.get('schedule_id')))
             coverage = []
             for a in assignments:
                 c = next((c for c in cost_rows if c.get('assignment_id') == a['id']), None)
@@ -218,17 +219,59 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             availability = [{k:r.get(k) for k in ('id','start','end','note','version','status')}
                             for r in store.records(db, tenant, 'availability') if r['member_id'] == member['id'] and r.get('status') != 'retirada']
             owned_cost_ids = {c['id'] for c in costs}
+            cost_map = {c['id']: c for c in costs}
             history = []
-            for payment in store.records(db,tenant,'payment'):
-                if payment['beneficiary'] != member['id']:
-                    continue
+            payments = [p for p in store.records(db, tenant, 'payment') if p['beneficiary'] == member['id']]
+            reversed_ids = {p.get('reversal_of') for p in payments if p['sign'] == -1}
+            for payment in payments:
                 allocations = [a for a in payment['allocations'] if a['cost_id'] in owned_cost_ids]
                 if not allocations and not payment.get('advance_id'):
                     continue
-                history.append(dict(id=payment['id'],date=payment['effective_date'],amount=payment['amount']*payment['sign'],
-                    reference=payment['reference'],method=payment['method'],file_name=payment.get('file_name',''),
+                own = dict(id=payment['id'], date=payment.get('effective_date'),
+                    amount=(sum(a['amount'] for a in allocations) if allocations else payment['amount']) * payment['sign'],
+                    reference=payment.get('reference', ''), method=payment.get('method', ''), file_name=payment.get('file_name', ''),
                     kind='Fondo para gastos' if payment.get('advance_id') else 'Pago' if payment['sign']==1 else 'Corrección de pago',
-                    job_ids=list(dict.fromkeys([a['job_id'] for a in allocations] + ([payment['job_id']] if payment.get('advance_id') else [])))))
+                    status='Anulado' if payment['id'] in reversed_ids else 'Corrección' if payment['sign']==-1 else 'Recibido',
+                    fee_amount=sum(a['amount'] for a in allocations if cost_map[a['cost_id']]['honorarium']) * payment['sign'],
+                    reimbursement_amount=sum(a['amount'] for a in allocations if not cost_map[a['cost_id']]['honorarium']) * payment['sign'],
+                    fee_job_ids=list(dict.fromkeys(a['job_id'] for a in allocations if cost_map[a['cost_id']]['honorarium'])),
+                    cost_ids=[a['cost_id'] for a in allocations], sign=payment['sign'], valid=payment['sign']==1 and payment['id'] not in reversed_ids,
+                    job_ids=list(dict.fromkeys([a['job_id'] for a in allocations] + ([payment['job_id']] if payment.get('advance_id') else []))))
+                history.append(own)
+            schedules = store.records(db, tenant, 'schedule')
+            assignment_map = {a['id']: a for a in store.records(db, tenant, 'assignment') if a['member_id'] == member['id']}
+            for c in costs:
+                a = assignment_map.get(c['assignment_id'])
+                c['confirmed'] = not c['honorarium'] or bool(a and a['status'] in ('aceptada','realizada'))
+                c['movements'] = [dict(p, amount=sum(part['amount'] for payment in payments if payment['id']==p['id'] for part in payment['allocations'] if part['cost_id']==c['id']) * p['sign']) for p in history if c['id'] in p['cost_ids']]
+                c['payment_count'] = sum(p['valid'] for p in c['movements'])
+                c['schedule_count'] = c['schedule_completed'] = 0
+                c['next_payment'] = None
+                plan = next((r for r in schedules if r['id'] == c['schedule_id']), None)
+                if plan:
+                    remaining = c['paid']
+                    c['schedule_count'] = len(plan['plan'])
+                    for entry in plan['plan']:
+                        applied = min(remaining, entry['amount'])
+                        remaining -= applied
+                        c['schedule_completed'] += applied == entry['amount']
+                        if applied < entry['amount'] and c['next_payment'] is None:
+                            c['next_payment'] = dict(date=entry['due_date'], amount=entry['amount']-applied)
+                c['overpaid'] = c['paid'] > c['amount']
+            for a in coverage:
+                c = next((c for c in costs if c['assignment_id']==a['id']), None)
+                a['financial'] = c
+                a['amount'] = c['amount'] if c else None
+            fee_costs = [c for c in costs if c['honorarium']]
+            fee_payments = [p for p in history if p['fee_amount']]
+            fee_summary = dict(amount=sum(c['amount'] for c in fee_costs if c['confirmed']),
+                paid=sum(c['paid'] for c in fee_costs), pending=sum(c['pending'] for c in fee_costs if c['confirmed']),
+                count=sum(p['valid'] for p in fee_payments),
+                unconfirmed=sum(not c['confirmed'] for c in fee_costs),
+                advance_paid=sum(c['paid'] for c in fee_costs if not c['confirmed']),
+                overpaid=any(c['overpaid'] for c in fee_costs))
+            fee_summary['progress'] = round(fee_summary['paid'] * 100 / fee_summary['amount'], 1) if fee_summary['amount'] else None
+            history_years = sorted({p['date'][:4] for p in history if p.get('date') and len(p['date'])>=10}, reverse=True)
         financial_ids = {c['job_id'] for c in costs} | {a['job_id'] for a in advances}
         financial_jobs = []
         for identifier in financial_ids:
@@ -236,11 +279,18 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             own = [c for c in costs if c['job_id']==identifier]
             financial_jobs.append(dict(id=identifier,name=job.get('nombre'),day=job.get('boda_date'),
                 honorarium=sum(c['amount'] for c in own if c['honorarium']),reimbursements=sum(c['amount'] for c in own if not c['honorarium']),
-                paid=sum(c['paid'] for c in own),pending=sum(c['pending'] for c in own)))
-        year = request.args.get('year','')
+                paid=sum(c['paid'] for c in own),pending=sum(c['pending'] for c in own),
+                fees=[c for c in own if c['honorarium']],
+                fee_amount=sum(c['amount'] for c in own if c['honorarium'] and c['confirmed']),
+                fee_paid=sum(c['paid'] for c in own if c['honorarium']),
+                fee_pending=sum(c['pending'] for c in own if c['honorarium'] and c['confirmed']),
+                fee_count=sum(p['valid'] for p in fee_payments if identifier in p['fee_job_ids'])))
+        year = request.args.get('year', str(datetime.now(teams_zone(crm_store, tenant)).year))
+        if year == 'all':
+            year = ''
         if year and (len(year)!=4 or not year.isdigit()):
             abort(400)
-        history = sorted((p for p in history if not year or p['date'].startswith(year+'-')),key=lambda p:p['date'],reverse=True)
+        history = sorted((p for p in history if not year or (p.get('date') or '').startswith(year+'-')),key=lambda p:p.get('date') or '',reverse=True)
         totals = dict(amount=sum(c['amount'] for c in costs),paid=sum(c['paid'] for c in costs),pending=sum(c['pending'] for c in costs),
                       honorarium=sum(c['amount'] for c in costs if c['honorarium']),
                       reimbursements=sum(c['amount'] for c in costs if not c['honorarium']),
@@ -248,6 +298,12 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
         return dict(member={k: member.get(k) for k in ('id','name','email','phone')}, assignments=coverage, documents=documents,
                     costs=costs, advances=advances, tasks=tasks, expense_requests=requests, availability=availability,
                     financial_jobs=sorted(financial_jobs,key=lambda j:j['day'] or ''),history=history,year=year,totals=totals,
+                    fee_summary=fee_summary, history_years=history_years, current_year=str(datetime.now(teams_zone(crm_store, tenant)).year),
+                    history_total=sum(p['amount'] for p in history), history_count=sum(p['valid'] for p in history),
+                    history_fee_total=sum(p['fee_amount'] for p in history), history_fee_count=sum(p['valid'] for p in history if p['fee_amount']),
+                    history_reimbursements=sum(p['reimbursement_amount'] for p in history),
+                    upcoming_assignments=sorted((a for a in coverage if a['end'][:10] >= datetime.now(teams_zone(crm_store, tenant)).date().isoformat()), key=lambda a:a['start']),
+                    past_assignments=sorted((a for a in coverage if a['end'][:10] < datetime.now(teams_zone(crm_store, tenant)).date().isoformat()), key=lambda a:a['start'], reverse=True),
                     brand_name=crm_store.get('tenants',tenant).get('name','Tu equipo'),
                     preview=bool(session.get('teams_member_preview')))
 

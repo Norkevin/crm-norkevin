@@ -1,0 +1,8 @@
+<section class="ft-panel ft-personal-access" data-personal-access data-member-name="{{ member.name }}" data-brand-name="{{ current_tenant.name }}">
+<div class="ft-section-title"><div><h2>Portal y acceso personal</h2><p class="ft-muted">Un acceso para sus coberturas en {{ current_tenant.name }}.</p></div><a class="sn-btn" href="{{ url_for('teams.preview',member_id=member.id) }}">Ver portal</a></div>
+<p>Genera un enlace privado para compartirlo. El código de entrada se usa una vez y caduca en 24 horas; las sesiones existentes se conservan.</p>
+<div class="ft-actions ft-wrap"><button class="sn-btn sn-btn-primary" type="button" data-access="{{ member.id }}">Crear enlace personal</button><button class="sn-btn" type="button" data-copy-access disabled>Copiar enlace personal</button><button class="sn-btn" type="button" data-share-access disabled>Compartir enlace</button></div>
+<output class="ft-access-code" data-access-output="{{ member.id }}" hidden></output>
+<div data-share-message hidden><label>Mensaje listo para revisar<textarea readonly rows="4" data-share-text></textarea></label><button class="sn-btn" type="button" data-copy-message>Copiar mensaje</button><small>No se envía automáticamente.</small></div>
+<details><summary>Administrar acceso</summary><p>Crear un enlace nuevo no revoca sesiones anteriores. Usa esta acción si necesitas retirar el acceso individual.</p><button class="sn-btn" type="button" data-action="member_revoke" data-id="{{ member.id }}" data-version="{{ member.version }}">Revocar sesiones y códigos</button></details>
+</section>

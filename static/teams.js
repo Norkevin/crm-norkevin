@@ -8,7 +8,7 @@
   async function send(data, button, source) {
     if (button.disabled) return;
     const file = source.elements?.file?.files[0];
-    const fileLimit = source.dataset.command === 'directory_import' ? 20 : 10;
+    const fileLimit = source.dataset.command === 'directory_import' ? 20 : source.dataset.command === 'notion_import' ? 4 : 10;
     if (file && file.size > fileLimit * 1024 * 1024) { showError(`El archivo supera ${fileLimit} MB.`); return; }
     const key = source.dataset.commandKey || crypto.randomUUID();
     const body = JSON.stringify({...data, key});
@@ -39,6 +39,13 @@
         throw new Error(result.error || 'No se pudo guardar. Recarga y comprueba tu sesión.');
       }
       if (result.warnings?.length) sessionStorage.setItem('flow-teams-message', result.warnings.join(' '));
+      if (data.action === 'job_classification') {
+        const messages = {archived:'Boda archivada en Teams.', not_applicable:'Boda marcada como no aplica.', included:'Boda incluida en Teams.'};
+        sessionStorage.setItem('flow-teams-classification', JSON.stringify({message:messages[data.state],
+          job_id:data.job_id, state:source.dataset.before || 'included', version:result.record.version,
+          undo:data.state !== 'included' && source.dataset.isUndo !== 'true'}));
+      }
+      if (data.action === 'logout') { location.href = '/teams-portal/login'; return; }
       location.reload();
     } catch (error) {
       showError(source.dataset.commandKey ? 'No se confirmó el resultado. Reintenta el mismo formulario o recarga para revisar el historial.' : error.message);
@@ -113,6 +120,24 @@
     if (button.dataset.status) data.status = button.dataset.status;
     send(data, button, button);
   }));
+  document.querySelectorAll('[data-classify]').forEach(button => button.addEventListener('click', () => {
+    const needsConfirmation = button.dataset.classify === 'not_applicable' && button.dataset.commitments === 'true';
+    const commit = (trigger = button) => send({action:'job_classification', job_id:button.dataset.jobId, version:Number(button.dataset.version),
+      state:button.dataset.classify, confirmed:needsConfirmation}, trigger, button);
+    if (!needsConfirmation) { commit(); return; }
+    const menu = button.closest('.ft-job-menu');
+    if (menu.querySelector('[data-classification-confirm]')) return;
+    const notice = document.createElement('section'); notice.dataset.classificationConfirm = '';
+    notice.className = 'ft-classification-confirm'; notice.setAttribute('role','group');
+    const text = document.createElement('p');
+    text.textContent = 'Esta boda tiene asignaciones o movimientos. Se conservarán las coberturas, invitaciones y pagos pendientes.';
+    const confirmButton = document.createElement('button'); confirmButton.type = 'button';
+    confirmButton.className = 'sn-btn sn-btn-primary'; confirmButton.textContent = 'Confirmar no aplica';
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'sn-btn'; cancel.textContent = 'Cancelar';
+    confirmButton.addEventListener('click', () => commit(confirmButton));
+    cancel.addEventListener('click', () => { notice.remove(); button.focus(); });
+    notice.append(text,confirmButton,cancel); button.after(notice); confirmButton.focus();
+  }));
   document.querySelectorAll('select[name="member_id"]').forEach(select => select.addEventListener('change', () => {
     const form = select.form;
     if (form.dataset.command !== 'assignment') return;
@@ -181,19 +206,48 @@
   const restoreTab = [...document.querySelectorAll('[data-job-tab]')]
     .find(button => button.dataset.jobTab === rememberedTab);
   if (restoreTab) restoreTab.click();
-  document.querySelectorAll('[data-access]').forEach(button => button.addEventListener('click', async () => {
-    button.disabled = true;
-    try {
-      const response = await fetch('/api/teams/access', {method: 'POST', headers: {
-        'Content-Type':'application/json', 'X-Teams-CSRF':window.flowTeamsCSRF}, body:JSON.stringify({member_id:button.dataset.access})});
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'No se pudo crear el código.');
-      const output = document.querySelector(`[data-access-output="${button.dataset.access}"]`);
-      output.textContent = `${data.message}\n${data.code}\nAcceso: ${location.origin}/teams-portal/login`;
-      output.hidden = false;
-    } catch (error) { showError(error.message); }
-    finally { button.disabled = false; }
-  }));
+  const copyText = async text => {
+    try { await navigator.clipboard.writeText(text); }
+    catch (_) { throw new Error('No se pudo copiar. Selecciona el enlace o mensaje y cópialo manualmente.'); }
+  };
+  document.querySelectorAll('[data-personal-access]').forEach(section => {
+    const create = section.querySelector('[data-access]');
+    const output = section.querySelector('[data-access-output]');
+    let link = '';
+    create.addEventListener('click', async () => {
+      create.disabled = true;
+      try {
+        const response = await fetch('/api/teams/access', {method:'POST',headers:{'Content-Type':'application/json',
+          'X-Teams-CSRF':window.flowTeamsCSRF}, body:JSON.stringify({member_id:create.dataset.access})});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudo crear el enlace.');
+        link = data.login_url;
+        output.textContent = `${data.message}\n${link}`; output.hidden = false;
+        section.querySelector('[data-copy-access]').disabled = false;
+        section.querySelector('[data-share-access]').disabled = false;
+        create.textContent = 'Crear otro enlace';
+        section.querySelector('[data-share-text]').value = `Hola, ${section.dataset.memberName}. Te comparto tu acceso personal al equipo de ${section.dataset.brandName}: ${link}. Ahí podés consultar tus coberturas, horarios, documentos y pagos. El enlace de entrada caduca en 24 horas y se usa una vez.`;
+        section.querySelector('[data-share-message]').hidden = true;
+      } catch (error) { showError(error.message); }
+      finally { create.disabled = false; }
+    });
+    section.querySelector('[data-copy-access]').addEventListener('click', async () => {
+      try { await copyText(link); showError('Enlace personal copiado.'); } catch (error) { showError(error.message); }
+    });
+    section.querySelector('[data-share-access]').addEventListener('click', () => {
+      section.querySelector('[data-share-message]').hidden = false;
+      section.querySelector('[data-share-text]').focus();
+    });
+    section.querySelector('[data-copy-message]').addEventListener('click', async () => {
+      try { await copyText(section.querySelector('[data-share-text]').value); showError('Mensaje copiado. Listo para que lo revises y envíes.'); } catch (error) { showError(error.message); }
+    });
+  });
+  document.querySelector('[data-open-payments]')?.addEventListener('click', () => {
+    document.querySelector('[data-job-tab="expenses"]').click();
+    document.querySelector('#ft-job-expenses').scrollIntoView({block:'start'});
+  });
+  if (new URLSearchParams(location.search).get('tab') === 'expenses')
+    document.querySelector('[data-job-tab="expenses"]')?.click();
   document.querySelectorAll('[data-search]').forEach(input => input.addEventListener('input', () => {
     if (input.dataset.search === 'calendar') {
       document.querySelectorAll('[data-calendar-search]').forEach(card => {
@@ -210,6 +264,20 @@
       row.hidden = !row.textContent.toLocaleLowerCase().includes(input.value.toLocaleLowerCase());
     });
   }));
+  const classification = sessionStorage.getItem('flow-teams-classification');
+  if (classification) {
+    sessionStorage.removeItem('flow-teams-classification');
+    try {
+      const saved = JSON.parse(classification);
+      feedback.textContent = saved.message; feedback.hidden = false;
+      if (saved.undo) {
+        const undo = document.createElement('button'); undo.className = 'sn-btn'; undo.type = 'button';
+        undo.textContent = 'Deshacer'; undo.dataset.isUndo = 'true'; feedback.append(' ',undo);
+        undo.addEventListener('click', () => send({action:'job_classification', job_id:saved.job_id,
+          state:saved.state, version:saved.version, confirmed:true}, undo, undo));
+      }
+    } catch (_) { /* Invalid local feedback does not affect stored classifications. */ }
+  }
   const savedMessage = sessionStorage.getItem('flow-teams-message');
   if (savedMessage) {
     sessionStorage.removeItem('flow-teams-message');

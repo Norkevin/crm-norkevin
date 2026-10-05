@@ -171,7 +171,24 @@ class TeamsStore:
             job_reader = guarded_job_reader
             before = None
             warnings = []
-            if action == 'member':
+            if action == 'job_classification':
+                job = job_reader(text(data, 'job_id', maximum=200))
+                state = text(data, 'state')
+                if state not in ('included', 'archived', 'not_applicable'):
+                    raise TeamsError('Clasificación de Teams inválida.')
+                rows = [r for r in self.records(db, tenant, 'job_classification') if r['job_id'] == job['id']]
+                record = rows[0] if rows else dict(id=str(uuid4()), job_id=job['id'], state='included', version=0)
+                self.check_version(record, data)
+                before = dict(record)
+                commitments = any(a['job_id'] == job['id'] for a in self.records(db, tenant, 'assignment'))
+                commitments = commitments or any(c['job_id'] == job['id'] for c in self.records(db, tenant, 'cost'))
+                commitments = commitments or any(p.get('job_id') == job['id'] or any(a['job_id'] == job['id'] for a in p['allocations'])
+                                                  for p in self.records(db, tenant, 'payment'))
+                if state == 'not_applicable' and commitments and data.get('confirmed') is not True:
+                    raise TeamsError('Esta boda tiene asignaciones o movimientos. Confirma que sus registros y obligaciones se conservarán.', 409)
+                record.update(state=state, updated_at=now(), updated_by=actor)
+                self.save(db, tenant, 'job_classification', record)
+            elif action == 'member':
                 identifier = data.get('id')
                 record = self.get(db, tenant, 'member', identifier) if identifier else dict(id=str(uuid4()))
                 if identifier:
@@ -395,6 +412,29 @@ def teams_date(value):
     return result
 
 
+def teams_zone(crm_store, tenant):
+    company = (crm_store.get_tenant_dict('settings', tenant_id=tenant) or {}).get('company') or {}
+    try:
+        return ZoneInfo(company.get('timezone') or 'America/Guatemala')
+    except (ValueError, KeyError):
+        return LOCAL_ZONE
+
+
+def job_phase(job, assignments, today):
+    """Presentation only: an ongoing event keeps its place without changing CRM."""
+    try:
+        start = date.fromisoformat(str(job.get('boda_date'))[:10])
+    except ValueError:
+        return 'undated'
+    end = start
+    for value in [job.get('end_date')] + [a['end'] for a in assignments if a['status'] not in ('cancelada', 'rechazada')]:
+        try:
+            end = max(end, date.fromisoformat(str(value)[:10]))
+        except ValueError:
+            pass
+    return 'upcoming' if end >= today else 'past'
+
+
 def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_active):
     """Owner-only extension; production data stays on the CRM persistent disk."""
     data_dir = Path(crm_store.data_dir)
@@ -417,7 +457,8 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         if request.method == 'POST':
             from src.teams_features import MAX_FILE_BYTES
             limit = (21 * 1024 * 1024 if request.endpoint == 'teams.directory_import' else
-                     MAX_FILE_BYTES + 1024 * 1024 if request.endpoint in ('teams.upload', 'teams.payment_upload') else 65536)
+                     MAX_FILE_BYTES + 1024 * 1024 if request.endpoint in ('teams.upload', 'teams.payment_upload') else
+                     4 * 1024 * 1024 + 65536 if request.endpoint == 'teams.notion_import' else 65536)
             if request.content_length is not None and request.content_length > limit:
                 abort(413)
             token = session.get('teams_csrf')
@@ -455,7 +496,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             operations = database.records(db, tenant, 'operation')
             audit = database.records(db, tenant, 'audit')
             extra = {kind: database.records(db, tenant, kind) for kind in (
-                'document', 'receipt', 'notice', 'task', 'expense_request', 'availability', 'advance', 'settlement', 'report', 'config', 'schedule')}
+                'document', 'receipt', 'notice', 'task', 'expense_request', 'availability', 'advance', 'settlement', 'report', 'config', 'schedule', 'job_classification', 'job_source', 'notion_report')}
             from src.teams_features import advance_balance, clean
             for advance in extra['advance']:
                 advance['remaining'] = advance_balance(database, db, tenant, advance)
@@ -495,6 +536,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                 and datetime.fromisoformat(a['start']) - timedelta(minutes=a['buffer']) < datetime.fromisoformat(other['end']) + timedelta(minutes=other['buffer'])
                 and datetime.fromisoformat(other['start']) - timedelta(minutes=other['buffer']) < datetime.fromisoformat(a['end']) + timedelta(minutes=a['buffer'])]
         billable = [p for p in crm_store.list('payments') if p.get('tipo') != 'team_payment']
+        today = datetime.now(teams_zone(crm_store, tenant)).date()
         for j in jobs:
             job_payments = [p for p in billable if p.get('job_id') == j['id']]
             j['es_activo'] = job_is_active(j, job_payments)
@@ -515,6 +557,15 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             j['configured'] = bool(jcosts or j['reviewed'])
             j['incomplete'] = not j['income'] or not j['reviewed'] or bool(commercial['descuadre_cotizado_vs_cuotas'])
             j['assignments'] = [a for a in assignments if a['job_id'] == j['id'] and a['status'] not in ('cancelada', 'rechazada')]
+            classification = next((r for r in extra['job_classification'] if r['job_id'] == j['id']), {})
+            j['notion_context'] = next((r for r in extra['job_source'] if r['job_id']==j['id']), None)
+            j['teams_state'] = classification.get('state', 'included')
+            j['classification_version'] = classification.get('version', 0)
+            j['teams_phase'] = job_phase(j, j['assignments'], today)
+            j['teams_label'] = {'archived':'Archivada', 'not_applicable':'No aplica'}.get(j['teams_state']) or {
+                'upcoming':'Próxima', 'past':'Pasada', 'undated':'Sin fecha'}[j['teams_phase']]
+            j['team_pending'] = sum(c['pending'] for c in jcosts if c['beneficiary'] in member_map)
+            j['has_commitments'] = bool(jcosts or any(a['job_id'] == j['id'] for a in assignments))
             j['closed'] = bool(op.get('closed'))
             j['report'] = next((r for r in extra['report'] if r['id'] == op.get('report_id')), None)
             j['income_delta'] = j['income'] - j['report']['income'] if j['report'] else 0
@@ -544,7 +595,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                     payments=[clean(p) for p in visible_payments], operations=operations, audit=audit[-50:][::-1], totals=totals,
                     documents=extra['document'], receipts=extra['receipt'], notices=extra['notice'], tasks=extra['task'],
                     expense_requests=[clean(r) for r in extra['expense_request']], availability=extra['availability'], advances=extra['advance'],
-                    reports=extra['report'], team_config=next(iter(extra['config']), {}),
+                    reports=extra['report'], notion_report=extra['notion_report'], team_config=next(iter(extra['config']), {}),
                     role_options=list(dict.fromkeys(r.strip() for r in
                         next(iter(extra['config']), {}).get('roles', DEFAULT_ROLES).splitlines() if r.strip())))
 
@@ -555,6 +606,22 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
     @blueprint.route('/api/teams/summary')
     def summary():
         return jsonify(snapshot())
+
+    @blueprint.route('/api/teams/notion/import', methods=['POST'])
+    def notion_import():
+        from src.teams_notion import import_snapshot
+        upload = request.files.get('file')
+        if not upload:
+            raise TeamsError('Selecciona el archivo de información de Notion.')
+        content = upload.read(4 * 1024 * 1024 + 1)
+        if len(content) > 4 * 1024 * 1024:
+            raise TeamsError('El archivo supera 4 MB.')
+        try:
+            payload = json.loads(content)
+        except (UnicodeError, ValueError):
+            raise TeamsError('El archivo no contiene información JSON válida.')
+        # Tenant-scoped source context is administrative; it never publishes to a member.
+        return jsonify(import_snapshot(database, session['tenant_id'], canonical_jobs(), payload, session['user_email']))
 
     @blueprint.route('/api/teams/directory/import', methods=['POST'])
     def directory_import():
@@ -630,7 +697,22 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         if section == 'dashboard':
             section = 'jobs'
         # Job pages always resolve against the complete authorized set, independently of report filters.
-        data = snapshot(None if job_id else year, active_only=section == 'jobs' and not job_id)
+        data = snapshot(None if job_id or section == 'jobs' else year)
+        view = request.args.get('view', 'upcoming')
+        query = request.args.get('q', '').strip()
+        if view not in ('upcoming', 'past', 'archived', 'not_applicable', 'all') or len(query) > 200:
+            abort(400)
+        if section == 'jobs' and not job_id:
+            def in_view(job):
+                if view == 'all':
+                    return True
+                if view in ('archived', 'not_applicable'):
+                    return job['teams_state'] == view
+                return job['teams_state'] == 'included' and job['teams_phase'] == view
+            data['all_jobs_count'] = len(data['jobs'])
+            data['jobs'] = sorted((j for j in data['jobs'] if in_view(j) and query.casefold() in
+                                  (str(j.get('nombre', ''))+' '+str(j.get('location', ''))).casefold()),
+                                  key=lambda j: (not bool(j.get('boda_date')), j.get('boda_date') or '', j.get('nombre') or ''))
         selected = None
         if job_id:
             read_job(job_id)
@@ -640,7 +722,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         from src.tenant_brand_map import all_resolved_brands
         switches = [b for b in all_resolved_brands() if b.brand_key in ('astral', 'norkevin')
                     and crm_store.get('tenants', b.internal_tenant_id)] if current_app.config.get('FLOW_TEAMS_LOCAL') else []
-        return render_template('teams.html', section=section, selected=selected, year=year, switches=switches,
+        return render_template('teams.html', section=section, selected=selected, year=year, view=view, query=query, switches=switches,
                                action_labels={'member':'Miembro actualizado','assignment':'Cobertura creada','assignment_edit':'Condiciones revisadas',
                                    'assignment_publish':'Cobertura compartida','assignment_status':'Servicio actualizado','response':'Respuesta del miembro',
                                    'cost':'Gasto registrado','cost_status':'Importe aprobado o validado','operation':'Revisión interna',
