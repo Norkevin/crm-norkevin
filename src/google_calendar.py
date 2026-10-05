@@ -15,6 +15,30 @@ SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 BASE = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
 
 
+def delivery_error(exception):
+    """Only allowlisted diagnostics can reach the owner or logs."""
+    if isinstance(exception, HTTPError):
+        reasons=set()
+        try:
+            payload=json.loads(exception.read(65536)).get('error',{})
+            if isinstance(payload,str):reasons.add(payload)
+            else:
+                reasons.update(e.get('reason') for e in payload.get('errors',[]))
+                reasons.update(e.get('reason') for e in payload.get('details',[]))
+        except (ValueError, TypeError, AttributeError, OSError):pass
+        if reasons & {'accessNotConfigured','SERVICE_DISABLED'}:
+            return 'api_disabled','Google Calendar API no está activada para Flow. Actívala en el proyecto de Google y vuelve a enviar.'
+        if exception.code==401 or 'invalid_grant' in reasons:
+            return 'authorization','Google rechazó la autorización. Vuelve a conectar Calendar en Configuración y reintenta.'
+        if exception.code==429 or reasons & {'rateLimitExceeded','userRateLimitExceeded','quotaExceeded'}:
+            return 'rate_limit','Google alcanzó su límite temporal. Conservamos el envío y lo reintentaremos en 15 minutos.'
+        if exception.code==403:
+            return 'permission','Google no permite crear esta invitación. Vuelve a conectar Calendar con la cuenta de esta marca y concede el permiso de Calendar.'
+        if exception.code==400:
+            return 'invalid_event','Google rechazó los datos de la invitación. Revisa el correo, la fecha y el horario antes de reintentar.'
+    return 'unconfirmed','No se pudo confirmar el envío con Google. Conservamos la invitación para reintentar sin duplicarla.'
+
+
 def token_path(tenant):
     resolve_brand(tenant)
     root=Path(os.environ.get('CRM_DATA_DIR') or Path(__file__).resolve().parents[1]/'data')

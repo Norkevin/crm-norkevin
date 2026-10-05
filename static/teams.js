@@ -1,6 +1,8 @@
 (() => {
   const feedback = document.querySelector('#ft-feedback');
-  const showError = message => {
+  const showError = (message, source) => {
+    const inline = source?.querySelector('[data-calendar-error]');
+    if (inline) { inline.textContent = message; inline.hidden = false; return; }
     feedback.textContent = message;
     feedback.hidden = false;
     feedback.scrollIntoView({block: 'center', behavior: 'smooth'});
@@ -19,6 +21,12 @@
     }
     source.dataset.commandKey = key;
     source.dataset.commandBody = body;
+    const originalLabel = button.textContent;
+    if (data.action === 'calendar_sync') {
+      const inline = source.querySelector('[data-calendar-error]');
+      if (inline) inline.hidden = true;
+      button.textContent = data.send_at ? 'Guardando programación…' : 'Preparando invitación…';
+    }
     button.disabled = true;
     try {
       let endpoint = source.dataset.endpoint || window.flowTeamsEndpoint || '/api/teams/command';
@@ -48,8 +56,9 @@
       if (data.action === 'logout') { location.href = '/teams-portal/login'; return; }
       location.reload();
     } catch (error) {
-      showError(source.dataset.commandKey ? 'No se confirmó el resultado. Reintenta el mismo formulario o recarga para revisar el historial.' : error.message);
+      showError(source.dataset.commandKey ? 'No se confirmó el resultado. Reintenta el mismo formulario o recarga para revisar el historial.' : error.message, source);
       button.disabled = false;
+      button.textContent = originalLabel;
     }
   }
   // Native pickers keep ISO values; the visible caption uses the stored day only.
@@ -77,8 +86,8 @@
   document.querySelectorAll('form[data-command="calendar_sync"] input[name="send_at"]').forEach(input => {
     const button = input.form.querySelector('[data-calendar-submit]');
     const update = () => { button.textContent = input.value
-      ? (button.dataset.team ? 'Programar para el equipo' : 'Programar invitación')
-      : (button.dataset.team ? 'Enviar al equipo' : 'Enviar invitación'); };
+      ? (button.dataset.team ? 'Programar para el equipo' : 'Programar invitación por correo')
+      : (button.dataset.team ? 'Enviar invitaciones al equipo' : button.dataset.sendLabel || 'Enviar invitación por correo'); };
     input.addEventListener('input', update); input.addEventListener('change', update); update();
   });
   document.querySelectorAll('form[data-command="schedule"]').forEach(form => {

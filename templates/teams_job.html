@@ -33,13 +33,21 @@
     <p class="ft-coverage-role">{{ a.role }}<small>{{ a.slot }} · {{ a.start[11:16] }}–{{ a.end[11:16] }}{% if a.start[:10] != a.end[:10] %} · termina {{ a.end[:10]|teams_date }}{% endif %}</small></p>
     {% set invitation=calendar_sync|selectattr('identity','equalto','assignment:' ~ a.id)|first|default(none) %}
     {% if a.status in ['pendiente','aceptada','reconfirmar','realizada'] %}
-    <details class="ft-finance-details"><summary>Invitación de calendario{% if invitation %} · {{ {'synced':'Sincronizada con Google','pending':'Programada' if invitation.not_before else 'En cola','failed':'Reintentar','paused':'Envío cancelado'}.get(invitation.status,invitation.status) }}{% endif %}</summary>
-      <p>{{ a.member_name }} · {{ a.member_email or 'Falta correo' }} · {{ a.role }}</p>
-      {% if invitation.not_before %}<p>Envío: {{ invitation.not_before|teams_date }}</p>{% endif %}{% if invitation.error %}<p class="ft-warning">{{ invitation.error }}</p>{% endif %}
-      <form data-command="calendar_sync" data-endpoint="/api/teams/calendar/sync" class="ft-form"><input type="hidden" name="job_id" value="{{ selected.id }}"><input type="hidden" name="invite" value="individual"><input type="hidden" name="assignment_id" value="{{ a.id }}"><label class="ft-full">Programar para (opcional)<input type="datetime-local" name="send_at"><small>Vacío: enviar ahora. Hora de esta empresa.</small></label><button data-calendar-submit class="sn-btn" {{ 'disabled' if not calendar_email else '' }}>Enviar invitación</button></form>
+    <div class="ft-invitation">
+      <p class="ft-invitation-status">Invitación de calendario · {{ {'synced':'Confirmada por Google','pending':'Programada' if invitation.not_before else 'En cola','failed':'No se confirmó el envío','paused':'Envío cancelado'}.get(invitation.status,invitation.status) if invitation else 'Sin enviar' }}</p>
+      <p class="ft-muted">{{ a.member_email or 'Correo pendiente' }}</p>
+      {% if not a.can_invite %}<p class="ft-warning">{{ a.invite_problem }} <a href="/teams/members#member-{{ a.member_id }}">Editar miembro</a></p>{% elif not calendar_email %}<p class="ft-warning"><a href="/teams/settings">Conectar Google Calendar</a> para enviar desde esta marca.</p>{% endif %}
+      {% if invitation.not_before %}<p>Envío programado: {{ invitation.not_before|teams_calendar_date }} · hora de esta empresa.</p>{% endif %}
+      {% if invitation.error %}<p class="ft-warning" role="alert">{{ invitation.error }}</p>{% endif %}
+      <form data-command="calendar_sync" data-endpoint="/api/teams/calendar/sync" class="ft-form ft-invitation-form">
+        <input type="hidden" name="job_id" value="{{ selected.id }}"><input type="hidden" name="invite" value="individual"><input type="hidden" name="assignment_id" value="{{ a.id }}">
+        <button type="submit" data-calendar-submit data-send-label="{{ 'Actualizar invitación por correo' if invitation.status == 'synced' else 'Enviar invitación por correo' }}" class="sn-btn sn-btn-primary" {{ 'disabled' if not calendar_email or not a.can_invite else '' }}>Enviar invitación por correo</button>
+        <details class="ft-full ft-invitation-schedule"><summary>Programar para después</summary><label>Fecha y hora del envío<input type="datetime-local" name="send_at"><small>Hora de esta empresa. Deja vacío para enviar ahora.</small></label></details>
+        <p data-calendar-error class="ft-warning ft-full" role="alert" hidden></p>
+      </form>
       {% if invitation.status == 'pending' and invitation.not_before %}<button class="sn-btn" data-action="calendar_cancel_scheduled" data-endpoint="/api/teams/calendar/cancel-scheduled" data-id="{{ invitation.id }}" data-version="{{ invitation.version }}">Cancelar envío programado</button>{% endif %}
-      {% if invitation.html_url %}<a href="{{ invitation.html_url }}" target="_blank" rel="noopener noreferrer">Ver en Google Calendar ↗</a>{% endif %}
-    </details>{% endif %}
+      {% if invitation.html_url %}<a class="ft-text-link" href="{{ invitation.html_url }}" target="_blank" rel="noopener noreferrer">Ver en Google Calendar ↗</a>{% endif %}
+    </div>{% endif %}
     {% if a.changed or a.conflicts %}<p class="ft-warning">{{ 'Fecha comercial modificada. Revisa las condiciones.' if a.changed else 'Hay un solapamiento de horario; revisa antes de confirmar.' }}</p>{% endif %}
     {% if c %}<div class="ft-person-money"><span>Honorario <strong>{{ c.total|teams_money }}</strong></span><span>Pagado <strong>{{ c.paid|teams_money }}</strong></span><span>Pendiente <strong>{{ c.pending|teams_money }}</strong></span></div>{% endif %}
     <div class="ft-actions ft-wrap">

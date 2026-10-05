@@ -174,3 +174,35 @@ def test_oauth_requests_calendar_separately_and_explicit_brand_account_selection
     assert params['login_hint']==['norkevinfoto@gmail.com']
     assert params['prompt']==['select_account consent']
     assert 'gmail.send' not in params['scope'][0]
+
+
+@pytest.mark.parametrize('status,reason,code,fragment',[
+    (403,'accessNotConfigured','api_disabled','API no está activada'),
+    (403,'SERVICE_DISABLED','api_disabled','API no está activada'),
+    (401,'authError','authorization','Vuelve a conectar'),
+    (400,'invalid_grant','authorization','Vuelve a conectar'),
+    (403,'rateLimitExceeded','rate_limit','15 minutos'),
+    (429,'rateLimitExceeded','rate_limit','15 minutos'),
+    (403,'insufficientPermissions','permission','permiso de Calendar'),
+    (400,'badRequest','invalid_event','correo, la fecha'),
+    (503,'backendError','unconfirmed','sin duplicarla'),
+])
+def test_provider_diagnostics_are_actionable_and_never_leak_response(status,reason,code,fragment):
+    import io,json
+    from src.google_calendar import delivery_error
+    body=json.dumps({'error':reason if reason=='invalid_grant' else {'errors':[{'reason':reason,'message':'secret-doc-link'}]}}).encode()
+    exception=HTTPError('https://provider.invalid/sensitive',status,'private detail',{},io.BytesIO(body))
+    actual,message=delivery_error(exception)
+    assert actual==code and fragment in message
+    assert 'secret-doc-link' not in message and 'private detail' not in message and 'sensitive' not in message
+
+
+def test_missing_email_names_member_and_never_queues_even_master(prepared):
+    from src.teams import TeamsError
+    store,people,assignments,_=prepared
+    with store.transaction() as db:
+        person=store.get(db,TENANT,'member',people[0]['id']);person['email']='';store.save(db,TENANT,'member',person)
+    sync=CalendarSync(store)
+    with pytest.raises(TeamsError,match=person['name']):
+        sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False,include_new=True,invite_ids=[assignments[0]['id']])
+    assert rows(store)==[]

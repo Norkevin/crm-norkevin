@@ -444,6 +444,11 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
     app.jinja_env.filters['teams_money'] = money
     app.jinja_env.filters['teams_date'] = teams_date
 
+    @app.template_filter('teams_calendar_date')
+    def calendar_date(value):
+        if not value:return teams_date(value)
+        return teams_date(datetime.fromisoformat(value).astimezone(teams_zone(crm_store, session['tenant_id'])).isoformat())
+
     @blueprint.before_request
     def owner_only():
         local = current_app.config.get('FLOW_TEAMS_LOCAL')
@@ -486,6 +491,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         return dict(job, reference_income_cents=cents(commercial['total'], imported=True))
 
     def snapshot(year=None, *, active_only=False):
+        from src.teams_calendar import valid_invitation_email
         tenant = session['tenant_id']
         jobs = canonical_jobs()
         with database.transaction() as db:
@@ -528,6 +534,10 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         for a in assignments:
             a['calendar_day'] = a['start'][:10]
             a['member_email'] = member_map.get(a['member_id'], {}).get('email', '')
+            a['invite_problem'] = ('Agrega un correo válido para enviar la invitación.' if not valid_invitation_email(a['member_email'])
+                else 'Este miembro está inactivo. Revisa su ficha antes de invitarlo.' if not member_map.get(a['member_id'], {}).get('active', False)
+                else 'La fecha de esta cobertura cambió. Revisa su horario antes de invitar.' if a['job_day'] != job_map.get(a['job_id'], {}).get('boda_date') else '')
+            a['can_invite'] = not a['invite_problem']
             a['cost'] = next((c for c in costs if c.get('assignment_id') == a['id']), None)
             a['member_name'] = member_map.get(a['member_id'], {}).get('name', 'Miembro inactivo')
             a['job_name'] = job_map.get(a['job_id'], {}).get('nombre', 'Evento no disponible')

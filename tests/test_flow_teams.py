@@ -1380,3 +1380,35 @@ def test_calendar_oauth_checks_owner_brand_state_and_expiry_before_exchanging_co
             else:
                 with pytest.raises(Forbidden):finish_calendar_connection(application,storage,'https://flowingcrm.com/auth/google/callback')
     assert calls==[('brand-a','fake-test-only')]
+
+
+def test_invitation_button_is_visible_and_missing_contact_blocks_send(web,monkeypatch):
+    from html.parser import HTMLParser
+    from src import google_calendar
+    application,owner,_=web
+    monkeypatch.setattr(google_calendar,'load_token',lambda tenant:dict(email='owner@flow-qa-84982.com',refresh_token='fake-not-sent'))
+    store=application.extensions['teams'];person=member(store);a=assignment(store,person)
+    run(store,'assignment_publish',id=a['id'],version=a['version'])
+    class Buttons(HTMLParser):
+        def __init__(self):super().__init__();self.depth=0;self.invites=[]
+        def handle_starttag(self,tag,attrs):
+            attrs=dict(attrs)
+            if tag=='details':self.depth+=1
+            if tag=='button' and 'data-calendar-submit' in attrs and 'data-team' not in attrs:
+                self.invites.append((self.depth,attrs))
+        def handle_endtag(self,tag):
+            if tag=='details':self.depth-=1
+    def page():
+        html=owner.get('/teams/jobs/job-1').get_data(as_text=True);document=Buttons();document.feed(html)
+        return html,document.invites
+    html,buttons=page()
+    assert buttons and buttons[0][0]==0 and 'disabled' in buttons[0][1]
+    assert 'Enviar invitación por correo' in html
+    assert f'/teams/members#member-{person["id"]}' in html
+    with store.transaction() as db:
+        person['email']='photo@flow-qa-84982.com';store.save(db,'brand-a','member',person)
+    assert 'disabled' not in page()[1][0][1]
+    with application.test_request_context('/'):
+        from flask import session
+        session['tenant_id']='brand-a'
+        assert application.jinja_env.filters['teams_calendar_date']('2026-10-10T22:54:00+00:00')=='10 de octubre de 2026 · 16:54'

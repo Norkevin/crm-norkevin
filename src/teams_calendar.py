@@ -11,10 +11,17 @@ from itsdangerous import URLSafeSerializer
 
 from src.teams import TeamsError, now
 from src.teams_features import VISIBLE_ASSIGNMENTS, document_visible
-from src.google_calendar import CalendarClient, connected_email
+from src.google_calendar import CalendarClient, connected_email, delivery_error
 from src.tenant_brand_map import all_known_tenant_ids
 
 LOGGER=logging.getLogger(__name__)
+
+
+def valid_invitation_email(email):
+    domain=email.rsplit('@',1)[-1].casefold()
+    return bool(re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email)
+        and not domain.endswith(('.invalid','.test','.example','.localhost'))
+        and domain not in ('example.com','example.org','example.net'))
 
 
 def document_token(secret,tenant,member,document,assignment):
@@ -43,11 +50,8 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None):
             person=members[assignment['member_id']];event=None
             if eligible and person['active'] and assignment['status'] in VISIBLE_ASSIGNMENTS and assignment['job_day']==job['boda_date']:
                 email=person.get('email','')
-                domain=email.rsplit('@',1)[-1].casefold()
-                if (not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email)
-                    or domain.endswith(('.invalid','.test','.example','.localhost'))
-                    or domain in ('example.com','example.org','example.net')):
-                    raise TeamsError('La persona necesita un correo válido para recibir la invitación.')
+                if not valid_invitation_email(email):
+                    raise TeamsError(f"{person['name']} necesita un correo válido. Agrégalo en su ficha de Miembros y vuelve a enviar.")
                 start=datetime.fromisoformat(assignment['start']).replace(tzinfo=zone)
                 end=datetime.fromisoformat(assignment['end']).replace(tzinfo=zone)
                 lines=['Rol: '+assignment['role'],'Cobertura: '+start.strftime('%d/%m/%Y %H:%M')+' – '+end.strftime('%d/%m/%Y %H:%M'),
@@ -126,10 +130,11 @@ class CalendarSync:
             try:
                 result=client.sync(record['event_id'],record['event'],record['digest'],record['identity'])
                 status,error='synced',''
-            except Exception:
+            except Exception as exception:
                 # Never put Google responses, credentials or document access URLs into logs/UI.
-                result={};status,error='failed','No se confirmó con Google. Reintenta; si persiste, revisa la conexión o activa Calendar API en el proyecto de Google.'
-                LOGGER.warning('Calendar sync failed for a tenant-scoped Teams event')
+                code,error=delivery_error(exception)
+                result={};status='failed'
+                LOGGER.warning('Calendar sync failed: %s',code)
             with self.store.transaction() as db:
                 current=self.store.get(db,tenant,'calendar_sync',record['id'])
                 if current['digest']!=record['digest']:continue
