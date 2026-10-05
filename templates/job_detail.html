@@ -14,6 +14,7 @@
         <div class="lead-contact">{% if client %}<span>{{ client.first_name }} {{ client.last_name or '' }}</span><span>{{ client.email or 'Sin correo' }}</span><span>{{ client.phone or 'Sin teléfono' }}</span>{% else %}<span>Sin cliente principal asociado</span>{% endif %}</div>
       </div>
       <div class="lead-primary-actions" style="position:relative;">
+        {% if config.FLOW_TEAMS_LOCAL or config.FLOW_TEAMS_ENABLED %}<a class="sn-btn" href="{{ url_for('teams.page', job_id=job.id) }}">Abrir en Teams</a>{% endif %}
         <button class="sn-btn sn-btn-primary" type="button" onclick="toggleAddMenu(event)">+ Nuevo documento</button>
         {% if client %}<a class="sn-btn job-portal-button" href="/portal/{{ client.id }}" target="_blank" rel="noopener">Portal del cliente ↗</a>{% endif %}
         <button class="sn-btn" type="button" onclick="sendClientEmail()">Redactar correo</button>

@@ -82,3 +82,8 @@ artifacts/
 
 # Estado interno del agente/asistente -- no es parte del producto.
 .claude/
+# Propuesta Teams: datos sintéticos persistentes y secreto local.
+.local/
+*.sqlite3
+*.sqlite3-*
+.context-shears/
