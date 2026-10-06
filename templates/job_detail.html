@@ -88,7 +88,10 @@
             <button class="workflow-check {{ 'done' if step.status == 'done' else '' }}" type="button" {% if step.status != 'pending' %}disabled{% else %}onclick='completeImportedStep({{ step.id|tojson }})'{% endif %} aria-label="Completar paso: {{ step.name }}">
               {% if step.status == 'done' %}<svg fill="currentColor" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8-1.4-1.4L8 11.2 5.4 8.6Z"/></svg>{% endif %}
             </button>
-            <div class="lead-step-content"><div class="workflow-step-name">{{ step.name }}</div><div class="workflow-timing" style="white-space:pre-line">{{ step.source_details }}</div><div class="sn-muted">{{ 'Completado' if step.status == 'done' else 'Omitido' if step.status == 'skipped' else 'Pendiente' }}</div></div>
+            <div class="lead-step-content"><div class="workflow-step-name">{{ step.name }}</div><div class="workflow-timing" style="white-space:pre-line">{{ step.source_details }}</div>
+              <div class="sn-muted">{{ 'Correo enviado' if step.delivery_status in ['sent','opened','clicked'] else 'Pendiente de aprobación en Correos' if step.status == 'queued' else 'Envío por revisar en Correos' if step.status == 'failed' else 'Marcado como completado · sin envío registrado en Flow' if step.status == 'done' and step.action_type.startswith('send_') else 'Completado' if step.status == 'done' else 'Omitido' if step.status == 'skipped' else 'Correo por preparar' if step.action_type.startswith('send_') else 'Pendiente' }}</div>
+              {% if step.status in ['queued','failed'] %}<a class="sn-btn sn-btn-sm" href="/emails">Revisar correo pendiente</a>{% elif step.action_type.startswith('send_') and step.status != 'skipped' and not step.delivery_status %}<button class="sn-btn sn-btn-sm" type="button" onclick='completeImportedStep({{ step.id|tojson }})'>Preparar correo</button>{% endif %}
+            </div>
             <button class="sn-menu-dots" type="button" onclick='openImportedStepActions(event, {{ step.id|tojson }}, {{ step.name|tojson }}, {{ step.status|tojson }})' aria-label="Opciones de {{ step.name }}"></button>
           </div>
           {% endfor %}
@@ -1126,8 +1129,11 @@ function triggerJobStep(stepId, stepName) {
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 function openImportedStepActions(event, stepId, stepName, status) {
+  var sendsMail = stepConfig(stepId, stepName).actionType.indexOf('send_') === 0;
   openActionMenu(event, [
-    status === 'pending' ? { label: 'Completar ahora', action: function() { completeImportedStep(stepId); } } : null,
+    sendsMail && ['pending', 'done'].indexOf(status) !== -1 ? { label: 'Preparar correo para aprobación', action: function() { completeImportedStep(stepId); } } : null,
+    !sendsMail && status === 'pending' ? { label: 'Completar ahora', action: function() { completeImportedStep(stepId); } } : null,
+    ['queued', 'failed'].indexOf(status) !== -1 ? { label: 'Revisar en Correos', href: '/emails' } : null,
     ['pending', 'queued', 'failed'].indexOf(status) !== -1 ? { label: 'Omitir este paso', action: function() { skipJobStep(stepId, stepName); } } : null,
     status === 'skipped' ? { label: 'Volver a incluir', action: function() { unskipJobStep(stepId, stepName); } } : null,
     status === 'done' ? { label: 'Paso completado', disabled: true } : null
@@ -1236,7 +1242,10 @@ function deleteManualTask(taskId) {
 }
 function completeImportedStep(stepId) {
   apiPost('/api/jobs/' + JOB_ID + '/imported-workflow/' + stepId + '/complete', {})
-    .then(function() { location.reload(); })
+    .then(function(data) {
+      if (data.mail_id) { flashToast(data.message || 'Correo preparado. Revisa y aprueba el envío en Correos.', 'success'); }
+      setTimeout(function() { location.reload(); }, data.mail_id ? 1200 : 0);
+    })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 function saveJob(event) {

@@ -51,7 +51,7 @@
     </div>
   </div>
 
-  <p class="sn-muted calendar-block-hint">Selecciona el número de un día para agregar un trabajo, crear un evento o bloquear la fecha.</p>
+  <p class="sn-muted calendar-block-hint">Toca una fecha para agregar un trabajo, crear un evento o bloquearla.</p>
   <div class="calendar-shell">
     <div class="calendar-head">
       {% for day_name in day_names %}
@@ -63,6 +63,7 @@
         {% for cell in week %}
         <div class="calendar-cell {% if not cell.in_month %}muted{% endif %}">
           {% if cell.in_month %}
+          <button class="calendar-cell-trigger" type="button" aria-label="Agregar o bloquear {{ cell.iso_date|fecha_es }}" onclick="openDateMenu('{{ cell.iso_date }}')"></button>
           <div class="calendar-day-header">
           <button class="calendar-day calendar-day-action {% if cell.today %}today{% endif %}" type="button" aria-label="Opciones de fecha {{ cell.iso_date|fecha_es }}" title="Agregar o bloquear" onclick="openDateMenu('{{ cell.iso_date }}')">{{ cell.day }}</button>
           </div>
@@ -101,12 +102,12 @@
         {% if cell.in_month %}
           {% set ns.has_any_event = true %}
           <div class="agenda-day {{ 'today' if cell.today else '' }}">
-            <div class="agenda-day-head">
-              <button class="agenda-day-num calendar-day-action" type="button" aria-label="Opciones de fecha {{ cell.iso_date|fecha_es }}" title="Agregar o bloquear" onclick="openDateMenu('{{ cell.iso_date }}')">{{ cell.day }}</button>
+            <button class="agenda-day-head calendar-day-action" type="button" aria-label="Opciones de fecha {{ cell.iso_date|fecha_es }}" onclick="openDateMenu('{{ cell.iso_date }}')">
+              <span class="agenda-day-num">{{ cell.day }}</span>
               {# El numero del dia ya se ve grande al lado; repetirlo aca
                  daba encabezados tipo "15 Agosto 15". #}
               <span class="agenda-day-label">{{ month_name }}{{ ' · Hoy' if cell.today else '' }}</span>
-            </div>
+            </button>
             <div class="agenda-events">
               {% for evt in cell.events %}
               <button class="calendar-event {{ evt.type }}" type="button" data-type="{{ evt.type }}" data-block-id="{{ evt.id if evt.type == 'block' else '' }}" onclick="openCalendarEvent('{{ evt.url or '' }}', this)">
@@ -267,7 +268,7 @@
 .calendar-day-action { cursor: pointer; border: 0; background: transparent; color: inherit; font: inherit; }
 .calendar-day-action:hover { background: var(--sn-surface-hover); }
 .calendar-day-action:focus-visible { outline: 2px solid var(--sn-green); outline-offset: 2px; }
-.agenda-day-head .calendar-day-action { min-width: 44px; min-height: 44px; border-radius: 8px; }
+.agenda-day-head.calendar-day-action { width: 100%; min-height: 44px; border-radius: 8px; text-align: left; }
 
 .calendar-sidebar {
   min-width: 0;

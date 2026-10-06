@@ -700,6 +700,41 @@ def _apply_workflow_delivery(instance, step_id, mail):
     workflow_engine._save_to_storage()
 
 
+def _imported_job_step_config(job, step):
+    """Resolve an imported action against this brand's current configuration."""
+    same_name = lambda value: ' '.join((value or '').casefold().split())
+    workflow = LEAD_WORKFLOW(job.get('tenant_id')) if step.get('source_stage') == 'LEAD' else PRODUCTION_WORKFLOW(job.get('tenant_id'))
+    linked = next((s for s in workflow.steps if s.id == step['id'] or same_name(s.name) == same_name(step['name'])), None)
+    action = step.get('action_type') or ''
+    details = (step.get('source_details') or '').casefold()
+    if not action.startswith('send_'):
+        action = next((kind for label, kind in [('send questionnaire','send_questionnaire'), ('send contract','send_contract'),
+                       ('send gallery','send_gallery'), ('send email','send_email')] if label in details),
+                      linked.action_type.value if linked else action)
+    template_id = step.get('email_template_id') or (linked.email_template_id if linked else None)
+    if not template_id and action.startswith('send_'):
+        matches = [t for t in store.list('email_templates') if t.get('activo', True)
+                   and same_name(t.get('name')) == same_name(step['name'])]
+        if len(matches) == 1:template_id = matches[0]['id']
+    return dict(step, action_type=action, email_template_id=template_id)
+
+
+def _sync_imported_job_delivery(job, step_id, mail):
+    step = next((s for s in job.get('studio_ninja_workflow') or [] if s['id'] == step_id), None)
+    if not step or step.get('status') == 'skipped' or mail.get('job_id') != job['id'] or mail.get('tenant_id') != job.get('tenant_id'):
+        return
+    delivery = mail.get('status')
+    step['status'] = ('done' if delivery in ('sent','opened','clicked') else 'queued' if delivery in ('pending','sending') else 'failed')
+    step.update(mail_id=mail['id'], delivery_status=delivery)
+    if step['status'] == 'done':step['executed_at'] = mail.get('sent_at') or datetime.now().isoformat()
+    else:step.pop('executed_at', None)
+    for task in job.get('manual_workflow_tasks') or []:
+        if task.get('step_id') == step_id:task['status'] = step['status']
+    pending = next((s for s in job['studio_ninja_workflow'] if s['status'] not in ('done','skipped') and s.get('source_stage') != 'LEAD'), None)
+    job['next_task'] = pending['name'] if pending else 'Sin pasos pendientes'
+    upsert_job(job)
+
+
 def _sync_mail_delivery(mail):
     """One completion hook for approval, failure, and manual retry."""
     parts = (mail.get('idempotency_key') or '').split(':')
@@ -720,7 +755,10 @@ def _sync_mail_delivery(mail):
                 elif collection == 'questionnaires' and record.get('status') != 'Respondido':
                     record['status'] = 'Sent'
             store.upsert(collection, record)
-    if mail.get('workflow_instance_id'):
+    if mail.get('imported_workflow_step_id'):
+        job = get_job(mail.get('job_id'))
+        if job:_sync_imported_job_delivery(job, mail['imported_workflow_step_id'], mail)
+    elif mail.get('workflow_instance_id'):
         instance = workflow_engine.get_instance(mail['workflow_instance_id'])
         if instance and instance.tenant_id == mail.get('tenant_id'):
             _apply_workflow_delivery(instance, mail['workflow_step_id'], mail)
@@ -772,6 +810,17 @@ def _ensure_contract_for_job(job):
 def _complete_job_workflow_step(job, step_id, result_message=None, mail_id=None):
     if not step_id:
         return {'completed': False}
+
+    if job.get('studio_ninja_workflow') is not None:
+        step = next((s for s in job['studio_ninja_workflow'] if s['id'] == step_id), None)
+        if not step:return {'completed': False, 'warning': 'Paso importado no encontrado'}
+        mail = (store.get('pending_emails', mail_id) or store.get('mail_log', mail_id)) if mail_id else None
+        if not mail or mail.get('job_id') != job['id'] or mail.get('tenant_id') != job.get('tenant_id'):
+            return {'completed': False, 'warning': 'Correo no preparado; el paso conserva su estado'}
+        mail.update(imported_workflow_step_id=step_id, workflow_step_id=step_id)
+        store.upsert('pending_emails' if mail_id.startswith('pend-') else 'mail_log', mail)
+        _sync_imported_job_delivery(job, step_id, mail)
+        return {'completed': step['status'] == 'done', 'queued': step['status'] == 'queued'}
 
     tmpl = PRODUCTION_WORKFLOW(job.get('tenant_id'))
     step = next((s for s in tmpl.steps if s.id == step_id), None)
@@ -2160,7 +2209,7 @@ def _step_scheduled_for_job(step, trigger_at, boda_date):
 def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
     from datetime import datetime, timedelta
     if job.get("studio_ninja_workflow") is not None:
-        steps = [dict(step, display_name="Boda" if "\nBoda\n" in (step.get("source_details") or "") else step["name"]) for step in job["studio_ninja_workflow"]]
+        steps = [dict(_imported_job_step_config(job, step), display_name="Boda" if "\nBoda\n" in (step.get("source_details") or "") else step["name"]) for step in job["studio_ninja_workflow"]]
         progress = round(sum(s["status"] in ("done", "skipped") for s in steps) * 100 / len(steps)) if steps else 0
         return steps, progress, job.get("studio_ninja_workflow_name") or "Studio Ninja"
     tmpl = PRODUCTION_WORKFLOW(tenant_id or job.get("tenant_id"))
@@ -7758,7 +7807,7 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
     rendered_body = _render_message_template(rendered_body, client=client, lead=lead, job=job)
 
     idempotency_key = idempotency_key or (
-        f"jobstep:{job.get('id')}:{step_id}" if (auto_fire and step_id)
+        f"jobstep:{job.get('id')}:{step_id}" if (step_id and (auto_fire or job.get('studio_ninja_workflow') is not None))
         else f"jobtemplate:{job.get('id')}:{_idempotency_minute_bucket()}"
     )
     entry = get_tracker().queue_email(
@@ -7792,12 +7841,15 @@ def api_job_send_email(job_id):
         return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
 
     data = request.get_json() or {}
+    if data.get('step_id') and job.get('studio_ninja_workflow') is not None and not any(s['id'] == data['step_id'] and s['status'] != 'skipped' for s in job['studio_ninja_workflow']):
+        return jsonify(ok=False, error='Selecciona un paso vigente de este trabajo'), 400
     result = _send_job_template_email(
         job,
         template_id=data.get('template_id'),
         subject=data.get('subject'),
         body=data.get('body'),
         attachments=data.get('attachments'),
+        step_id=data.get('step_id'),
     )
     if result.get('error'):
         return jsonify({'ok': False, 'error': result['error']}), 400
@@ -9610,6 +9662,19 @@ def api_job_imported_workflow_complete(job_id, step_id):
         return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
     for step in job.get('studio_ninja_workflow') or []:
         if step['id'] == step_id:
+            config = _imported_job_step_config(job, step)
+            if config['action_type'].startswith('send_'):
+                if step['status'] == 'skipped':return jsonify(ok=False, error='Vuelve a incluir el paso antes de preparar su correo'), 400
+                mail = (store.get('pending_emails', step.get('mail_id')) or store.get('mail_log', step.get('mail_id'))) if step.get('mail_id') else None
+                if (mail and mail.get('job_id') == job['id'] and mail.get('tenant_id') == job.get('tenant_id')
+                        and mail.get('status') in ('sent','opened','clicked')):
+                    return jsonify(ok=True, mail_id=mail['id'], delivery_status=mail['status'], message='Este correo ya fue enviado. No se creó otro envío.')
+                result = _prepare_job_workflow_email(job, config)
+                if result.get('error'):return jsonify(ok=False, **result), 400
+                if not result.get('mail_id'):return jsonify(ok=False, error='No se preparó el correo. Revisa el email del cliente'), 400
+                workflow = _complete_job_workflow_step(job, step_id, mail_id=result['mail_id'])
+                return jsonify(ok=True, workflow=workflow, **result)
+            if step['status'] == 'done':return jsonify(ok=True, already_done=True)
             step['status'] = 'done'
             step['executed_at'] = datetime.now().isoformat()
             for task in job.get('manual_workflow_tasks') or []:
@@ -9745,6 +9810,12 @@ def _set_imported_job_step_state(job, step_id, status):
     if step['status'] == 'done' or (status == 'pending' and step['status'] != 'skipped'):
         return jsonify({'ok': False, 'error': 'Solo se pueden omitir pasos pendientes o volver a incluir pasos omitidos'}), 400
     step['status'] = status
+    if status == 'skipped':
+        from src.mail_tracker import get_tracker
+        for mail in store.list('pending_emails'):
+            if (mail.get('job_id') == job['id'] and mail.get('imported_workflow_step_id') == step_id
+                    and mail.get('status') in ('pending','failed','blocked')):
+                get_tracker().discard_pending(mail['id'], actor=_actor_actual())
     step.setdefault('history', []).append({'status': status, 'at': datetime.now().isoformat(), 'actor': _actor_actual()})
     for task in job.get('manual_workflow_tasks') or []:
         if task.get('step_id') == step_id:

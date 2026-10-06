@@ -126,3 +126,21 @@ def test_imported_lead_never_gets_automatic_notice(booking, monkeypatch):
     crm._notify_blocked_date_lead(dict(lead, studio_ninja_workflow={'steps': []}))
     assert not crm.get_lead(lead['id']).get('blocked_date_notice_attempted_at')
     crm.store.delete('calendar', block['id'])
+
+
+def test_whole_day_cells_and_mobile_date_headers_open_date_actions(booking):
+    from html.parser import HTMLParser
+    _, client, *_=booking
+    class Buttons(HTMLParser):
+        def __init__(self):super().__init__();self.depth=0;self.cells=[];self.mobile=[]
+        def handle_starttag(self,tag,attrs):
+            if tag!='button':return
+            assert self.depth==0,'Calendar buttons must not nest'
+            self.depth+=1;attrs=dict(attrs)
+            if 'calendar-cell-trigger' in attrs.get('class',''):self.cells.append(attrs)
+            if 'agenda-day-head calendar-day-action' in attrs.get('class',''):self.mobile.append(attrs)
+        def handle_endtag(self,tag):
+            if tag=='button':self.depth-=1
+    document=Buttons();document.feed(client.get('/calendar?year=2034&month=5').get_data(as_text=True))
+    assert len(document.cells)==31 and len(document.mobile)==31
+    assert all('openDateMenu(' in b['onclick'] and b.get('aria-label') for b in document.cells+document.mobile)
