@@ -4996,6 +4996,15 @@ def jobs_list():
     return render_template('jobs.html', jobs=jobs, all_clients=all_clients)
 
 
+@app.route('/jobs/<job_id>/source-document/<document_id>')
+def job_source_document(job_id, document_id):
+    job = get_job(job_id)
+    if not job:abort(404)
+    document = next((d for d in job.get('studio_ninja_service_documents', []) if d['id'] == document_id), None)
+    if not document:abort(404)
+    return render_template('job_source_document.html', job=job, document=document)
+
+
 @app.route('/jobs/<job_id>')
 def job_detail(job_id):
     """Job Detail con Production Workflow vertical."""
@@ -5617,6 +5626,12 @@ def _invoice_document(invoice_id, *, tenant_id=None):
     # aceptada, no de la plantilla ni del job. Ver _snapshot_comercial: una
     # factura representa un acuerdo, no lo reconstruye.
     snapshot = _snapshot_comercial(quote)
+    if not snapshot:
+        from src.studio_ninja_active_import import source_invoice
+        original = source_invoice(job, selected)
+        if original:
+            snapshot = dict(nombre=' · '.join(i['name'] for i in original['items']), fuente='studio_ninja_invoice',
+                groups=[dict(title=i['name'], items=[line.strip() for line in i['description'].splitlines() if line.strip()]) for i in original['items']])
     concepto = (snapshot or {}).get('nombre') or selected.get('concepto') or 'Servicios'
     incluye = (snapshot or {}).get('incluye') or []
 
@@ -5700,6 +5715,7 @@ def invoice_document_preview(invoice_id):
 @app.route('/invoices/<invoice_id>')
 def invoice_view(invoice_id):
     """Vista interna de factura con calendario de pago."""
+    from src.studio_ninja_active_import import source_invoice
     payments_all = _visible_billable_payments()
     selected = _fila_de_factura(payments_all, invoice_id)
     if not selected:
@@ -5762,6 +5778,7 @@ def invoice_view(invoice_id):
         paid=paid,
         balance=balance,
         company_email=get_settings().get('company', {}).get('email'),
+        source_items=source_invoice(job, selected),
     )
 
 
@@ -6110,10 +6127,12 @@ def api_admin_import_studio_ninja():
         return jsonify({'ok': False, 'error': 'Payload invalido: se espera {"jobs": [...]}'}), 400
 
     tenant_id = get_current_tenant_id()
-    if payload.get('mode') in ('active_jobs', 'active_documents', 'reconcile_payments'):
-        from src.studio_ninja_active_import import import_active_jobs, import_document_copies, reconcile_payments
+    if payload.get('mode') in ('active_jobs', 'active_documents', 'reconcile_payments', 'recover_service_documents'):
+        from src.studio_ninja_active_import import import_active_jobs, import_document_copies, reconcile_payments, recover_service_documents
         try:
-            if payload['mode'] == 'reconcile_payments':
+            if payload['mode'] == 'recover_service_documents':
+                result = recover_service_documents(sys.modules[__name__], payload['jobs'], tenant_id)
+            elif payload['mode'] == 'reconcile_payments':
                 result = reconcile_payments(sys.modules[__name__], payload['jobs'], tenant_id, dry_run=bool(payload.get('dry_run')))
             else:
                 importer = import_document_copies if payload['mode'] == 'active_documents' else import_active_jobs

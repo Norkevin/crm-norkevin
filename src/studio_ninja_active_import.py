@@ -4,7 +4,76 @@ No workflow actions or document signatures are executed by this importer.
 """
 from copy import deepcopy
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+import re
+
+
+def recover_service_documents(crm, entries, tenant_id):
+    """Restore source descriptions only; payment and booking state stay intact."""
+    planned, seen = [], set()
+    for entry in entries:
+        if not isinstance(entry, dict):raise ValueError('Registro de origen inválido')
+        jid, sid = entry.get('existing_job_id'), str(entry.get('source_id') or '')
+        job = crm.get_job(jid)
+        payments = [p for p in crm.list_payments(tenant_id) if p.get('job_id') == jid]
+        if (not job or job.get('tenant_id') != tenant_id or jid in seen or not sid.isdigit()
+                or str(job.get('studio_ninja_active_source_id')) != sid
+                or not str(job.get('boda_date', '')).startswith('2026-') or not crm._job_is_active(job, payments)):
+            raise ValueError('Selecciona trabajos activos de 2026 con el mismo origen y marca')
+        seen.add(jid)
+        invoice_urls = {p.get('studio_ninja_url') for p in payments}
+        invoice_urls.update(i.get('url') for i in job.get('studio_ninja_payment_invoices', []))
+        documents, urls = [], set()
+        if not isinstance(entry.get('documents'), list):raise ValueError('Documentos de origen requeridos')
+        for doc in entry['documents']:
+            if not isinstance(doc, dict):raise ValueError('Documento de origen inválido')
+            kind, url = doc.get('kind'), doc.get('url', '')
+            pattern = (rf'https://app\.studioninja\.co/jobs/{sid}/quotes/(?:fixed|pick-and-choose)/\d+'
+                       if kind == 'quote' else r'https://app\.studioninja\.co/invoices/\d+' if kind == 'invoice' else '')
+            if not pattern or not re.fullmatch(pattern, url) or url in urls:
+                raise ValueError('Documento original inválido o repetido')
+            if kind == 'invoice' and url not in invoice_urls:
+                raise ValueError('La factura original no pertenece a esta boda')
+            urls.add(url)
+            items = []
+            if not isinstance(doc.get('items'), list) or len(doc['items']) > 100:raise ValueError('Lista de servicios inválida')
+            for item in doc['items']:
+                if (not isinstance(item, dict) or not isinstance(item.get('name'), str) or not item['name'].strip()
+                        or len(item['name']) > 300 or not isinstance(item.get('description'), str) or len(item['description']) > 30000):
+                    raise ValueError('El servicio necesita su nombre y descripción originales')
+                items.append({k: str(item.get(k) or '') for k in ('name','description','quantity','unit_price','amount')})
+                if any(len(items[-1][k]) > 100 for k in ('quantity','unit_price','amount')):
+                    raise ValueError('Cantidad o precio de origen inválido')
+            text = doc.get('source_text', '')
+            number = doc.get('number')
+            if not items or not isinstance(text, str) or len(text) > 100000 or not isinstance(number, str) or not number or len(number) > 100:
+                raise ValueError('Conserva el número y el desglose del documento original')
+            try:total=float(_money(doc.get('total')))
+            except (InvalidOperation, TypeError):raise ValueError('Total del documento inválido')
+            documents.append(dict(id=kind+'-'+url.rsplit('/',1)[1], kind=kind, url=url, number=number,
+                                  total=total, items=items, source_text=text))
+        if not documents:raise ValueError('No hay servicios originales para recuperar')
+        planned.append((deepcopy(job), documents))
+    crm.store.backup_now('jobs')
+    updated, skipped = [], []
+    for job, documents in planned:
+        existing = {d['id']: d for d in job.get('studio_ninja_service_documents', [])}
+        merged = dict(existing)
+        merged.update({d['id']: d for d in documents})
+        if merged == existing:skipped.append(job['nombre']); continue
+        job['studio_ninja_service_documents'] = list(merged.values())
+        job['studio_ninja_services_recovered_at'] = datetime.now().isoformat()
+        crm.upsert_job(job)
+        updated.append(job['nombre'])
+    return dict(ok=True, updated=updated, created=[], skipped=skipped,
+                message=f'{len(updated)} bodas con cotizaciones y servicios recuperados; pagos conservados')
+
+
+def source_invoice(job, payment):
+    documents = (job or {}).get('studio_ninja_service_documents', [])
+    return next((d for d in documents if d['kind'] == 'invoice' and
+                 (d['url'] == payment.get('studio_ninja_url') if payment.get('studio_ninja_url')
+                  else d['number'] == str(payment.get('invoice_id') or ''))), None)
 
 
 def _money(value):

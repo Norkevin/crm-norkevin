@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Servicios contratados · {{ job.nombre }}{% endblock %}
+{% block content %}
+<section class="sn-page-wide source-service-document">
+  <a class="sn-btn" href="{{ url_for('job_detail',job_id=job.id) }}">Volver a la boda</a>
+  <header class="sn-page-head"><div><h1 class="sn-page-title">{{ 'Cotización original' if document.kind == 'quote' else 'Servicios de la factura original' }} {{ document.number }}</h1><p>{{ job.nombre }} · {{ job.boda_date|fecha_es }}</p></div><strong class="sn-money">Q{{ '{:,.2f}'.format(document.total) }}</strong></header>
+  <p class="sn-muted">Documento recuperado de Studio Ninja. Los pagos y saldos actuales se consultan en Facturas.</p>
+  {% for item in document['items'] %}<section class="sn-card white source-service-item"><h2>{{ item.name }}</h2><div class="source-service-description">{{ item.description }}</div>{% if item.quantity %}<p class="sn-muted">Cantidad de paquetes o servicios: {{ item.quantity }}{% if item.amount %} · Importe en origen: {{ item.amount }}{% endif %}</p>{% endif %}</section>{% endfor %}
+  <div class="sn-actions"><a class="sn-btn" href="{{ document.url }}" target="_blank" rel="noopener noreferrer">Ver original en Studio Ninja</a><a class="sn-btn sn-btn-primary" href="/teams/jobs/{{ job.id }}">Organizar equipo</a></div>
+  <details class="source-service-original"><summary>Texto completo del documento de origen</summary><p class="sn-muted">Conserva las condiciones y el plan de pagos del documento original. Los cobros registrados después se ven en Facturas.</p><div class="source-service-description">{{ document.source_text }}</div></details>
+</section>
+<style>.source-service-document{max-width:1050px}.source-service-document .sn-page-head{margin-top:24px;gap:20px;align-items:flex-start}.source-service-item{padding:24px;margin:22px 0}.source-service-item h2{font-size:20px;margin:0 0 16px}.source-service-description{white-space:pre-line;overflow-wrap:anywhere;line-height:1.75;max-width:72ch}.source-service-original{margin-top:28px}.source-service-original summary{cursor:pointer;min-height:44px;padding:12px 0}.source-service-document .sn-actions{flex-wrap:wrap}@media(max-width:767px){.source-service-item{padding:18px}.source-service-document .sn-page-head{flex-direction:column}.source-service-document .sn-actions .sn-btn{min-height:44px}}</style>
+{% endblock %}

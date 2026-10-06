@@ -3,6 +3,7 @@
 {% block header %}{{ job.nombre }}{% endblock %}
 
 {% block content %}
+{% set source_quotes=(job.studio_ninja_service_documents or [])|selectattr('kind','equalto','quote')|list %}
 <link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css') }}">
 <section class="sn-page-wide lead-detail job-detail">
   <nav class="lead-breadcrumb" aria-label="Ruta de navegación"><a href="/jobs">← Trabajos</a><span>/</span><span>Detalle del trabajo</span></nav>
@@ -264,7 +265,7 @@
       <div class="lead-section-heading job-doc-heading"><div><h2>Documentos</h2><p>Cotizaciones, contratos y archivos del trabajo.</p></div></div>
       <div class="sn-tabs" id="job-detail-tabs-nav">
         <button class="sn-tab active" data-tab-target="invoices" onclick="switchTab(this,'job-detail-tabs')">Facturas <span class="sn-tab-count">{{ invoice_groups|length }}</span></button>
-        <button class="sn-tab" data-tab-target="quotes" onclick="switchTab(this,'job-detail-tabs')">Cotizaciones <span class="sn-tab-count">{{ quotes|length }}</span></button>
+        <button class="sn-tab" data-tab-target="quotes" onclick="switchTab(this,'job-detail-tabs')">Cotizaciones <span class="sn-tab-count">{{ (quotes|length) + (source_quotes|length) }}</span></button>
         <button class="sn-tab" data-tab-target="contracts" onclick="switchTab(this,'job-detail-tabs')">Contratos <span class="sn-tab-count">{{ contracts|length }}</span></button>
         <button class="sn-tab" data-tab-target="questionnaires" onclick="switchTab(this,'job-detail-tabs')">Cuestionarios <span class="sn-tab-count">{{ questionnaires|length }}</span></button>
         <button class="sn-tab" data-tab-target="files" onclick="switchTab(this,'job-detail-tabs')">Archivos <span class="sn-tab-count">{{ files|length }}</span></button>
@@ -375,8 +376,9 @@
             </div>
           </div>
           {% else %}
-          <div class="sn-list-item sn-muted">Sin cotizaciones.</div>
+          {% if not source_quotes %}{% set original_invoices=(job.studio_ninja_service_documents or [])|selectattr('kind','equalto','invoice')|list %}<div class="sn-list-item sn-muted">{{ 'No hay cotización en origen. Consulta los servicios de la factura original.' if original_invoices else 'Sin cotizaciones.' }}{% for original in original_invoices %}<p><a class="sn-btn sn-btn-sm" href="{{ url_for('job_source_document',job_id=job.id,document_id=original.id) }}">Ver servicios de factura {{ original.number }}</a></p>{% endfor %}</div>{% endif %}
           {% endfor %}
+          {% for original in source_quotes %}<div class="sn-list-item"><div class="sn-list-row"><div><div class="sn-list-title">{{ original['items']|map(attribute='name')|join(' · ') }}</div><div class="sn-list-meta">Cotización {{ original.number }} · Original de Studio Ninja</div></div><div class="sn-money">Q{{ '{:,.2f}'.format(original.total) }}</div></div><div class="sn-list-actions"><a class="sn-btn sn-btn-sm" href="{{ url_for('job_source_document',job_id=job.id,document_id=original.id) }}">Ver servicios contratados</a><a class="sn-btn sn-btn-sm" href="{{ original.url }}" target="_blank" rel="noopener noreferrer">Ver original</a></div></div>{% endfor %}
         </div>
       </div>
       </div>

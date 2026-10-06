@@ -289,6 +289,8 @@
                 <div>{{ item.name }} · Q{{ '{:,.2f}'.format(item.price or 0) }}</div>
               {% endfor %}
             </div>
+          {% elif source_items %}
+            {% for item in source_items['items'] %}<h3>{{ item.name }}</h3><div class="sn-muted" style="white-space:pre-line;line-height:1.7;overflow-wrap:anywhere">{{ item.description }}</div>{% endfor %}
           {% else %}
             <div class="sn-muted" style="margin-top:10px;">{{ invoice.concepto or 'Invoice payment' }}</div>
           {% endif %}
