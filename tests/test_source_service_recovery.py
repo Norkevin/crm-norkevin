@@ -84,3 +84,16 @@ def test_source_view_is_private_tenant_scoped_and_escapes_original_content(origi
     with client.session_transaction() as session:session['tenant_id']='tenant-norkevin-photography';session['user_email']='norkevinfoto@gmail.com'
     assert client.get(path).status_code==404 and recover(original_services).status_code==400
     with crm.app.test_client() as anonymous:assert anonymous.get(path).status_code in (302,401,403)
+
+
+def test_recovered_internal_invoice_displays_whole_invoice_and_never_other_jobs(original_services):
+    crm,client,job,payment,_=original_services
+    next_row=dict(payment,id=payment['id']+'-next',amount=100,original_amount=100,paid_amount=0,due_date='2026-12-14')
+    foreign=dict(next_row,id='foreign-'+next_row['id'],job_id='other-job',amount=900,original_amount=900)
+    crm.store.upsert('payments',next_row);crm.store.upsert('payments',foreign)
+    assert recover(original_services).status_code==200
+    html=client.get('/invoices/'+payment['id']).get_data(as_text=True)
+    assert 'Q200.00' in html and 'Q160.00' in html and 'Q40.00' in html
+    assert 'Q900.00' not in html and '14 de diciembre de 2026' in html
+    assert crm.store.get('payments',payment['id'])==payment
+    assert crm.store.get('payments',next_row['id'])==next_row

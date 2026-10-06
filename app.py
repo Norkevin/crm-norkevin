@@ -5734,9 +5734,14 @@ def invoice_view(invoice_id):
     job = get_job(selected.get('job_id', ''))
     client = get_client(selected.get('client_id', ''))
     lead = get_lead(job.get('lead_id', '')) if job and job.get('lead_id') else None
+    original_services = source_invoice(job, selected)
+    recovered_document = _invoice_document(invoice_id) if original_services else None
+    if recovered_document:schedule = recovered_document['schedule']
     total = sum(_row_original_amount(p) for p in schedule)
     paid = sum(_row_paid_amount(p) for p in schedule)
     balance = max(total - paid, 0)
+    if recovered_document:
+        total, paid, balance = (recovered_document[k] for k in ('total','pagado','pendiente'))
 
     for row in schedule:
         row['is_selected'] = row.get('id') == selected.get('id')
@@ -5778,7 +5783,7 @@ def invoice_view(invoice_id):
         paid=paid,
         balance=balance,
         company_email=get_settings().get('company', {}).get('email'),
-        source_items=source_invoice(job, selected),
+        source_items=original_services,
     )
 
 
