@@ -7130,12 +7130,7 @@ def leads_demo():
 
 
 
-@app.route('/calendar')
-def calendar_view():
-    """Calendar con eventos del mes."""
-    from datetime import datetime
-    import calendar as _cal
-
+def _calendar_non_job_events():
     # Eventos manuales y bloqueos; los registros históricos de calendar de
     # tipo lead/job son entradas antiguas duplicadas, ya que abajo se generan
     # frescos desde los datos reales del lead/job (con su url correcta).
@@ -7151,6 +7146,16 @@ def calendar_view():
                 'lead_id': lead.get('id'),
                 'url': f"/leads/{lead.get('id')}",
             })
+    return events
+
+
+@app.route('/calendar')
+def calendar_view():
+    """Calendar con eventos del mes."""
+    from datetime import datetime
+    import calendar as _cal
+
+    events = _calendar_non_job_events()
     for job in _canonical_jobs():
         if job.get('boda_date'):
             events.append({

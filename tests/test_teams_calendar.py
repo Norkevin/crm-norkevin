@@ -81,18 +81,72 @@ def test_background_reconciliation_uses_explicit_brand_context(flask_app,tmp_pat
     database=TeamsStore(tmp_path/'background.sqlite3')
     for tenant,identifier in [(TENANT,'own-wedding'),('tenant-norkevin','other-wedding')]:
         crm.store.upsert('jobs',dict(JOB,id=identifier,tenant_id=tenant))
+        crm.store.upsert('calendar',dict(id=identifier,type='block',date='2026-12-24',tenant_id=tenant))
+        crm.store.upsert('calendar',dict(id='zoom-'+identifier,type='event',date='2026-12-20',title='Zoom',tenant_id=tenant))
+        crm.store.upsert('calendar',dict(id='old-'+identifier,type='job',date='2026-12-20',tenant_id=tenant))
+        crm.store.upsert('leads',dict(id=identifier,nombre='Consulta',status='Nuevo',fecha_tentativa='2026-12-21',tenant_id=tenant))
     # Production's Teams portal resolver consults flask.g before the CRM resolver.
     original=crm.store.tenant_resolver
     monkeypatch.setattr(crm.store,'tenant_resolver',lambda: getattr(g,'teams_portal_tenant',None) or original())
     register_calendar(application,Blueprint('calendar-test',__name__),crm.store,database,None,crm._canonical_jobs)
     application.extensions['teams_calendar'].reconcile_tenant(TENANT)
-    assert {r['identity'] for r in rows(database)}=={'job:own-wedding'}
+    assert {r['identity'] for r in rows(database)}=={'job:own-wedding','block:own-wedding','event:zoom-own-wedding','lead:lead-own-wedding'}
     assert crm._workflow_tenant.get() is None
     monkeypatch.setattr(crm.store,'tenant_resolver',lambda: None)
     from src.teams import TeamsError
     with pytest.raises(TeamsError,match='marca'):
         application.extensions['teams_calendar'].reconcile_tenant(TENANT)
     assert rows(database)[0]['event'] is not None
+
+
+def test_blocked_dates_sync_update_release_delete_restore_without_touching_weddings(prepared):
+    store,*_=prepared
+    fake=FakeCalendar();sync=CalendarSync(store,lambda tenant:fake)
+    block=dict(id=JOB['id'],type='block',date='2026-12-24',end_date='2026-12-26',title='Descanso')
+    def reconcile(blocks):
+        sync.reconcile(TENANT,[JOB],ORIGIN,ZONE,'secret',calendar_entries=blocks);sync.drain(TENANT)
+    reconcile([block])
+    original={r['identity']:r for r in rows(store)}
+    event=original['block:wedding']['event']
+    assert event['start']=={'date':'2026-12-24'} and event['end']=={'date':'2026-12-27'}
+    assert event['transparency']=='opaque' and event['visibility']=='private' and 'attendees' not in event
+    assert original['job:wedding']['event_id']!=original['block:wedding']['event_id']
+    reconcile([block]);assert len(fake.calls)==2
+    reconcile([dict(block,date='2026-12-25',title='Viaje')])
+    assert fake.calls[-1][1]['summary']=='Fecha bloqueada · Viaje'
+    assert fake.calls[-1][0]==original['block:wedding']['event_id']
+    fake.fail=True
+    reconcile([dict(block,released_at='2026-10-07')])
+    failed=next(r for r in rows(store) if r['identity']=='block:wedding')
+    reconcile([dict(block,released_at='2026-10-07')])
+    assert next(r for r in rows(store) if r['identity']=='block:wedding')['retry_after']==failed['retry_after']
+    fake.fail=False
+    with store.transaction() as db:
+        failed['retry_after']=None;store.save(db,TENANT,'calendar_sync',failed)
+    sync.drain(TENANT);assert fake.calls[-1][1] is None
+    reconcile([block]);assert fake.calls[-1][0]!=original['block:wedding']['event_id']
+    reconcile([]);assert fake.calls[-1][1] is None
+    assert next(r for r in rows(store) if r['identity']=='job:wedding')==original['job:wedding']
+
+
+def test_manual_events_and_leads_sync_changes_and_removals(prepared):
+    store,*_=prepared;fake=FakeCalendar();sync=CalendarSync(store,lambda tenant:fake)
+    entries=[dict(id=str(i),type='event',date='2026-12-01',title=title,notes='Enlace de reunión')
+             for i,title in enumerate(['Boda civil','CVDate','Zoom'])]
+    entries += [dict(id='lead',type='lead',date='2026-12-02',title='Consulta',url='/leads/lead'),
+                dict(id='bad',type='event',date='invalid'),dict(id='old-job',type='job',date='2026-12-01')]
+    sync.reconcile(TENANT,[],ORIGIN,ZONE,'secret',calendar_entries=entries);sync.drain(TENANT)
+    assert len(fake.calls)==4
+    assert {r['event']['summary'] for r in rows(store)}=={'Boda civil','CVDate','Zoom','Lead · Consulta'}
+    lead=next(r for r in rows(store) if r['identity']=='lead:lead')
+    assert lead['event']['transparency']=='transparent' and '/leads/lead' in lead['event']['description']
+    entries[2].update(date='2026-12-05',title='Zoom movido')
+    sync.reconcile(TENANT,[],ORIGIN,ZONE,'secret',calendar_entries=entries[:3]);sync.drain(TENANT)
+    changed=next(r for r in rows(store) if r['identity']=='event:2')
+    assert changed['event']['start']=={'date':'2026-12-05'} and 'Enlace de reunión' in changed['event']['description']
+    assert next(r for r in rows(store) if r['identity']=='lead:lead')['event'] is None
+    sync.reconcile(TENANT,[],ORIGIN,ZONE,'secret',calendar_entries=[]);sync.drain(TENANT)
+    assert all(r['event'] is None and r['status']=='synced' for r in rows(store))
 
 
 def test_invites_exact_individual_role_hours_and_documents_without_finance(prepared):

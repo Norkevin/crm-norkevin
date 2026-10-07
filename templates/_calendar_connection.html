@@ -3,14 +3,14 @@
   <h3>Google Calendar</h3>
   {% if crm_calendar_email %}
   <p>Cuenta conectada: <strong>{{ crm_calendar_email }}</strong>.</p>
-  <p class="sn-muted">Tus bodas se sincronizan automáticamente de Flow a Google Calendar, incluidas las fechas, el lugar y las cancelaciones. Los cambios hechos en Google no modifican Flow.</p>
-  {% if crm_calendar_failed %}<p role="status">{{ crm_calendar_failed }} boda{{ 's' if crm_calendar_failed != 1 else '' }} pendiente{{ 's' if crm_calendar_failed != 1 else '' }} por un error de Google. Flow reintenta automáticamente.</p>
+  <p class="sn-muted">Todo tu calendario de Flow se sincroniza automáticamente con Google Calendar, incluidas las fechas, el lugar y las cancelaciones. Los cambios hechos en Google no modifican Flow.</p>
+  {% if crm_calendar_failed %}<p role="status">{{ crm_calendar_failed }} registros pendientes por un error de Google. Flow reintenta automáticamente.</p>
   {% for error in crm_calendar_errors %}<p role="alert">{{ error }}</p>{% endfor %}
   <a class="sn-btn" href="/teams/calendar/connect">Volver a conectar Google Calendar</a>
-  {% elif crm_calendar_pending %}<p role="status">{{ crm_calendar_pending }} bodas en proceso de sincronización.</p>
-  {% else %}<p class="sn-muted">{{ crm_calendar_synced }} bodas sincronizadas. Flow revisa los cambios cada minuto.</p>{% endif %}
+  {% elif crm_calendar_pending %}<p role="status">{{ crm_calendar_pending }} registros en proceso de sincronización.</p>
+  {% else %}<p class="sn-muted">{{ crm_calendar_synced }} trabajos, {{ crm_calendar_blocks_synced }} fechas bloqueadas y {{ crm_calendar_other_synced }} eventos/leads sincronizados. Flow revisa los cambios cada minuto.</p>{% endif %}
   {% else %}
-  <p>Conecta la cuenta de Google de esta marca una sola vez. Las bodas existentes y nuevas se mantendrán actualizadas automáticamente en su calendario principal.</p>
+  <p>Conecta la cuenta de Google de esta marca una sola vez. Los trabajos, leads, eventos y bloqueos existentes y nuevos se mantendrán actualizados automáticamente en su calendario principal.</p>
   {% if not config.FLOW_TEAMS_LOCAL %}<a class="sn-btn sn-btn-primary" href="/teams/calendar/connect">Conectar Google Calendar</a>{% endif %}
   {% endif %}
 </section>

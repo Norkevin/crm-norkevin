@@ -98,23 +98,56 @@ class CalendarSync:
                     except Exception:LOGGER.warning('Calendar queue unavailable; will retry')
             if scan:next_scan=time.monotonic()+60
 
-    def reconcile(self,tenant,jobs,origin,zone,secret):
+    def reconcile(self,tenant,jobs,origin,zone,secret,*,calendar_entries=None):
         """Recover missed writes, initial connection and deleted CRM weddings."""
         jobs={job['id']:job for job in jobs}
         with self.store.transaction() as db:
-            tracked={r['job_id'] for r in self.store.records(db,tenant,'calendar_sync')}
+            tracked={r['job_id'] for r in self.store.records(db,tenant,'calendar_sync') if r['identity'].startswith(('job:','assignment:'))}
         for identifier in tracked-jobs.keys():
             jobs[identifier]=dict(id=identifier,status='Archivado')
         for job in jobs.values():
             try:self.enqueue(tenant,job,origin,zone,secret,background=False,skip_unchanged=True)
             except (ValueError,TypeError,KeyError,TeamsError):
                 LOGGER.warning('Calendar wedding data invalid; other weddings continue')
+        if calendar_entries is not None:
+            entries={entry['type']+':'+entry['id']:entry for entry in calendar_entries
+                     if entry.get('type') in ('block','event','lead')}
+            with self.store.transaction() as db:
+                tracked={r['identity'] for r in self.store.records(db,tenant,'calendar_sync')
+                         if r['identity'].startswith(('block:','event:','lead:'))}
+            for identity in tracked-entries.keys():
+                entries[identity]=dict(id=identity.split(':',1)[1],released_at=True)
+            for identity,entry in entries.items():
+                try:
+                    event=None
+                    if not entry.get('released_at'):
+                        start=date.fromisoformat(entry['date'])
+                        end=date.fromisoformat(entry.get('end_date') or entry['date'])
+                        if end<start:raise ValueError('Invalid calendar date range')
+                        kind=entry['type']
+                        prefix={'block':'Fecha bloqueada · ','lead':'Lead · ','event':''}[kind]
+                        description=('Fecha bloqueada' if kind=='block' else 'Lead' if kind=='lead' else 'Evento')+' en Flow CRM'
+                        description+='\n'+origin+(entry.get('url') or '/calendar')
+                        if kind=='event' and entry.get('notes'):description+='\n\n'+entry['notes']
+                        event=dict(summary=prefix+(entry.get('title') or 'Sin título'),
+                            start={'date':start.isoformat()},end={'date':(end+timedelta(days=1)).isoformat()},
+                            description=description,location=entry.get('location') or '',
+                            visibility='private',transparency='transparent' if kind=='lead' else 'opaque',
+                            guestsCanInviteOthers=False,guestsCanModify=False)
+                    self.enqueue_events(tenant,entry['id'],{identity:event},background=False,skip_unchanged=True)
+                except (ValueError,TypeError,KeyError,TeamsError):
+                    LOGGER.warning('Calendar entry invalid; other events continue')
 
     def enqueue(self,tenant,job,origin,zone,secret,*,background=True, invite_ids=None, send_at=None, include_new=False, delivery_key=None,skip_unchanged=False):
         with self.store.transaction() as db:
             tracked=[r for r in self.store.records(db,tenant,'calendar_sync') if r['status']!='paused']
         wanted=invite_ids if invite_ids is not None else (None if include_new else [r['identity'].split(':',1)[1] for r in tracked if r['identity'].startswith('assignment:')])
         desired=events(self.store,tenant,job,origin,zone,secret,wanted)
+        return self.enqueue_events(tenant,job['id'],desired,background=background,invite_ids=invite_ids,
+            send_at=send_at,include_new=include_new,delivery_key=delivery_key,skip_unchanged=skip_unchanged)
+
+    def enqueue_events(self,tenant,source_id,desired,*,background=True,invite_ids=None,send_at=None,
+                       include_new=False,delivery_key=None,skip_unchanged=False):
         queued=0
         with self.store.transaction() as db:
             existing={r['identity']:r for r in self.store.records(db,tenant,'calendar_sync')}
@@ -128,7 +161,7 @@ class CalendarSync:
                 if previous and previous['digest']==digest and previous['status']=='synced':continue
                 if skip_unchanged and previous and previous['digest']==digest:continue
                 record=dict(previous) if previous else dict(id=str(uuid4()),identity=identity,
-                    event_id=hashlib.sha256((tenant+':'+identity).encode()).hexdigest(),job_id=job['id'])
+                    event_id=hashlib.sha256((tenant+':'+identity).encode()).hexdigest(),job_id=source_id)
                 if previous and previous['event'] is None and event is not None and previous['status']=='synced':
                     record['event_id']=hashlib.sha256((tenant+':'+identity+':'+str(previous['version'])).encode()).hexdigest()
                 record.update(digest=digest,delivery_key=delivery,event=event,status='pending',error='',queued_at=now(),retry_after=None)

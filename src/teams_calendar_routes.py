@@ -32,14 +32,14 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
     sync=CalendarSync(database);app.extensions['teams_calendar']=sync
     def reconcile_tenant(tenant):
         # Reuse the CRM's explicit tenant context, also used by workflow workers.
-        from app import _workflow_tenant
+        from app import _workflow_tenant, _calendar_non_job_events
         token=_workflow_tenant.set(tenant)
         try:
             with app.app_context():
                 if crm_store.current_tenant_id()!=tenant:
                     raise TeamsError('No se pudo resolver la marca para sincronizar Calendar.')
                 sync.reconcile(tenant,canonical_jobs(),os.environ.get('APP_BASE_URL','https://flowingcrm.com').rstrip('/'),
-                               teams_zone(crm_store,tenant),app.secret_key)
+                               teams_zone(crm_store,tenant),app.secret_key,calendar_entries=_calendar_non_job_events())
         finally:_workflow_tenant.reset(token)
     sync.reconcile_tenant=reconcile_tenant
     if app.config.get('FLOW_TEAMS_ENABLED') and not app.config.get('TESTING') and not app.config.get('FLOW_TEAMS_LOCAL'):sync.start()
@@ -52,10 +52,12 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
         if not owner or not session.get('logged_in') or session.get('user_email')!=owner.get('login_email'):return {}
         email=google_calendar.connected_email(tenant)
         with database.transaction() as db:
-            records=[r for r in database.records(db,tenant,'calendar_sync') if r['identity'].startswith('job:')]
+            records=[r for r in database.records(db,tenant,'calendar_sync') if r['identity'].startswith(('job:','block:','event:','lead:'))]
         return dict(crm_calendar_email=email,crm_calendar_failed=sum(r['status']=='failed' for r in records),
                     crm_calendar_errors=sorted({r['error'] for r in records if r['status']=='failed' and r.get('error')}),
-                    crm_calendar_synced=sum(r['status']=='synced' and r.get('event') is not None for r in records),
+                    crm_calendar_synced=sum(r['status']=='synced' and r.get('event') is not None and r['identity'].startswith('job:') for r in records),
+                    crm_calendar_other_synced=sum(r['status']=='synced' and r.get('event') is not None and r['identity'].startswith(('event:','lead:')) for r in records),
+                    crm_calendar_blocks_synced=sum(r['status']=='synced' and r.get('event') is not None and r['identity'].startswith('block:') for r in records),
                     crm_calendar_pending=sum(r['status']=='pending' for r in records))
 
     def origin():
@@ -86,11 +88,11 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
             count=0
             with database.transaction() as db:
                 for record in database.records(db,session['tenant_id'],'calendar_sync'):
-                    if record['identity'].startswith('job:') and record['status']=='failed':
+                    if record['identity'].startswith(('job:','block:','event:','lead:')) and record['status']=='failed':
                         record.update(status='pending',error='',retry_after=None)
                         database.save(db,session['tenant_id'],'calendar_sync',record);count+=1
             sync.wakeup.set()
-            return jsonify(ok=True,record=dict(queued=count),warnings=['Bodas pendientes en cola para reintentar. No se envían invitaciones al equipo.'])
+            return jsonify(ok=True,record=dict(queued=count),warnings=['Trabajos, leads, eventos y bloqueos pendientes en cola para reintentar. No se envían invitaciones al equipo.'])
         if data.get('scope')=='weddings':
             from src.teams import job_phase
             today=datetime.now(teams_zone(crm_store,session['tenant_id'])).date()
