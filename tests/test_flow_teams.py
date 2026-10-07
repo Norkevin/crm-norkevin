@@ -1338,6 +1338,29 @@ def test_calendar_owner_can_send_individually_bulk_schedule_and_cancel_without_s
     assert records(store,'calendar_sync')==before
 
 
+def test_calendar_retry_failed_only_requeues_owner_weddings_and_preserves_schedules(web,monkeypatch):
+    from src import google_calendar
+    application,owner,_=web
+    application.config.update(FLOW_TEAMS_LOCAL=False,FLOW_TEAMS_ENABLED=True)
+    monkeypatch.setattr(google_calendar,'connected_email',lambda tenant:'owner@example.invalid')
+    store=application.extensions['teams']
+    with store.transaction() as db:
+        for tenant,identity,status in [('brand-a','job:past','failed'),('brand-a','assignment:person','failed'),
+                                       ('brand-a','job:done','synced'),('brand-b','job:foreign','failed')]:
+            store.save(db,tenant,'calendar_sync',dict(id=identity,identity=identity,status=status,
+                retry_after='2099-01-01T00:00:00+00:00',not_before='2098-01-01T00:00:00+00:00',error='old error'))
+    before=records(store,'calendar_sync');foreign=records(store,'calendar_sync','brand-b')
+    payload={'scope':'retry_failed'}
+    assert owner.post('/api/teams/calendar/sync',json=payload).status_code==403
+    result=owner.post('/api/teams/calendar/sync',headers={'X-Teams-CSRF':'csrf'},json=payload)
+    assert result.status_code==200 and result.get_json()['record']['queued']==1
+    after={r['identity']:r for r in records(store,'calendar_sync')}
+    assert after['job:past']['status']=='pending' and after['job:past']['retry_after'] is None
+    assert after['job:past']['error']=='' and after['job:past']['not_before']=='2098-01-01T00:00:00+00:00'
+    assert all(after[r['identity']]==r for r in before if r['identity']!='job:past')
+    assert records(store,'calendar_sync','brand-b')==foreign
+
+
 def test_calendar_document_link_only_opens_authorized_current_document_and_never_binds_portal_session(web):
     from zoneinfo import ZoneInfo
     from src.teams_calendar import events

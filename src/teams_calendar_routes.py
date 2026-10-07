@@ -82,6 +82,15 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
         if not isinstance(data,dict):raise TeamsError('Revisa la invitación.')
         if app.config.get('FLOW_TEAMS_LOCAL') or not google_calendar.connected_email(session['tenant_id']):
             raise TeamsError('Conecta Google Calendar en Configuración para esta marca.')
+        if data.get('scope')=='retry_failed':
+            count=0
+            with database.transaction() as db:
+                for record in database.records(db,session['tenant_id'],'calendar_sync'):
+                    if record['identity'].startswith('job:') and record['status']=='failed':
+                        record.update(status='pending',error='',retry_after=None)
+                        database.save(db,session['tenant_id'],'calendar_sync',record);count+=1
+            sync.wakeup.set()
+            return jsonify(ok=True,record=dict(queued=count),warnings=['Bodas pendientes en cola para reintentar. No se envían invitaciones al equipo.'])
         if data.get('scope')=='weddings':
             from src.teams import job_phase
             today=datetime.now(teams_zone(crm_store,session['tenant_id'])).date()
