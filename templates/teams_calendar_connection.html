@@ -3,6 +3,7 @@
   {% if calendar_message %}<p role="status">{{ calendar_message }}</p>{% endif %}
   {% if calendar_email %}
     <p>Cuenta conectada: <strong>{{ calendar_email }}</strong>. Las bodas se crean en su calendario principal.</p>
+    {% if not config.FLOW_TEAMS_LOCAL %}<a class="sn-btn" href="/teams/calendar/connect">Volver a conectar Google Calendar</a>{% endif %}
     <form data-command="calendar_sync" data-endpoint="/api/teams/calendar/sync"><input type="hidden" name="scope" value="weddings"><button class="sn-btn">Sincronizar próximas bodas</button><p class="ft-muted">La sincronización es automática cada minuto. Este botón permite reintentar ahora. Para invitar personas, abre el equipo de la boda.</p></form>
   {% else %}
     <p>Conecta el Google de esta marca una sola vez. Las bodas existentes y nuevas se sincronizan automáticamente. Cada persona recibirá su rol, horario y documentos publicados para ella.</p>

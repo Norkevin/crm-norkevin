@@ -4,7 +4,9 @@
   {% if crm_calendar_email %}
   <p>Cuenta conectada: <strong>{{ crm_calendar_email }}</strong>.</p>
   <p class="sn-muted">Tus bodas se sincronizan automáticamente de Flow a Google Calendar, incluidas las fechas, el lugar y las cancelaciones. Los cambios hechos en Google no modifican Flow.</p>
-  {% if crm_calendar_failed %}<p role="status">{{ crm_calendar_failed }} bodas pendientes por un error de Google. Flow reintenta automáticamente. <a href="/teams/settings">Revisar conexión</a></p>
+  {% if crm_calendar_failed %}<p role="status">{{ crm_calendar_failed }} boda{{ 's' if crm_calendar_failed != 1 else '' }} pendiente{{ 's' if crm_calendar_failed != 1 else '' }} por un error de Google. Flow reintenta automáticamente.</p>
+  {% for error in crm_calendar_errors %}<p role="alert">{{ error }}</p>{% endfor %}
+  <a class="sn-btn" href="/teams/calendar/connect">Volver a conectar Google Calendar</a>
   {% elif crm_calendar_pending %}<p role="status">{{ crm_calendar_pending }} bodas en proceso de sincronización.</p>
   {% else %}<p class="sn-muted">{{ crm_calendar_synced }} bodas sincronizadas. Flow revisa los cambios cada minuto.</p>{% endif %}
   {% else %}

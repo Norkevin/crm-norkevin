@@ -51,6 +51,7 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
         with database.transaction() as db:
             records=[r for r in database.records(db,tenant,'calendar_sync') if r['identity'].startswith('job:')]
         return dict(crm_calendar_email=email,crm_calendar_failed=sum(r['status']=='failed' for r in records),
+                    crm_calendar_errors=sorted({r['error'] for r in records if r['status']=='failed' and r.get('error')}),
                     crm_calendar_synced=sum(r['status']=='synced' and r.get('event') is not None for r in records),
                     crm_calendar_pending=sum(r['status']=='pending' for r in records))
 
