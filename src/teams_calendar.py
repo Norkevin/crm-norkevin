@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 from uuid import uuid4
 
 from itsdangerous import URLSafeSerializer
@@ -76,6 +77,7 @@ class CalendarSync:
         self.store=store;self.client_factory=client_factory
         self.wakeup=Event()
         self.started=False
+        self.reconcile_tenant=None
 
     def start(self):
         if self.started:return
@@ -83,14 +85,32 @@ class CalendarSync:
         Thread(target=self.run,daemon=True,name='teams-calendar').start()
 
     def run(self):
+        next_scan=0
         while True:
             self.wakeup.wait(30);self.wakeup.clear()
+            scan=time.monotonic()>=next_scan
             for tenant in all_known_tenant_ids():
                 if connected_email(tenant):
+                    if scan and self.reconcile_tenant:
+                        try:self.reconcile_tenant(tenant)
+                        except Exception:LOGGER.warning('Calendar reconciliation unavailable; will retry')
                     try:self.drain(tenant)
                     except Exception:LOGGER.warning('Calendar queue unavailable; will retry')
+            if scan:next_scan=time.monotonic()+60
 
-    def enqueue(self,tenant,job,origin,zone,secret,*,background=True, invite_ids=None, send_at=None, include_new=False, delivery_key=None):
+    def reconcile(self,tenant,jobs,origin,zone,secret):
+        """Recover missed writes, initial connection and deleted CRM weddings."""
+        jobs={job['id']:job for job in jobs}
+        with self.store.transaction() as db:
+            tracked={r['job_id'] for r in self.store.records(db,tenant,'calendar_sync')}
+        for identifier in tracked-jobs.keys():
+            jobs[identifier]=dict(id=identifier,status='Archivado')
+        for job in jobs.values():
+            try:self.enqueue(tenant,job,origin,zone,secret,background=False,skip_unchanged=True)
+            except (ValueError,TypeError,KeyError,TeamsError):
+                LOGGER.warning('Calendar wedding data invalid; other weddings continue')
+
+    def enqueue(self,tenant,job,origin,zone,secret,*,background=True, invite_ids=None, send_at=None, include_new=False, delivery_key=None,skip_unchanged=False):
         with self.store.transaction() as db:
             tracked=[r for r in self.store.records(db,tenant,'calendar_sync') if r['status']!='paused']
         wanted=invite_ids if invite_ids is not None else (None if include_new else [r['identity'].split(':',1)[1] for r in tracked if r['identity'].startswith('assignment:')])
@@ -106,6 +126,7 @@ class CalendarSync:
                 digest=hashlib.sha256(json.dumps(dict(event=event,delivery=delivery),sort_keys=True).encode()).hexdigest()
                 if event is None and previous is None:continue
                 if previous and previous['digest']==digest and previous['status']=='synced':continue
+                if skip_unchanged and previous and previous['digest']==digest:continue
                 record=dict(previous) if previous else dict(id=str(uuid4()),identity=identity,
                     event_id=hashlib.sha256((tenant+':'+identity).encode()).hexdigest(),job_id=job['id'])
                 if previous and previous['event'] is None and event is not None and previous['status']=='synced':

@@ -306,6 +306,7 @@
               <div class="sn-list-row" style="padding:8px 0;border-top:1px solid var(--sn-line);">
                 <div>
                   <div class="sn-list-meta">{{ p.invoice_id or p.id }} · vence {{ p.due_date_display_es }}</div>
+                  {% if p.status != 'Pagado' %}<button type="button" class="sn-btn-link" onclick='openEditDueDate({{ p.id|tojson }}, {{ (p.due_date or "")|tojson }})'>Editar fecha de pago</button>{% endif %}
                   {% if p.paid_date_display_es %}<div class="sn-list-meta">Pagado {{ p.paid_date_display_es }}</div>{% endif %}
                 </div>
                 <div style="text-align:right;">
@@ -1831,4 +1832,5 @@ function openHistoryLog() {
 <script src="{{ url_for('static', filename='workflow-timing.js') }}" defer></script>
 <script src="{{ url_for('static', filename='email-preview.js') }}"></script>
 <script>installEmailPreview("email-subject", "email-body");</script>
+{% include "_edit_payment_date.html" %}
 {% endblock %}

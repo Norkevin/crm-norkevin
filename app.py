@@ -10825,7 +10825,41 @@ def api_pago_status(pago_id):
 
 @app.route('/api/payments/<pago_id>/update', methods=['POST'])
 def api_pago_update(pago_id):
-    data = request.json or request.form
+    data = request.get_json(silent=True) or request.form
+    if not isinstance(data, (dict, type(request.form))):
+        return jsonify(ok=False, error='Datos inválidos.'), 400
+    if 'due_date' in data:
+        with store.locked_tables('payments', 'pending_emails', 'mail_log'):
+            # A due-date edit always addresses one installment, never a shared invoice number.
+            pay = store.get('payments', pago_id)
+            if not pay:
+                return jsonify(ok=False, error='Pago no encontrado.'), 404
+            if pay.get('status') == 'Pagado':
+                return jsonify(ok=False, error='Este pago ya está cobrado.'), 409
+            value = data.get('due_date')
+            try:
+                due = date.fromisoformat(value)
+                if due.isoformat() != value:
+                    raise ValueError
+            except (ValueError, TypeError):
+                return jsonify(ok=False, error='Elige una fecha de vencimiento válida.'), 400
+            if value != pay.get('due_date'):
+                pending = store.get('pending_emails', pay.get('reminder_mail_id') or '')
+                if pending and pending.get('status') == 'sending':
+                    return jsonify(ok=False, error='Hay un recordatorio enviándose. Reintenta al terminar.'), 409
+                if pending and pending.get('status') in ('pending', 'failed', 'blocked'):
+                    from src.mail_tracker import get_tracker
+                    get_tracker().discard_pending(pending['id'], actor=_actor_actual())
+                    pending = store.get('pending_emails', pending['id'])
+                    pending['original_idempotency_key'] = pending.get('idempotency_key')
+                    pending['idempotency_key'] = (pending.get('idempotency_key') or '') + ':date-changed:' + pending['id']
+                    store.upsert('pending_emails', pending)
+                    pay = store.get('payments', pago_id)
+                    pay['reminder_queued_at'] = None
+            pay.update(due_date=value, status='Late' if due < date.today() else 'Pendiente',
+                       updated_at=datetime.now().isoformat())
+            store.upsert('payments', pay)
+            return jsonify(ok=True, payment_id=pay['id'], updated={'due_date': value, 'status': pay['status']})
     pay = store.get('payments', pago_id) or next((p for p in store.list('payments') if p.get('invoice_id') == pago_id), None)
     if pay:
         local_fields = {}
@@ -10836,8 +10870,6 @@ def api_pago_update(pago_id):
                 return jsonify({'ok': False, 'error': 'monto invalido'}), 400
         if 'fecha_pago' in data:
             local_fields['fecha_pago'] = data.get('fecha_pago') or None
-        if 'due_date' in data:
-            local_fields['due_date'] = data.get('due_date') or None
         if 'comprobante_url' in data:
             local_fields['comprobante_url'] = data.get('comprobante_url')
         if 'evento' in data:

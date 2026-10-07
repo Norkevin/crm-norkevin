@@ -21,7 +21,8 @@ def finish_calendar_connection(app,crm_store,redirect_uri):
     try:
         if request.args.get('error') or not request.args.get('code'):raise ValueError('Conexión cancelada.')
         google_calendar.exchange_code(tenant,request.args['code'],redirect_uri)
-        session['teams_calendar_message']='Google Calendar conectado para esta marca. Ya puedes sincronizar bodas e invitar al equipo.'
+        app.extensions['teams_calendar'].wakeup.set()
+        session['teams_calendar_message']='Google Calendar conectado. Las bodas se sincronizan automáticamente desde Flow; la primera sincronización puede tardar un minuto.'
     except Exception:
         session['teams_calendar_message']='No se conectó Calendar. Usa la cuenta de esta marca y concede el permiso de Calendar. Si Google bloquea el acceso, revisa la configuración OAuth y Calendar API.'
     return redirect('/teams/settings')
@@ -29,7 +30,29 @@ def finish_calendar_connection(app,crm_store,redirect_uri):
 
 def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
     sync=CalendarSync(database);app.extensions['teams_calendar']=sync
+    def reconcile_tenant(tenant):
+        # Reuse the CRM's explicit tenant context, also used by workflow workers.
+        from app import _workflow_tenant
+        token=_workflow_tenant.set(tenant)
+        try:
+            sync.reconcile(tenant,canonical_jobs(),os.environ.get('APP_BASE_URL','https://flowingcrm.com').rstrip('/'),
+                           teams_zone(crm_store,tenant),app.secret_key)
+        finally:_workflow_tenant.reset(token)
+    sync.reconcile_tenant=reconcile_tenant
     if app.config.get('FLOW_TEAMS_ENABLED') and not app.config.get('TESTING') and not app.config.get('FLOW_TEAMS_LOCAL'):sync.start()
+
+    @app.context_processor
+    def calendar_connection_status():
+        if request.endpoint not in ('calendar_view','settings'):return {}
+        tenant=session.get('tenant_id')
+        owner=crm_store.get('tenants',tenant) if tenant else None
+        if not owner or not session.get('logged_in') or session.get('user_email')!=owner.get('login_email'):return {}
+        email=google_calendar.connected_email(tenant)
+        with database.transaction() as db:
+            records=[r for r in database.records(db,tenant,'calendar_sync') if r['identity'].startswith('job:')]
+        return dict(crm_calendar_email=email,crm_calendar_failed=sum(r['status']=='failed' for r in records),
+                    crm_calendar_synced=sum(r['status']=='synced' and r.get('event') is not None for r in records),
+                    crm_calendar_pending=sum(r['status']=='pending' for r in records))
 
     def origin():
         return request.url_root.rstrip('/') if app.config.get('FLOW_TEAMS_LOCAL') else os.environ.get('APP_BASE_URL','https://flowingcrm.com').rstrip('/')

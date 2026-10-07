@@ -1,0 +1,15 @@
+{% if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL %}
+<section class="sn-card" style="padding:18px;margin-bottom:20px;" aria-label="Conexión con Google Calendar">
+  <h3>Google Calendar</h3>
+  {% if crm_calendar_email %}
+  <p>Cuenta conectada: <strong>{{ crm_calendar_email }}</strong>.</p>
+  <p class="sn-muted">Tus bodas se sincronizan automáticamente de Flow a Google Calendar, incluidas las fechas, el lugar y las cancelaciones. Los cambios hechos en Google no modifican Flow.</p>
+  {% if crm_calendar_failed %}<p role="status">{{ crm_calendar_failed }} bodas pendientes por un error de Google. Flow reintenta automáticamente. <a href="/teams/settings">Revisar conexión</a></p>
+  {% elif crm_calendar_pending %}<p role="status">{{ crm_calendar_pending }} bodas en proceso de sincronización.</p>
+  {% else %}<p class="sn-muted">{{ crm_calendar_synced }} bodas sincronizadas. Flow revisa los cambios cada minuto.</p>{% endif %}
+  {% else %}
+  <p>Conecta la cuenta de Google de esta marca una sola vez. Las bodas existentes y nuevas se mantendrán actualizadas automáticamente en su calendario principal.</p>
+  {% if not config.FLOW_TEAMS_LOCAL %}<a class="sn-btn sn-btn-primary" href="/teams/calendar/connect">Conectar Google Calendar</a>{% endif %}
+  {% endif %}
+</section>
+{% endif %}

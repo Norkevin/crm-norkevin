@@ -230,7 +230,7 @@
             {% endif %}
           </td>
           <td class="stack-actions" style="text-align:right;" onclick="event.stopPropagation()">
-            <button class="sn-menu-dots" type="button" title="Acciones" aria-label="Acciones del pago" onclick='openPaymentActions(event, {{ p.id|tojson }}, {{ (p.invoice_id or p.id)|tojson }}, {{ (p.job_id or "")|tojson }}, {{ (p.client_id or "")|tojson }}, {{ (p.status or "")|tojson }}, {{ (p.amount or 0)|tojson }})'>
+            <button class="sn-menu-dots" type="button" title="Acciones" aria-label="Acciones del pago" onclick='openPaymentActions(event, {{ p.id|tojson }}, {{ (p.invoice_id or p.id)|tojson }}, {{ (p.job_id or "")|tojson }}, {{ (p.client_id or "")|tojson }}, {{ (p.status or "")|tojson }}, {{ (p.amount or 0)|tojson }}, {{ (p.due_date or "")|tojson }})'>
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
             </button>
           </td>
@@ -359,7 +359,7 @@ function goPayment(event, jobId, clientId) {
   window.location.href = jobId ? '/jobs/' + jobId : '/clients/' + clientId;
 }
 
-function openPaymentActions(event, paymentId, invoiceId, jobId, clientId, status, amount) {
+function openPaymentActions(event, paymentId, invoiceId, jobId, clientId, status, amount, dueDate) {
   openActionMenu(event, [
     jobId ? { label: 'View Job', href: '/jobs/' + jobId } : null,
     clientId ? { label: 'View Client', href: '/clients/' + clientId } : null,
@@ -368,6 +368,7 @@ function openPaymentActions(event, paymentId, invoiceId, jobId, clientId, status
     // otro cliente. invoiceId sigue sirviendo para MOSTRAR el numero.
     invoiceId ? { label: 'View Invoice', href: '/invoices/' + paymentId } : null,
     { divider: true },
+    status !== 'Pagado' ? { label: 'Editar fecha de pago', action: function() { openEditDueDate(paymentId, dueDate); } } : null,
     { label: 'Send Invoice', action: function() { sendPayment(paymentId); } },
     status !== 'Pagado' ? { label: 'Generar link de pago', action: function() { createPaymentLink(paymentId); } } : null,
     status !== 'Pagado' ? { label: 'Record Payment', action: function() { openRecordPaymentModal(paymentId, amount, jobId); } } : { label: 'Record Payment', disabled: true },
@@ -468,4 +469,5 @@ document.addEventListener('keydown', function(event) {
 });
 document.addEventListener('DOMContentLoaded', filterPayments);
 </script>
+{% include "_edit_payment_date.html" %}
 {% endblock %}

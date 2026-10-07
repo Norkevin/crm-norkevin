@@ -1,0 +1,39 @@
+<dialog id="due-date-modal" class="modal-content" aria-labelledby="due-date-title" style="width:min(420px,94vw);margin:auto;border:1px solid var(--sn-line);color:var(--sn-ink);background:var(--sn-white);">
+  <h2 class="modal-title" id="due-date-title">Editar fecha de pago</h2>
+  <p class="sn-muted">Adelanta o pospone esta cuota. El monto y las demás cuotas se conservan.</p>
+  <form onsubmit="submitDueDate(event)">
+    <input type="hidden" id="due-date-payment-id">
+    <div class="form-group">
+      <label class="form-label" for="due-date-value">Fecha de vencimiento</label>
+      <input class="form-input" id="due-date-value" type="date" required>
+    </div>
+    <p id="due-date-error" role="alert"></p>
+    <div class="sn-actions">
+      <button class="sn-btn sn-btn-primary" type="submit">Guardar fecha</button>
+      <button class="sn-btn" type="button" onclick="document.getElementById('due-date-modal').close()">Cancelar</button>
+    </div>
+  </form>
+</dialog>
+<script>
+function openEditDueDate(paymentId, currentDate) {
+  document.getElementById('due-date-payment-id').value = paymentId;
+  document.getElementById('due-date-value').value = currentDate || '';
+  document.getElementById('due-date-error').textContent = '';
+  document.getElementById('due-date-modal').showModal();
+  document.getElementById('due-date-value').focus();
+}
+async function submitDueDate(event) {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector('[type="submit"]');
+  button.disabled = true;
+  try {
+    await apiPost('/api/payments/' + encodeURIComponent(document.getElementById('due-date-payment-id').value) + '/update', {
+      due_date: document.getElementById('due-date-value').value
+    });
+    location.reload();
+  } catch (error) {
+    document.getElementById('due-date-error').textContent = error.message;
+    button.disabled = false;
+  }
+}
+</script>

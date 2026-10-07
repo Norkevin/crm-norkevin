@@ -213,7 +213,7 @@
             <div style="display:flex;align-items:center;gap:6px;">
               <span>{{ row.due_date_display_es or row.due_date or '-' }}</span>
               {% if row.status != 'Pagado' %}
-              <button type="button" class="sn-btn-link" style="font-size:11px;" onclick='openEditDueDate({{ row.id|tojson }}, {{ (row.due_date or "")|tojson }})' title="Editar fecha">✎</button>
+              <button type="button" class="sn-btn-link" style="font-size:11px;" onclick='openEditDueDate({{ row.id|tojson }}, {{ (row.due_date or "")|tojson }})' aria-label="Editar fecha de pago" title="Editar fecha">Editar fecha</button>
               {% endif %}
             </div>
             {% if row.relative_due %}<div class="sn-list-meta">{{ row.relative_due }}</div>{% endif %}
@@ -322,23 +322,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="due-date-modal">
-  <div class="modal-content" style="width:min(360px,100%);">
-    <button type="button" class="modal-close" onclick="closeModal('due-date-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title">Editar fecha de pago</h2>
-    <form onsubmit="submitDueDate(event)">
-      <input type="hidden" id="due-date-payment-id">
-      <div class="form-group">
-        <label class="form-label">Fecha de vencimiento*</label>
-        <input class="form-input" id="due-date-value" type="date" required>
-      </div>
-      <div class="sn-actions" style="justify-content:flex-start;">
-        <button class="sn-btn sn-btn-primary" type="submit">Guardar</button>
-        <button class="sn-btn" type="button" onclick="closeModal('due-date-modal')">Cancelar</button>
-      </div>
-    </form>
-  </div>
-</div>
+{% include "_edit_payment_date.html" %}
 
 <div class="modal-overlay" id="reminder-preview-modal">
   <div class="modal-content" style="width:min(640px,94vw);">
@@ -401,21 +385,6 @@
 var JOB_ID = {{ (job.id if job else '')|tojson }};
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-function openEditDueDate(paymentId, currentDate) {
-  document.getElementById('due-date-payment-id').value = paymentId;
-  document.getElementById('due-date-value').value = currentDate || '';
-  openModal('due-date-modal');
-}
-function submitDueDate(event) {
-  event.preventDefault();
-  var paymentId = document.getElementById('due-date-payment-id').value;
-  apiPost('/api/payments/' + paymentId + '/update', {
-    due_date: document.getElementById('due-date-value').value
-  })
-    .then(function() { flashToast('Fecha actualizada', 'success'); setTimeout(function() { location.reload(); }, 450); })
-    .catch(function(err) { flashToast(err.message, 'error'); });
-}
-
 function openRecordPayment(paymentId, amount) {
   document.getElementById('record-payment-id').value = paymentId;
   document.getElementById('record-payment-amount').value = Number(amount || 0).toFixed(2);

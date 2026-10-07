@@ -38,6 +38,45 @@ class FakeCalendar:
         return {'htmlLink':'https://calendar.google.com/event?test=1'}
 
 
+def test_automatic_reconciliation_initial_changes_deletion_and_retry(prepared):
+    store,people,assignments,doc=prepared
+    fake=FakeCalendar();sync=CalendarSync(store,lambda tenant:fake)
+    sync.reconcile(TENANT,[JOB],ORIGIN,ZONE,'secret')
+    sync.drain(TENANT)
+    assert len(fake.calls)==1 and fake.calls[0][3]=='job:wedding'
+    event_id=fake.calls[0][0]
+    sync.reconcile(TENANT,[JOB],ORIGIN,ZONE,'secret')
+    sync.drain(TENANT)
+    assert len(fake.calls)==1
+    changed=dict(JOB,boda_date='2027-02-01',location='Nuevo lugar')
+    fake.fail=True
+    sync.reconcile(TENANT,[changed],ORIGIN,ZONE,'secret');sync.drain(TENANT)
+    retry=rows(store)[0]['retry_after']
+    sync.reconcile(TENANT,[changed],ORIGIN,ZONE,'secret')
+    assert rows(store)[0]['retry_after']==retry and rows(store)[0]['status']=='failed'
+    fake.fail=False
+    sync.reconcile(TENANT,[],ORIGIN,ZONE,'secret');sync.drain(TENANT)
+    assert fake.calls[-1][0]==event_id and fake.calls[-1][1] is None
+    sync.reconcile(TENANT,[JOB],ORIGIN,ZONE,'secret');sync.drain(TENANT)
+    assert fake.calls[-1][0]!=event_id and fake.calls[-1][1]['start']=={'date':JOB['boda_date']}
+    assert rows(store,tenant='tenant-norkevin')==[]
+
+
+def test_background_reconciliation_uses_explicit_brand_context(flask_app,tmp_path):
+    from flask import Flask,Blueprint
+    import app as crm
+    from src.teams_calendar_routes import register_calendar
+    application=Flask('calendar-background');application.secret_key='test-secret'
+    application.config['TESTING']=True
+    database=TeamsStore(tmp_path/'background.sqlite3')
+    for tenant,identifier in [(TENANT,'own-wedding'),('tenant-norkevin','other-wedding')]:
+        crm.store.upsert('jobs',dict(JOB,id=identifier,tenant_id=tenant))
+    register_calendar(application,Blueprint('calendar-test',__name__),crm.store,database,None,crm._canonical_jobs)
+    application.extensions['teams_calendar'].reconcile_tenant(TENANT)
+    assert {r['identity'] for r in rows(database)}=={'job:own-wedding'}
+    assert crm._workflow_tenant.get() is None
+
+
 def test_invites_exact_individual_role_hours_and_documents_without_finance(prepared):
     store,people,assignments,doc=prepared
     result=events(store,TENANT,JOB,ORIGIN,ZONE,'secret')
