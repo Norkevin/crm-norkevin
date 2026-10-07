@@ -35,8 +35,11 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
         from app import _workflow_tenant
         token=_workflow_tenant.set(tenant)
         try:
-            sync.reconcile(tenant,canonical_jobs(),os.environ.get('APP_BASE_URL','https://flowingcrm.com').rstrip('/'),
-                           teams_zone(crm_store,tenant),app.secret_key)
+            with app.app_context():
+                if crm_store.current_tenant_id()!=tenant:
+                    raise TeamsError('No se pudo resolver la marca para sincronizar Calendar.')
+                sync.reconcile(tenant,canonical_jobs(),os.environ.get('APP_BASE_URL','https://flowingcrm.com').rstrip('/'),
+                               teams_zone(crm_store,tenant),app.secret_key)
         finally:_workflow_tenant.reset(token)
     sync.reconcile_tenant=reconcile_tenant
     if app.config.get('FLOW_TEAMS_ENABLED') and not app.config.get('TESTING') and not app.config.get('FLOW_TEAMS_LOCAL'):sync.start()

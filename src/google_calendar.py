@@ -19,15 +19,20 @@ def delivery_error(exception):
     """Only allowlisted diagnostics can reach the owner or logs."""
     if isinstance(exception, HTTPError):
         reasons=set()
+        project=''
         try:
             payload=json.loads(exception.read(65536)).get('error',{})
             if isinstance(payload,str):reasons.add(payload)
             else:
                 reasons.update(e.get('reason') for e in payload.get('errors',[]))
                 reasons.update(e.get('reason') for e in payload.get('details',[]))
+                for detail in payload.get('details',[]):
+                    consumer=str(detail.get('metadata',{}).get('consumer',''))
+                    if consumer.startswith('projects/') and consumer[9:].isascii() and consumer[9:].isdigit():
+                        project=' '+consumer[9:]
         except (ValueError, TypeError, AttributeError, OSError):pass
         if reasons & {'accessNotConfigured','SERVICE_DISABLED'}:
-            return 'api_disabled','Google Calendar API no está activada para Flow. Actívala en el proyecto de Google y vuelve a enviar.'
+            return 'api_disabled','Google Calendar API no está activada para Flow. Actívala en el proyecto de Google'+project+' y vuelve a enviar.'
         if exception.code==401 or 'invalid_grant' in reasons:
             return 'authorization','Google rechazó la autorización. Vuelve a conectar Calendar en Configuración y reintenta.'
         if exception.code==429 or reasons & {'rateLimitExceeded','userRateLimitExceeded','quotaExceeded'}:

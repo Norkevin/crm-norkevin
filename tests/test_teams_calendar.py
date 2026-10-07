@@ -38,6 +38,16 @@ class FakeCalendar:
         return {'htmlLink':'https://calendar.google.com/event?test=1'}
 
 
+def test_disabled_api_exposes_only_provider_project_number():
+    import io,json
+    from src.google_calendar import delivery_error
+    payload={'error':{'details':[{'reason':'SERVICE_DISABLED','metadata':{'consumer':'projects/123456789',
+              'sensitive':'must-not-leak'}}]}}
+    error=HTTPError('https://google.invalid',403,'disabled',{},io.BytesIO(json.dumps(payload).encode()))
+    code,message=delivery_error(error)
+    assert code=='api_disabled' and '123456789' in message and 'must-not-leak' not in message
+
+
 def test_automatic_reconciliation_initial_changes_deletion_and_retry(prepared):
     store,people,assignments,doc=prepared
     fake=FakeCalendar();sync=CalendarSync(store,lambda tenant:fake)
@@ -62,8 +72,8 @@ def test_automatic_reconciliation_initial_changes_deletion_and_retry(prepared):
     assert rows(store,tenant='tenant-norkevin')==[]
 
 
-def test_background_reconciliation_uses_explicit_brand_context(flask_app,tmp_path):
-    from flask import Flask,Blueprint
+def test_background_reconciliation_uses_explicit_brand_context(flask_app,tmp_path,monkeypatch):
+    from flask import Flask,Blueprint,g
     import app as crm
     from src.teams_calendar_routes import register_calendar
     application=Flask('calendar-background');application.secret_key='test-secret'
@@ -71,10 +81,18 @@ def test_background_reconciliation_uses_explicit_brand_context(flask_app,tmp_pat
     database=TeamsStore(tmp_path/'background.sqlite3')
     for tenant,identifier in [(TENANT,'own-wedding'),('tenant-norkevin','other-wedding')]:
         crm.store.upsert('jobs',dict(JOB,id=identifier,tenant_id=tenant))
+    # Production's Teams portal resolver consults flask.g before the CRM resolver.
+    original=crm.store.tenant_resolver
+    monkeypatch.setattr(crm.store,'tenant_resolver',lambda: getattr(g,'teams_portal_tenant',None) or original())
     register_calendar(application,Blueprint('calendar-test',__name__),crm.store,database,None,crm._canonical_jobs)
     application.extensions['teams_calendar'].reconcile_tenant(TENANT)
     assert {r['identity'] for r in rows(database)}=={'job:own-wedding'}
     assert crm._workflow_tenant.get() is None
+    monkeypatch.setattr(crm.store,'tenant_resolver',lambda: None)
+    from src.teams import TeamsError
+    with pytest.raises(TeamsError,match='marca'):
+        application.extensions['teams_calendar'].reconcile_tenant(TENANT)
+    assert rows(database)[0]['event'] is not None
 
 
 def test_invites_exact_individual_role_hours_and_documents_without_finance(prepared):
