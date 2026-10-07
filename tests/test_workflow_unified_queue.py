@@ -231,3 +231,60 @@ def test_inbox_prepares_overdue_drafts_without_background_runner_or_delivery(flo
     assert client.get('/emails').status_code == 200
     assert len([m for m in a.store.list('pending_emails') if m.get('lead_id') == lead['id']]) == 1
     assert all(state == a.StepStatus.PENDING for state in foreign.step_states.values())
+
+
+def test_lead_skip_discards_queued_email_prevents_send_and_can_be_restored(flow):
+    a, client, tenant, tpl = flow
+    configure(a, tenant, tpl)
+    lead, inst = subject(a, tenant)
+    result = a._prepare_due_workflow_emails(now=inst.trigger_at + timedelta(hours=4))
+    mail_id = result[0]['mail_id']
+    url = '/api/leads/' + lead['id'] + '/steps/test_step/'
+    assert client.post(url+'skip', json={}).status_code == 200
+    assert inst.step_states['test_step'] == a.StepStatus.SKIPPED
+    assert a.store.get('pending_emails', mail_id)['status'] == 'discarded'
+    assert not a._prepare_due_workflow_emails(now=inst.trigger_at + timedelta(days=5))
+    assert client.post('/api/leads/'+lead['id']+'/trigger-step', json={'step_id':'test_step'}).status_code == 400
+    a._apply_workflow_delivery(inst, 'test_step', {'status':'failed'})
+    assert inst.step_states['test_step'] == a.StepStatus.SKIPPED
+    html = client.get('/leads/'+lead['id']).get_data(as_text=True)
+    assert 'Volver a incluir' in html and 'Omitido · No se enviará' in html
+    assert a.get_lead(lead['id'])['next_task'] == 'Sin pasos pendientes'
+    assert client.post(url+'unskip', json={}).status_code == 200
+    assert inst.step_states['test_step'] == a.StepStatus.PENDING
+    assert 'Omitir paso' in client.get('/leads/'+lead['id']).get_data(as_text=True)
+    fresh = a._prepare_due_workflow_emails(now=inst.trigger_at + timedelta(days=5))
+    assert len(fresh) == 1 and fresh[0]['mail_id'] != mail_id
+    assert a.store.get('pending_emails', mail_id)['status'] == 'discarded'
+
+
+@pytest.mark.parametrize('state,expected', [('done',400),('running',409),('sending',409)])
+def test_lead_skip_rejects_completed_or_sending_steps(flow,state,expected):
+    a, client, tenant, tpl = flow
+    configure(a, tenant, tpl)
+    lead, inst = subject(a, tenant)
+    if state == 'sending':
+        item = a._prepare_due_workflow_emails(now=inst.trigger_at + timedelta(hours=4))[0]
+        mail = a.store.get('pending_emails',item['mail_id']);mail['status']='sending'
+        a.store.upsert('pending_emails',mail)
+    else:
+        inst.step_states['test_step'] = a.StepStatus(state)
+    before = dict(inst.step_states)
+    assert client.post('/api/leads/'+lead['id']+'/steps/test_step/skip',json={}).status_code == expected
+    assert inst.step_states == before
+
+
+def test_lead_skip_scopes_tenant_and_allows_legacy_without_workflow(flow):
+    a, client, tenant, tpl = flow
+    configure(a, tenant, tpl)
+    lead, inst = subject(a, tenant)
+    assert client.post('/api/leads/'+lead['id']+'/steps/missing/skip',json={}).status_code == 404
+    assert client.post('/api/leads/'+lead['id']+'/steps/test_step/unskip',json={}).status_code == 400
+    token=a._workflow_tenant.set('tenant-foreign')
+    a.store.upsert('leads',dict(lead,id='foreign-skip',tenant_id='tenant-foreign'))
+    a._workflow_tenant.reset(token)
+    assert client.post('/api/leads/foreign-skip/steps/test_step/skip',json={}).status_code == 404
+    a.workflow_engine.instances.pop(inst.id)
+    assert client.post('/api/leads/'+lead['id']+'/steps/test_step/skip',json={}).status_code == 200
+    new=a._workflow_instance_for('lead',lead['id'],tenant_id=tenant)
+    assert new.step_states['test_step']==a.StepStatus.SKIPPED and not new.auto_prepare

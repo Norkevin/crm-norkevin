@@ -1,11 +1,14 @@
 <div class="workflow-step {% if step.status == 'done' %}done{% elif step.status == 'skipped' %}skipped{% endif %} {% if upcoming.step and step.id == upcoming.step.id %}is-next{% endif %}">
-  <button class="workflow-check {% if step.status == 'done' %}done{% endif %}" type="button" onclick='triggerStep({{ step.id|tojson }}, {{ step.name|tojson }})' aria-label="Abrir paso: {{ step.name }}" {% if step.locked %}disabled{% endif %}>
+  <button class="workflow-check {% if step.status == 'done' %}done{% endif %}" type="button" onclick='triggerStep({{ step.id|tojson }}, {{ step.name|tojson }})' aria-label="Abrir paso: {{ step.name }}" {% if step.locked or step.status == 'skipped' %}disabled{% endif %}>
     {% if step.status == 'done' %}<svg fill="currentColor" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8-1.4-1.4L8 11.2 5.4 8.6Z"/></svg>{% endif %}
   </button>
   <div class="lead-step-content">
     <div class="workflow-step-name">{{ step.name }}</div>
     {% if step.email_template_id %}<a href="/settings/email-templates" class="lead-step-template">{{ step.email_template_name or 'Vincular plantilla de correo' }}</a>{% endif %}
-    {% include 'workflow_timing.html' %}
+    {% if step.status == 'skipped' %}<span class="sn-muted">Omitido · No se enviará</span>{% else %}{% include 'workflow_timing.html' %}{% endif %}
+  {% if step.can_skip and step.status not in ['done', 'running'] %}
+  <button class="sn-btn" type="button" onclick='setLeadStepState(this, {{ step.id|tojson }}, {{ ("unskip" if step.status == "skipped" else "skip")|tojson }})' aria-label="{{ 'Volver a incluir' if step.status == 'skipped' else 'Omitir' }}: {{ step.name }}">{{ 'Volver a incluir' if step.status == 'skipped' else 'Omitir paso' }}</button>
+  {% endif %}
   </div>
-  <button class="sn-menu-dots" type="button" onclick='triggerStep({{ step.id|tojson }}, {{ step.name|tojson }})' aria-label="Opciones de {{ step.name }}" {% if step.locked %}disabled{% endif %}></button>
+  <button class="sn-menu-dots" type="button" onclick='triggerStep({{ step.id|tojson }}, {{ step.name|tojson }})' aria-label="Opciones de {{ step.name }}" {% if step.locked or step.status == 'skipped' %}disabled{% endif %}></button>
 </div>

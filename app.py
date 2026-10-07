@@ -680,6 +680,8 @@ def _apply_document_delivery(document, mail, reminder=False):
 
 
 def _apply_workflow_delivery(instance, step_id, mail):
+    if instance.step_states.get(step_id) == StepStatus.SKIPPED:
+        return
     if instance.status in (WorkflowStatus.COMPLETED, WorkflowStatus.CANCELLED):
         return
     state = mail.get('status')
@@ -1044,6 +1046,14 @@ def _lead_step_email_template(lead, step_id, template_id, jobs=None):
 
 def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_email=True,
                                   subject_override=None, body_override=None, existing_mail=None, template_override_id=None):
+    with _workflow_queue_lock:
+        return _complete_lead_workflow_step_locked(lead, step_id, result_message, send_email=send_email,
+            subject_override=subject_override, body_override=body_override, existing_mail=existing_mail,
+            template_override_id=template_override_id)
+
+
+def _complete_lead_workflow_step_locked(lead, step_id, result_message=None, *, send_email=True,
+                                  subject_override=None, body_override=None, existing_mail=None, template_override_id=None):
     if not step_id:
         return {'completed': False}
     if _is_astral_referral(lead) and step_id in ASTRAL_REFERRAL_FOLLOWUPS:
@@ -1071,6 +1081,8 @@ def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_ema
         return {'completed': False, 'warning': 'No hay workflow activo para este lead'}
 
     instance = instances[0]
+    if instance.step_states.get(step_id) == StepStatus.SKIPPED:
+        return {'completed': False, 'warning': 'Vuelve a incluir el paso antes de ejecutarlo'}
     if step_id in instance.step_states and instance.step_states[step_id] == StepStatus.DONE:
         return {'completed': False, 'already_done': True, 'step': step.name}
 
@@ -2165,6 +2177,7 @@ def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, l
         steps.append({
             'id': step.id,
             'name': 'Fecha no disponible' if _lead_packages_unavailable(lead, step.id, jobs_cache) else step.name,
+            'can_skip': not force_done,
             'description': step.description,
             'email_template_id': (template or {}).get('id'),
             'email_template_name': (template or {}).get('name'),
@@ -3943,6 +3956,61 @@ def equipo_list():
 # ============================================================
 # LEAD ACTIONS: trigger workflow step + create quote
 # ============================================================
+
+@app.route('/api/leads/<lead_id>/steps/<step_id>/<action>', methods=['POST'])
+def api_lead_step_state(lead_id, step_id, action):
+    if action not in ('skip', 'unskip'):
+        return jsonify(ok=False, error='Acción no encontrada'), 404
+    lead = get_lead(lead_id)
+    if not lead:
+        return jsonify(ok=False, error='Lead no encontrado'), 404
+    template = LEAD_WORKFLOW(lead.get('tenant_id'))
+    step = next((s for s in template.steps if s.id == step_id), None)
+    if not step:
+        return jsonify(ok=False, error='Paso no encontrado'), 404
+    if _lead_is_converted(lead):
+        return jsonify(ok=False, error='Este lead ya fue convertido en trabajo'), 409
+    with _workflow_queue_lock, store.locked_tables('pending_emails', 'mail_log'):
+        instance = _workflow_instance_for('lead', lead_id, tenant_id=lead.get('tenant_id'))
+        if not instance:
+            if action == 'unskip':
+                return jsonify(ok=False, error='Este paso no está omitido'), 400
+            instance = workflow_engine.start_workflow(template, 'lead', lead_id,
+                subject_name=lead.get('nombre', ''), tenant_id=lead.get('tenant_id'))
+        state = instance.step_states.get(step_id, StepStatus.PENDING)
+        mails = [m for m in store.list('pending_emails') if m.get('lead_id') == lead_id
+                 and (m.get('workflow_step_id') == step_id or m.get('idempotency_key') == f'leadstep:{lead_id}:{step_id}')]
+        if state == StepStatus.RUNNING or any(m.get('status') == 'sending' for m in mails):
+            return jsonify(ok=False, error='Este paso se está enviando; espera a que termine'), 409
+        if action == 'skip':
+            if state == StepStatus.DONE or any(m.get('status') in ('sent', 'opened', 'clicked') for m in mails):
+                return jsonify(ok=False, error='Un paso ya completado no se puede omitir'), 400
+            from src.mail_tracker import get_tracker
+            for mail in mails:
+                if mail.get('status') in ('pending', 'blocked', 'failed'):
+                    result = get_tracker().discard_pending(mail['id'], actor=_actor_actual())
+                    if not result.get('ok'):
+                        return jsonify(ok=False, error=result.get('error')), 409
+            instance.step_states[step_id] = StepStatus.SKIPPED
+            instance.step_results[step_id] = 'Omitido manualmente; no enviar seguimiento'
+        else:
+            if state != StepStatus.SKIPPED:
+                return jsonify(ok=False, error='Este paso no está omitido'), 400
+            for mail in mails:
+                if mail.get('status') == 'discarded' and mail.get('idempotency_key'):
+                    mail['original_idempotency_key'] = mail.get('original_idempotency_key') or mail['idempotency_key']
+                    mail['idempotency_key'] = mail['original_idempotency_key'] + ':discarded:' + mail['id']
+                    store.upsert('pending_emails', mail)
+            instance.step_states[step_id] = StepStatus.PENDING
+            instance.step_results.pop(step_id, None)
+        pending = next((s for s in template.steps if instance.step_states.get(s.id) not in (StepStatus.DONE, StepStatus.SKIPPED)), None)
+        instance.current_step_id = pending.id if pending else None
+        lead['next_task'] = pending.name if pending else 'Sin pasos pendientes'
+        upsert_lead(lead)
+        workflow_engine._log(instance, 'step.skipped' if action == 'skip' else 'step.unskipped', step.name)
+        workflow_engine._save_to_storage()
+    return jsonify(ok=True, step=step.name)
+
 
 @app.route('/api/leads/<lead_id>/trigger-step', methods=['POST'])
 def api_lead_trigger_step(lead_id):

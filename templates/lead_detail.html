@@ -647,6 +647,13 @@ function acceptQuote() {
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
+function setLeadStepState(button, stepId, action) {
+  button.disabled = true;
+  apiPost('/api/leads/' + LEAD_ID + '/steps/' + encodeURIComponent(stepId) + '/' + action, {})
+    .then(function() { location.reload(); })
+    .catch(function(err) { button.disabled = false; flashToast(err.message, 'error'); });
+}
+
 function triggerStep(stepId, stepName) {
   if (stepId === 'job_accepted') {
     openAcceptJobModal('step');
