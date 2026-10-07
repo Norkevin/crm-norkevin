@@ -8,6 +8,10 @@
     {% if step.action_type in ['send_email', 'send_contract', 'send_questionnaire', 'send_gallery'] %}<a class="lead-step-template" href="/settings/email-templates">{{ step.email_template_name or email_template_names.get(step.email_template_id) or 'Vincular plantilla de correo' }}</a>{% endif %}
     {% if step.status == 'skipped' %}<span class="workflow-step-desc">Omitido</span>{% endif %}
     {% include 'workflow_timing.html' %}
+    {% if not readonly %}
+      {% if step.status == 'pending' and step.action_type in ['send_email', 'send_gallery'] %}<button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick='triggerJobStep({{ step.id|tojson }})'>Preparar correo</button>{% endif %}
+      {% if step.status in ['pending', 'queued', 'failed'] %}<button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick='skipJobStep({{ step.id|tojson }}, {{ step.name|tojson }})'>Omitir paso</button>{% endif %}
+    {% endif %}
   </div>
   {% if not readonly %}<button class="sn-menu-dots" type="button" onclick='openStepActions(event, {{ step.id|tojson }}, {{ step.name|tojson }}, {{ step.status|tojson }})' aria-label="Opciones de {{ step.name }}"></button>{% endif %}
 </div>

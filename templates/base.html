@@ -3108,21 +3108,21 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 22V12h6v10"/></svg>
       <span>Inicio</span>
     </a>
-    {% if config.FLOW_TEAMS_LOCAL or config.FLOW_TEAMS_ENABLED %}
-    <a href="/teams" class="sidebar-item" data-nav="/teams"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/></svg><span>Teams</span></a>
-    {% endif %}
-    <a href="/leads" class="sidebar-item" data-nav="/leads">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 6v6l4 2"/></svg>
-      <span>Leads</span>
-    </a>
     <a href="/clients" class="sidebar-item" data-nav="/clients">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <span>Clientes</span>
+    </a>
+    <a href="/leads" class="sidebar-item" data-nav="/leads">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 6v6l4 2"/></svg>
+      <span>Leads</span>
     </a>
     <a href="/jobs" class="sidebar-item" data-nav="/jobs">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
       <span>Trabajos</span>
     </a>
+    {% if config.FLOW_TEAMS_LOCAL or config.FLOW_TEAMS_ENABLED %}
+    <a href="/teams" class="sidebar-item" data-nav="/teams"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/></svg><span>Teams</span></a>
+    {% endif %}
     <a href="/calendar" class="sidebar-item" data-nav="/calendar">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 2v4M8 2v4M3 10h18"/></svg>
       <span>Calendario</span>
@@ -3172,21 +3172,28 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M9 22V12h6v10"/></svg>
       <span class="topnav-label">Inicio</span>
     </a>
-    <a href="/leads" class="topnav-item" data-nav="/leads">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 6v6l4 2"/></svg>
-      <span class="topnav-label">Leads</span>
-    </a>
     <a href="/clients" class="topnav-item" data-nav="/clients">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <span class="topnav-label">Clientes</span>
+    </a>
+    <a href="/leads" class="topnav-item" data-nav="/leads">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 6v6l4 2"/></svg>
+      <span class="topnav-label">Leads</span>
     </a>
     <a href="/jobs" class="topnav-item" data-nav="/jobs">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
       <span class="topnav-label">Trabajos</span>
     </a>
+    {% if config.FLOW_TEAMS_LOCAL or config.FLOW_TEAMS_ENABLED %}
+    <a href="/teams" class="topnav-item" data-nav="/teams"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/></svg><span class="topnav-label">Teams</span></a>
+    {% endif %}
     <a href="/calendar" class="topnav-item" data-nav="/calendar">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 2v4M8 2v4M3 10h18"/></svg>
       <span class="topnav-label">Calendario</span>
+    </a>
+    <a href="/emails" class="topnav-item" data-nav="/emails">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+      <span class="topnav-label">Correos</span>
     </a>
     <a href="/payments" class="topnav-item" data-nav="/payments">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M1 10h22"/></svg>
@@ -3312,13 +3319,13 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 22V12h6v10"/></svg>
     Inicio
   </a>
-  <a href="/leads" class="bottom-nav-item{% if request.path == '/leads' or request.path.startswith('/leads/') %} active{% endif %}"{% if request.path == '/leads' or request.path.startswith('/leads/') %} aria-current="page"{% endif %} data-nav="/leads">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 6v6l4 2"/></svg>
-    Leads
-  </a>
   <a href="/clients" class="bottom-nav-item{% if request.path == '/clients' or request.path.startswith('/clients/') %} active{% endif %}"{% if request.path == '/clients' or request.path.startswith('/clients/') %} aria-current="page"{% endif %} data-nav="/clients">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
     Clientes
+  </a>
+  <a href="/leads" class="bottom-nav-item{% if request.path == '/leads' or request.path.startswith('/leads/') %} active{% endif %}"{% if request.path == '/leads' or request.path.startswith('/leads/') %} aria-current="page"{% endif %} data-nav="/leads">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 6v6l4 2"/></svg>
+    Leads
   </a>
   <a href="/jobs" class="bottom-nav-item{% if request.path == '/jobs' or request.path.startswith('/jobs/') %} active{% endif %}"{% if request.path == '/jobs' or request.path.startswith('/jobs/') %} aria-current="page"{% endif %} data-nav="/jobs">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke-width="1.8"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -3356,6 +3363,10 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     {# Calendario y Pagos salen de la barra inferior (que quedo en 5 tabs) y
        viven aca. Cotizaciones y Facturas se quitaron por completo: se ven
        dentro de cada Job. #}
+    <a class="more-sheet-item" href="{{ '/teams' if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL else '/equipo' }}" data-nav="{{ '/teams' if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL else '/equipo' }}">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>{{ 'Teams' if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL else 'Equipo' }}</span>
+    </a>
     <a class="more-sheet-item" href="/calendar" data-nav="/calendar">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M16 2v4M8 2v4M3 10h18"/></svg>
       <span>Calendario</span>
@@ -3367,10 +3378,6 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     <a class="more-sheet-item" href="/payments" data-nav="/payments">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M1 10h22"/></svg>
       <span>Pagos</span>
-    </a>
-    <a class="more-sheet-item" href="{{ '/teams' if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL else '/equipo' }}" data-nav="{{ '/teams' if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL else '/equipo' }}">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4" stroke-width="1.6"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span>{{ 'Teams' if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL else 'Equipo' }}</span>
     </a>
   </div>
   <div class="more-sheet-list">
