@@ -6,9 +6,9 @@ const template = fs.readFileSync('templates/dashboard.html', 'utf8');
 const ctx = vm.createContext({});
 vm.runInContext(template.slice(template.indexOf('function niceCeil('), template.indexOf('function compactAxis')), ctx);
 
-test('Money ceilings are exactly the visible peak plus Q10k', () => {
+test('Money ceilings have Q10k headroom and round Q10k boundaries', () => {
   for (const peak of [0, 0.25, 150, 10743, 20000, 50000, 50001, 52000, 99999, 1000000]) {
-    assert.equal(ctx.niceCeil(peak), peak + 10000);
+    assert.equal(ctx.niceCeil(peak), (Math.ceil(peak / 10000) + 1) * 10000);
   }
 });
 
@@ -39,15 +39,29 @@ test('Comparison rescales to visible years on desktop and mobile', () => {
     });
     vm.runInContext(template.slice(template.indexOf('function drawRevenueComparisonChart('), template.indexOf('function revenueLegendHtml(')), ctx);
     ctx.drawRevenueComparisonChart();
-    assert.equal(ctx.axisMax, 62000);
+    assert.equal(ctx.axisMax, 70000);
     ctx.hiddenRevenueYears.clear();
     ctx.drawRevenueComparisonChart();
     assert.equal(ctx.axisMax, 210000);
     ctx.excludedRevenueYears.add('2025');
     ctx.drawRevenueComparisonChart();
-    assert.equal(ctx.axisMax, 62000);
+    assert.equal(ctx.axisMax, 70000);
     ctx.hiddenRevenueYears.add('2026');
     ctx.drawRevenueComparisonChart();
     assert.equal(ctx.axisMax, 30000);
+  }
+});
+
+
+test('Financial axis labels use round tens of thousands rather than quarters', () => {
+  vm.runInContext(template.slice(template.indexOf('function drawGridAndAxis('), template.indexOf('function wireChartTooltips(')), ctx);
+  for (const max of [30000, 70000, 210000]) {
+    const ticks = [];
+    ctx.drawGridAndAxis(1200, 300, 88, 24, 42, 1024, 234, max, n => { ticks.push(n); return n; }, true);
+    assert.equal(ticks[0], max);
+    assert.equal(ticks.at(-1), 0);
+    assert.ok(ticks.every(n => n % 10000 === 0));
+    assert.ok(ticks.length <= 9);
+    if (max === 70000) assert.deepEqual(ticks, [70000, 60000, 50000, 40000, 30000, 20000, 10000, 0]);
   }
 });
