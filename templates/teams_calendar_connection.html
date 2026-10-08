@@ -1,14 +1,22 @@
-<section class="ft-panel">
-  <div class="ft-section-title"><div><h2>Google Calendar</h2><p class="ft-muted">Todos los trabajos, leads, eventos y bloqueos se sincronizan automáticamente de Flow a Google, por marca.</p></div><span class="ft-pill">{{ 'Conectado' if calendar_email else 'Sin conectar' }}</span></div>
-  {% if calendar_message %}<p role="status">{{ calendar_message }}</p>{% endif %}
-  {% if calendar_email %}
-    <p>Cuenta conectada: <strong>{{ calendar_email }}</strong>. Las bodas se crean en su calendario principal.</p>
-    {% if not config.FLOW_TEAMS_LOCAL %}<a class="sn-btn" href="/teams/calendar/connect">Volver a conectar Google Calendar</a>{% endif %}
-    <form data-command="calendar_sync" data-endpoint="/api/teams/calendar/sync"><input type="hidden" name="scope" value="weddings"><button class="sn-btn">Sincronizar próximas bodas</button><p class="ft-muted">La sincronización es automática cada minuto. Este botón permite reintentar ahora. Para invitar personas, abre el equipo de la boda.</p></form>
-    <form data-command="calendar_sync" data-endpoint="/api/teams/calendar/sync"><input type="hidden" name="scope" value="retry_failed"><button class="sn-btn">Reintentar sincronización pendiente</button><p class="ft-muted">Incluye trabajos, leads, eventos y fechas bloqueadas que no se enviaron por un error de conexión.</p></form>
-  {% else %}
-    <p>Conecta el Google de esta marca una sola vez. Las bodas existentes y nuevas se sincronizan automáticamente. Cada persona recibirá su rol, horario y documentos publicados para ella.</p>
-    {% if config.FLOW_TEAMS_LOCAL %}<p class="ft-warning">Las conexiones y envíos están bloqueados en esta propuesta local.</p>{% else %}<a class="sn-btn sn-btn-primary" href="/teams/calendar/connect">Conectar Google Calendar</a>{% endif %}
-  {% endif %}
-  <p class="ft-muted">En cada boda puedes enviar una invitación individual, invitar a todo el equipo publicado o programar el envío. Los enlaces permiten abrir únicamente los documentos publicados para ese destinatario; caducan siete días después de su cobertura. Revocar su acceso o retirar un documento invalida el enlace.</p>
+<section class="ft-panel ft-calendar-connection" aria-label="Conexión de Google Calendar">
+  <div class="ft-connection-main">
+    <span class="ft-connection-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3v4m10-4v4M4 10h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z"/><path d="m8 15 2 2 5-5"/></svg></span>
+    <div><h2>Google Calendar</h2><p class="ft-muted">{{ calendar_email if calendar_email else 'Conecta el calendario de esta marca.' }}</p></div>
+  </div>
+  <div class="ft-connection-actions">
+    <span class="ft-connection-status {{ 'is-connected' if calendar_email else '' }}"><span aria-hidden="true">●</span> {{ 'Conectado' if calendar_email else 'Sin conectar' }}</span>
+    {% if calendar_email %}
+    <details class="ft-connection-options"><summary class="sn-btn">Opciones <span aria-hidden="true">⌄</span></summary>
+      <div class="ft-connection-menu">
+        <h3>Opciones de conexión</h3>
+        <form data-command="calendar_sync" data-endpoint="/api/teams/calendar/sync"><input type="hidden" name="scope" value="weddings"><button class="sn-btn">Sincronizar próximas bodas</button><small>Actualiza las bodas en Google sin invitar al equipo.</small></form>
+        <form data-command="calendar_sync" data-endpoint="/api/teams/calendar/sync"><input type="hidden" name="scope" value="retry_failed"><button class="sn-btn">Reintentar sincronización pendiente</button><small>Recupera los envíos que fallaron por conexión.</small></form>
+        {% if not config.FLOW_TEAMS_LOCAL %}<a class="ft-text-link" href="/teams/calendar/connect">Volver a conectar la cuenta ↗</a>{% endif %}
+      </div>
+    </details>
+    {% elif not config.FLOW_TEAMS_LOCAL %}<a class="sn-btn sn-btn-primary" href="/teams/calendar/connect">Conectar Google Calendar</a>{% endif %}
+  </div>
+  <p class="ft-connection-caption">{{ 'Sincronización automática cada minuto.' if calendar_email else 'Tus bodas y eventos se sincronizarán automáticamente.' }} <a href="/teams/jobs">Invita al equipo desde cada boda ↗</a></p>
+  {% if calendar_message %}<p class="ft-connection-message" role="status">{{ calendar_message }}</p>{% endif %}
+  {% if config.FLOW_TEAMS_LOCAL %}<small class="ft-connection-message">Entorno de pruebas: conexiones y envíos bloqueados.</small>{% endif %}
 </section>
