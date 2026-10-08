@@ -134,26 +134,25 @@
 .dashboard-activity-meta { display: block; font-size: 10.5px; color: var(--sn-muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 900px) { .dashboard-widgets { grid-template-columns: 1fr; } }
 
-.dashboard-jobs-table-wrap { overflow-x: auto; }
+.dashboard-jobs-table-wrap { min-width: 0; }
 .dashboard-jobs-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .dashboard-jobs-location { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 @media (min-width: 761px) {
-  .dashboard-jobs-table { min-width: 760px; }
-  .dashboard-jobs-table th:nth-child(1) { width: 28%; }
-  .dashboard-jobs-table th:nth-child(2) { width: 20%; }
-  .dashboard-jobs-table th:nth-child(4) { width: 150px; }
-  .dashboard-jobs-table td:nth-child(3),
-  .dashboard-jobs-table td:nth-child(4) { border-left: 1px solid var(--sn-line); }
-  .dashboard-jobs-table tr.dashboard-jobs-row:nth-child(even) td { background: var(--sn-row); }
+  .dashboard-jobs-table { min-width: 0; }
+  .dashboard-jobs-table th:nth-child(1) { width: 32%; }
+  .dashboard-jobs-table th:nth-child(2) { width: 22%; }
+  .dashboard-jobs-table th:nth-child(3) { width: 24%; }
+  .dashboard-jobs-table th:nth-child(4) { width: 22%; }
+
 }
 .dashboard-jobs-table th {
   text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .06em; color: var(--sn-muted); background: var(--sn-surface-2); padding: 13px 12px; white-space: nowrap;
 }
-.dashboard-jobs-table td { padding: 16px 12px; border-top: 1px solid var(--sn-line); font-size: 13px; line-height: 1.5; vertical-align: middle; }
+.dashboard-jobs-table td { padding: 18px 12px; border-top: 1px solid var(--sn-line); font-size: 13px; line-height: 1.5; vertical-align: top; overflow-wrap: anywhere; }
 .dashboard-jobs-table td[data-label="Cliente"] { font-weight: 500; color: var(--sn-ink); }
 .dashboard-jobs-location { color: var(--sn-muted); }
-.dashboard-jobs-date { display: inline-block; padding: 4px 7px; border: 1px solid var(--sn-line); border-radius: 4px; background: var(--sn-surface-2); color: var(--sn-ink); font-weight: 600; font-size: 12px; white-space: nowrap; }
+.dashboard-jobs-date { display: inline-block; max-width: 100%; color: var(--sn-ink); font-weight: 600; font-size: 12px; font-variant-numeric: tabular-nums; }
 .dashboard-jobs-table tr.dashboard-jobs-row { cursor: pointer; }
 .dashboard-jobs-table tr.dashboard-jobs-row:hover td { background: var(--sn-surface-hover); }
 
@@ -201,8 +200,11 @@
   .dashboard-jobs-table td[colspan] { display: block; border-bottom: none; }
   .dashboard-jobs-table .dashboard-jobs-progress-wrap { flex: 1 1 auto; min-width: 0; }
 }
-.dashboard-jobs-job-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.dashboard-jobs-job-name { display: block; min-width: 0; font-weight: 700; color: var(--sn-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dashboard-jobs-job-cell { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.dashboard-jobs-job-cell .sn-row-avatar-lg { flex: 0 0 32px; width: 32px; height: 32px; }
+.dashboard-jobs-job-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-width: 0; font-weight: 600; color: var(--sn-ink); overflow: hidden; overflow-wrap: anywhere; text-decoration: none; }
+.dashboard-jobs-job-name:hover { text-decoration: underline; }
+.dashboard-jobs-job-name:focus-visible { outline: 2px solid var(--sn-accent-text); outline-offset: 2px; }
 .dashboard-jobs-progress-wrap { display: flex; align-items: center; gap: 8px; min-width: 90px; }
 .dashboard-jobs-progress-pct { font-size: 11.5px; font-weight: 600; color: var(--sn-muted); flex-shrink: 0; width: 30px; text-align: right; }
 
@@ -782,7 +784,7 @@
             <td data-label="Trabajo" class="stack-full">
               <div class="dashboard-jobs-job-cell">
                 <span class="sn-row-avatar-lg c{{ loop.index0 % 6 }}">{{ (j.nombre or '?')[:1]|upper }}</span>
-                <span class="dashboard-jobs-job-name" title="{{ j.nombre or 'Sin nombre' }}">{{ j.nombre or 'Sin nombre' }}</span>
+                <a class="dashboard-jobs-job-name" href="/jobs/{{ j.id }}" title="{{ j.nombre or 'Sin nombre' }}">{{ j.nombre or 'Sin nombre' }}</a>
               </div>
             </td>
             <td data-label="Cliente">{{ j.client_name or 'Sin cliente' }}</td>
