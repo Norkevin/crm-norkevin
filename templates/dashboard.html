@@ -651,6 +651,27 @@
     width: 100%;
   }
 }
+/* Keep the complete analysis chart above the fold on desktop. */
+@media (min-width: 1024px) {
+  body[data-page="/dashboard"] .main-content { padding-top: 16px; }
+  .dashboard-shell .flow-overview-head { margin-bottom: 12px; }
+  .dashboard-shell .flow-overview-head h1 { font-size: 26px; line-height: 1.2; margin-bottom: 4px; }
+  .dashboard-shell .dashboard-section-label:first-child { margin-bottom: 8px; line-height: 1.4; }
+  .dashboard-shell .dashboard-panel[data-mobile-order="11"] { padding: 16px; }
+  .dashboard-shell .dashboard-controls { margin-bottom: 12px; gap: 12px; }
+  .dashboard-shell #dashboard-job-type { max-width: 150px; }
+  .dashboard-shell .dashboard-control-right { flex: 1; min-width: 0; flex-wrap: nowrap; }
+  .dashboard-shell .dashboard-range-popover-wrap { flex: 1; min-width: 0; }
+  .dashboard-shell .dashboard-range-trigger { width: 100%; }
+  .dashboard-shell .metric-tabs { padding-bottom: 8px; }
+  .dashboard-shell .metric-tab { min-height: 54px; padding-block: 8px; }
+  .dashboard-shell .metric-copy { gap: 4px; }
+  .dashboard-shell .dashboard-year-picker { margin: 4px 0; }
+  .dashboard-shell .dashboard-year-picker summary { padding: 4px 0; }
+  .dashboard-shell .chart-frame { min-height: 0; margin-top: 0; padding-top: 0; }
+  .dashboard-shell #dashboard-chart { height: clamp(200px, calc(100dvh - 450px), 300px); }
+  .dashboard-shell .chart-legend { gap: 4px 16px; padding: 4px 0 0; }
+}
 </style>
 
 <section class="dashboard-shell">
