@@ -270,6 +270,12 @@
 .segmented button:last-child,
 .segmented a:last-child { border-right: 0; }
 .segmented .active { background: var(--sn-surface-hover); }
+.dashboard-control-right .segmented { border-color: var(--sn-accent-text); }
+.dashboard-control-right .segmented button { color: var(--sn-accent-text); background: var(--sn-mint-soft); }
+.dashboard-control-right .segmented button:hover { background: var(--sn-surface-hover); }
+.dashboard-control-right .segmented button.active { background: #2563EB; color: #fff; }
+.dashboard-control-right .segmented button:focus-visible { outline: 2px solid var(--sn-accent-text); outline-offset: -3px; }
+
 /* La columna principal ahora es mas angosta (comparte espacio con el rail
    lateral fijo de 340px), asi que "Fuentes de leads" ya no cabe al costado
    del grafico sin dejar las tarjetas de metricas demasiado apretadas --
@@ -659,10 +665,6 @@
   .dashboard-shell .dashboard-section-label:first-child { margin-bottom: 8px; line-height: 1.4; }
   .dashboard-shell .dashboard-panel[data-mobile-order="11"] { padding: 16px; }
   .dashboard-shell .dashboard-controls { margin-bottom: 12px; gap: 12px; }
-  .dashboard-shell #dashboard-job-type { max-width: 150px; }
-  .dashboard-shell .dashboard-control-right { flex: 1; min-width: 0; flex-wrap: nowrap; }
-  .dashboard-shell .dashboard-range-popover-wrap { flex: 1; min-width: 0; }
-  .dashboard-shell .dashboard-range-trigger { width: 100%; }
   .dashboard-shell .metric-tabs { padding-bottom: 8px; }
   .dashboard-shell .metric-tab { min-height: 54px; padding-block: 8px; }
   .dashboard-shell .metric-copy { gap: 4px; }
