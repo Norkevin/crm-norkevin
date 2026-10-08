@@ -1163,7 +1163,7 @@ function drawGridAndAxis(width, height, paddingX, paddingTop, paddingBottom, usa
       html += '<line x1="' + paddingX + '" y1="' + y.toFixed(1) + '" x2="' + (width - paddingX) + '" y2="' + y.toFixed(1)
         + '" stroke="var(--sn-line)" stroke-width="1"/>';
     }
-    html += '<text x="' + (paddingX - 14) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" fill="var(--sn-muted)" font-weight="500">' + formatAxis(value) + '</text>';
+    html += '<text x="' + (paddingX - 14) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" fill="var(--sn-muted)" font-weight="500">' + (moneyTicks ? String(formatAxis(value)).replace(/\.00$/, '') : formatAxis(value)) + '</text>';
   }
   return html;
 }
