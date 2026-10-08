@@ -570,6 +570,25 @@ body:not(.is-native-app) [data-install-banner] {
 }
 .sn-icon-button:hover { background: var(--sn-surface-hover); }
 .sn-icon-button svg { width: 19px; height: 19px; }
+.sn-icon-button.sn-notification-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 10px;
+}
+.sn-icon-button.sn-notification-trigger svg { width: 22px; height: 22px; flex-shrink: 0; }
+.sn-notification-trigger #notif-bell-badge { position: absolute; top: -4px; right: -4px; pointer-events: none; }
+.sn-notification-trigger .sn-bubble { position: static; min-width: 18px; height: 18px; font-variant-numeric: tabular-nums; }
+.sn-notification-trigger:hover,
+.header-popover-wrap:has(.sn-notifications-menu.open) > .sn-notification-trigger {
+  color: var(--sn-accent-text);
+  background: var(--sn-mint-soft);
+  border-color: var(--sn-accent-text);
+}
+.sn-notification-trigger:focus-visible { outline: 2px solid var(--sn-accent-text); outline-offset: 3px; }
 .sn-bubble {
   position: absolute;
   top: 4px;
@@ -3227,13 +3246,13 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       </div>
     </div>
     <div class="header-popover-wrap">
-      <button class="sn-icon-button" type="button" title="Notificaciones" aria-label="Notificaciones" onclick="toggleNotifications(event)">
+      <button class="sn-icon-button sn-notification-trigger" type="button" title="Notificaciones" aria-label="Notificaciones" onclick="toggleNotifications(event)">
         <span id="notif-bell-badge">
         {% if unread_notifications_count|default(0) > 0 %}
         <span class="sn-bubble">{{ unread_notifications_count }}</span>
         {% endif %}
         </span>
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M14.5 18a2.5 2.5 0 0 1-5 0M6.5 9a5.5 5.5 0 0 1 11 0v4.2l1.7 2.3a.8.8 0 0 1-.64 1.3H5.44a.8.8 0 0 1-.64-1.3L6.5 13.2Z"/></svg>
+        <svg aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
       </button>
       <div class="sn-notifications-menu" id="notifications-menu" onclick="event.stopPropagation()">
         <div class="sn-popover-head">
