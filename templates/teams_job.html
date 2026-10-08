@@ -41,11 +41,12 @@
   <div class="ft-crew-grid">
   {% for a in assignments if a.job_id == selected.id and a.status not in ('cancelada','rechazada') %}{% set c = a.cost %}
   <article class="ft-panel ft-crew-card">
-    <div class="ft-section-title"><div class="ft-person-heading"><span class="ft-avatar" aria-hidden="true">{{ a.member_name[:1] }}</span><h3>{{ a.member_name }}</h3></div><span class="ft-pill ft-status-{{ a.status }}">{{ {'borrador':'Borrador','pendiente':'Por responder','aceptada':'Confirmada','reconfirmar':'Reconfirmar','realizada':'Servicio realizado'}.get(a.status,a.status) }}</span></div>
+    <div class="ft-section-title"><div class="ft-person-heading"><span class="ft-avatar" aria-hidden="true">{{ a.member_name[:1] }}</span><h3>{{ a.member_name }}</h3></div><span class="ft-pill ft-status-{{ a.status }}">Portal · {{ {'borrador':'Borrador','pendiente':'Por responder','aceptada':'Confirmada','reconfirmar':'Reconfirmar','realizada':'Servicio realizado'}.get(a.status,a.status) }}</span></div>
     <p class="ft-coverage-role">{{ a.role }}<small>{{ a.slot }} · {{ a.start[11:16] }}–{{ a.end[11:16] }}{% if a.start[:10] != a.end[:10] %} · termina {{ a.end[:10]|teams_date }}{% endif %}</small></p>
     {% set invitation=calendar_sync|selectattr('identity','equalto','assignment:' ~ a.id)|first|default(none) %}
     {% if a.status in ['pendiente','aceptada','reconfirmar','realizada'] %}
     <div class="ft-invitation">
+      {% include 'teams_calendar_response.html' %}
       <p class="ft-invitation-status">Invitación de calendario · {{ {'synced':'Sincronizada','pending':'Programada' if invitation.not_before else 'En cola','failed':'No se confirmó el envío','paused':'Envío cancelado'}.get(invitation.status,invitation.status) if invitation else 'Sin enviar' }}</p>
       <p class="ft-muted">{{ a.member_email or 'Correo pendiente' }}</p>
       <p>Correo · {{ {'sent':'Enviado por Gmail','pending':'Pendiente','sending':'En proceso; no reenviar todavía','failed':'No confirmado'}.get(invitation.email_status, 'Sin enviar') if invitation else 'Sin enviar' }}</p>

@@ -72,6 +72,15 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None):
         return result
 
 
+def attendee_response(record, event):
+    if event.get('status') == 'cancelled':
+        return 'cancelled'
+    expected = {a.get('email', '').casefold() for a in (record.get('event') or {}).get('attendees', [])}
+    guest = next((a for a in event.get('attendees', []) if a.get('email', '').casefold() in expected), {})
+    response = guest.get('responseStatus')
+    return response if response in ('accepted', 'declined', 'tentative', 'needsAction') else 'unknown'
+
+
 class CalendarSync:
     def __init__(self,store,client_factory=CalendarClient):
         self.store=store;self.client_factory=client_factory
@@ -95,6 +104,9 @@ class CalendarSync:
                     if scan and self.reconcile_tenant:
                         try:self.reconcile_tenant(tenant)
                         except Exception:LOGGER.warning('Calendar reconciliation unavailable; will retry')
+                    if scan:
+                        try:self.refresh_responses(tenant)
+                        except Exception:LOGGER.warning('Calendar responses unavailable; will retry')
                     try:self.drain(tenant)
                     except Exception:LOGGER.warning('Calendar queue unavailable; will retry')
             if scan:next_scan=time.monotonic()+60
@@ -168,7 +180,9 @@ class CalendarSync:
                 record.update(digest=digest,delivery_key=delivery,event=event,status='pending',error='',queued_at=now(),retry_after=None)
                 if identity.startswith('assignment:') and (not event or (previous and
                         (previous.get('event') or {}).get('attendees') != event.get('attendees'))):
-                    record.update(email_status='not_sent' if event else 'cancelled', email_error='', email_sent_at=None)
+                    record.update(email_status='not_sent' if event else 'cancelled', email_error='', email_sent_at=None,
+                                  response_status='unknown' if event else 'cancelled', response_checked_at=None,
+                                  response_retry_at=None, response_error='')
                 if (identity.startswith('assignment:') and event and delivery_key is not None
                         and delivery_key != (previous or {}).get('delivery_key')):
                     record.update(email_status='pending', email_error='')
@@ -203,6 +217,8 @@ class CalendarSync:
                 current.update(status=status,error=error,synced_at=now() if status=='synced' else None,
                     retry_after=(datetime.now(timezone.utc)+timedelta(minutes=15)).isoformat() if status=='failed' else None,
                     html_url=result.get('htmlLink',''))
+                if status == 'synced' and record['identity'].startswith('assignment:') and record['event']:
+                    current.update(response_status=attendee_response(record,result),response_checked_at=now(),response_error='')
                 self.store.save(db,tenant,'calendar_sync',current)
             if status == 'synced' and record['event'] and self.send_invitation_email:
                 with self.store.transaction() as db:
@@ -223,3 +239,26 @@ class CalendarSync:
                     current.update(email_status=email_status,email_error=email_error,
                                    email_sent_at=now() if email_status=='sent' else None)
                     self.store.save(db,tenant,'calendar_sync',current)
+
+    def refresh_responses(self, tenant):
+        """Read Google RSVP without updating events or sending invitations."""
+        clock = datetime.now(timezone.utc)
+        with self.store.transaction() as db:
+            rows = [r for r in self.store.records(db, tenant, 'calendar_sync')
+                    if r['identity'].startswith('assignment:') and r['status'] == 'synced' and r.get('event')
+                    and (not r.get('response_retry_at') or datetime.fromisoformat(r['response_retry_at']) <= clock)]
+        client = self.client_factory(tenant)
+        for record in rows:
+            try:
+                event = client.response(record['event_id'], record['identity'])
+                fields = dict(response_status=attendee_response(record, event), response_checked_at=now(), response_error='',
+                              response_retry_at=(clock + timedelta(seconds=60)).isoformat())
+            except Exception:
+                fields = dict(response_error='No se pudo actualizar la respuesta de Google. Se conserva la última consulta.',
+                              response_retry_at=(clock + timedelta(minutes=5)).isoformat())
+            with self.store.transaction() as db:
+                current = self.store.get(db, tenant, 'calendar_sync', record['id'])
+                if current['digest'] != record['digest'] or current['status'] != 'synced':
+                    continue
+                current.update(fields)
+                self.store.save(db, tenant, 'calendar_sync', current)

@@ -1508,3 +1508,17 @@ def test_calendar_bulk_skips_missing_email_and_sends_personal_portal_link(web, m
     row=next(r for r in records(store,'calendar_sync') if r['identity']=='assignment:'+a['id'])
     assert row['status']=='synced' and row['email_status']=='sent'
     sync.drain('brand-a');assert len(deliveries)==1
+
+
+def test_calendar_acceptance_is_displayed_separately_from_portal(web):
+    application,owner,_=web;store=application.extensions['teams'];person=member(store)
+    a=publish(store,assignment(store,person))
+    with store.transaction() as db:
+        store.create(db,'brand-a','calendar_sync',identity='assignment:'+a['id'],job_id='job-1',
+            event={'summary':'Boda'},status='synced',response_status='accepted',email_status='sent',
+            response_checked_at='2026-10-08T10:00:00-06:00')
+    html=owner.get('/teams/jobs/job-1').get_data(as_text=True)
+    assert 'Google Calendar · Aceptada' in html and 'Portal · Por responder' in html
+    calendar=owner.get('/teams/calendar').get_data(as_text=True)
+    assert 'Google Calendar · Aceptada' in calendar and 'Portal · Esperando respuesta' in calendar
+    assert records(store,'assignment')[0]['status']=='pendiente'

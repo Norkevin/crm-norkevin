@@ -362,3 +362,46 @@ def test_cancelled_invitation_does_not_send_pending_email_and_replacement_clears
     sync.enqueue_events(TENANT,JOB['id'],{identity:event},background=False)
     count=len(sent);sync.drain(TENANT);assert len(sent)==count
     assert next(r for r in rows(store) if r['identity']==identity)['email_status']=='not_sent'
+
+
+def test_rsvp_refresh_reads_exact_guest_without_resending_and_preserves_portal(prepared):
+    store,people,assignments,_=prepared;fake=FakeCalendar();sync=CalendarSync(store,lambda tenant:fake)
+    sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False,include_new=True)
+    sync.drain(TENANT);before=deepcopy(rows(store,'assignment'));calls=len(fake.calls)
+    responses=[]
+    def response(event_id,identity):
+        responses.append(identity)
+        return dict(attendees=[dict(email='unrelated@example.com',responseStatus='declined'),
+                              dict(email=people[0]['email'].upper(),responseStatus='accepted')])
+    fake.response=response
+    sync.refresh_responses(TENANT)
+    invitations={r['identity']:r for r in rows(store) if r['identity'].startswith('assignment:')}
+    first=invitations['assignment:'+assignments[0]['id']]
+    assert first['response_status']=='accepted' and first['response_checked_at']
+    assert invitations['assignment:'+assignments[1]['id']]['response_status']=='unknown'
+    assert len(fake.calls)==calls and rows(store,'assignment')==before
+    sync.refresh_responses(TENANT);assert len(responses)==2
+    def fail(*args):raise OSError('private token data')
+    fake.response=fail
+    with store.transaction() as db:
+        first['response_retry_at']=None;store.save(db,TENANT,'calendar_sync',first)
+    sync.refresh_responses(TENANT)
+    first=next(r for r in rows(store) if r['id']==first['id'])
+    assert first['response_status']=='accepted' and first['response_error']
+    assert 'private token data' not in str(first)
+    assert rows(store,tenant='other-brand')==[]
+
+
+@pytest.mark.parametrize('status',['accepted','declined','tentative','needsAction'])
+def test_rsvp_all_google_responses_and_ownership_guard(status,monkeypatch):
+    from src.teams_calendar import attendee_response
+    client=CalendarClient(TENANT);calls=[]
+    def request(*args):
+        calls.append(args)
+        return dict(extendedProperties={'private':{'flow_identity':'assignment:1'}},attendees=[dict(email='a@example.com',responseStatus=status)])
+    monkeypatch.setattr(client,'request',request)
+    record=dict(event=dict(attendees=[dict(email='a@example.com')]))
+    assert attendee_response(record,client.response('event-1','assignment:1'))==status
+    assert calls==[('GET','event-1')]
+    with pytest.raises(ValueError):client.response('event-1','assignment:other')
+    assert attendee_response(record,dict(status='cancelled'))=='cancelled'

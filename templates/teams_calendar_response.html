@@ -1,0 +1,5 @@
+{% if invitation and invitation.event %}
+<p class="ft-calendar-response"><span class="ft-pill ft-rsvp-{{ invitation.response_status or 'unknown' }}">Google Calendar · {{ {'accepted':'Aceptada','declined':'Rechazada','tentative':'Tal vez','needsAction':'Sin responder','cancelled':'Evento cancelado'}.get(invitation.response_status,'Consultando respuesta') }}</span></p>
+{% if invitation.response_checked_at %}<small>Consultado {{ invitation.response_checked_at|teams_calendar_date }}</small>{% endif %}
+{% if invitation.response_error %}<small class="ft-warning-text">{{ invitation.response_error }}</small>{% endif %}
+{% endif %}

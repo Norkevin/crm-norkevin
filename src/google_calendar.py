@@ -105,6 +105,12 @@ class CalendarClient:
             headers={'Authorization':'Bearer '+token['access_token'],'Content-Type':'application/json'},method=method)
         with urlopen(request,timeout=15) as response:return json.loads(response.read() or '{}')
 
+    def response(self, event_id, identity):
+        event = self.request('GET', event_id)
+        if event.get('extendedProperties', {}).get('private', {}).get('flow_identity') != identity:
+            raise ValueError('El evento no pertenece a esta cobertura.')
+        return event
+
     def sync(self,event_id,event,digest,identity):
         try:previous=self.request('GET',event_id)
         except HTTPError as error:

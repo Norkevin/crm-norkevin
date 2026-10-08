@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Ficha privada · Teams{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='teams.css',v='20261008-functional') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='teams.css',v='20261008-rsvp') }}">
 <section class="ft sn-page-wide">
 <header class="ft-heading ft-owner-hero"><div><h1>{{ member.name }}</h1><p class="ft-hero-meta">Ficha privada</p></div><a class="sn-btn" href="/teams/members">← Volver a miembros</a></header>
 <p id="ft-feedback" role="alert" hidden></p>
@@ -10,5 +10,5 @@
 <div class="ft-panel"><h2>Banco, cuenta e identificación</h2><p class="ft-muted">Esta ficha no aparece en el portal ni en los documentos del equipo.{% if profile.source_id %} Los datos privados pertenecen al mismo registro de origen compartido por Astral y Norkevin.{% endif %}</p>
 <form data-command="member_private" class="ft-form"><input name="member_id" type="hidden" value="{{ member.id }}"><input name="version" type="hidden" value="{{ profile.version or 0 }}">{% for key,label in private_fields.items() %}<label>{{ label }}{% if key == 'notes' %}<textarea name="{{ key }}" maxlength="1000">{{ profile.get(key,'') }}</textarea>{% else %}<input name="{{ key }}" value="{{ profile.get(key,'') }}" maxlength="150" autocomplete="off" placeholder="{{ 'No incluido en el archivo de origen' if profile.source_id else 'Pendiente de completar' }}">{% endif %}</label>{% endfor %}<button class="sn-btn sn-btn-primary">Guardar ficha privada</button></form></div>
 <footer class="ft-footer">Directorio privado · {{ "Propuesta local" if config.FLOW_TEAMS_LOCAL else "Compartido entre marcas autorizadas" }}</footer>
-</section><script>window.flowTeamsCSRF={{ csrf|tojson }};</script><script src="{{ url_for('static',filename='teams.js',v='20261008-functional') }}" defer></script>
+</section><script>window.flowTeamsCSRF={{ csrf|tojson }};</script><script src="{{ url_for('static',filename='teams.js',v='20261008-rsvp') }}" defer></script>
 {% endblock %}

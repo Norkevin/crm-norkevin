@@ -90,3 +90,5 @@ body.ft-portal-body{margin:0;background:var(--flow-canvas);color:var(--sn-ink);f
 .ft-worker-expenses{border-top:1px solid var(--sn-line);padding-top:16px;margin-top:16px}.ft-person-expense{padding:16px 0;border-bottom:1px solid var(--sn-line)}.ft-person-expense h4{margin:0;font-size:14px}.ft-person-expense details{margin-top:10px}.ft-edit-worker{margin-top:12px}.ft-worker-expenses h4{margin:0 0 8px}.ft-edit-worker>summary{width:max-content;max-width:100%}
 
 .ft summary.sn-btn{padding:10px 14px;white-space:normal}.ft #financial-report{scroll-margin-top:90px}
+
+.ft .ft-calendar-response{margin:0 0 8px}.ft .ft-calendar-response .ft-pill{font-size:13px;padding:7px 12px}.ft .ft-rsvp-accepted{background:#e5f5ed;color:#166b47}.ft .ft-rsvp-declined,.ft .ft-rsvp-cancelled{background:#fff0ef;color:#a23230}.ft .ft-rsvp-needsAction,.ft .ft-rsvp-tentative{background:#fff7e5;color:#80581b}
