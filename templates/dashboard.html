@@ -1087,8 +1087,9 @@ function smoothPath(points) {
 var METRIC_COLORS = { leads: '#7252C7', sessions: '#2563EB', payments: '#087443', revenue: '#2563EB' };
 
 function niceCeil(value, integerTicks) {
-  // Cuatro intervalos legibles, con 8% de aire sobre el máximo visible.
-  // Redondear el intervalo evita saltar de Q50,001 a Q100,000.
+  // Dinero: máximo de las series visibles + Q10,000, sin redondear el tope.
+  if (!integerTicks) { return Math.max(0, Number(value) || 0) + 10000; }
+  // Leads y eventos conservan intervalos enteros con un margen proporcional.
   if (!(value > 0)) { return 4; }
   var targetStep = value * 1.08 / 4;
   var magnitude = Math.pow(10, Math.floor(Math.log10(targetStep)));
