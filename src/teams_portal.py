@@ -8,7 +8,7 @@ import secrets
 
 from flask import Blueprint, abort, g, jsonify, redirect, render_template, request, send_file, session, url_for
 
-from src.teams import LOCAL_ZONE, TeamsError, now, text, teams_zone
+from src.teams import LOCAL_ZONE, TeamsError, now, text, teams_zone, payment_deadline
 from src.teams_features import VISIBLE_ASSIGNMENTS, advance_balance, cost_amount, document_visible, file_fields, MAX_FILE_BYTES
 
 
@@ -202,7 +202,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             raise TeamsError('Cobertura no disponible.', 404)
         return job
 
-    def state():
+    def state(by_wedding=False):
         tenant, member = g.teams_portal_tenant, g.teams_member
         with store.transaction() as db:
             assignments = [a for a in store.records(db, tenant, 'assignment') if a['member_id'] == member['id'] and a['status'] in VISIBLE_ASSIGNMENTS]
@@ -216,6 +216,23 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             cost_rows = [c for c in store.records(db, tenant, 'cost') if c['beneficiary'] == member['id']
                          and c['status'] in ('aprobado','incurrido')
                          and (not c.get('assignment_id') or c['assignment_id'] in published)]
+            all_advances = [a for a in store.records(db, tenant, 'advance') if a['member_id'] == member['id']]
+            accessible_ids = job_ids | {c['job_id'] for c in cost_rows} | {a['job_id'] for a in all_advances}
+            wedding_options = []
+            for identifier in accessible_ids:
+                job = read_job(identifier)
+                wedding_options.append(dict(id=identifier, name=job.get('nombre'), day=job.get('boda_date') or ''))
+            today = datetime.now(teams_zone(crm_store, tenant)).date().isoformat()
+            wedding_options.sort(key=lambda j: (0 if j['day'] >= today else 1, j['day'], j['name'] or ''))
+            selected_job_id = request.args.get('job_id', '')
+            if selected_job_id and selected_job_id not in accessible_ids:
+                abort(404)
+            if by_wedding and not selected_job_id and wedding_options:
+                selected_job_id = wedding_options[0]['id']
+            selected_wedding = next((j for j in wedding_options if j['id'] == selected_job_id), None)
+            if selected_job_id:
+                assignments = [a for a in assignments if a['job_id'] == selected_job_id]
+                cost_rows = [c for c in cost_rows if c['job_id'] == selected_job_id]
             costs = []
             for c in cost_rows:
                 paid = store.paid(db, tenant, c['id'])
@@ -239,12 +256,12 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                     own['read'] = any(r['document_id'] == d['id'] and r['document_version'] == d['version'] for r in receipts)
                     documents.append(own)
             advances = [dict(id=a['id'], job_id=a['job_id'], amount=a['amount'], remaining=advance_balance(store, db, tenant, a))
-                        for a in store.records(db, tenant, 'advance') if a['member_id'] == member['id']]
+                        for a in all_advances if not selected_job_id or a['job_id'] == selected_job_id]
             tasks = [{k: t.get(k) for k in ('id','job_id','purpose','due','status','version')}
                      for t in store.records(db, tenant, 'task') if t['member_id'] == member['id']
                      and any(a['id'] == t['assignment_id'] and a['terms_version'] == t['terms_version'] for a in assignments)]
             requests = [{k: r.get(k) for k in ('id','job_id','description','amount','status','file_name','created_at')}
-                        for r in store.records(db, tenant, 'expense_request') if r['member_id'] == member['id']]
+                        for r in store.records(db, tenant, 'expense_request') if r['member_id'] == member['id'] and (not selected_job_id or r['job_id'] == selected_job_id)]
             availability = [{k:r.get(k) for k in ('id','start','end','note','version','status')}
                             for r in store.records(db, tenant, 'availability') if r['member_id'] == member['id'] and r.get('status') != 'retirada']
             owned_cost_ids = {c['id'] for c in costs}
@@ -253,6 +270,8 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             payments = [p for p in store.records(db, tenant, 'payment') if p['beneficiary'] == member['id']]
             reversed_ids = {p.get('reversal_of') for p in payments if p['sign'] == -1}
             for payment in payments:
+                if selected_job_id and payment.get('advance_id') and payment.get('job_id') != selected_job_id:
+                    continue
                 allocations = [a for a in payment['allocations'] if a['cost_id'] in owned_cost_ids]
                 if not allocations and not payment.get('advance_id'):
                     continue
@@ -268,10 +287,9 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                     job_ids=list(dict.fromkeys([a['job_id'] for a in allocations] + ([payment['job_id']] if payment.get('advance_id') else []))))
                 history.append(own)
             schedules = store.records(db, tenant, 'schedule')
-            assignment_map = {a['id']: a for a in store.records(db, tenant, 'assignment') if a['member_id'] == member['id']}
             for c in costs:
-                a = assignment_map.get(c['assignment_id'])
-                c['confirmed'] = not c['honorarium'] or bool(a and a['status'] in ('aceptada','realizada'))
+                c['confirmed'] = c['status'] in ('aprobado', 'incurrido')
+                c['due_date'] = payment_deadline(read_job(c['job_id']), next((r.get('due_date', '') for r in cost_rows if r['id'] == c['id']), '')) if c['honorarium'] else ''
                 c['movements'] = [dict(p, amount=sum(part['amount'] for payment in payments if payment['id']==p['id'] for part in payment['allocations'] if part['cost_id']==c['id']) * p['sign']) for p in history if c['id'] in p['cost_ids']]
                 c['payment_count'] = sum(p['valid'] for p in c['movements'])
                 c['schedule_count'] = c['schedule_completed'] = 0
@@ -299,6 +317,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                 unconfirmed=sum(not c['confirmed'] for c in fee_costs),
                 advance_paid=sum(c['paid'] for c in fee_costs if not c['confirmed']),
                 overpaid=any(c['overpaid'] for c in fee_costs))
+            fee_summary['due_date'] = min((c['due_date'] for c in fee_costs if c['due_date']), default='')
             fee_summary['progress'] = round(fee_summary['paid'] * 100 / fee_summary['amount'], 1) if fee_summary['amount'] else None
             history_years = sorted({p['date'][:4] for p in history if p.get('date') and len(p['date'])>=10}, reverse=True)
         financial_ids = {c['job_id'] for c in costs} | {a['job_id'] for a in advances}
@@ -324,7 +343,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                       honorarium=sum(c['amount'] for c in costs if c['honorarium']),
                       reimbursements=sum(c['amount'] for c in costs if not c['honorarium']),
                       funds_remaining=sum(a['remaining'] for a in advances))
-        return dict(member={k: member.get(k) for k in ('id','name','email','phone')}, assignments=coverage, documents=documents,
+        return dict(selected_wedding=selected_wedding, wedding_options=wedding_options, member={k: member.get(k) for k in ('id','name','email','phone')}, assignments=coverage, documents=documents,
                     costs=costs, advances=advances, tasks=tasks, expense_requests=requests, availability=availability,
                     financial_jobs=sorted(financial_jobs,key=lambda j:j['day'] or ''),history=history,year=year,totals=totals,
                     fee_summary=fee_summary, history_years=history_years, current_year=str(datetime.now(teams_zone(crm_store, tenant)).year),
@@ -339,7 +358,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
     @portal.route('')
     @portal.route('/')
     def page():
-        return render_template('teams_portal.html', login=False, csrf=session['teams_portal_csrf'], **state())
+        return render_template('teams_portal.html', login=False, csrf=session['teams_portal_csrf'], **state(by_wedding=True))
 
     @portal.route('/summary')
     def summary():
@@ -505,6 +524,11 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
         with store.transaction() as db:
             assignments = [a for a in store.records(db, g.teams_portal_tenant, 'assignment') if a['member_id'] == g.teams_member['id']
                            and a['status'] in VISIBLE_ASSIGNMENTS]
+        selected_job_id = request.args.get('job_id', '')
+        if selected_job_id:
+            if selected_job_id not in {a['job_id'] for a in assignments}:
+                abort(404)
+            assignments = [a for a in assignments if a['job_id'] == selected_job_id]
         jobs = {a['job_id']: read_job(a['job_id']) for a in assignments}
         assignments = [a for a in assignments if jobs[a['job_id']].get('status') not in ('Cancelado', 'Archivado')
                        and a['job_day'] == jobs[a['job_id']].get('boda_date')]

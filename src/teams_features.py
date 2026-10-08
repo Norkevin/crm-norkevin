@@ -3,7 +3,7 @@ import base64
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from src.teams import LOCAL_ZONE, TeamsError, cents, day, now, text
+from src.teams import LOCAL_ZONE, TeamsError, cents, day, now, text, payment_deadline
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
 
@@ -466,7 +466,7 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
     elif action == 'schedule':
         cost = store.get(db, tenant, 'cost', text(data, 'cost_id'))
         store.check_version(cost, data)
-        job_reader(cost['job_id'])
+        job = job_reader(cost['job_id'])
         if cost['status'] not in ('aprobado', 'incurrido'):
             raise TeamsError('Aprueba el costo antes de definir cuotas.')
         plan = []
@@ -478,6 +478,8 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
             if amount <= 0:
                 raise TeamsError('Las cuotas deben ser positivas.')
             plan.append(dict(due_date=day(parts[0]), amount=amount))
+        if cost.get('assignment_id') and payment_deadline(job) and any(p['due_date'] > payment_deadline(job) for p in plan):
+            raise TeamsError('Los honorarios deben pagarse como máximo 30 días después de la boda.')
         if sum(p['amount'] for p in plan) != cost_amount(cost):
             raise TeamsError('Las cuotas deben sumar exactamente la obligación aprobada.')
         record = store.create(db, tenant, 'schedule', cost_id=cost['id'], job_id=cost['job_id'],

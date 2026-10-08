@@ -18,6 +18,16 @@ LOCAL_ZONE = ZoneInfo('America/Guatemala')
 DEFAULT_ROLES = 'Primera cámara de fotografía\nSegunda cámara de fotografía\nPrimer videógrafo\nSegundo videógrafo\nAsistente\nOperador de dron\nTransporte\nEditor\nCoordinador'
 
 
+def payment_deadline(job, earlier=''):
+    if earlier:
+        day(earlier)
+    wedding_day = job.get('boda_date')
+    if not wedding_day:
+        return earlier
+    limit = (date.fromisoformat(wedding_day[:10]) + timedelta(days=30)).isoformat()
+    return min(earlier, limit) if earlier else limit
+
+
 class TeamsError(Exception):
     def __init__(self, message, status=400):
         self.message, self.status = message, status
@@ -243,7 +253,7 @@ class TeamsStore:
                 cost = self.create(db, tenant, 'cost', job_id=job['id'], assignment_id=record['id'],
                                    category='Honorarios', description=f"{record['role']} · {member['name']}",
                                    beneficiary=member['id'], beneficiary_name=member['name'], budget=fee,
-                                   estimate=fee, final=None, status='estimado', due_date=text(data, 'due_date', required=False),
+                                   estimate=fee, final=None, status='estimado', due_date=payment_deadline(job, text(data, 'due_date', required=False)),
                                    currency='GTQ')
                 if cost['due_date']:
                     day(cost['due_date'])
@@ -545,6 +555,8 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             for a in s['allocations']:
                 paid[a['cost_id']] = paid.get(a['cost_id'], 0) + a['amount']
         for c in costs:
+            if c.get('assignment_id'):
+                c['due_date'] = payment_deadline(job_map.get(c['job_id'], {}), c.get('due_date', ''))
             c['total'] = 0 if c['status'] == 'anulado' else (c['final'] if c['final'] is not None else c['estimate'])
             c['paid'] = paid.get(c['id'], 0)
             c['pending'] = c['total'] - c['paid'] if c['status'] in ('aprobado', 'incurrido') else 0
@@ -558,7 +570,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                     applied = min(remaining_paid, entry['amount'])
                     remaining_paid -= applied
                     c['schedule'].append(dict(entry, paid=applied, pending=entry['amount']-applied))
-                c['late'] = any(e['pending'] and e['due_date'] < datetime.now(LOCAL_ZONE).date().isoformat() for e in c['schedule'])
+                c['late'] = c['late'] or any(e['pending'] and e['due_date'] < datetime.now(LOCAL_ZONE).date().isoformat() for e in c['schedule'])
         for a in assignments:
             a['calendar_day'] = a['start'][:10]
             a['member_email'] = member_map.get(a['member_id'], {}).get('email', '')

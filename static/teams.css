@@ -92,3 +92,5 @@ body.ft-portal-body{margin:0;background:var(--flow-canvas);color:var(--sn-ink);f
 .ft summary.sn-btn{padding:10px 14px;white-space:normal}.ft #financial-report{scroll-margin-top:90px}
 
 .ft .ft-calendar-response{margin:0 0 8px}.ft .ft-calendar-response .ft-pill{font-size:13px;padding:7px 12px}.ft .ft-rsvp-accepted{background:#e5f5ed;color:#166b47}.ft .ft-rsvp-declined,.ft .ft-rsvp-cancelled{background:#fff0ef;color:#a23230}.ft .ft-rsvp-needsAction,.ft .ft-rsvp-tentative{background:#fff7e5;color:#80581b}
+
+.ft-wedding-selector{display:flex;align-items:end;gap:14px;flex-wrap:wrap}.ft-wedding-selector label{flex:1;min-width:200px}.ft-wedding-selector p{flex-basis:100%;margin:0}

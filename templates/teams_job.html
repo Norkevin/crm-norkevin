@@ -66,6 +66,7 @@
     </div>{% endif %}
     {% if a.changed or a.conflicts %}<p class="ft-warning">{{ 'Fecha comercial modificada. Revisa las condiciones.' if a.changed else 'Hay un solapamiento de horario; revisa antes de confirmar.' }}</p>{% endif %}
     {% if c %}<div class="ft-person-money"><span>Honorario <strong>{{ c.total|teams_money }}</strong></span><span>Pagado <strong>{{ c.paid|teams_money }}</strong></span><span>Pendiente <strong>{{ c.pending|teams_money }}</strong></span></div>{% endif %}
+    {% if c and c.due_date %}<p class="ft-muted">Fecha límite de pago: <strong>{{ c.due_date|teams_date }}</strong> · máximo 30 días después de la boda.</p>{% endif %}
     <div class="ft-actions ft-wrap">
       {% if a.status == 'borrador' and not selected.closed %}<button class="sn-btn sn-btn-primary" data-action="assignment_publish" data-id="{{ a.id }}" data-version="{{ a.version }}">Compartir en portal</button>{% endif %}
       <a class="sn-btn" href="{{ url_for('teams.preview',member_id=a.member_id) }}">Ver su portal ↗</a>

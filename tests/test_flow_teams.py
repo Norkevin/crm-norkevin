@@ -1201,7 +1201,7 @@ def test_history_uses_payment_year_and_general_summary_ignores_filter_and_classi
     assert len(owner.get('/teams-portal/summary?year=all').get_json()['history'])==2
 
 
-def test_unconfirmed_fees_funds_and_reimbursements_are_not_confirmed_debt(web):
+def test_owner_approved_fees_count_without_worker_response_separately_from_expenses(web):
     application,owner,_=web;store=application.extensions['teams'];person=member(store)
     a=publish(store,assignment(store,person));fee=records(store,'cost')[0]
     pay(store,fee,'500')
@@ -1209,8 +1209,8 @@ def test_unconfirmed_fees_funds_and_reimbursements_are_not_confirmed_debt(web):
     expense=run(store,'cost_status',id=expense['id'],version=expense['version'],status='aprobado')
     pay(store,expense,'100');run(store,'advance',job_id='job-1',member_id=person['id'],amount='200',effective_date='2026-10-05',reference='Fondo')
     owner.get('/teams/preview/'+person['id']);data=owner.get('/teams-portal/summary').get_json()
-    assert (data['fee_summary']['amount'],data['fee_summary']['paid'],data['fee_summary']['pending'])==(0,50000,0)
-    assert data['fee_summary']['unconfirmed']==1 and data['fee_summary']['advance_paid']==50000
+    assert (data['fee_summary']['amount'],data['fee_summary']['paid'],data['fee_summary']['pending'])==(150000,50000,100000)
+    assert data['fee_summary']['unconfirmed']==0 and data['fee_summary']['advance_paid']==0
     assert data['history_fee_count']==1 and data['history_fee_total']==50000 and data['history_reimbursements']==10000
     assert data['totals']['funds_remaining']==20000
 
@@ -1522,3 +1522,47 @@ def test_calendar_acceptance_is_displayed_separately_from_portal(web):
     calendar=owner.get('/teams/calendar').get_data(as_text=True)
     assert 'Google Calendar · Aceptada' in calendar and 'Portal · Esperando respuesta' in calendar
     assert records(store,'assignment')[0]['status']=='pendiente'
+
+
+def test_portal_wedding_scope_filters_documents_payments_tasks_and_summary(web):
+    application,owner,storage=web;store=application.extensions['teams'];person=member(store)
+    first=publish(store,assignment(store,person))
+    second=publish(store,assignment(store,person,job='job-2',start='2026-12-01T13:00',end='2026-12-01T22:00'))
+    costs=records(store,'cost')
+    pay(store,costs[0],'900',allocations=[dict(cost_id=costs[0]['id'],amount='500'),dict(cost_id=costs[1]['id'],amount='400')])
+    doc=run(store,'document',job_id='job-1',title='Documento boda uno',kind='Call sheet',content='Información',audience_ids=[person['id']])
+    run(store,'document_publish',id=doc['id'],version=doc['version'])
+    worker=member_client(application,owner,person)
+    first_data=worker.get('/teams-portal/summary?job_id=job-1&year=all').get_json()
+    second_data=worker.get('/teams-portal/summary?job_id=job-2&year=all').get_json()
+    assert (first_data['fee_summary']['amount'],first_data['fee_summary']['paid'],first_data['fee_summary']['pending'])==(150000,50000,100000)
+    assert second_data['fee_summary']['paid']==40000
+    assert len(first_data['documents'])==1 and second_data['documents']==[]
+    assert all(t['job_id']=='job-1' for t in first_data['tasks'])
+    assert first_data['history'][0]['amount']==50000 and first_data['history'][0]['job_ids']==['job-1']
+    assert len(first_data['wedding_options'])==2
+    assert worker.get('/teams-portal/summary?job_id=not-assigned').status_code==404
+    html=worker.get('/teams-portal/?job_id=job-1').get_data(as_text=True)
+    assert 'Resumen general' not in html and 'Solo tus honorarios de esta boda' in html
+    assert 'name="job_id" type="hidden" value="job-1"' in html
+    assert 'Recordatorios de esta boda · opcional' in html and 'Tareas y perfil' not in html
+    calendar=worker.get('/teams-portal/calendar.ics?job_id=job-1').get_data(as_text=True)
+    assert first['id'] in calendar and second['id'] not in calendar
+
+
+def test_honorarium_deadline_is_thirty_days_and_applies_to_existing_records(web):
+    from src.teams import payment_deadline
+    assert payment_deadline({'boda_date':'2026-12-20'})=='2027-01-19'
+    application,owner,_=web;store=application.extensions['teams'];person=member(store)
+    a=publish(store,assignment(store,person));cost=records(store,'cost')[0]
+    assert cost['due_date']=='2026-12-14'
+    with store.transaction() as db:
+        cost['due_date']='';store.save(db,'brand-a','cost',cost)
+    summary=owner.get('/api/teams/summary').get_json()
+    assert summary['costs'][0]['due_date']=='2026-12-14'
+    worker=member_client(application,owner,person)
+    data=worker.get('/teams-portal/summary?job_id=job-1').get_json()
+    assert data['fee_summary']['amount']==150000 and data['fee_summary']['due_date']=='2026-12-14'
+    cost=records(store,'cost')[0]
+    with pytest.raises(TeamsError,match='30 días'):
+        run(store,'schedule',cost_id=cost['id'],version=cost['version'],plan='2026-12-15 1500')
