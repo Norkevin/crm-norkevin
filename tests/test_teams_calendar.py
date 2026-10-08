@@ -317,3 +317,48 @@ def test_missing_email_names_member_and_never_queues_even_master(prepared):
     with pytest.raises(TeamsError,match=person['name']):
         sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False,include_new=True,invite_ids=[assignments[0]['id']])
     assert rows(store)==[]
+
+
+def test_explicit_calendar_mail_sent_once_and_failure_does_not_retry_blindly(prepared):
+    store, people, assignments, _ = prepared; fake = FakeCalendar()
+    sync = CalendarSync(store, lambda tenant: fake); sent = []
+    sync.send_invitation_email = lambda tenant, record: sent.append((tenant, record['identity']))
+    def enqueue(key):
+        sync.enqueue(TENANT, JOB, ORIGIN, ZONE, 'secret', background=False,
+                     include_new=True, invite_ids=[assignments[0]['id']], delivery_key=key)
+    enqueue('first'); sync.drain(TENANT); sync.drain(TENANT)
+    assert sent == [(TENANT, 'assignment:'+assignments[0]['id'])]
+    assert next(r for r in rows(store) if r['identity'].startswith('assignment:'))['email_status'] == 'sent'
+    enqueue('first'); sync.drain(TENANT); assert len(sent) == 1
+    sync.reconcile(TENANT, [dict(JOB, location='Changed')], ORIGIN, ZONE, 'secret')
+    sync.drain(TENANT); assert len(sent) == 1
+    enqueue('resend'); sync.drain(TENANT); assert len(sent) == 2
+    def fail(*args): raise OSError('private provider error')
+    sync.send_invitation_email = fail
+    enqueue('failure'); sync.drain(TENANT)
+    row = next(r for r in rows(store) if r['identity'].startswith('assignment:'))
+    assert row['status'] == 'synced' and row['email_status'] == 'failed'
+    assert 'private provider error' not in str(row)
+    sync.send_invitation_email = lambda *args: sent.append(args)
+    sync.drain(TENANT); assert len(sent) == 2
+    enqueue('explicit-retry'); sync.drain(TENANT); assert len(sent) == 3
+
+
+def test_cancelled_invitation_does_not_send_pending_email_and_replacement_clears_old_status(prepared):
+    store, people, assignments, _ = prepared; fake=FakeCalendar();sync=CalendarSync(store,lambda tenant:fake)
+    sent=[];sync.send_invitation_email=lambda *args:sent.append(args)
+    identity='assignment:'+assignments[0]['id']
+    sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False,include_new=True,delivery_key='invite')
+    sync.enqueue_events(TENANT,JOB['id'],{identity:None},background=False)
+    sync.drain(TENANT)
+    assert all(args[1]['identity'] != identity for args in sent)
+    row=next(r for r in rows(store) if r['identity']==identity)
+    assert row['email_status']=='cancelled'
+    count=len(fake.calls);sync.drain(TENANT);assert len(fake.calls)==count
+    sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False,include_new=True,delivery_key='again')
+    sync.drain(TENANT)
+    event=deepcopy(next(r for r in rows(store) if r['identity']==identity)['event'])
+    event['attendees']=[{'email':'replacement@flow-qa-84982.com'}]
+    sync.enqueue_events(TENANT,JOB['id'],{identity:event},background=False)
+    count=len(sent);sync.drain(TENANT);assert len(sent)==count
+    assert next(r for r in rows(store) if r['identity']==identity)['email_status']=='not_sent'

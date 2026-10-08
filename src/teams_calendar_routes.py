@@ -30,6 +30,20 @@ def finish_calendar_connection(app,crm_store,redirect_uri):
 
 def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
     sync=CalendarSync(database);app.extensions['teams_calendar']=sync
+    def send_invitation_email(tenant, record):
+        from src.teams_mail import send_portal_email
+        if app.config.get('FLOW_TEAMS_LOCAL'):
+            raise TeamsError('El entorno de pruebas no envía correos.')
+        with database.transaction() as db:
+            assignment=database.get(db,tenant,'assignment',record['identity'].split(':',1)[1])
+            member=database.get(db,tenant,'member',assignment['member_id'])
+            if assignment['status'] not in VISIBLE_ASSIGNMENTS or not member['active']:
+                raise TeamsError('La asignación ya no está vigente. No se envió correo.')
+            if member.get('email') not in [a.get('email') for a in record['event'].get('attendees',[])]:
+                raise TeamsError('El correo cambió. Revisa la ficha y vuelve a enviar la invitación.')
+        return send_portal_email(database,tenant,member,os.environ.get('APP_BASE_URL','https://flowingcrm.com'),
+                                 'Invitación de Teams',event=record['event'],calendar_url=record.get('html_url',''))
+    sync.send_invitation_email=send_invitation_email
     def reconcile_tenant(tenant):
         # Reuse the CRM's explicit tenant context, also used by workflow workers.
         from app import _workflow_tenant, _calendar_non_job_events
@@ -107,12 +121,21 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
         invite=data.get('invite','none')
         if invite not in ('none','all','individual'):raise TeamsError('Revisa los destinatarios.')
         ids=[]
+        skipped=[]
         if invite!='none':
             with database.transaction() as db:
                 eligible=[a for a in database.records(db,session['tenant_id'],'assignment') if a['job_id']==job['id']
                     and a['status'] in VISIBLE_ASSIGNMENTS and a['job_day']==job['boda_date']]
                 if invite=='individual':eligible=[a for a in eligible if a['id']==data.get('assignment_id')]
                 if not eligible:raise TeamsError('Comparte primero una cobertura vigente para los destinatarios.')
+                from src.teams_calendar import valid_invitation_email
+                valid=[]
+                for assignment in eligible:
+                    person=database.get(db,session['tenant_id'],'member',assignment['member_id'])
+                    if person['active'] and valid_invitation_email(person.get('email','')):valid.append(assignment)
+                    else:skipped.append(person['name'])
+                eligible=valid
+                if not eligible:raise TeamsError('Agrega un correo válido a los trabajadores antes de enviar.')
                 ids=[a['id'] for a in eligible]
         send_at=None
         if data.get('send_at'):
@@ -129,7 +152,8 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
         queued=enqueue(job,include_new=True,invite_ids=ids,send_at=send_at,delivery_key=delivery_key)
         return jsonify(ok=True,record=dict(queued=queued),warnings=[
             ('Sin cambios por enviar.' if not queued else 'Envío programado. La hora corresponde a esta empresa.' if send_at else 'Sincronización en cola. Google enviará las invitaciones al procesarla.')
-            + ' Revisa el estado de cada cobertura; Calendar conectado no significa correo entregado.'])
+            + ' Revisa el estado de Calendar y correo en cada trabajador.'
+            + (' Sin enviar por correo pendiente o trabajador inactivo: ' + ', '.join(skipped) + '.' if skipped else '')])
 
     @blueprint.route('/api/teams/calendar/cancel-scheduled',methods=['POST'])
     def calendar_cancel_scheduled():

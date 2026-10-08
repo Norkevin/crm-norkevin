@@ -132,14 +132,28 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
             if amount < store.paid(db, tenant, cost['id']):
                 raise TeamsError('El honorario no puede quedar debajo de lo ya pagado.')
             reason = text(data, 'reason', maximum=1000)
+            replacement = store.get(db, tenant, 'member', data.get('member_id') or record['member_id'])
+            if not replacement['active']:
+                raise TeamsError('El trabajador está inactivo.')
+            if replacement['id'] != record['member_id'] and (store.paid(db, tenant, cost['id']) or cost.get('schedule_id')):
+                raise TeamsError('Esta persona ya tiene pagos o cuotas. Revisa esos movimientos antes de reemplazarla.')
+            slot = text(data, 'slot', maximum=100) if 'slot' in data else record['slot']
+            if any(a['id'] != record['id'] and a['job_id'] == job['id'] and a['slot'].casefold() == slot.casefold()
+                   and a['status'] not in ('cancelada', 'rechazada') for a in store.records(db, tenant, 'assignment')):
+                raise TeamsError('Esta cobertura ya está ocupada.', 409)
+            if cost.get('schedule_id'):
+                plan = store.get(db, tenant, 'schedule', cost['schedule_id'])
+                if sum(p['amount'] for p in plan['plan']) != amount:
+                    raise TeamsError('El honorario debe coincidir con las cuotas acordadas.')
             store.create(db, tenant, 'terms_history', assignment_id=record['id'], terms=dict(record), reason=reason, actor=actor, created_at=now())
             cancel_pending(store, db, tenant, record['id'])
-            record.update(start=start.isoformat(), end=end.isoformat(), buffer=buffer, job_day=job.get('boda_date'),
+            record.update(member_id=replacement['id'], slot=slot, start=start.isoformat(), end=end.isoformat(), buffer=buffer, job_day=job.get('boda_date'),
                           role=text(data, 'role', maximum=100) if 'role' in data else record['role'],
                           instructions=text(data, 'instructions', required=False, maximum=3000),
                           status='reconfirmar' if record['status'] in VISIBLE_ASSIGNMENTS else 'borrador',
                           terms_version=record['terms_version'] + 1, accepted_terms=None)
             cost['estimate'] = amount
+            cost.update(beneficiary=replacement['id'], beneficiary_name=replacement['name'])
             cost['description'] = f"{record['role']} · {cost['beneficiary_name']}"
             store.save(db, tenant, 'cost', cost)
             store.invalidate(db, tenant, job['id'])

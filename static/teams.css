@@ -86,3 +86,7 @@ body.ft-portal-body{margin:0;background:var(--flow-canvas);color:var(--sn-ink);f
 
 .ft-invitation{border-top:1px solid var(--sn-line);padding-top:16px;margin-top:18px}.ft .ft-invitation-status{font-size:12px;font-weight:650;margin:0 0 6px}.ft-invitation-form{margin:12px 0}.ft-invitation-form>button{grid-column:1 / -1;justify-self:start;white-space:normal;text-align:center}.ft-invitation-schedule summary,.ft-invitation a:not(.sn-btn){color:var(--sn-accent-text)}.ft-invitation .ft-warning a{color:inherit;text-decoration:underline;text-underline-offset:3px}.ft-invitation [role="alert"]{margin:10px 0}.ft-member-grid article{scroll-margin-top:100px}.ft-member-grid article:target{outline:2px solid var(--sn-green);outline-offset:4px}
 @media(max-width:767px){.ft-invitation-form>button{width:100%}}
+
+.ft-worker-expenses{border-top:1px solid var(--sn-line);padding-top:16px;margin-top:16px}.ft-person-expense{padding:16px 0;border-bottom:1px solid var(--sn-line)}.ft-person-expense h4{margin:0;font-size:14px}.ft-person-expense details{margin-top:10px}.ft-edit-worker{margin-top:12px}.ft-worker-expenses h4{margin:0 0 8px}.ft-edit-worker>summary{width:max-content;max-width:100%}
+
+.ft summary.sn-btn{padding:10px 14px;white-space:normal}.ft #financial-report{scroll-margin-top:90px}

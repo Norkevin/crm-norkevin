@@ -119,19 +119,48 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
             raise TeamsError('Selecciona un miembro.')
-        token = secrets.token_urlsafe(32)
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        from src.teams_mail import issue_code
         with store.transaction() as db:
             member = store.get(db, session['tenant_id'], 'member', text(data, 'member_id'))
-            if not member['active']:
-                raise TeamsError('El miembro está inactivo.')
-            store.save(db, session['tenant_id'], 'access', dict(id=token_hash, member_id=member['id'],
-                       access_version=member.get('access_version', 1), expires=(datetime.now(LOCAL_ZONE)+timedelta(hours=24)).isoformat(), used=False))
-            store.create(db, session['tenant_id'], 'audit', action='access_issue', actor=session['user_email'],
-                         created_at=now(), before=None, after=dict(id=member['id']))
+        token = issue_code(store, session['tenant_id'], member, session['user_email'])
         # The raw code is returned once, never written to the audit, URL, outbox or idempotency table.
         return jsonify(ok=True, code=token, login_url=url_for('teams_portal.login', _external=True) + '#access=' + token,
                        message='Enlace privado de un solo uso. Caduca en 24 horas. No se ha enviado.')
+
+    @owner_blueprint.route('/api/teams/access/email', methods=['POST'])
+    def email_access():
+        from src.teams_mail import send_portal_email
+        import os
+        if app.config.get('FLOW_TEAMS_LOCAL'):
+            raise TeamsError('El entorno de pruebas no envía correos.')
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            raise TeamsError('Selecciona un trabajador.')
+        tenant = session['tenant_id']
+        key = text(data, 'key', maximum=100)
+        identifier = hashlib.sha256((tenant + ':' + key).encode()).hexdigest()
+        with store.transaction() as db:
+            member = store.get(db, tenant, 'member', text(data, 'member_id'))
+            previous = next((r for r in store.records(db, tenant, 'portal_delivery') if r['id'] == identifier), None)
+            if previous:
+                if previous['member_id'] != member['id']:
+                    raise TeamsError('La solicitud pertenece a otro trabajador.', 409)
+                if previous['status'] == 'sent':
+                    return jsonify(ok=True, warnings=['El acceso ya se envió por correo.'])
+                raise TeamsError('Este envío no está confirmado. Revisa el correo y recarga antes de generar uno nuevo.', 409)
+            delivery = store.save(db, tenant, 'portal_delivery', dict(id=identifier, member_id=member['id'], status='sending', created_at=now()))
+        try:
+            message_id = send_portal_email(store, tenant, member,
+                os.environ.get('APP_BASE_URL', 'https://flowingcrm.com'), session['user_email'])
+        except TeamsError as error:
+            with store.transaction() as db:
+                delivery.update(status='failed', error=error.message)
+                store.save(db, tenant, 'portal_delivery', delivery)
+            raise
+        with store.transaction() as db:
+            delivery.update(status='sent', message_id=message_id, sent_at=now())
+            store.save(db, tenant, 'portal_delivery', delivery)
+        return jsonify(ok=True, warnings=['Acceso personal enviado a ' + member['email'] + '. El enlace dura 24 horas.'])
 
     @portal.route('/login', methods=['GET', 'POST'])
     def login():

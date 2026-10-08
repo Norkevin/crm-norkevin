@@ -78,6 +78,7 @@ class CalendarSync:
         self.wakeup=Event()
         self.started=False
         self.reconcile_tenant=None
+        self.send_invitation_email=None
 
     def start(self):
         if self.started:return
@@ -165,6 +166,12 @@ class CalendarSync:
                 if previous and previous['event'] is None and event is not None and previous['status']=='synced':
                     record['event_id']=hashlib.sha256((tenant+':'+identity+':'+str(previous['version'])).encode()).hexdigest()
                 record.update(digest=digest,delivery_key=delivery,event=event,status='pending',error='',queued_at=now(),retry_after=None)
+                if identity.startswith('assignment:') and (not event or (previous and
+                        (previous.get('event') or {}).get('attendees') != event.get('attendees'))):
+                    record.update(email_status='not_sent' if event else 'cancelled', email_error='', email_sent_at=None)
+                if (identity.startswith('assignment:') and event and delivery_key is not None
+                        and delivery_key != (previous or {}).get('delivery_key')):
+                    record.update(email_status='pending', email_error='')
                 if send_at is not None or not previous or delivery_key is not None:record['not_before']=send_at
                 elif previous['status']=='synced':record['not_before']=None
                 self.store.save(db,tenant,'calendar_sync',record);queued+=1
@@ -174,7 +181,8 @@ class CalendarSync:
     def drain(self,tenant):
         with self.store.transaction() as db:
             clock=datetime.now(timezone.utc)
-            rows=[r for r in self.store.records(db,tenant,'calendar_sync') if r['status'] not in ('synced','paused')
+            rows=[r for r in self.store.records(db,tenant,'calendar_sync') if (r['status'] not in ('synced','paused')
+                  or (r['status']=='synced' and r.get('email_status')=='pending' and self.send_invitation_email))
                   and all(not r.get(k) or datetime.fromisoformat(r[k])<=clock for k in ('not_before','retry_after'))]
         client=self.client_factory(tenant)
         for record in rows:
@@ -196,3 +204,22 @@ class CalendarSync:
                     retry_after=(datetime.now(timezone.utc)+timedelta(minutes=15)).isoformat() if status=='failed' else None,
                     html_url=result.get('htmlLink',''))
                 self.store.save(db,tenant,'calendar_sync',current)
+            if status == 'synced' and record['event'] and self.send_invitation_email:
+                with self.store.transaction() as db:
+                    current=self.store.get(db,tenant,'calendar_sync',record['id'])
+                    if current['digest']!=record['digest'] or current.get('email_status')!='pending':continue
+                    current.update(email_status='sending', email_error='')
+                    self.store.save(db,tenant,'calendar_sync',current)
+                try:
+                    self.send_invitation_email(tenant,current)
+                    email_status,email_error='sent',''
+                except TeamsError as error:
+                    email_status,email_error='failed',error.message
+                except Exception:
+                    email_status,email_error='failed','No se confirmó el correo. Revisa Gmail antes de volver a enviarlo.'
+                with self.store.transaction() as db:
+                    current=self.store.get(db,tenant,'calendar_sync',record['id'])
+                    if current['digest']!=record['digest']:continue
+                    current.update(email_status=email_status,email_error=email_error,
+                                   email_sent_at=now() if email_status=='sent' else None)
+                    self.store.save(db,tenant,'calendar_sync',current)

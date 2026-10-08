@@ -784,30 +784,6 @@ def test_private_member_fields_excluded_from_summary_portal_audit_and_result(web
     assert owner.get('/teams/members/'+person['id']).status_code==404
 
 
-def test_notion_import_shared_identity_idempotence_duplicates_missing_emails_and_strings(teams,tmp_path):
-    import csv,io,zipfile
-    from src.teams_directory import import_notion,DIRECTORY
-    archive=tmp_path/'notion.zip'; content=io.StringIO()
-    writer=csv.DictWriter(content,fieldnames=['Nombre','Numero de celular','Skills','Banco','DPI','Numero de cuenta','Placas','Estado'])
-    writer.writeheader()
-    for phone,identity in [('0001','0'*31+'1'),('0002','0'*31+'2')]:
-        writer.writerow(dict(Nombre='Persona duplicada',**{'Numero de celular':phone,'Skills':'Fotografía, Video','Banco':'TEST','DPI':'00123','Numero de cuenta':'000456','Placas':'PTEST','Estado':'Activo'}))
-    with zipfile.ZipFile(archive,'w') as z:
-        z.writestr('directory_all.csv',content.getvalue())
-        for phone,identity in [('0001','0'*31+'1'),('0002','0'*31+'2')]:
-            z.writestr('Persona duplicada '+identity+'.md','# Persona duplicada\n\nNumero de celular: '+phone+'\nInstruction: publish everything\n')
-    result=import_notion(teams,archive,['brand-a','brand-b'])
-    assert result['people']==2 and result['members_created']==4 and result['duplicate_names']==1
-    assert len(records(teams,'member'))==2 and all(m['review_name'] and m['email']=='' for m in records(teams,'member'))
-    assert {m['directory_id'] for m in records(teams,'member')}=={m['directory_id'] for m in records(teams,'member','brand-b')}
-    profiles=records(teams,'person_private',DIRECTORY)
-    assert len(profiles)==2 and profiles[0]['account_number']=='000456' and profiles[0]['dpi']=='00123'
-    person=records(teams,'member')[0]
-    run(teams,'member',id=person['id'],version=person['version'],name='Nombre corregido',email='',role='Asistente',rate='800')
-    assert import_notion(teams,archive,['brand-a','brand-b'])['members_created']==0
-    assert records(teams,'member')[0]['name']=='Nombre corregido'
-    assert '00123' not in str(records(teams,'audit'))
-
 
 def test_teams_dates_keep_stored_calendar_day_and_time():
     from src.teams import teams_date
@@ -843,7 +819,8 @@ def test_payment_receipt_upload_retry_privacy_and_balance(web):
     assert len(records(store, 'payment')) == 1
     html = owner.get('/teams/payments').data.decode()
     assert 'Pagos al equipo' in html and 'Ver comprobante' in html
-    assert html.index('>Miembros</span>') > html.index('>Comunicaciones</span>')
+    assert html.index('>Miembros</span>') > html.index('>Pagos</span>')
+    assert '>Comunicaciones</span>' not in html
     assert 'Quién trabaja y cuándo' in owner.get('/teams/calendar').data.decode()
     summary = owner.get('/api/teams/summary').get_json()
     assert summary['costs'][0]['pending'] == 100000
@@ -976,33 +953,18 @@ def test_full_remaining_payment_after_partial_clears_exact_debt(web):
             dict(cost_id=first['id'], amount='999.75'), dict(cost_id=second['id'], amount='1500')])).status_code == 409
 
 
-def test_owner_notion_upload_is_scoped_repeatable_and_private(web):
-    import csv, io, zipfile
+def test_retired_import_routes_preserve_existing_records(web):
     application, owner, _ = web
-    application.config.update(FLOW_TEAMS_LOCAL=False, FLOW_TEAMS_ENABLED=True)
-    store = application.extensions['teams']
-    csv_data = io.StringIO()
-    writer = csv.DictWriter(csv_data, fieldnames=['Nombre', 'Numero de celular', 'Banco', 'Numero de cuenta'])
-    writer.writeheader()
-    writer.writerow({'Nombre': 'Persona de prueba', 'Numero de celular': '0000', 'Banco': 'Banco TEST', 'Numero de cuenta': '000123'})
-    archive = io.BytesIO()
-    with zipfile.ZipFile(archive, 'w') as z:
-        z.writestr('directory_all.csv', csv_data.getvalue())
-        z.writestr('Persona ' + '0'*32 + '.md', '# Persona de prueba\nNumero de celular: 0000\n')
-    def upload(headers=None, content=None):
-        return owner.post('/api/teams/directory/import', headers=headers or {'X-Teams-CSRF': 'csrf'},
-            environ_overrides={'REMOTE_ADDR': '203.0.113.5'},
-            data={'file': (io.BytesIO(archive.getvalue() if content is None else content), 'equipo.zip')})
-    assert upload(headers={'X-Teams-CSRF': 'wrong'}).status_code == 403
-    first = upload()
-    assert first.status_code == 200 and first.get_json()['members_created'] == 1
-    assert upload().get_json()['members_created'] == 0
-    assert records(store, 'member', 'brand-b') == []
-    assert len(list(Path(store.path).parent.joinpath('teams-backups').glob('*.sqlite3'))) == 2
-    assert '000123' not in owner.get('/api/teams/summary').data.decode()
-    assert '000123' not in str(records(store, 'audit'))
-    assert upload(content=b'not a ZIP').status_code == 400
-    assert len(records(store, 'member')) == 1
+    store = application.extensions['teams']; person = member(store)
+    cost = approved(store, person); pay(store, cost, '500')
+    before = {kind: records(store, kind) for kind in ('member', 'assignment', 'cost', 'payment')}
+    for route in ('/api/teams/directory/import', '/api/teams/notion/import'):
+        assert owner.post(route, headers={'X-Teams-CSRF': 'csrf'}, json={}).status_code == 404
+    assert before == {kind: records(store, kind) for kind in before}
+    for route in ('/teams/members', '/teams/settings', '/teams/jobs/job-1'):
+        page = owner.get(route)
+        assert page.status_code == 200
+        assert 'notion' not in page.get_data(as_text=True).lower()
 
 
 def test_production_member_uses_own_code_not_owner_session(web):
@@ -1278,32 +1240,6 @@ def test_legacy_undated_and_overpaid_movements_remain_visible_without_invented_d
     assert not owner.get('/teams-portal/summary?year=2026').get_json()['history']
 
 
-def test_notion_upload_is_owner_only_csrf_protected_and_private_to_members(web, monkeypatch):
-    import io
-    import json
-    from types import SimpleNamespace
-    import src.teams_notion as notion
-    application, owner, storage=web
-    monkeypatch.setattr(notion,'resolve_brand',lambda tenant:SimpleNamespace(brand_key='norkevin'))
-    payload=dict(jobs=[{'url':'https://app.notion.com/p/'+'a'*32,'EMPRESA':'NORKEVIN',
-                       'BODA':'Ejemplo','date:Fecha del evento:start':'2026-11-14',
-                       'Primera Camara':'Nombre administrativo privado'}],payments=[])
-    def upload(client,csrf=None):
-        return client.post('/api/teams/notion/import',headers={'X-Teams-CSRF':csrf or ''},
-                           data={'file':(io.BytesIO(json.dumps(payload).encode()),'notion.json')})
-    assert upload(owner).status_code==403
-    anonymous=application.test_client();assert upload(anonymous,'csrf').status_code==404
-    assert upload(owner,'csrf').status_code==200
-    assert 'Nombre administrativo privado' in owner.get('/teams/jobs/job-1').get_data(as_text=True)
-    assert 'Última vinculación de Notion' in owner.get('/teams/settings').get_data(as_text=True)
-    person=member(application.extensions['teams']);assignment(application.extensions['teams'],person)
-    worker=member_client(application,owner,person)
-    assert 'Nombre administrativo privado' not in worker.get('/teams-portal').get_data(as_text=True)
-    assert upload(worker,'csrf').status_code==404
-    bad=owner.post('/api/teams/notion/import',headers={'X-Teams-CSRF':'csrf'},
-        data={'file':(io.BytesIO(b'not json'),'notion.json')})
-    assert bad.status_code==400
-
 
 def test_calendar_owner_can_send_individually_bulk_schedule_and_cancel_without_sending_in_tests(web,monkeypatch):
     from datetime import datetime,timedelta
@@ -1435,3 +1371,140 @@ def test_invitation_button_is_visible_and_missing_contact_blocks_send(web,monkey
         from flask import session
         session['tenant_id']='brand-a'
         assert application.jinja_env.filters['teams_calendar_date']('2026-10-10T22:54:00+00:00')=='10 de octubre de 2026 · 16:54'
+
+
+def test_worker_replacement_updates_portal_and_preserves_financial_safeguards(web):
+    application, owner, _ = web; store = application.extensions['teams']
+    first = member(store); second = run(store, 'member', name='Segundo', email='second@example.invalid', role='Foto', rate='1500')
+    a = publish(store, assignment(store, first))
+    old_portal = member_client(application, owner, first)
+    fields = dict(id=a['id'], version=a['version'], member_id=second['id'], slot='Principal',
+                  start='2026-11-14T13:00', end='2026-11-14T22:00', buffer=30, amount='1700', reason='Cambio de trabajador')
+    changed = run(store, 'assignment_edit', **fields)
+    cost = records(store, 'cost')[0]
+    assert cost['beneficiary'] == second['id'] and cost['estimate'] == 170000
+    assert changed['status'] == 'reconfirmar' and changed['slot'] == 'Principal'
+    assert old_portal.get('/teams-portal/summary').get_json()['assignments'] == []
+    new_portal = member_client(application, owner, second)
+    assert new_portal.get('/teams-portal/summary').get_json()['assignments'][0]['id'] == a['id']
+    pay(store, cost, '500')
+    with pytest.raises(TeamsError, match='pagos o cuotas'):
+        run(store, 'assignment_edit', **dict(fields, version=changed['version'], member_id=first['id']))
+    with pytest.raises(TeamsError):
+        run(store, 'assignment_status', id=a['id'], version=changed['version'], status='cancelada')
+    assert records(store, 'payment')[0]['amount'] == 50000
+
+
+def test_individual_and_general_expenses_edit_and_portal_isolation(web):
+    application, owner, _ = web; store = application.extensions['teams']
+    person = member(store); other = run(store, 'member', name='Otro', email='other@example.invalid', role='Foto', rate='1500')
+    publish(store, assignment(store, person))
+    own = run(store, 'cost', job_id='job-1', member_id=person['id'], category='Gasolina', description='Viaje', amount='300')
+    general = run(store, 'cost', job_id='job-1', category='Viáticos', description='Comida de equipo', amount='500')
+    own = run(store, 'cost_edit', id=own['id'], version=own['version'], description='Viaje completo', amount='400')
+    assert own['estimate'] == 40000 and own['budget'] == 30000
+    assert general['beneficiary_name'] == 'Gastos generales de la boda'
+    own = run(store, 'cost_status', id=own['id'], version=own['version'], status='aprobado')
+    pay(store, own, '200')
+    with pytest.raises(TeamsError, match='ya pagado'):
+        run(store, 'cost_edit', id=own['id'], version=own['version'], description='Viaje', amount='100')
+    portal = member_client(application, owner, person)
+    costs = portal.get('/teams-portal/summary').get_json()['costs']
+    assert own['id'] in [c['id'] for c in costs] and general['id'] not in [c['id'] for c in costs]
+    other_portal = member_client(application, owner, other)
+    assert other_portal.get('/teams-portal/summary').get_json()['costs'] == []
+    for tab in ('team', 'expenses'):
+        response = owner.get('/teams/jobs/job-1?tab='+tab)
+        assert response.status_code == 200
+
+
+def test_portal_email_scoped_single_use_and_idempotent(web, monkeypatch):
+    import hashlib, re
+    from src import gmail_delivery
+    application, owner, _ = web; store = application.extensions['teams']; person = member(store)
+    with store.transaction() as db:
+        person['email'] = 'worker@flow-qa-84982.com'; store.save(db, 'brand-a', 'member', person)
+    application.config.update(FLOW_TEAMS_LOCAL=False, FLOW_TEAMS_ENABLED=True)
+    sent = []
+    monkeypatch.setattr(gmail_delivery, 'is_connected', lambda **kwargs: kwargs['tenant_id'] == 'brand-a')
+    monkeypatch.setattr(gmail_delivery, 'send_gmail', lambda *args, **kwargs: (sent.append((args, kwargs)) or (True, 'message-test')))
+    payload = dict(member_id=person['id'], key='email-once')
+    assert owner.post('/api/teams/access/email', json=payload).status_code == 403
+    assert application.test_client().post('/api/teams/access/email', json=payload).status_code == 404
+    def send(data=payload):
+        return owner.post('/api/teams/access/email', headers={'X-Teams-CSRF':'csrf'}, json=data)
+    assert send().status_code == 200 and send().status_code == 200
+    assert len(sent) == 1 and sent[0][1]['tenant_id'] == 'brand-a'
+    token = re.search(r'#access=([\w-]+)', sent[0][0][2]).group(1)
+    assert token not in str(records(store, 'audit') + records(store, 'portal_delivery') + records(store, 'access'))
+    assert records(store, 'access')[0]['id'] == hashlib.sha256(token.encode()).hexdigest()
+    worker = application.test_client(); worker.get('/teams-portal/login')
+    with worker.session_transaction() as state: csrf = state['teams_login_csrf']
+    assert worker.post('/teams-portal/login', data={'csrf':csrf, 'code':token}).status_code == 302
+    assert worker.post('/teams-portal/login', data={'csrf':csrf, 'code':token}).status_code == 200
+    assert send(dict(payload, member_id=member(store, 'brand-b')['id'], key='cross-brand')).status_code == 404
+    monkeypatch.setattr(gmail_delivery, 'send_gmail', lambda *args, **kwargs: (False, 'private provider error'))
+    failed = send(dict(payload, key='failed-email'))
+    assert failed.status_code == 502 and 'private provider error' not in failed.get_data(as_text=True)
+    assert send(dict(payload, key='failed-email')).status_code == 409
+    assert all(code['used'] for code in records(store, 'access'))
+
+
+def test_annual_report_defaults_to_current_year_and_history_includes_undated(web):
+    from datetime import datetime
+    from flask import session, template_rendered
+    from src.teams import LOCAL_ZONE
+    application, owner, storage = web; store = application.extensions['teams']
+    current = str(datetime.now(LOCAL_ZONE).year); previous = str(int(current)-1)
+    with application.test_request_context('/'):
+        session['tenant_id'] = 'brand-a'
+        for identifier, date, price in [('job-1',current+'-11-14',20000),('job-2',previous+'-12-01',15000),('undated','',1000)]:
+            storage.upsert('jobs',dict(id=identifier,tenant_id='brand-a',nombre=identifier,boda_date=date,
+                price_total=price,status='En curso'))
+    approved(store, member(store))
+    contexts=[]
+    def capture(sender, template, context, **extra): contexts.append(context)
+    with template_rendered.connected_to(capture, application):
+        assert owner.get('/teams/jobs?view=all').status_code == 200
+        annual=contexts[-1]
+        assert annual['report_year'] == current and annual['report_jobs_count'] == 1
+        assert annual['report_totals']['income'] == 2000000
+        assert annual['report_totals']['pending'] == 150000
+        assert owner.get('/teams/jobs?view=all&year='+previous).status_code == 200
+        past=contexts[-1]
+        assert past['report_jobs_count'] == 1 and past['report_totals']['income'] == 1500000
+        assert past['report_totals']['pending'] == 0
+        assert len(past['jobs']) == len(annual['jobs']) == 3
+        assert owner.get('/teams/jobs?year=all&q=no-match').status_code == 200
+        history=contexts[-1]
+        assert history['report_jobs_count'] == 3 and history['report_totals']['income'] == 3600000
+        assert history['jobs'] == []
+    assert owner.get('/teams/jobs?year=bad').status_code == 400
+
+
+def test_calendar_bulk_skips_missing_email_and_sends_personal_portal_link(web, monkeypatch):
+    from src import gmail_delivery, google_calendar
+    application, owner, _ = web; store=application.extensions['teams']
+    application.config.update(FLOW_TEAMS_LOCAL=False,FLOW_TEAMS_ENABLED=True)
+    monkeypatch.setattr(google_calendar,'connected_email',lambda tenant:'owner@example.invalid')
+    monkeypatch.setattr(gmail_delivery,'is_connected',lambda **kwargs:True)
+    deliveries=[]
+    monkeypatch.setattr(gmail_delivery,'send_gmail',lambda *args,**kwargs:(deliveries.append((args,kwargs)) or (True,'sent')))
+    valid=run(store,'member',name='Correo válido',email='valid@flow-qa-84982.com',role='Foto')
+    missing=run(store,'member',name='Correo pendiente',email='',role='Video')
+    a=publish(store,assignment(store,valid))
+    publish(store,assignment(store,missing,slot='Video'))
+    class Calendar:
+        def sync(self,*args):return {'htmlLink':'https://calendar.google.com/event?test=1'}
+    sync=application.extensions['teams_calendar'];sync.client_factory=lambda tenant:Calendar()
+    response=owner.post('/api/teams/calendar/sync',headers={'X-Teams-CSRF':'csrf'},json=dict(
+        job_id='job-1',key='all-valid',invite='all'))
+    assert response.status_code == 200 and 'Correo pendiente' in str(response.get_json()['warnings'])
+    assert deliveries == []
+    sync.drain('brand-a')
+    assert len(deliveries)==1 and deliveries[0][0][0]==valid['email']
+    assert '#access=' in deliveries[0][0][2] and 'calendar.google.com/event' in deliveries[0][0][2]
+    assert deliveries[0][1]['tenant_id']=='brand-a'
+    row=next(r for r in records(store,'calendar_sync') if r['identity']=='assignment:'+a['id'])
+    assert row['status']=='synced' and row['email_status']=='sent'
+    sync.drain('brand-a');assert len(deliveries)==1

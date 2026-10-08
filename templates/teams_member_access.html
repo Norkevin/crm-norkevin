@@ -1,5 +1,6 @@
 <section class="ft-panel ft-personal-access" data-personal-access data-member-name="{{ member.name }}" data-brand-name="{{ current_tenant.name }}">
 <div class="ft-section-title"><div><h2>Portal y acceso personal</h2><p class="ft-muted">Un acceso para sus coberturas en {{ current_tenant.name }}.</p></div><a class="sn-btn" href="{{ url_for('teams.preview',member_id=member.id) }}">Ver portal</a></div>
+<form data-command="access_email" data-endpoint="/api/teams/access/email"><input type="hidden" name="member_id" value="{{ member.id }}"><button class="sn-btn sn-btn-primary" {{ 'disabled' if not member.email or not member.active else '' }}>Enviar acceso por correo</button><p class="ft-muted">{{ member.email or 'Añade primero el correo del trabajador en Miembros.' }}</p></form>
 <p>Genera un enlace privado para compartirlo. El código de entrada se usa una vez y caduca en 24 horas; las sesiones existentes se conservan.</p>
 <div class="ft-actions ft-wrap"><button class="sn-btn sn-btn-primary" type="button" data-access="{{ member.id }}">Crear enlace personal</button><button class="sn-btn" type="button" data-copy-access disabled>Copiar enlace personal</button><button class="sn-btn" type="button" data-share-access disabled>Compartir enlace</button></div>
 <output class="ft-access-code" data-access-output="{{ member.id }}" hidden></output>

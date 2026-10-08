@@ -10,7 +10,7 @@
   async function send(data, button, source) {
     if (button.disabled) return;
     const file = source.elements?.file?.files[0];
-    const fileLimit = source.dataset.command === 'directory_import' ? 20 : source.dataset.command === 'notion_import' ? 4 : 10;
+    const fileLimit = 10;
     if (file && file.size > fileLimit * 1024 * 1024) { showError(`El archivo supera ${fileLimit} MB.`); return; }
     const key = source.dataset.commandKey || crypto.randomUUID();
     const body = JSON.stringify({...data, key});
@@ -42,8 +42,10 @@
       const response = await fetch(endpoint, {method: 'POST', headers, body: payload});
       const result = await response.json();
       if (!response.ok) {
-        delete source.dataset.commandKey;
-        delete source.dataset.commandBody;
+        if (response.status < 500 || data.action !== 'access_email') {
+          delete source.dataset.commandKey;
+          delete source.dataset.commandBody;
+        }
         throw new Error(result.error || 'No se pudo guardar. Recarga y comprueba tu sesión.');
       }
       if (result.warnings?.length) sessionStorage.setItem('flow-teams-message', result.warnings.join(' '));
@@ -132,6 +134,7 @@
     });
   });
   document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => {
+    if (button.dataset.confirm && !window.confirm(button.dataset.confirm)) return;
     const data = {action: button.dataset.action, id: button.dataset.id, version: Number(button.dataset.version)};
     if (button.dataset.status) data.status = button.dataset.status;
     send(data, button, button);

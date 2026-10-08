@@ -133,7 +133,7 @@ class TeamsStore:
         end = datetime.fromisoformat(end) + timedelta(minutes=buffer)
         conflicts = []
         for a in self.records(db, tenant, 'assignment'):
-            if a['id'] == exclude or a['member_id'] != member_id or a['status'] == 'cancelada':
+            if a['id'] == exclude or a['member_id'] != member_id or a['status'] in ('cancelada', 'rechazada'):
                 continue
             other_start = datetime.fromisoformat(a['start']) - timedelta(minutes=a['buffer'])
             other_end = datetime.fromisoformat(a['end']) + timedelta(minutes=a['buffer'])
@@ -164,7 +164,7 @@ class TeamsStore:
             def guarded_job_reader(identifier):
                 job = original_reader(identifier)
                 protected = ('assignment', 'assignment_status', 'assignment_publish', 'assignment_edit', 'cost',
-                             'cost_status', 'operation', 'advance', 'settlement', 'expense_review', 'cost_shared', 'schedule')
+                             'cost_status', 'cost_edit', 'operation', 'advance', 'settlement', 'expense_review', 'cost_shared', 'schedule')
                 if action in protected and any(o['job_id'] == identifier and o.get('closed') for o in self.records(db, tenant, 'operation')):
                     raise TeamsError('La operación está cerrada. Reábrela con un motivo antes de cambiar sus costos o coberturas.', 409)
                 return job
@@ -228,7 +228,7 @@ class TeamsStore:
                         raise ValueError
                 except (ValueError, KeyError, TypeError):
                     raise TeamsError('Revisa inicio, fin y margen de traslado. El fin debe ser posterior al inicio.')
-                slot = text(data, 'slot', maximum=100)
+                slot = text(data, 'slot', required=False, maximum=100) or (text(data, 'role', maximum=100) + ' · ' + member['name'])[:100]
                 if any(a['job_id'] == job['id'] and a['slot'].casefold() == slot.casefold()
                        and a['status'] not in ('cancelada', 'rechazada') for a in self.records(db, tenant, 'assignment')):
                     raise TeamsError('Esta plaza ya tiene una asignación. Usa otra plaza o cancela la anterior.', 409)
@@ -286,7 +286,7 @@ class TeamsStore:
                     member = self.get(db, tenant, 'member', member_id)
                     beneficiary, name = member['id'], member['name']
                 else:
-                    name = text(data, 'beneficiary_name', maximum=150)
+                    name = text(data, 'beneficiary_name', required=False, maximum=150) or 'Gastos generales de la boda'
                     beneficiary = 'supplier:' + name.casefold()
                 due = text(data, 'due_date', required=False)
                 if due:
@@ -296,6 +296,26 @@ class TeamsStore:
                                      beneficiary_name=name, budget=amount, estimate=amount, final=None,
                                      status='estimado', due_date=due, currency='GTQ')
                 self.invalidate(db, tenant, job['id'])
+            elif action == 'cost_edit':
+                record = self.get(db, tenant, 'cost', text(data, 'id'))
+                job_reader(record['job_id'])
+                self.check_version(record, data)
+                before = dict(record)
+                if record.get('assignment_id') or record['status'] not in ('estimado', 'aprobado'):
+                    raise TeamsError('Solo se editan gastos pendientes. Los honorarios se editan desde el trabajador.')
+                amount = cents(data.get('amount'))
+                if amount < self.paid(db, tenant, record['id']):
+                    raise TeamsError('El gasto no puede quedar debajo de lo ya pagado.')
+                if record.get('schedule_id'):
+                    plan = self.get(db, tenant, 'schedule', record['schedule_id'])
+                    if sum(p['amount'] for p in plan['plan']) != amount:
+                        raise TeamsError('El gasto debe coincidir con sus cuotas.')
+                due = text(data, 'due_date', required=False)
+                if due:
+                    day(due)
+                record.update(description=text(data, 'description', maximum=300), estimate=amount, due_date=due)
+                self.save(db, tenant, 'cost', record)
+                self.invalidate(db, tenant, record['job_id'])
             elif action == 'cost_status':
                 record = self.get(db, tenant, 'cost', text(data, 'id'))
                 job_reader(record['job_id'])
@@ -461,9 +481,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             abort(403)
         if request.method == 'POST':
             from src.teams_features import MAX_FILE_BYTES
-            limit = (21 * 1024 * 1024 if request.endpoint == 'teams.directory_import' else
-                     MAX_FILE_BYTES + 1024 * 1024 if request.endpoint in ('teams.upload', 'teams.payment_upload') else
-                     4 * 1024 * 1024 + 65536 if request.endpoint == 'teams.notion_import' else 65536)
+            limit = MAX_FILE_BYTES + 1024 * 1024 if request.endpoint in ('teams.upload', 'teams.payment_upload') else 65536
             if request.content_length is not None and request.content_length > limit:
                 abort(413)
             token = session.get('teams_csrf')
@@ -490,6 +508,16 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         commercial = financial_summary(job, [p for p in crm_store.list('payments') if p.get('job_id') == identifier and p.get('tipo') != 'team_payment'])
         return dict(job, reference_income_cents=cents(commercial['total'], imported=True))
 
+    def job_totals(report_jobs):
+        totals = {key: sum(j[key] for j in report_jobs) for key in ('income', 'cost_total', 'margin', 'pending', 'paid')}
+        eligible = [j for j in report_jobs if j['configured'] and j['income'] and j.get('status') not in ('Cancelado', 'Archivado')]
+        totals['margin'] = sum(j['margin'] for j in eligible)
+        totals['margin_income'] = sum(j['income'] for j in eligible)
+        totals['margin_events'] = len(eligible)
+        totals['percent'] = round(totals['margin'] * 100 / totals['margin_income'], 1) if totals['margin_income'] else None
+        totals['incomplete'] = sum(j['incomplete'] for j in report_jobs)
+        return totals
+
     def snapshot(year=None, *, active_only=False):
         from src.teams_calendar import valid_invitation_email
         tenant = session['tenant_id']
@@ -502,7 +530,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             operations = database.records(db, tenant, 'operation')
             audit = database.records(db, tenant, 'audit')
             extra = {kind: database.records(db, tenant, kind) for kind in (
-                'document', 'receipt', 'notice', 'task', 'expense_request', 'availability', 'advance', 'settlement', 'report', 'config', 'schedule', 'job_classification', 'job_source', 'notion_report', 'calendar_sync')}
+                'document', 'receipt', 'notice', 'task', 'expense_request', 'availability', 'advance', 'settlement', 'report', 'config', 'schedule', 'job_classification', 'calendar_sync')}
             from src.teams_features import advance_balance, clean
             for advance in extra['advance']:
                 advance['remaining'] = advance_balance(database, db, tenant, advance)
@@ -569,7 +597,6 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             j['incomplete'] = not j['income'] or not j['reviewed'] or bool(commercial['descuadre_cotizado_vs_cuotas'])
             j['assignments'] = [a for a in assignments if a['job_id'] == j['id'] and a['status'] not in ('cancelada', 'rechazada')]
             classification = next((r for r in extra['job_classification'] if r['job_id'] == j['id']), {})
-            j['notion_context'] = next((r for r in extra['job_source'] if r['job_id']==j['id']), None)
             j['teams_state'] = classification.get('state', 'included')
             j['classification_version'] = classification.get('version', 0)
             j['teams_phase'] = job_phase(j, j['assignments'], today)
@@ -594,19 +621,13 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         visible_jobs = [j for j in jobs if (not active_only or j['es_activo'])
                         and (not year or str(j.get('boda_date', '')).startswith(year + '-'))]
         visible_payments = [p for p in payments if not year or p['effective_date'].startswith(year + '-')]
-        totals = {key: sum(j[key] for j in visible_jobs) for key in ('income', 'cost_total', 'margin', 'pending', 'paid')}
+        totals = job_totals(visible_jobs)
         totals['cash_out'] = sum(p['amount'] * p['sign'] for p in visible_payments)
-        eligible = [j for j in visible_jobs if j['configured'] and j['income'] and j.get('status') not in ('Cancelado', 'Archivado')]
-        totals['margin'] = sum(j['margin'] for j in eligible)
-        totals['margin_income'] = sum(j['income'] for j in eligible)
-        totals['margin_events'] = len(eligible)
-        totals['percent'] = round(totals['margin'] * 100 / totals['margin_income'], 1) if totals['margin_income'] else None
-        totals['incomplete'] = sum(j['incomplete'] for j in visible_jobs)
         return dict(jobs=visible_jobs, members=members, assignments=assignments, costs=costs,
                     payments=[clean(p) for p in visible_payments], operations=operations, audit=audit[-50:][::-1], totals=totals,
                     documents=extra['document'], receipts=extra['receipt'], notices=extra['notice'], tasks=extra['task'],
                     expense_requests=[clean(r) for r in extra['expense_request']], availability=extra['availability'], advances=extra['advance'],
-                    reports=extra['report'], notion_report=extra['notion_report'], calendar_sync=extra['calendar_sync'], team_config=next(iter(extra['config']), {}),
+                    reports=extra['report'], calendar_sync=extra['calendar_sync'], team_config=next(iter(extra['config']), {}),
                     role_options=list(dict.fromkeys(r.strip() for r in
                         next(iter(extra['config']), {}).get('roles', DEFAULT_ROLES).splitlines() if r.strip())))
 
@@ -620,49 +641,6 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
     @blueprint.route('/api/teams/summary')
     def summary():
         return jsonify(snapshot())
-
-    @blueprint.route('/api/teams/notion/import', methods=['POST'])
-    def notion_import():
-        from src.teams_notion import import_snapshot
-        upload = request.files.get('file')
-        if not upload:
-            raise TeamsError('Selecciona el archivo de información de Notion.')
-        content = upload.read(4 * 1024 * 1024 + 1)
-        if len(content) > 4 * 1024 * 1024:
-            raise TeamsError('El archivo supera 4 MB.')
-        try:
-            payload = json.loads(content)
-        except (UnicodeError, ValueError):
-            raise TeamsError('El archivo no contiene información JSON válida.')
-        # Tenant-scoped source context is administrative; it never publishes to a member.
-        return jsonify(import_snapshot(database, session['tenant_id'], canonical_jobs(), payload, session['user_email']))
-
-    @blueprint.route('/api/teams/directory/import', methods=['POST'])
-    def directory_import():
-        import tempfile
-        import zipfile
-        from src.teams_directory import import_notion
-        upload = request.files.get('file')
-        if not upload:
-            raise TeamsError('Selecciona el ZIP exportado de Notion.')
-        content = upload.stream.read(20 * 1024 * 1024 + 1)
-        if len(content) > 20 * 1024 * 1024:
-            raise TeamsError('El ZIP supera 20 MB.')
-        # Import only the logged-in brand. The source never goes into Git or a public URL.
-        backup = Path(database.path).parent / 'teams-backups'
-        backup.mkdir(mode=0o700, exist_ok=True)
-        backup_file = backup / ('before-import-' + secrets.token_hex(8) + '.sqlite3')
-        with sqlite3.connect(database.path) as source, sqlite3.connect(backup_file) as destination:
-            source.backup(destination)
-        backup_file.chmod(0o600)
-        with tempfile.NamedTemporaryFile(suffix='.zip', dir=Path(database.path).parent) as source_file:
-            source_file.write(content)
-            source_file.flush()
-            try:
-                result = import_notion(database, source_file.name, [session['tenant_id']])
-            except (ValueError, zipfile.BadZipFile, UnicodeError, KeyError):
-                raise TeamsError('El archivo no es una exportación válida del directorio de Notion.')
-        return jsonify(ok=True, **result)
 
     @blueprint.route('/teams/members/<member_id>')
     def member_private(member_id):
@@ -706,7 +684,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         if section not in ('dashboard', 'jobs', 'members', 'payments', 'calendar', 'roadmap', 'communications', 'settings'):
             abort(404)
         year = request.args.get('year', '')
-        if year and (len(year) != 4 or not year.isdigit()):
+        if year and not (year == 'all' and section in ('jobs', 'dashboard')) and (len(year) != 4 or not year.isdigit()):
             abort(400)
         if section == 'dashboard':
             section = 'jobs'
@@ -717,6 +695,11 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         if view not in ('upcoming', 'past', 'archived', 'not_applicable', 'all') or len(query) > 200:
             abort(400)
         if section == 'jobs' and not job_id:
+            report_year = year or str(datetime.now(teams_zone(crm_store, session['tenant_id'])).year)
+            report_jobs = [j for j in data['jobs'] if report_year == 'all' or str(j.get('boda_date') or '').startswith(report_year + '-')]
+            data.update(report_year=report_year, report_years=sorted({str(j['boda_date'])[:4] for j in data['jobs']
+                        if j.get('boda_date')} | {str(datetime.now(LOCAL_ZONE).year)} | ({report_year} if report_year != 'all' else set()), reverse=True),
+                        report_totals=job_totals(report_jobs), report_jobs_count=len(report_jobs))
             def in_view(job):
                 if view == 'all':
                     return True
