@@ -1,10 +1,11 @@
 """Shareable, write-only team registration; private payment data stays in the directory."""
+import base64
 import hashlib
 import json
 import re
 import secrets
 from datetime import datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from flask import Blueprint, abort, jsonify, redirect, render_template, request, session, url_for
 from itsdangerous import BadData, URLSafeSerializer
@@ -20,6 +21,10 @@ FIELDS = {
     'account_number': ('Número de cuenta', 150, False), 'account_holder': ('Titular de la cuenta', 150, False),
 }
 BANK_FIELDS = ('bank', 'account_type', 'account_number', 'account_holder')
+
+
+def enrollment_code(identifier):
+    return base64.urlsafe_b64encode(UUID(identifier).bytes).decode().rstrip('=')
 
 
 def register_enrollment(app, owner, store, crm_store):
@@ -41,7 +46,7 @@ def register_enrollment(app, owner, store, crm_store):
                         old['active'] = False
                         store.save(db, tenant, 'enrollment_link', old)
                 link = store.create(db, tenant, 'enrollment_link', active=True, created_at=now())
-        token = signer.dumps(dict(tenant=tenant, id=link['id']))
+        token = enrollment_code(link['id'])
         return jsonify(ok=True, url=url_for('teams_enrollment.form', token=token, _external=True))
 
     @public.before_request
@@ -60,16 +65,28 @@ def register_enrollment(app, owner, store, crm_store):
         return response
 
     @public.route('/teams/join/<token>', methods=['GET', 'POST'])
+    @public.route('/equipo/<token>', methods=['GET', 'POST'])
     def form(token):
         try:
-            identity = signer.loads(token)
-            tenant, link_id = identity['tenant'], identity['id']
             with store.transaction() as db:
+                if request.path.startswith('/equipo/'):
+                    if not re.fullmatch(r'[A-Za-z0-9_-]{22}', token):
+                        abort(404)
+                    link_id = str(UUID(bytes=base64.urlsafe_b64decode(token + '==')))
+                    if enrollment_code(link_id) != token:
+                        abort(404)
+                    row = db.execute("SELECT tenant FROM entities WHERE kind='enrollment_link' AND id=?", (link_id,)).fetchone()
+                    if not row:
+                        abort(404)
+                    tenant = row['tenant']
+                else:
+                    identity = signer.loads(token)
+                    tenant, link_id = identity['tenant'], identity['id']
                 link = store.get(db, tenant, 'enrollment_link', link_id)
             brand = crm_store.get('tenants', tenant)
             if not link['active'] or not brand or brand.get('active') is False:
                 abort(404)
-        except (BadData, KeyError, TypeError, TeamsError):
+        except (BadData, KeyError, TypeError, ValueError, TeamsError):
             abort(404)
         session.setdefault('teams_enrollment_csrf', secrets.token_urlsafe(32))
         values, error, status = {}, '', 200
@@ -134,7 +151,7 @@ def register_enrollment(app, owner, store, crm_store):
                         store.save(db, tenant, 'enrollment_attempt', attempt)
                         store.create(db, tenant, 'audit', action='member_enrollment', actor='Formulario de registro',
                                      created_at=stamp, before=None, after=dict(id=person['id']))
-                return redirect(url_for('teams_enrollment.form', token=token, submitted='1'), code=303)
+                return redirect(url_for('teams_enrollment.form', token=enrollment_code(link_id), submitted='1'), code=303)
             except TeamsError as exc:
                 error, status = exc.message, exc.status
         return render_template('teams_enrollment.html', brand=brand, error=error, values=values,

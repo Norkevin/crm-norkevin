@@ -152,3 +152,31 @@ def test_enrollment_registration_limit(enrollment):
         store.save(db, 'brand-a', 'enrollment_attempt', attempt)
     assert visitor.post(path, data=dict(data, submission=str(uuid4()), email='another@example.invalid')).status_code == 429
     assert len(records(store, 'member')) == 1
+
+
+def test_short_enrollment_link_preserves_legacy_links_and_rotation(enrollment):
+    from itsdangerous import URLSafeSerializer
+    app, owner, store, visitor, path, data = enrollment
+    assert re.fullmatch(r'/equipo/[A-Za-z0-9_-]{22}', path)
+    link = records(store, 'enrollment_link')[0]
+    legacy_token = URLSafeSerializer(app.secret_key, salt='teams-enrollment').dumps(dict(tenant='brand-a', id=link['id']))
+    legacy_path = '/teams/join/' + legacy_token
+    assert visitor.get(legacy_path).status_code == 200
+    response = visitor.post(legacy_path, data=data)
+    assert response.status_code == 303 and response.headers['Location'] == path + '?submitted=1'
+    assert visitor.post(path, data=data).status_code == 303
+    assert len(records(store, 'member')) == 1
+    owner.post('/api/teams/enrollment-link', json={'renew': True}, headers={'X-Teams-CSRF': 'csrf'})
+    assert visitor.get(path).status_code == visitor.get(legacy_path).status_code == 404
+
+
+def test_short_enrollment_link_rejects_unknown_and_noncanonical_codes(enrollment):
+    from src.teams_enrollment import enrollment_code
+    app, owner, store, visitor, path, data = enrollment
+    assert visitor.get('/equipo/' + enrollment_code(str(uuid4()))).status_code == 404
+    code = path.rsplit('/', 1)[-1]
+    alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+    alias = code[:-1] + alphabet[alphabet.index(code[-1]) + 1]
+    assert visitor.get('/equipo/' + alias).status_code == 404
+    for invalid in ('short', 'A' * 23, '!' * 22):
+        assert visitor.get('/equipo/' + invalid).status_code == 404
