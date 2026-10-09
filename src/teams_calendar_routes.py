@@ -1,5 +1,6 @@
 """Owner Calendar controls; Google consent remains an explicit owner action."""
 from datetime import datetime, timedelta, timezone
+import hashlib
 import os
 import secrets
 
@@ -42,7 +43,7 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
             if member.get('email') not in [a.get('email') for a in record['event'].get('attendees',[])]:
                 raise TeamsError('El correo cambió. Revisa la ficha y vuelve a enviar la invitación.')
         return send_portal_email(database,tenant,member,os.environ.get('APP_BASE_URL','https://flowingcrm.com'),
-                                 'Invitación de Teams',event=record['event'],calendar_url=record.get('html_url',''))
+                                 'Invitación de Teams',event=record['event'],calendar_url=record.get('html_url',''),job_id=assignment['job_id'])
     sync.send_invitation_email=send_invitation_email
     def reconcile_tenant(tenant):
         # Reuse the CRM's explicit tenant context, also used by workflow workers.
@@ -120,12 +121,15 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
             raise TeamsError('La boda necesita una fecha y estar activa en el CRM.')
         invite=data.get('invite','none')
         if invite not in ('none','all','individual'):raise TeamsError('Revisa los destinatarios.')
+        publish_draft = data.get('publish') in (True, 'true')
+        if publish_draft and invite != 'individual':
+            raise TeamsError('Selecciona una persona para publicar y enviar su invitación.')
         ids=[]
         skipped=[]
         if invite!='none':
             with database.transaction() as db:
                 eligible=[a for a in database.records(db,session['tenant_id'],'assignment') if a['job_id']==job['id']
-                    and a['status'] in VISIBLE_ASSIGNMENTS and a['job_day']==job['boda_date']]
+                    and (a['status'] in VISIBLE_ASSIGNMENTS or (publish_draft and a['status']=='borrador')) and a['job_day']==job['boda_date']]
                 if invite=='individual':eligible=[a for a in eligible if a['id']==data.get('assignment_id')]
                 if not eligible:raise TeamsError('Comparte primero una cobertura vigente para los destinatarios.')
                 from src.teams_calendar import valid_invitation_email
@@ -149,7 +153,13 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
             except (ValueError,TypeError):raise TeamsError('Elige una fecha y hora futuras, dentro del próximo año y antes de terminar las coberturas.')
         from src.teams import text
         delivery_key=text(data,'key',maximum=100)
-        queued=enqueue(job,include_new=True,invite_ids=ids,send_at=send_at,delivery_key=delivery_key)
+        if publish_draft and eligible[0]['status'] == 'borrador':
+            try: version = int(data.get('version', 0))
+            except (TypeError, ValueError): raise TeamsError('Recarga la ficha antes de enviar.')
+            database.command(session['tenant_id'], session['user_email'], dict(
+                action='assignment_publish', key=hashlib.sha256((delivery_key+':publish').encode()).hexdigest(),
+                id=eligible[0]['id'], version=version), read_job)
+        queued=enqueue(job,include_new=True,invite_ids=ids,send_at=send_at,delivery_key=delivery_key,skip_unchanged=True)
         return jsonify(ok=True,record=dict(queued=queued),warnings=[
             ('Sin cambios por enviar.' if not queued else 'Envío programado. La hora corresponde a esta empresa.' if send_at else 'Sincronización en cola. Google enviará las invitaciones al procesarla.')
             + ' Revisa el estado de Calendar y correo en cada trabajador.'

@@ -1362,7 +1362,7 @@ def test_invitation_button_is_visible_and_missing_contact_blocks_send(web,monkey
         return html,document.invites
     html,buttons=page()
     assert buttons and buttons[0][0]==0 and 'disabled' in buttons[0][1]
-    assert 'Enviar invitación por correo' in html
+    assert 'Enviar invitación y acceso' in html
     assert f'/teams/members#member-{person["id"]}' in html
     with store.transaction() as db:
         person['email']='photo@flow-qa-84982.com';store.save(db,'brand-a','member',person)
@@ -1503,11 +1503,17 @@ def test_calendar_bulk_skips_missing_email_and_sends_personal_portal_link(web, m
     assert deliveries == []
     sync.drain('brand-a')
     assert len(deliveries)==1 and deliveries[0][0][0]==valid['email']
-    assert '#access=' in deliveries[0][0][2] and 'calendar.google.com/event' in deliveries[0][0][2]
+    assert '#invite=' in deliveries[0][0][2] and 'calendar.google.com/event' in deliveries[0][0][2]
     assert deliveries[0][1]['tenant_id']=='brand-a'
     row=next(r for r in records(store,'calendar_sync') if r['identity']=='assignment:'+a['id'])
     assert row['status']=='synced' and row['email_status']=='sent'
     sync.drain('brand-a');assert len(deliveries)==1
+    history=records(store,'team_mail')
+    assert len(history)==2 and {r['channel'] for r in history}=={'calendar','gmail'}
+    assert all(r['job_id']=='job-1' and '#invite=' not in r['body'] for r in history)
+    assert 'No necesitas contraseña' in row['event']['description']
+    assert valid['email'] in row['event']['description']
+    assert 'Correos del equipo' in owner.get('/teams/jobs/job-1').get_data(as_text=True)
 
 
 def test_calendar_acceptance_is_displayed_separately_from_portal(web):
@@ -1566,3 +1572,107 @@ def test_honorarium_deadline_is_thirty_days_and_applies_to_existing_records(web)
     cost=records(store,'cost')[0]
     with pytest.raises(TeamsError,match='30 días'):
         run(store,'schedule',cost_id=cost['id'],version=cost['version'],plan='2026-12-15 1500')
+
+
+def test_calendar_portal_link_reusable_revocable_and_scoped(web):
+    from src.teams_calendar import portal_token
+    application, owner, storage = web
+    store = application.extensions['teams']
+    person = member(store); coverage = publish(store, assignment(store, person))
+    token = portal_token(application.secret_key, 'brand-a', person, coverage)
+    visitor = application.test_client()
+    assert visitor.get('/teams-portal/login').status_code == 200
+    with visitor.session_transaction() as session:
+        assert not session.get('teams_member_id')
+        csrf = session['teams_login_csrf']
+    assert visitor.post('/teams-portal/login', data={'code': token}).status_code == 403
+    for _ in range(2):
+        result = visitor.post('/teams-portal/login', data={'code': token, 'csrf': csrf})
+        assert result.status_code == 302 and 'job_id=job-1' in result.location
+    assert visitor.get('/teams-portal/summary?job_id=job-1').status_code == 200
+    assert visitor.get('/teams-portal/summary?job_id=job-2').status_code == 404
+    with store.transaction() as db:
+        current = store.get(db, 'brand-a', 'member', person['id'])
+        current['access_version'] = 2
+        store.save(db, 'brand-a', 'member', current)
+    assert visitor.get('/teams-portal/summary').status_code == 403
+    fresh = application.test_client(); fresh.get('/teams-portal/login')
+    with fresh.session_transaction() as session: csrf = session['teams_login_csrf']
+    assert fresh.post('/teams-portal/login', data={'code': token, 'csrf': csrf}).status_code == 200
+    with fresh.session_transaction() as session: assert not session.get('teams_member_id')
+
+
+@pytest.mark.parametrize('invalid', ['tampered','expired','inactive','reassigned','cancelled','email','tenant','job'])
+def test_calendar_portal_rejects_invalid_access(web, invalid):
+    from src.teams_calendar import portal_token
+    from itsdangerous import URLSafeSerializer
+    application, owner, storage = web; store = application.extensions['teams']
+    person = member(store); coverage = publish(store, assignment(store, person))
+    token = portal_token(application.secret_key, 'brand-a', person, coverage)
+    signer = URLSafeSerializer(application.secret_key, salt='teams-calendar-portal')
+    if invalid == 'tampered': token += 'x'
+    if invalid in ('expired', 'tenant'):
+        fields = signer.loads(token)
+        fields.update({'expires': 0} if invalid == 'expired' else {'tenant': 'brand-b'})
+        token = signer.dumps(fields)
+    if invalid == 'job':
+        with application.test_request_context('/'):
+            from flask import session
+            session['tenant_id'] = 'brand-a'
+            job = storage.get('jobs', 'job-1'); job['status'] = 'Cancelado'; storage.upsert('jobs', job)
+    with store.transaction() as db:
+        if invalid in ('inactive','email'):
+            person.update({'active':False} if invalid == 'inactive' else {'email':'changed@flow-qa-84982.com'})
+            store.save(db,'brand-a','member',person)
+        if invalid in ('reassigned','cancelled'):
+            coverage.update({'member_id':'someone-else'} if invalid == 'reassigned' else {'status':'cancelada'})
+            store.save(db,'brand-a','assignment',coverage)
+    visitor=application.test_client();visitor.get('/teams-portal/login')
+    with visitor.session_transaction() as session: csrf=session['teams_login_csrf']
+    result=visitor.post('/teams-portal/login',data={'code':token,'csrf':csrf})
+    assert result.status_code == 200 and 'Código inválido' in result.get_data(as_text=True)
+    with visitor.session_transaction() as session: assert not session.get('teams_member_id')
+
+
+def test_team_mail_history_scoped_escaped_and_failure_visible(web, monkeypatch):
+    from src import gmail_delivery
+    from src.teams_mail import send_portal_email
+    application,owner,_=web;store=application.extensions['teams']
+    person=run(store,'member',name='Equipo',email='worker@flow-qa-84982.com',role='Foto')
+    monkeypatch.setattr(gmail_delivery,'is_connected',lambda **kw:True)
+    monkeypatch.setattr(gmail_delivery,'send_gmail',lambda *args,**kw:(False,'private provider error'))
+    with pytest.raises(TeamsError):
+        send_portal_email(store,'brand-a',person,'https://flowingcrm.com','owner',job_id='job-1',
+                          event={'summary':'<script>alert(1)</script>','description':'Contenido para el equipo'})
+    rows=records(store,'team_mail')
+    assert len(rows)==1 and rows[0]['status']=='failed' and '#access=' not in rows[0]['body']
+    assert 'private provider error' not in str(rows)
+    html=owner.get('/teams/jobs/job-1').get_data(as_text=True)
+    assert 'Contenido para el equipo' in html and 'Envío no confirmado' in html
+    assert '<script>alert(1)</script>' not in html and '&lt;script&gt;' in html
+    assert 'Contenido para el equipo' not in owner.get('/teams/jobs/job-2').get_data(as_text=True)
+    with owner.session_transaction() as session:
+        session['tenant_id']='brand-b';session['user_email']='other@example.invalid'
+    assert 'Contenido para el equipo' not in owner.get('/teams/jobs/job-1').get_data(as_text=True)
+
+
+def test_send_calendar_publishes_draft_and_confirms_fee_once(web, monkeypatch):
+    from src import google_calendar
+    application,owner,_=web;store=application.extensions['teams']
+    application.config.update(FLOW_TEAMS_LOCAL=False,FLOW_TEAMS_ENABLED=True)
+    monkeypatch.setattr(google_calendar,'connected_email',lambda tenant:'owner@flow-qa-84982.com')
+    person=run(store,'member',name='Persona nueva',email='new@flow-qa-84982.com',role='Foto')
+    a=assignment(store,person)
+    html=owner.get('/teams/jobs/job-1').get_data(as_text=True)
+    assert 'Enviar invitación y acceso' in html and 'Editar trabajador, horario u honorario' in html
+    data=dict(job_id='job-1',key='publish-and-invite',invite='individual',assignment_id=a['id'],publish=True,version=a['version'])
+    stale=owner.post('/api/teams/calendar/sync',headers={'X-Teams-CSRF':'csrf'},json=dict(data,version=0))
+    assert stale.status_code==409 and records(store,'assignment')[0]['status']=='borrador'
+    first=owner.post('/api/teams/calendar/sync',headers={'X-Teams-CSRF':'csrf'},json=data)
+    assert first.status_code==200
+    assert records(store,'assignment')[0]['status']=='pendiente'
+    assert records(store,'cost')[0]['status']=='aprobado'
+    repeated=owner.post('/api/teams/calendar/sync',headers={'X-Teams-CSRF':'csrf'},json=data)
+    assert repeated.status_code==200 and repeated.get_json()['record']['queued']==0
+    assert len([r for r in records(store,'calendar_sync') if r['identity'].startswith('assignment:')])==1
+    assert len(records(store,'notice'))==1

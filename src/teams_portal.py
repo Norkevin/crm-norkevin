@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from io import BytesIO
 import secrets
 
+from itsdangerous import URLSafeSerializer, BadData
+
 from flask import Blueprint, abort, g, jsonify, redirect, render_template, request, send_file, session, url_for
 
 from src.teams import LOCAL_ZONE, TeamsError, now, text, teams_zone, payment_deadline
@@ -137,21 +139,26 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
         if not isinstance(data, dict):
             raise TeamsError('Selecciona un trabajador.')
         tenant = session['tenant_id']
+        job_id = text(data, 'job_id', required=False, maximum=200) or None
         key = text(data, 'key', maximum=100)
         identifier = hashlib.sha256((tenant + ':' + key).encode()).hexdigest()
         with store.transaction() as db:
             member = store.get(db, tenant, 'member', text(data, 'member_id'))
+            if job_id:
+                owner_job_reader(job_id)
+                if not any(a['job_id']==job_id and a['member_id']==member['id'] for a in store.records(db,tenant,'assignment')):
+                    abort(404)
             previous = next((r for r in store.records(db, tenant, 'portal_delivery') if r['id'] == identifier), None)
             if previous:
-                if previous['member_id'] != member['id']:
+                if previous['member_id'] != member['id'] or previous.get('job_id') != job_id:
                     raise TeamsError('La solicitud pertenece a otro trabajador.', 409)
                 if previous['status'] == 'sent':
                     return jsonify(ok=True, warnings=['El acceso ya se envió por correo.'])
                 raise TeamsError('Este envío no está confirmado. Revisa el correo y recarga antes de generar uno nuevo.', 409)
-            delivery = store.save(db, tenant, 'portal_delivery', dict(id=identifier, member_id=member['id'], status='sending', created_at=now()))
+            delivery = store.save(db, tenant, 'portal_delivery', dict(id=identifier, member_id=member['id'], job_id=job_id, status='sending', created_at=now()))
         try:
             message_id = send_portal_email(store, tenant, member,
-                os.environ.get('APP_BASE_URL', 'https://flowingcrm.com'), session['user_email'])
+                os.environ.get('APP_BASE_URL', 'https://flowingcrm.com'), session['user_email'], job_id=job_id)
         except TeamsError as error:
             with store.transaction() as db:
                 delivery.update(status='failed', error=error.message)
@@ -170,7 +177,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             if not secrets.compare_digest(request.form.get('csrf', ''), session['teams_login_csrf']):
                 abort(403)
             token = request.form.get('code', '')
-            if len(token) > 200:
+            if len(token) > 2048:
                 abort(400)
             token_hash = hashlib.sha256(token.encode()).hexdigest()
             with store.transaction() as db:
@@ -179,6 +186,28 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                 count = json.loads(attempts['payload']) if attempts else dict(id=attempt_id, count=0, until=now())
                 if count['until'] > now() and count['count'] >= 5:
                     return render_template('teams_portal.html', login=True, csrf=session['teams_login_csrf'], error='Demasiados intentos. Espera un minuto.'), 429
+                # Calendar links are reusable while the member and coverage remain authorized.
+                try:
+                    invitation = URLSafeSerializer(app.secret_key, salt='teams-calendar-portal').loads(token)
+                    tenant = invitation['tenant']
+                    person = store.get(db, tenant, 'member', invitation['member'])
+                    coverage = store.get(db, tenant, 'assignment', invitation['assignment'])
+                    g.teams_portal_tenant = tenant
+                    job = crm_store.get('jobs', coverage['job_id'])
+                    valid = (person['active'] and invitation['access'] == person.get('access_version', 1)
+                             and invitation['email'] == person.get('email')
+                             and coverage['member_id'] == person['id'] and coverage['status'] in VISIBLE_ASSIGNMENTS
+                             and invitation['expires'] > datetime.now(timezone.utc).timestamp()
+                             and job and job.get('status') not in ('Cancelado', 'Archivado'))
+                    if valid:
+                        bind_member(tenant, person)
+                        count['count'] = 0
+                        store.save(db, '_local', 'login_attempt', count)
+                        return redirect(url_for('teams_portal.page', job_id=coverage['job_id']))
+                except (BadData, TeamsError, KeyError, TypeError, ValueError):
+                    pass
+                finally:
+                    g.pop('teams_portal_tenant', None)
                 row = db.execute("SELECT tenant,payload FROM entities WHERE kind='access' AND id=?", (token_hash,)).fetchone()
                 access = json.loads(row['payload']) if row else None
                 member = store.get(db, row['tenant'], 'member', access['member_id']) if access else None

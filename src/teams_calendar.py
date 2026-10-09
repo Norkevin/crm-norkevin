@@ -31,7 +31,15 @@ def document_token(secret,tenant,member,document,assignment):
         access=member.get('access_version',1),document=document['id'],version=document['version'],expires=expires))
 
 
-def events(store,tenant,job,origin,zone,secret,eligible_ids=None):
+def portal_token(secret, tenant, member, assignment):
+    # Stable across reconciliation; revocable with the member's existing access version.
+    return URLSafeSerializer(secret, salt='teams-calendar-portal').dumps(dict(
+        tenant=tenant, member=member['id'], access=member.get('access_version', 1),
+        email=member['email'], assignment=assignment['id'],
+        expires=(datetime.fromisoformat(assignment['end']) + timedelta(days=90)).timestamp()))
+
+
+def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None):
     with store.transaction() as db:
         members={m['id']:m for m in store.records(db,tenant,'member')}
         assignments=[a for a in store.records(db,tenant,'assignment') if a['job_id']==job['id']]
@@ -61,7 +69,13 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None):
                     if document_visible(store,db,tenant,document,person['id']):
                         token=document_token(secret,tenant,person,document,assignment)
                         lines += [document['title']+': '+origin+'/teams-portal/calendar-document/'+token]
-                lines += ['Portal del equipo: '+origin+'/teams-portal/login',
+                portal_link = origin+'/teams-portal/login'
+                if portal_ids is None or assignment['id'] in portal_ids:
+                    portal_link += '#invite=' + portal_token(secret, tenant, person, assignment)
+                    lines += ['Tu correo: '+person['email'],
+                              'Abre tu portal con este enlace privado. No necesitas contraseña. No lo reenvíes. '
+                              'Válido hasta 90 días después de esta cobertura; después solicita un nuevo acceso.']
+                lines += ['Portal del equipo: '+portal_link,
                           'Aceptar en Google Calendar confirma la invitación; revisa las condiciones de tu cobertura en el portal.']
                 event=dict(summary=(job.get('nombre') or 'Boda')+' · '+assignment['role'],
                     location=job.get('location') or '',description='\n\n'.join(line for line in lines if line),
@@ -155,9 +169,26 @@ class CalendarSync:
         with self.store.transaction() as db:
             tracked=[r for r in self.store.records(db,tenant,'calendar_sync') if r['status']!='paused']
         wanted=invite_ids if invite_ids is not None else (None if include_new else [r['identity'].split(':',1)[1] for r in tracked if r['identity'].startswith('assignment:')])
-        desired=events(self.store,tenant,job,origin,zone,secret,wanted)
+        portal_ids = {r['identity'].split(':',1)[1] for r in tracked
+                      if r['identity'].startswith('assignment:') and '#invite=' in (r.get('event') or {}).get('description','')}
+        if delivery_key is not None:
+            portal_ids.update(invite_ids or (a['id'] for a in self._assignments(tenant, job['id'])))
+        desired=events(self.store,tenant,job,origin,zone,secret,wanted,portal_ids)
+        if delivery_key is None:
+            # Reconciliation must not mint a new credential after an owner revokes access.
+            for previous in tracked:
+                event = desired.get(previous['identity'])
+                old_event = previous.get('event') or {}
+                old_link = re.search(r'/teams-portal/login#invite=[^\s]+', old_event.get('description',''))
+                if event and old_link:
+                    replacement = old_link.group(0) if event.get('attendees') == old_event.get('attendees') else '/teams-portal/login'
+                    event['description'] = re.sub(r'/teams-portal/login#invite=[^\s]+', replacement, event['description'])
         return self.enqueue_events(tenant,job['id'],desired,background=background,invite_ids=invite_ids,
             send_at=send_at,include_new=include_new,delivery_key=delivery_key,skip_unchanged=skip_unchanged)
+
+    def _assignments(self, tenant, job_id):
+        with self.store.transaction() as db:
+            return [a for a in self.store.records(db, tenant, 'assignment') if a['job_id'] == job_id]
 
     def enqueue_events(self,tenant,source_id,desired,*,background=True,invite_ids=None,send_at=None,
                        include_new=False,delivery_key=None,skip_unchanged=False):
@@ -220,6 +251,9 @@ class CalendarSync:
                 if status == 'synced' and record['identity'].startswith('assignment:') and record['event']:
                     current.update(response_status=attendee_response(record,result),response_checked_at=now(),response_error='')
                 self.store.save(db,tenant,'calendar_sync',current)
+                if status == 'synced' and record['event'] and record['identity'].startswith('assignment:'):
+                    from src.teams_mail import archive_calendar
+                    archive_calendar(self.store, db, tenant, record)
             if status == 'synced' and record['event'] and self.send_invitation_email:
                 with self.store.transaction() as db:
                     current=self.store.get(db,tenant,'calendar_sync',record['id'])

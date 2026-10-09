@@ -646,6 +646,25 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
     from src.teams_calendar_routes import register_calendar
     calendar_email = register_calendar(app, blueprint, crm_store, database, read_job, canonical_jobs)
 
+    @app.context_processor
+    def team_mail_history():
+        # Only owner pages receive these copies; never expose them in the worker portal.
+        if request.endpoint not in ('job_detail', 'teams.page', 'teams.member_private'):
+            return {}
+        tenant = session.get('tenant_id')
+        owner = crm_store.get('tenants', tenant) if tenant else None
+        if not owner or not session.get('logged_in') or session.get('user_email') != owner.get('login_email'):
+            return {}
+        args = request.view_args or {}
+        member_id = args.get('member_id')
+        job_id = args.get('job_id') or (request.args.get('job_id') if member_id else None)
+        if not job_id and not member_id:
+            return {}
+        with database.transaction() as db:
+            rows = [r for r in database.records(db, tenant, 'team_mail')
+                    if (r.get('job_id') == job_id if job_id else r.get('member_id') == member_id)]
+        return dict(team_mail_history=sorted(rows, key=lambda r: r['created_at'], reverse=True))
+
     @blueprint.route('/api/teams/command', methods=['POST'])
     def command():
         return jsonify(database.command(session['tenant_id'], session['user_email'], request.get_json(silent=True), read_job))
@@ -660,8 +679,13 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         with database.transaction() as db:
             member = database.get(db,session['tenant_id'],'member',member_id)
             profile = database.get(db,DIRECTORY,'person_private',member['directory_id']) if member.get('directory_id') else {}
+            job_id = request.args.get('job_id')
+            if job_id:
+                read_job(job_id)
+                if not any(a['job_id']==job_id and a['member_id']==member_id for a in database.records(db,session['tenant_id'],'assignment')):
+                    abort(404)
         session.setdefault('teams_csrf',secrets.token_urlsafe(32))
-        return render_template('teams_member_private.html',member=member,profile=profile,private_fields=PRIVATE_FIELDS,
+        return render_template('teams_member_private.html',member=member,profile=profile,private_fields=PRIVATE_FIELDS,access_job_id=job_id,
                                csrf=session['teams_csrf'])
 
     @blueprint.route('/teams/export.csv')

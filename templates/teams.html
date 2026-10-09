@@ -2,7 +2,7 @@
 {% block title %}Teams{% endblock %}
 {% block header %}Teams{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='teams.css',v='20261008-calendar-card') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='teams.css',v='20261008-crew-mail') }}">
 <section class="ft sn-page-wide">
   <header class="ft-heading ft-owner-hero">
     <div><h1>{{ selected.nombre if selected else 'Teams' }}</h1>
@@ -70,5 +70,5 @@
   <footer class="ft-footer">Teams · {{ "Laboratorio local · bodas de prueba" if config.FLOW_TEAMS_LOCAL else "Operación del equipo" }} · {{ 'Google Calendar conectado · Invitaciones por correo desde cada boda' if calendar_email else 'Calendar sin conectar · Invitaciones por correo desde cada boda' }} · <a href="/teams/roadmap">Cómo funciona Teams</a></footer>
 </section>
 <script>window.flowTeamsCSRF = {{ csrf|tojson }};</script>
-<script src="{{ url_for('static',filename='teams.js',v='20261008-calendar-card') }}" defer></script>
+<script src="{{ url_for('static',filename='teams.js',v='20261008-crew-mail') }}" defer></script>
 {% endblock %}

@@ -1,0 +1,14 @@
+<section class="sn-card ft-panel" aria-label="Correos del equipo" style="margin-top:20px">
+  <h3>Correos del equipo</h3>
+  <p class="sn-muted">Historial por boda, sin enviarte copias. Incluye los envíos registrados desde esta actualización.</p>
+  {% for mail in team_mail_history|default([]) %}
+  <details style="border-top:1px solid var(--sn-line);padding:14px 0">
+    <summary style="cursor:pointer;overflow-wrap:anywhere"><strong>{{ mail.subject }}</strong><br>
+      <span class="sn-muted">{{ mail.created_at|teams_date }} · Para: {{ mail.to }} · {{ {'sent':'Enviado por Gmail','synced':'Sincronizada con Google Calendar','sending':'Envío en proceso','failed':'Envío no confirmado'}.get(mail.status,mail.status) }}</span>
+    </summary>
+    {% if mail.channel == 'calendar' %}<p class="sn-muted">Contenido de la invitación enviada a Google Calendar. Google administra su correo de notificación; este estado no confirma su entrega o lectura.</p>{% endif %}
+    <p style="white-space:pre-wrap;overflow-wrap:anywhere">{{ mail.body }}</p>
+    <small class="sn-muted">Los enlaces privados de acceso se ocultan en esta copia.</small>
+  </details>
+  {% else %}<p class="sn-muted">Aún no hay correos del equipo registrados aquí.</p>{% endfor %}
+</section>

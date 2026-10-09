@@ -405,3 +405,28 @@ def test_rsvp_all_google_responses_and_ownership_guard(status,monkeypatch):
     assert calls==[('GET','event-1')]
     with pytest.raises(ValueError):client.response('event-1','assignment:other')
     assert attendee_response(record,dict(status='cancelled'))=='cancelled'
+
+
+def test_reconciliation_preserves_revoked_links_and_does_not_upgrade_old_invites(prepared):
+    import re
+    store, people, assignments, document = prepared
+    sync=CalendarSync(store)
+    sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False,include_new=True)
+    with store.transaction() as db:
+        old=[r for r in store.records(db,TENANT,'calendar_sync') if r['identity'].startswith('assignment:')]
+    assert all('#invite=' not in r['event']['description'] for r in old)
+    sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False)
+    sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False,include_new=True,
+                 invite_ids=[assignments[0]['id']],delivery_key='explicit-send')
+    def link():
+        with store.transaction() as db:
+            row=next(r for r in store.records(db,TENANT,'calendar_sync') if r['identity']=='assignment:'+assignments[0]['id'])
+        return re.search(r'#invite=([^\s]+)',row['event']['description']).group(1)
+    first=link()
+    with store.transaction() as db:
+        person=store.get(db,TENANT,'member',people[0]['id']);person['access_version']=2
+        store.save(db,TENANT,'member',person)
+    sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False)
+    assert link()==first  # Only an explicit new invitation can grant access again.
+    sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False,invite_ids=[assignments[0]['id']],delivery_key='explicit-resend')
+    assert link()!=first
