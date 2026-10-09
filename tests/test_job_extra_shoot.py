@@ -128,7 +128,7 @@ def test_appointment_creates_calendar_event_too(auth_client):
     assert data['calendar_event']['type'] == 'event'
 
 
-def test_civil_is_a_secondary_job_row_and_opens_teams(auth_client):
+def test_civil_is_a_secondary_job_row_and_opens_parent(auth_client):
     import app as crm
     job_id = _make_job_with_client(crm, uuid.uuid4().hex[:6])
     created = auth_client.post(f'/api/jobs/{job_id}/workflow-task',json=dict(type='extra-event',name='Boda civil operativa',
@@ -138,8 +138,9 @@ def test_civil_is_a_secondary_job_row_and_opens_teams(auth_client):
     assert 'Boda civil operativa' in html and 'Trabajo secundario' in html
     assert f'/jobs/{job_id}' in html and f'/teams/jobs/{identifier}' in html
     opened = auth_client.get('/jobs/'+identifier)
-    assert opened.status_code == 302 and opened.headers['Location'].endswith('/teams/jobs/'+identifier)
+    assert opened.status_code == 302 and opened.headers['Location'].endswith('/jobs/'+job_id)
     assert 'Trabajos secundarios' in auth_client.get('/jobs/'+job_id).get_data(as_text=True)
+    assert auth_client.get('/jobs/secondary:missing').status_code == 404
 
 
 def test_secondary_source_cannot_be_deleted_with_team_history(auth_client, monkeypatch, tmp_path):

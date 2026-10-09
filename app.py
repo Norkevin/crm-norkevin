@@ -5098,9 +5098,10 @@ def job_source_document(job_id, document_id):
 def job_detail(job_id):
     """Job Detail con Production Workflow vertical."""
     if job_id.startswith('secondary:'):
-        if not any(j['id'] == job_id for j in _operational_jobs()):
+        coverage = next((j for j in _operational_jobs() if j['id'] == job_id), None)
+        if not coverage:
             abort(404)
-        return redirect('/teams/jobs/' + job_id)
+        return redirect(url_for('job_detail', job_id=coverage['parent_job_id']))
     job = get_job(job_id)
     if not job:
         abort(404)
