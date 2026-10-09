@@ -155,3 +155,20 @@ def test_secondary_source_cannot_be_deleted_with_team_history(auth_client, monke
     assert auth_client.post(f'/api/jobs/{job_id}/workflow-task/{task["id"]}/delete').status_code == 409
     assert auth_client.delete(f'/api/calendar/events/{task["calendar_event_id"]}').status_code == 409
     assert crm.store.get('jobs',job_id)['manual_workflow_tasks']
+
+
+def test_completed_secondary_coverage_is_not_active(auth_client):
+    import app as m
+    job_id = _make_job_with_client(m, uuid.uuid4().hex[:6])
+    job = m.store.get('jobs', job_id)
+    job['manual_workflow_tasks'] = [dict(id='past-civil', type='extra-event', name='Civil completada QA', start_date='2020-03-07', status='done')]
+    m.store.upsert('jobs', job)
+    html = auth_client.get('/jobs').get_data(as_text=True)
+    import re
+    row = re.search(r'<tr[^>]*data-id="secondary:past-civil".*?</tr>', html, re.S)
+    if not row:
+        row = re.search(r'<tr[^>]*data-name="civil completada qa".*?</tr>', html, re.S)
+    assert row is not None
+    assert 'data-activo="0"' in row.group(0)
+    assert 'data-completado="1"' in row.group(0)
+    assert 'Completada' in row.group(0)

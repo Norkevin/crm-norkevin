@@ -11,6 +11,8 @@ def linked_coverages(jobs, calendar):
         start = source.get('start_date') or source.get('date')
         if not start or not identifier or source.get('released_at') or source.get('status') in ('cancelled', 'cancelado'):
             return
+        step = next((s for s in parent.get('studio_ninja_workflow') or [] if s.get('id') == source.get('step_id')), {})
+        completed = source.get('status') == 'done' or step.get('status') == 'done'
         name = source.get('name') or source.get('title') or 'Cobertura adicional'
         suffix = ' - ' + (parent.get('nombre') or 'Job')
         if name.endswith(suffix):
@@ -20,7 +22,7 @@ def linked_coverages(jobs, calendar):
                          nombre=name, boda_date=start, end_date=source.get('end_date') or start,
                          start_time=source.get('start_time') or '', end_time=source.get('end_time') or '',
                          location=source.get('location') or '', type='Trabajo secundario', price_total=0,
-                         status=parent.get('status'), currency=parent.get('currency', 'GTQ'), tenant_id=parent.get('tenant_id'),
+                         status='Listo' if completed else parent.get('status'), coverage_completed=completed, currency=parent.get('currency', 'GTQ'), tenant_id=parent.get('tenant_id'),
                          client_id=parent.get('client_id'), created=source.get('created') or parent.get('created') or '',
                          manual_workflow_tasks=[], secondary=True))
     for parent in jobs:

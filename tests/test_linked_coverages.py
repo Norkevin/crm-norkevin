@@ -16,3 +16,13 @@ def test_linked_shoots_are_stable_deduplicated_and_exclude_appointments():
     job['manual_workflow_tasks'][0]['start_date'] = '2026-11-08'
     changed = linked_coverages([job],calendar)
     assert changed[0]['id'] == rows[0]['id'] and changed[0]['boda_date'] == '2026-11-08'
+
+
+def test_completion_comes_from_own_task_or_imported_step():
+    job = dict(id='main', status='Confirmado', studio_ninja_workflow=[dict(id='import', status='done')],
+               manual_workflow_tasks=[dict(id='own', type='extra-event', start_date='2020-01-01', status='done'),
+                                      dict(id='imported', step_id='import', type='extra-event', start_date='2020-02-01'),
+                                      dict(id='next', type='extra-event', start_date='2027-01-01', status='pending')])
+    rows = linked_coverages([job], [])
+    assert [r['coverage_completed'] for r in rows] == [True, True, False]
+    assert [r['status'] for r in rows] == ['Listo', 'Listo', 'Confirmado']

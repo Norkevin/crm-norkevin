@@ -3116,7 +3116,7 @@ def _compute_custom_range_payload(start_day, end_day):
         labels = [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" if d.day in (1, 15) else '' for d in days]
     else:
         labels = [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" for d in days]
-    date_label = f"{_format_date_es(start_day)} — {_format_date_es(end_day)}"
+    date_label = f"{start_day.strftime('%d/%m/%Y')} — {end_day.strftime('%d/%m/%Y')}"
     base_keys = [d.isoformat() for d in days]
     keys_index = {key: idx for idx, key in enumerate(base_keys)}
 
@@ -3391,17 +3391,17 @@ def dashboard():
         if range_key == '7':
             start_day = today - timedelta(days=6)
             days = [start_day + timedelta(days=i) for i in range(7)]
-            return days, [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
+            return days, [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" for d in days], f"{start_day.strftime('%d/%m/%Y')} — {today.strftime('%d/%m/%Y')}"
         if range_key == '30':
             start_day = today - timedelta(days=29)
             days = [start_day + timedelta(days=i) for i in range(30)]
-            return days, [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
+            return days, [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" for d in days], f"{start_day.strftime('%d/%m/%Y')} — {today.strftime('%d/%m/%Y')}"
         if range_key == 'ytd':
             months = [date(today.year, m, 1) for m in range(1, 13)]
-            return months, [MONTH_NAMES_ES[d.month][:3] for d in months], f"{_format_date_es(date(today.year, 1, 1))} — {_format_date_es(date(today.year, 12, 31))}"
+            return months, [MONTH_NAMES_ES[d.month][:3] for d in months], f"01/01/{today.year} — 31/12/{today.year}"
         start_day = today.replace(day=1)
         days = [start_day + timedelta(days=i) for i in range((today - start_day).days + 1)]
-        return days, [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
+        return days, [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" for d in days], f"{start_day.strftime('%d/%m/%Y')} — {today.strftime('%d/%m/%Y')}"
 
     def _bucket_key(day, range_key):
         if not day:
@@ -5079,7 +5079,7 @@ def jobs_list():
         j['pago_label'], j['pago_tone'] = _job_pago_label(j, job_payments)
     for j in jobs:
         if j.get('secondary'):
-            j.update(next_task='Asignar o revisar equipo en Teams', workflow_progress=0, pago_label='Incluido en el trabajo principal', pago_tone='muted')
+            j.update(next_task='Completado' if j.get('coverage_completed') else 'Asignar o revisar equipo en Teams', workflow_progress=100 if j.get('coverage_completed') else 0, pago_label='Incluido en el trabajo principal', pago_tone='muted')
     jobs.sort(key=_job_orden_relevancia)
     all_clients = sorted(clients.values(), key=lambda c: (c.get('first_name') or '').lower())
     return render_template('jobs.html', jobs=jobs, all_clients=all_clients)
