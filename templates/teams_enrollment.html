@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Registro del equipo · {{ brand.name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static',filename='flow-tokens.css',v='20261005-modern') }}">
+  <link rel="stylesheet" href="{{ url_for('static',filename='flow-design.css',v='20261005-modern') }}">
+  <link rel="stylesheet" href="{{ url_for('static',filename='teams.css',v='20261009-enrollment-final') }}">
+</head>
+<body class="ft-portal-body">
+<main class="ft ft-portal ft-enrollment">
+  <header class="ft-portal-heading"><p class="ft-muted">{{ brand.name }} · Teams</p><h1>Registro del equipo</h1><p>Comparte tus datos para coordinar próximos trabajos.</p></header>
+  {% if submitted %}
+  <section class="ft-panel" role="status"><h2>Recibimos tus datos</h2><p>Ya estás registrado en el equipo de {{ brand.name }}. El responsable revisará tu información y te contactará para coordinar el trabajo.</p><p class="ft-muted">Puedes cerrar esta página.</p></section>
+  {% else %}
+  {% if error %}<p class="ft-warning" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" class="ft-panel">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="submission" value="{{ submission }}">
+    <div class="ft-enrollment-trap" aria-hidden="true"><label>Deja este campo vacío<input name="website" tabindex="-1" autocomplete="off"></label></div>
+    <fieldset><legend>Contacto y habilidades</legend><p class="ft-muted">Completa todos los campos, excepto los indicados como opcionales.</p>
+    <div class="ft-form">
+      <label>Nombre<input name="first_name" value="{{ values.get('first_name','') }}" maxlength="75" autocomplete="given-name" required></label>
+      <label>Apellido<input name="last_name" value="{{ values.get('last_name','') }}" maxlength="74" autocomplete="family-name" required></label>
+      <label>Correo<input name="email" type="email" value="{{ values.get('email','') }}" maxlength="200" autocomplete="email" required></label>
+      <label>Teléfono / WhatsApp<input name="phone" type="tel" value="{{ values.get('phone','') }}" maxlength="80" autocomplete="tel" placeholder="Ej. +502 5555 1234" required></label>
+      <label class="ft-full">Habilidades<input name="skills" value="{{ values.get('skills','') }}" maxlength="1000" placeholder="Ej. fotografía, video, dron, edición" aria-describedby="skills-help" required><small id="skills-help">Escribe lo que sabes hacer, separado por comas.</small></label>
+      <label class="ft-full">Instagram (opcional)<input name="instagram" value="{{ values.get('instagram','') }}" maxlength="300" placeholder="@tuusuario o enlace de tu perfil" autocapitalize="none" spellcheck="false"></label>
+    </div></fieldset>
+    <details {% if values.get('bank') or values.get('account_type') or values.get('account_number') or values.get('account_holder') %}open{% endif %}>
+      <summary>Agregar cuenta para depósitos (opcional)</summary>
+      <p class="ft-muted">Si quieres compartir una cuenta, completa los cuatro datos. Solo el responsable puede consultarlos.</p>
+      <div class="ft-form">
+        <label>Banco<input name="bank" value="{{ values.get('bank','') }}" maxlength="150" placeholder="Nombre del banco" autocomplete="off"></label>
+        <label>Tipo de cuenta<select name="account_type"><option value="">Selecciona el tipo</option>{% for option in ['Monetaria','Ahorro','Otra'] %}<option value="{{ option }}" {{ 'selected' if values.get('account_type') == option else '' }}>{{ option }}</option>{% endfor %}</select></label>
+        <label>Número de cuenta<input name="account_number" value="{{ values.get('account_number','') }}" maxlength="150" inputmode="numeric" autocomplete="off" spellcheck="false"><small>Conserva los ceros al inicio.</small></label>
+        <label>Titular de la cuenta<input name="account_holder" value="{{ values.get('account_holder','') }}" maxlength="150" placeholder="Nombre como aparece en el banco" autocomplete="off"></label>
+      </div>
+    </details>
+    <p class="ft-muted">El responsable definirá tu rol, honorarios y coberturas contigo.</p>
+    <label class="ft-check ft-enrollment-consent"><input type="checkbox" name="consent" value="yes" required>Autorizo guardar estos datos para coordinar el trabajo y los pagos del equipo.</label>
+    <button class="sn-btn sn-btn-primary" type="submit">Enviar mis datos</button>
+  </form>
+  {% endif %}
+  <footer class="ft-footer">{{ brand.name }} · Registro del equipo</footer>
+</main>
+</body></html>

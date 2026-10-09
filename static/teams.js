@@ -242,6 +242,33 @@
     try { await navigator.clipboard.writeText(text); }
     catch (_) { throw new Error('No se pudo copiar. Selecciona el enlace o mensaje y cópialo manualmente.'); }
   };
+  document.querySelectorAll('[data-enrollment-link]').forEach(section => {
+    const create = section.querySelector('[data-create-enrollment]');
+    const renew = section.querySelector('[data-renew-enrollment]');
+    const input = section.querySelector('[data-enrollment-url]');
+    const load = async (replace = false) => {
+      create.disabled = renew.disabled = true;
+      try {
+        const response = await fetch('/api/teams/enrollment-link', {method:'POST', headers:{
+          'Content-Type':'application/json', 'X-Teams-CSRF':window.flowTeamsCSRF}, body:JSON.stringify({renew:replace})});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudo crear el enlace de registro.');
+        input.value = data.url;
+        section.querySelector('[data-open-enrollment]').href = data.url;
+        section.querySelector('[data-enrollment-result]').hidden = false;
+        create.textContent = 'Ver enlace de registro';
+      } catch (error) { showError(error.message); }
+      finally { create.disabled = renew.disabled = false; }
+    };
+    create.addEventListener('click', () => load());
+    renew.addEventListener('click', () => {
+      if (confirm('El enlace anterior dejará de aceptar registros. Los miembros ya registrados se conservan. ¿Crear uno nuevo?')) load(true);
+    });
+    section.querySelector('[data-copy-enrollment]').addEventListener('click', async () => {
+      try { await copyText(input.value); showError('Enlace de registro copiado. Listo para compartir.'); }
+      catch (error) { showError(error.message); }
+    });
+  });
   document.querySelectorAll('[data-personal-access]').forEach(section => {
     const create = section.querySelector('[data-access]');
     const output = section.querySelector('[data-access-output]');

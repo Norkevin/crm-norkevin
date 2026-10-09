@@ -824,4 +824,6 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
 
     from src.teams_portal import register_portal
     register_portal(app, blueprint, database, crm_store, read_job)
+    from src.teams_enrollment import register_enrollment
+    register_enrollment(app, blueprint, database, crm_store)
     app.register_blueprint(blueprint)

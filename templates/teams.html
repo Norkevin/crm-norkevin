@@ -2,7 +2,7 @@
 {% block title %}Teams{% endblock %}
 {% block header %}Teams{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='teams.css',v='20261008-travel') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='teams.css',v='20261009-enrollment-final') }}">
 <section class="ft sn-page-wide">
   <header class="ft-heading ft-owner-hero">
     <div><h1>{{ selected.nombre if selected else 'Teams' }}</h1>
@@ -50,6 +50,11 @@
   </section>
   {% elif section == 'members' %}
   <div class="ft-section-title"><div><h2>Directorio del equipo</h2><p class="ft-muted">Los roles describen el trabajo. No conceden acceso a finanzas.</p></div></div>
+  <section class="ft-panel" data-enrollment-link>
+    <h2>Registro de nuevos miembros</h2><p>Comparte este formulario para que cada persona complete su contacto, habilidades y datos bancarios opcionales. Aparecerá en Miembros con el rol y la tarifa por definir.</p>
+    <button class="sn-btn sn-btn-primary" type="button" data-create-enrollment>Crear enlace de registro</button>
+    <div data-enrollment-result hidden><label>Enlace del formulario<input type="url" readonly data-enrollment-url></label><div class="ft-actions ft-wrap"><button class="sn-btn" type="button" data-copy-enrollment>Copiar enlace</button><a class="sn-btn" data-open-enrollment target="_blank" rel="noopener">Ver formulario</a><button class="sn-btn" type="button" data-renew-enrollment>Renovar enlace</button></div><small>Puedes compartirlo con varias personas. Renovarlo desactiva el enlace anterior.</small></div>
+  </section>
   <details class="ft-panel"><summary>+ Añadir miembro</summary><form data-command="member" class="ft-form">
     {{ input('name','Nombre') }}{{ input('email','Correo','email',required=false) }}{{ input('phone','Teléfono',required=false) }}{{ input('role','Rol habitual') }}{{ input('rate','Tarifa sugerida (Q)','number','0') }}<button class="sn-btn sn-btn-primary">Guardar miembro</button></form></details>
   <label class="ft-search">Buscar persona o habilidad<input type="search" data-search="members" placeholder="Nombre, fotografía, video, dron…"></label><div class="ft-member-grid">{% for m in members %}<article id="member-{{ m.id }}" class="ft-panel" data-member-search="{{ m.name }} {{ (m.skills or [])|join(' ') }} {{ m.role }} {{ m.phone }}"><div class="ft-section-title"><span class="ft-avatar">{{ m.name[:1] }}</span><span class="ft-pill">{{ 'Activo' if m.active else 'Inactivo' }}</span></div><h2>{{ m.name }}</h2><p class="ft-muted">{{ (m.skills or [])|join(' · ') if m.skills else m.role }}</p><p><small>{{ m.phone or 'Teléfono pendiente' }} · {{ m.email or 'Correo pendiente' }}</small></p>{% if m.review_name %}<p class="ft-warning">Nombre repetido en origen · revisar identidad</p>{% endif %}<p><a class="ft-text-link" href="{{ url_for('teams.member_private',member_id=m.id) }}">Ver ficha y acceso personal</a></p><dl><div><dt>Bodas asignadas</dt><dd>{{ m.jobs_count }}</dd></div><div><dt>Tarifa sugerida</dt><dd>{{ 'Por definir' if m.rate_missing else m.rate|teams_money }}</dd></div><div><dt>Pagado · todo el historial</dt><dd>{{ m.paid|teams_money }}</dd></div><div><dt>Saldo aprobado</dt><dd>{{ m.pending|teams_money }}</dd></div></dl>
@@ -71,5 +76,5 @@
   <footer class="ft-footer">Teams · {{ "Laboratorio local · bodas de prueba" if config.FLOW_TEAMS_LOCAL else "Operación del equipo" }} · {{ 'Google Calendar conectado · Invitaciones por correo desde cada boda' if calendar_email else 'Calendar sin conectar · Invitaciones por correo desde cada boda' }} · <a href="/teams/roadmap">Cómo funciona Teams</a></footer>
 </section>
 <script>window.flowTeamsCSRF = {{ csrf|tojson }};</script>
-<script src="{{ url_for('static',filename='teams.js',v='20261009-year-filter') }}" defer></script>
+<script src="{{ url_for('static',filename='teams.js',v='20261009-enrollment') }}" defer></script>
 {% endblock %}

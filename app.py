@@ -2650,6 +2650,7 @@ PUBLIC_PATTERNS = [
     _re_auth.compile(r'^/i/[^/]+/pdf$'),
     _re_auth.compile(r'^/files/[^/]+/download$'),
     _re_auth.compile(r'^/contacto/[^/]+$'),
+    _re_auth.compile(r'^/teams/join/[^/]+$'),
     _re_auth.compile(r'^/captacion/[^/]+$'),
 ]
 
