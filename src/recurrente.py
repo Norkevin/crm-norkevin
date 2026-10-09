@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 from urllib import request as urlrequest
+from urllib.parse import urlsplit
 from urllib.error import HTTPError, URLError
 
 from .storage import store
@@ -60,7 +61,7 @@ def _decrypt(value: str) -> str:
 def _mask(value: str) -> str:
     if not value:
         return ''
-    return ('*' * max(len(value) - 4, 0)) + value[-4:]
+    return '*' * len(value) if len(value) <= 4 else ('*' * (len(value) - 4)) + value[-4:]
 
 
 def get_credentials(tenant_id=None) -> dict:
@@ -144,6 +145,11 @@ def test_connection(tenant_id=None) -> dict:
         raw['last_error'] = msg
         store.save_tenant_dict(CREDENTIALS_TABLE, raw, tenant_id=tenant_id)
         return {'ok': False, 'error': msg}
+    except (TimeoutError, ValueError):
+        msg = 'No se pudo confirmar la conexión con Recurrente. Vuelve a probar más tarde.'
+        raw['last_error'] = msg
+        store.save_tenant_dict(CREDENTIALS_TABLE, raw, tenant_id=tenant_id)
+        return {'ok': False, 'error': msg}
     raw.pop('last_error', None)
     raw['last_test_ok'] = datetime.now().isoformat()
     store.save_tenant_dict(CREDENTIALS_TABLE, raw, tenant_id=tenant_id)
@@ -172,6 +178,8 @@ def create_checkout(*, name: str, amount_in_cents: int, currency: str = 'GTQ',
     if not secret_key:
         return {'ok': False, 'error': 'Recurrente no esta conectado para esta cuenta. Conectalo en Settings.'}
 
+    if currency not in ('GTQ', 'USD') or type(amount_in_cents) is not int:
+        return {'ok': False, 'error': 'Revisa la moneda y el monto en centavos antes de generar el pago.'}
     min_cents = 500 if currency == 'GTQ' else 100
     if amount_in_cents < min_cents:
         return {'ok': False, 'error': f'El monto minimo para {currency} es {min_cents} centavos'}
@@ -203,7 +211,11 @@ def create_checkout(*, name: str, amount_in_cents: int, currency: str = 'GTQ',
     try:
         with urlrequest.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode('utf-8'))
-            return {'ok': True, 'checkout_url': data.get('checkout_url'), 'id': data.get('id')}
+            checkout_url = data.get('checkout_url') if isinstance(data, dict) else None
+            parsed = urlsplit(checkout_url or '')
+            if parsed.scheme != 'https' or not parsed.hostname or parsed.username or not data.get('id'):
+                return {'ok': False, 'error': 'Recurrente no devolvió un enlace de pago válido. No se guardó ningún link.'}
+            return {'ok': True, 'checkout_url': checkout_url, 'id': data['id']}
     except HTTPError as e:
         try:
             err_body = json.loads(e.read().decode('utf-8'))
@@ -213,3 +225,5 @@ def create_checkout(*, name: str, amount_in_cents: int, currency: str = 'GTQ',
         return {'ok': False, 'error': f'Recurrente: {msg}'}
     except URLError as e:
         return {'ok': False, 'error': f'No se pudo conectar con Recurrente: {e.reason}'}
+    except (TimeoutError, ValueError, TypeError, KeyError):
+        return {'ok': False, 'error': 'No se pudo confirmar la respuesta de Recurrente. Revisa la conexión antes de reintentar.'}

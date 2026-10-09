@@ -62,10 +62,14 @@ def exchange_code_for_email(code, redirect_uri):
         'grant_type': 'authorization_code',
     })
     access_token = payload.get('access_token', '')
+    if not access_token:
+        raise ValueError('Google no devolvió una sesión válida.')
     req = urlrequest.Request(
         USERINFO_URL,
         headers={'Authorization': f'Bearer {access_token}'},
     )
     with urlrequest.urlopen(req, timeout=15) as response:
         data = json.loads(response.read().decode('utf-8') or '{}')
-    return data.get('email', ''), data.get('name', ''), data.get('picture', '')
+    if not data.get('email') or not (data.get('verified_email') is True or data.get('email_verified') is True):
+        raise ValueError('Google no confirmó la dirección de correo.')
+    return data['email'], data.get('name', ''), data.get('picture', '')

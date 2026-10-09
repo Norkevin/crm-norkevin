@@ -1,0 +1,9 @@
+{% if session is defined and session.get('logged_in') and session.get('tenant_id') == navigation_document.tenant_id %}
+<nav aria-label="Volver a Flow" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
+  <a class="doc-btn outline" href="/dashboard">← Inicio</a>
+  {% if navigation_job_id or navigation_document.job_id %}<a class="doc-btn outline" href="/jobs/{{ navigation_job_id or navigation_document.job_id }}">Volver al trabajo</a>
+  {% elif navigation_document.lead_id %}<a class="doc-btn outline" href="/leads/{{ navigation_document.lead_id }}">Volver al lead</a>
+  {% elif navigation_document.client_id %}<a class="doc-btn outline" href="/clients/{{ navigation_document.client_id }}">Volver al cliente</a>
+  {% else %}<a class="doc-btn outline" href="/quotes">Volver a cotizaciones</a>{% endif %}
+</nav>
+{% endif %}

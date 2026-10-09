@@ -19,6 +19,7 @@ def test_next_action_respects_step_state(steps, expected):
         FileSystemLoader(Path(__file__).resolve().parents[1] / 'templates'),
     ]), autoescape=True)
     env.filters['fecha_legible'] = lambda value: value
+    env.filters['fecha_evento'] = lambda value: value
     html = env.get_template('lead_detail.html').render(
         current_tenant={'name': 'Prueba'}, lead={'id': 'test', 'nombre': 'Prueba', 'status': 'Nuevo'}, client=None,
         workflow_steps=steps, lead_steps=steps, prod_steps=[], packages=[],

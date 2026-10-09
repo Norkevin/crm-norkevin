@@ -40,8 +40,8 @@ def test_job_warning_names_both_job_and_lead_and_links_to_them(booking):
 
 def test_lead_warning_explains_block_and_links_to_calendar(booking):
     crm, client, lead, *_ = booking
-    block = client.post('/api/calendar/events', json={'type':'block','date':'2034-05-15','title':'Descanso personal'}).json['event']
+    block = client.post('/api/calendar/events', json={'type':'block','date':'2027-05-15','title':'Descanso personal'}).json['event']
     parser = WarningButtons(); parser.feed(client.get('/leads').get_data(as_text=True))
     _, (_, items) = next(row for row in parser.buttons if row[1][0] == lead['nombre'])
-    assert any(item['type'] == 'block' and item['name'] == 'Descanso personal' and item['url'] == '/calendar?year=2034&month=5' for item in items)
+    assert any(item['type'] == 'block' and item['name'] == 'Descanso personal' and item['url'] == '/calendar?year=2027&month=5' for item in items)
     crm.store.delete('calendar', block['id'])

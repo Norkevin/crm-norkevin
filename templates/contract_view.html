@@ -141,6 +141,7 @@
              'success' if _firmado else 'warning') }}
 
 <div class="doc-page doc-body" style="padding-top: clamp(18px, 2.4vw, 26px);">
+{% set navigation_document = job %}{% set navigation_job_id = job.id %}{% include '_owner_document_navigation.html' %}
 
   {# ---------- Quien contrata a quien ---------- #}
   <div class="hero-card hero-card--no-image">

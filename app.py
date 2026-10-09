@@ -3,7 +3,7 @@ CRM Astral Weddings - Backend Flask
 Arquitectura: Notion-first. SQLite solo para cache de sesión.
 """
 import os
-from urllib.parse import quote as url_quote
+from urllib.parse import quote as url_quote, urlsplit
 import re
 import hmac
 import hashlib
@@ -126,6 +126,8 @@ app = Flask(__name__)
 app.jinja_env.filters['fecha_es'] = lambda v: _format_date_es(v) or (v or '')
 
 app.secret_key = os.environ.get('FLASK_SECRET', 'norkevin-crm-dev-secret-change-me')
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
+                  SESSION_COOKIE_SECURE=bool(os.environ.get('RENDER')))
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.jinja_env.auto_reload = True
 app.jinja_env.filters['fecha_legible'] = _format_date_es
@@ -175,6 +177,13 @@ def add_dev_cache_headers(response):
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
+    if response.is_json:
+        response.headers['Cache-Control'] = 'no-store'
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    if os.environ.get('RENDER') or request.is_secure:
+        response.headers.setdefault('Strict-Transport-Security', 'max-age=15552000')
     return response
 
 
@@ -188,6 +197,11 @@ def api_storage_status():
         'storage': store.status(),
         'counts': counts,
         'render': bool(os.environ.get('RENDER')),
+        'security': {
+            'session_secret_configured': bool(app.secret_key and app.secret_key != 'norkevin-crm-dev-secret-change-me'),
+            'secure_session_cookies': app.config['SESSION_COOKIE_SECURE'],
+            'session_same_site': app.config['SESSION_COOKIE_SAMESITE'],
+        },
     })
 
 # ============================================================
@@ -2792,7 +2806,7 @@ def dev_login():
     session['tenant_id'] = tenant['id']
     session.permanent = True
     logger.warning(f'DEV LOGIN local usado para {tenant["id"]} -- solo desarrollo')
-    return redirect(request.args.get('next') or '/dashboard')
+    return redirect(_safe_return_path(request.args.get('next')))
 
 
 # ---------------------------------------------------------------------------
@@ -2935,6 +2949,30 @@ def _require_login():
     return redirect(url_for('login_page', next=request.path))
 
 
+def _safe_return_path(value):
+    value = str(value or '')
+    if (not value.startswith('/') or value.startswith('//') or '\\' in value
+            or any(ord(char) < 32 for char in value) or urlsplit(value).netloc):
+        return '/dashboard'
+    return value
+
+
+@app.before_request
+def _reject_cross_site_owner_changes():
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE') or not session.get('logged_in') or _is_public_path(request.path):
+        return None
+    source = request.headers.get('Origin') or request.headers.get('Referer')
+    if source:
+        try:
+            parsed = urlsplit(source)
+        except ValueError:
+            return jsonify(ok=False, error='Origen de solicitud inválido.'), 403
+        if parsed.scheme not in ('http', 'https') or parsed.netloc.casefold() != request.host.casefold():
+            return jsonify(ok=False, error='Solicitud desde otro sitio bloqueada. Abre Flow y vuelve a intentarlo.'), 403
+    elif request.headers.get('Sec-Fetch-Site') == 'cross-site':
+        return jsonify(ok=False, error='Solicitud desde otro sitio bloqueada.'), 403
+
+
 def _login_redirect_uri():
     host = request.host
     scheme = 'http' if host.startswith('127.0.0.1') or host.startswith('localhost') else 'https'
@@ -3002,7 +3040,7 @@ def auth_google_login_start():
     redirect_uri = _login_redirect_uri()
     state = _secrets.token_urlsafe(16)
     session['login_state'] = state
-    session['login_next'] = request.args.get('next', '/dashboard')
+    session['login_next'] = _safe_return_path(request.args.get('next'))
     return redirect(google_login.build_login_url(redirect_uri, state))
 
 
@@ -3016,7 +3054,7 @@ def auth_google_login_callback():
 
     code = request.args.get('code')
     state = request.args.get('state')
-    if not code or not state or state != session.get('login_state'):
+    if not code or not state or not hmac.compare_digest(state.encode(), str(session.pop('login_state', '')).encode()):
         return redirect(url_for('login_page', error='state_invalido'))
 
     redirect_uri = _login_redirect_uri()
@@ -3058,7 +3096,7 @@ def auth_google_login_callback():
     session['tenant_id'] = tenant['id']
     session.permanent = True
     next_path = session.pop('login_next', '/dashboard')
-    return redirect(next_path if next_path.startswith('/') else '/dashboard')
+    return redirect(_safe_return_path(next_path))
 
 
 @app.route('/logout')
@@ -5953,9 +5991,7 @@ def auth_google_start():
 
     redirect_uri = _google_redirect_uri()
     state = secrets.token_urlsafe(16)
-    session_store = store.get_dict('google_oauth_state')
-    session_store['state'] = state
-    store.save_dict('google_oauth_state', session_store)
+    session['gmail_oauth'] = dict(state=state, tenant=session['tenant_id'], expires=time.time()+600)
     return redirect(gmail_delivery.build_authorization_url(redirect_uri, state))
 
 
@@ -5974,8 +6010,10 @@ def auth_google_callback():
 
     code = request.args.get('code')
     state = request.args.get('state')
-    expected_state = store.get_dict('google_oauth_state').get('state')
-    if not code or not state or state != expected_state:
+    pending = session.pop('gmail_oauth', {})
+    if (not code or not state or pending.get('tenant') != session.get('tenant_id')
+            or pending.get('expires', 0) < time.time()
+            or not hmac.compare_digest(state.encode(), str(pending.get('state', '')).encode())):
         return redirect(url_for('settings', google_status='error', google_msg='state invalido'))
 
     redirect_uri = _google_redirect_uri()
@@ -10693,9 +10731,12 @@ def api_pago_create_payment_link(pago_id):
     if not recurrente.is_configured(tenant_id=pay.get('tenant_id')):
         return jsonify({'ok': False, 'error': 'Recurrente no esta conectado para esta cuenta. Conectalo en Settings.'}), 400
 
+    if pay.get('tipo') == 'team_payment' or _row_saldo_vivo(pay) <= 0:
+        return jsonify(ok=False, error='Esta cuota está pagada, cancelada o no tiene saldo pendiente.'), 400
+
     # 'amount' de una cuota pendiente YA es su saldo actual (se ajusta con
     # cada abono directo o credito recibido) -- cobrar eso directamente.
-    amount = round(float(pay.get('amount') or 0), 2)
+    amount = _row_saldo_vivo(pay)
     if amount <= 0:
         return jsonify({'ok': False, 'error': 'El pago no tiene un monto valido'}), 400
 
@@ -14219,7 +14260,7 @@ def client_portal(client_id):
     if recurrente.is_configured(tenant_id=client.get('tenant_id')):
         host = request.host_url.rstrip('/')
         for p in payments:
-            if p.get('status') == 'Pagado' or p.get('payment_link_url'):
+            if _row_saldo_vivo(p) <= 0 or p.get('payment_link_url'):
                 continue
             amount = round(float(p.get('amount') or 0), 2)
             if amount <= 0:

@@ -155,6 +155,9 @@ def exchange_code_for_token(code, redirect_uri):
         'grant_type': 'authorization_code',
     })
     email = _fetch_email(payload.get('access_token', ''))
+    from src.tenant_brand_map import resolve_brand
+    if email.casefold() != resolve_brand(_current_tenant_id()).sender_email.casefold() or not payload.get('refresh_token'):
+        raise ValueError('Conecta el Gmail de esta marca y concede el acceso continuo para enviar correos.')
     token = {
         'access_token': payload.get('access_token'),
         'refresh_token': payload.get('refresh_token'),

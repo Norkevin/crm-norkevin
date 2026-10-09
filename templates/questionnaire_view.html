@@ -67,6 +67,7 @@ fieldset.q-field { border:0; padding:0; margin:0; }
 {% set answered = questionnaire.status == 'Respondido' %}
 {{ ui.topbar(theme, 'Cuestionario', '', 'Vista previa' if preview else ('Respondido' if answered else 'Por completar'), 'success' if answered else 'neutral') }}
 <main class="doc-page doc-body" style="padding-top:24px;">
+{% set navigation_document = job if job else questionnaire %}{% set navigation_job_id = job.id if job else none %}{% include '_owner_document_navigation.html' %}
   {% if preview %}<div class="card q-notice"><strong>Vista previa de tu plantilla guardada.</strong> Puedes probar los campos; las respuestas no se enviarán. <a href="/settings/questionnaires">Volver al editor</a></div>{% endif %}
   <section class="hero-card">
     <div class="hero-card__text">

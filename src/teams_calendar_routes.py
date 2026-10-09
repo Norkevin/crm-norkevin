@@ -17,7 +17,7 @@ def finish_calendar_connection(app,crm_store,redirect_uri):
     tenant=session.get('tenant_id');owner=crm_store.get('tenants',tenant) if tenant else None
     if (not owner or not session.get('logged_in') or session.get('user_email')!=owner.get('login_email')
         or pending.get('tenant')!=tenant or pending.get('expires',0)<datetime.now(timezone.utc).timestamp()
-        or not secrets.compare_digest(request.args.get('state',''),pending.get('state',''))):
+        or not secrets.compare_digest(request.args.get('state','').encode(),str(pending.get('state','')).encode())):
         abort(403)
     try:
         if request.args.get('error') or not request.args.get('code'):raise ValueError('Conexión cancelada.')
