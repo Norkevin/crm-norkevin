@@ -1866,6 +1866,13 @@ def _build_recent_notifications(tenant_id, limit=5):
     nuevo sin tener que recargar la pagina entera."""
     recent_notifications = []
     try:
+        arrivals = {}
+        for notice in store.list('pending_emails'):
+            if notice.get('source') == 'auto:new-lead-notify' and notice.get('created_at') and notice.get('tenant_id') == tenant_id:
+                lead_id = notice.get('lead_id')
+                moment = _notification_moment(notice['created_at'])
+                if lead_id not in arrivals or moment['timestamp'] < arrivals[lead_id]['timestamp']:
+                    arrivals[lead_id] = moment
         latest_leads = sorted(
             _open_leads(tenant_id),
             key=lambda lead: str(lead.get('created') or lead.get('updated') or ''),
@@ -1877,7 +1884,7 @@ def _build_recent_notifications(tenant_id, limit=5):
                 'id': f"lead-{lead.get('id')}",
                 'type': 'lead',
                 'title': f'Nuevo lead: {name}' + (' · Fecha ocupada: ' + _format_date_es(lead.get('fecha_tentativa') or lead.get('fecha_evento')) if _lead_date_conflicts(lead) else ''),
-                **_notification_moment(lead.get('created'), lead.get('created_time')),
+                **(_notification_moment(lead.get('created'), lead.get('created_time')) if lead.get('created_time') or len(str(lead.get('created') or '')) > 10 else arrivals.get(lead.get('id'), _notification_moment(lead.get('created')))),
                 'age': lead.get('age') or '',
                 'url': f"/leads/{lead.get('id')}",
             })

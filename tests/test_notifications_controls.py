@@ -8,7 +8,7 @@ from conftest import login_as_tenant
 def restore_notification_data():
     import app as m
     snapshots = {table: copy.deepcopy(m.store._read_raw(table))
-                 for table in ('tenants', 'leads', 'jobs', 'mail_log', 'notification_reads')}
+                 for table in ('tenants', 'leads', 'jobs', 'mail_log', 'notification_reads', 'pending_emails')}
     yield
     for table, rows in snapshots.items():
         m.store._save(table, rows)
@@ -87,3 +87,15 @@ def test_new_lead_keeps_arrival_time_when_edited():
     historical = dict(lead, id=uuid.uuid4().hex, created='2020-01-01', created_time='')
     m.upsert_lead(historical)
     assert not m.store.get('leads', historical['id']).get('created_time')
+
+
+def test_legacy_lead_arrival_uses_original_internal_notice_time(client):
+    import app as m
+    tenant = 'tenant-norkevin-photography'
+    login_as_tenant(client, tenant)
+    identifier = uuid.uuid4().hex
+    m.store.upsert('leads', dict(id=identifier, tenant_id=tenant, status='Nuevo', created='2099-01-09'))
+    m.store.upsert('pending_emails', dict(id=identifier, tenant_id=tenant, lead_id=identifier,
+                                         source='auto:new-lead-notify', created_at='2099-01-09T01:03:00'))
+    item = next(n for n in client.get('/api/notifications/recent').get_json()['notifications'] if n['id'] == 'lead-'+identifier)
+    assert item['date'] == '2099-01-08' and item['time'] == '19:03'
