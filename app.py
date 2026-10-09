@@ -7398,9 +7398,13 @@ def calendar_view():
         try:
             d = datetime.strptime(e['date'], '%Y-%m-%d').date()
             e['date_label'] = _format_date_es(d)
+            e['day_number'] = d.day
+            e['month_short'] = month_names_short[d.month]
             e['days_away'] = (d - today).days
         except ValueError:
             e['date_label'] = e['date']
+            e['day_number'] = '—'
+            e['month_short'] = ''
             e['days_away'] = None
 
     return render_template('calendar.html',

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 def test_upcoming_events_excludes_leads_includes_jobs(auth_client):
     import app as app_module
     import uuid
+    from flask import template_rendered
 
     future_date = (datetime.now() + timedelta(days=10)).strftime('%Y-%m-%d')
 
@@ -26,7 +27,11 @@ def test_upcoming_events_excludes_leads_includes_jobs(auth_client):
         'client_id': client_id, 'status': 'Confirmado', 'tenant_id': 'tenant-norkevin',
     })
 
-    resp = auth_client.get('/calendar')
+    contexts = []
+    def capture(sender, template, context, **extra):
+        contexts.append(context)
+    with template_rendered.connected_to(capture, app_module.app):
+        resp = auth_client.get('/calendar')
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
     # el job SI debe aparecer en "proximos eventos", el lead NO -- pero
@@ -36,6 +41,12 @@ def test_upcoming_events_excludes_leads_includes_jobs(auth_client):
     # confirmamos que la pagina carga bien y dejamos la aserción real en
     # el nivel de datos (mas abajo).
     assert 'Boda Calendario' in html
+    event = next(e for e in contexts[-1]['upcoming_events'] if e.get('job_id') == job_id)
+    assert event['day_number'] == int(future_date[-2:])
+    assert event['month_short'] == ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][int(future_date[5:7]) - 1]
+    assert f'<strong>{event["day_number"]}</strong>' in html
+    assert f'<span>{event["month_short"]}</span>' in html
+    assert f'aria-label="{event["date_label"]}"' in html
 
 
 def test_upcoming_events_only_contains_non_lead_types():

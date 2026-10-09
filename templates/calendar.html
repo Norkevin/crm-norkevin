@@ -129,27 +129,26 @@
 
     <aside class="calendar-sidebar">
       <div class="upcoming-events">
-        <div class="upcoming-events-head">Proximos eventos</div>
+        <div class="upcoming-events-head">Próximos eventos</div>
         <div class="upcoming-events-grid">
           {% for e in upcoming_events %}
-          {% set date_parts = e.date_label.split(' ') %}
-          <button class="upcoming-event-card {{ e.type }}" type="button" data-block-id="{{ e.id if e.type == 'block' else '' }}" onclick="openCalendarEvent('{{ e.url or '' }}', this)">
-            <div class="upcoming-event-daybox">
-              <strong>{{ date_parts[0] }}</strong>
-              {{ date_parts[1] if date_parts|length > 1 else '' }}
-            </div>
+          <button class="upcoming-event-card {{ e.type }}" type="button" title="{{ e.title }}" data-block-id="{{ e.id if e.type == 'block' else '' }}" onclick="openCalendarEvent('{{ e.url or '' }}', this)">
+            <time class="upcoming-event-daybox" datetime="{{ e.date }}" aria-label="{{ e.date_label }}" title="{{ e.date_label }}">
+              <strong>{{ e.day_number }}</strong>
+              <span>{{ e.month_short }}</span>
+            </time>
             <div class="upcoming-event-copy">
-              <div class="upcoming-event-title sn-ellipsis">{{ e.title }}</div>
+              <div class="upcoming-event-title">{{ e.title }}</div>
               <div class="upcoming-event-date">
                 <span class="upcoming-event-badge {{ e.type }}">{{ {'block':'Bloqueada','job':'Trabajo','lead':'Lead','event':'Evento'}.get(e.type, e.type|capitalize) }}</span>
                 {% if e.days_away is not none %}
-                <span class="upcoming-event-days">{% if e.days_away == 0 %}Hoy{% elif e.days_away == 1 %}Manana{% else %}{{ e.days_away }}d{% endif %}</span>
+                <span class="upcoming-event-days">{% if e.days_away == 0 %}Hoy{% elif e.days_away == 1 %}Mañana{% else %}{{ e.days_away }}d{% endif %}</span>
                 {% endif %}
               </div>
             </div>
           </button>
           {% else %}
-          <div class="upcoming-event-empty">Sin proximos eventos.</div>
+          <div class="upcoming-event-empty">Sin próximos eventos.</div>
           {% endfor %}
         </div>
       </div>
@@ -319,6 +318,8 @@
 .upcoming-event-card:hover { box-shadow: 0 8px 22px var(--sn-shadow-card); border-color: var(--sn-line-dark); }
 .upcoming-event-card:active { transform: scale(.99); }
 .upcoming-event-daybox {
+  display: grid;
+  gap: 4px;
   flex-shrink: 0;
   width: 40px;
   text-align: center;
@@ -342,7 +343,7 @@
 .upcoming-event-badge.lead { background: #0D9488; }
 .upcoming-event-badge.job { background: #2563EB; }
 .upcoming-event-badge.event { background: #D97706; }
-.upcoming-event-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 600; color: var(--sn-ink); }
+.upcoming-event-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; overflow-wrap: anywhere; font-size: 13.5px; font-weight: 600; color: var(--sn-ink); }
 .upcoming-event-date { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 11.5px; color: var(--sn-muted); }
 .upcoming-event-days { font-size: 11px; color: var(--sn-accent-text-dark); font-weight: 600; }
 .upcoming-event-empty {
