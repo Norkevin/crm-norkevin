@@ -53,3 +53,37 @@ def test_mail_notification_uses_existing_job_when_lead_was_deleted(client):
     notification = next(n for n in client.get('/api/notifications/recent').get_json()['notifications']
                         if n['id'] == 'mail-' + unique)
     assert notification['url'] == '/jobs/' + unique
+
+
+def test_notifications_sort_full_activity_time_across_types(client):
+    import app as m
+    tenant = 'tenant-norkevin-photography'
+    login_as_tenant(client, tenant)
+    prefix = uuid.uuid4().hex
+    lead_id = prefix + '-lead'
+    m.store.upsert('leads', dict(id=lead_id, tenant_id=tenant, nombre='Orden QA', status='Nuevo',
+                               created='2099-01-09', created_time='2099-01-09T10:00:00-06:00'))
+    for name, fields in [('old', dict(sent_at='2099-01-09T15:00:00Z')),
+                         ('new', dict(sent_at='2099-01-09T17:00:00')),
+                         ('opened', dict(sent_at='2099-01-09T14:00:00', opened_at='2099-01-09T18:00:00Z')),
+                         ('failed', dict(status='failed', attempted_at='2099-01-09T19:00:00Z'))]:
+        m.store.upsert('mail_log', dict(id=prefix+'-'+name, tenant_id=tenant, lead_id=lead_id, **fields))
+    data = client.get('/api/notifications/recent').get_json()['notifications']
+    own = [n for n in data if prefix in n['id']]
+    assert [n['id'] for n in own] == ['mail-'+prefix+'-failed', 'mail-'+prefix+'-opened', 'mail-'+prefix+'-new', 'lead-'+lead_id, 'mail-'+prefix+'-old']
+    assert own[0]['time'] == '13:00'
+    assert all(n['date'] == '2099-01-09' for n in own)
+    assert m._build_recent_notifications(tenant, limit=5) == data[:5]
+
+
+def test_new_lead_keeps_arrival_time_when_edited():
+    import app as m
+    from datetime import date
+    lead = dict(id=uuid.uuid4().hex, tenant_id='tenant-norkevin-photography', created=date.today().isoformat())
+    m.upsert_lead(lead)
+    original = m.store.get('leads', lead['id'])['created_time']
+    m.upsert_lead(dict(lead, created_time='', nombre='Editado'))
+    assert m.store.get('leads', lead['id'])['created_time'] == original
+    historical = dict(lead, id=uuid.uuid4().hex, created='2020-01-01', created_time='')
+    m.upsert_lead(historical)
+    assert not m.store.get('leads', historical['id']).get('created_time')

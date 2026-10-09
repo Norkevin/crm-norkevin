@@ -460,6 +460,12 @@ def get_job_clients(job):
     return [c for c in (get_client(cid) for cid in get_job_client_ids(job)) if c]
 
 def upsert_lead(lead):
+    existing = store.get('leads', lead['id'])
+    if not lead.get('created_time'):
+        if existing and existing.get('created_time'):
+            lead['created_time'] = existing['created_time']
+        elif not existing and str(lead.get('created') or '')[:10] in ('', date.today().isoformat(), datetime.now(ZoneInfo('America/Guatemala')).date().isoformat()):
+            lead['created_time'] = datetime.now(ZoneInfo('America/Guatemala')).isoformat()
     return store.upsert('leads', lead)
 
 def upsert_job(job):
@@ -1838,6 +1844,21 @@ def list_all_payments():
 # ============================================================
 import json as _json
 
+def _notification_moment(value, time=''):
+    value = str(value or '')
+    if time:
+        value = str(time) if 'T' in str(time) else value[:10] + 'T' + str(time)
+    try:
+        moment = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        has_time = len(value) > 10
+        # Existing server timestamps without an offset were recorded in UTC.
+        moment = moment.replace(tzinfo=ZoneInfo('UTC')) if moment.tzinfo is None else moment
+        local = moment.astimezone(ZoneInfo('America/Guatemala')) if has_time else moment
+        return dict(timestamp=moment.timestamp(), date=local.date().isoformat(), time=local.strftime('%H:%M') if has_time else '')
+    except (ValueError, TypeError):
+        return dict(timestamp=0, date=value[:10], time='')
+
+
 def _build_recent_notifications(tenant_id, limit=5):
     """Leads y correos recientes para la campana de notificaciones. Se usa
     tanto en el render inicial de la pagina como en /api/notifications/recent
@@ -1856,8 +1877,7 @@ def _build_recent_notifications(tenant_id, limit=5):
                 'id': f"lead-{lead.get('id')}",
                 'type': 'lead',
                 'title': f'Nuevo lead: {name}' + (' · Fecha ocupada: ' + _format_date_es(lead.get('fecha_tentativa') or lead.get('fecha_evento')) if _lead_date_conflicts(lead) else ''),
-                'date': lead.get('created') or datetime.now().strftime('%d %b %Y'),
-                'time': lead.get('created_time') or '',
+                **_notification_moment(lead.get('created'), lead.get('created_time')),
                 'age': lead.get('age') or '',
                 'url': f"/leads/{lead.get('id')}",
             })
@@ -1883,15 +1903,14 @@ def _build_recent_notifications(tenant_id, limit=5):
                 'type': 'mail',
                 'title': f"Actividad de correo: {mail.get('subject') or 'Correo'}",
                 'alert': mail.get('status') in ('failed', 'blocked') or bool(mail.get('bounced_at')),
-                'date': (mail.get('sent_at') or '')[:10] or datetime.now().strftime('%d %b %Y'),
-                'time': '',
+                **_notification_moment(max((str(mail.get(key)) for key in ('sent_at', 'opened_at', 'clicked_at', 'bounced_at', 'attempted_at', 'created_at') if mail.get(key)), key=lambda value: _notification_moment(value)['timestamp'], default='')),
                 'age': '',
                 'url': mail['notification_url'],
             })
     except Exception:
         recent_notifications = []
     read_ids = {row.get('notification_id') for row in store.list('notification_reads')}
-    recent_notifications.sort(key=lambda n: (n['date'], n['time']), reverse=True)
+    recent_notifications.sort(key=lambda n: n['timestamp'], reverse=True)
     for notification in recent_notifications:
         notification['read'] = notification['id'] in read_ids
     return recent_notifications if limit is None else recent_notifications[:limit]
