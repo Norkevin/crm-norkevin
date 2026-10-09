@@ -157,10 +157,12 @@ class TeamsStore:
         return direct + funded
 
     def invalidate(self, db, tenant, job_id):
-        operations = [r for r in self.records(db, tenant, 'operation') if r['job_id'] == job_id]
-        if operations and operations[0].get('reviewed'):
-            operations[0]['reviewed'] = False
-            self.save(db, tenant, 'operation', operations[0])
+        parent_ids = {c.get('parent_job_id') for c in self.records(db, tenant, 'cost') if c['job_id'] == job_id}
+        operations = [r for r in self.records(db, tenant, 'operation') if r['job_id'] in parent_ids | {job_id}]
+        for operation in operations:
+            if operation.get('reviewed'):
+                operation['reviewed'] = False
+                self.save(db, tenant, 'operation', operation)
 
     def conflicts(self, db, tenant, member_id, start, end, buffer, exclude=None, candidate=None):
         plans = self.records(db, tenant, 'travel')
@@ -204,7 +206,7 @@ class TeamsStore:
                 job = original_reader(identifier)
                 protected = ('assignment', 'assignment_status', 'assignment_publish', 'assignment_edit', 'cost',
                              'cost_status', 'cost_edit', 'operation', 'advance', 'settlement', 'expense_review', 'cost_shared', 'schedule', 'travel', 'assignment_travel')
-                if action in protected and any(o['job_id'] == identifier and o.get('closed') for o in self.records(db, tenant, 'operation')):
+                if action in protected and any(o['job_id'] in (identifier, job.get('parent_job_id')) and o.get('closed') for o in self.records(db, tenant, 'operation')):
                     raise TeamsError('La operación está cerrada. Reábrela con un motivo antes de cambiar sus costos o coberturas.', 409)
                 return job
             job_reader = guarded_job_reader
@@ -283,7 +285,7 @@ class TeamsStore:
                                      role=text(data, 'role', maximum=100), slot=slot, start=start.isoformat(),
                                      end=end.isoformat(), buffer=buffer, status='borrador', terms_version=1,
                                      job_day=job.get('boda_date'), instructions=text(data, 'instructions', required=False, maximum=3000))
-                cost = self.create(db, tenant, 'cost', job_id=job['id'], assignment_id=record['id'],
+                cost = self.create(db, tenant, 'cost', job_id=job['id'], parent_job_id=job.get('parent_job_id'), assignment_id=record['id'],
                                    category='Honorarios', description=f"{record['role']} · {member['name']}",
                                    beneficiary=member['id'], beneficiary_name=member['name'], budget=fee,
                                    estimate=fee, final=None, status='estimado', due_date=payment_deadline(job, text(data, 'due_date', required=False)),
@@ -334,7 +336,7 @@ class TeamsStore:
                 due = text(data, 'due_date', required=False)
                 if due:
                     day(due)
-                record = self.create(db, tenant, 'cost', job_id=job['id'], category=category,
+                record = self.create(db, tenant, 'cost', job_id=job['id'], parent_job_id=job.get('parent_job_id'), category=category,
                                      description=text(data, 'description', maximum=300), beneficiary=beneficiary,
                                      beneficiary_name=name, budget=amount, estimate=amount, final=None,
                                      status='estimado', due_date=due, currency='GTQ')
@@ -542,17 +544,24 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
     def invalid(error):
         return jsonify(ok=False, error=error.message), error.status
 
+    primary_jobs = canonical_jobs
+    def operational_jobs():
+        from src.linked_coverages import linked_coverages
+        jobs = primary_jobs()
+        return jobs + linked_coverages(jobs, crm_store.list('calendar'))
+
     def read_job(identifier):
-        job = next((j for j in canonical_jobs() if j['id'] == identifier), None)
+        job = next((j for j in operational_jobs() if j['id'] == identifier), None)
         if not job:
             raise TeamsError('Boda no disponible en esta marca.', 404)
         tenant = crm_store.get('tenants', session['tenant_id'])
         if (job.get('currency') or tenant.get('currency', 'GTQ')) != 'GTQ':
             raise TeamsError('La propuesta solo admite GTQ. No se convierte la moneda.')
-        commercial = financial_summary(job, [p for p in crm_store.list('payments') if p.get('job_id') == identifier and p.get('tipo') != 'team_payment'])
+        commercial = dict(total=0) if job.get('secondary') else financial_summary(job, [p for p in crm_store.list('payments') if p.get('job_id') == identifier and p.get('tipo') != 'team_payment'])
         return dict(job, reference_income_cents=cents(commercial['total'], imported=True))
 
     def job_totals(report_jobs):
+        report_jobs = [j for j in report_jobs if not j.get('secondary')]
         totals = {key: sum(j[key] for j in report_jobs) for key in ('income', 'cost_total', 'margin', 'pending', 'paid')}
         eligible = [j for j in report_jobs if j['configured'] and j['income'] and j.get('status') not in ('Cancelado', 'Archivado')]
         totals['margin'] = sum(j['margin'] for j in eligible)
@@ -565,7 +574,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
     def snapshot(year=None, *, active_only=False):
         from src.teams_calendar import valid_invitation_email
         tenant = session['tenant_id']
-        jobs = canonical_jobs()
+        jobs = operational_jobs()
         with database.transaction() as db:
             members = database.records(db, tenant, 'member')
             assignments = database.records(db, tenant, 'assignment')
@@ -627,16 +636,18 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         for j in jobs:
             job_payments = [p for p in billable if p.get('job_id') == j['id']]
             j['es_activo'] = job_is_active(j, job_payments)
-            commercial = financial_summary(j, job_payments)
+            commercial = dict(total=0, pagado=0, descuadre_cotizado_vs_cuotas=False) if j.get('secondary') else financial_summary(j, job_payments)
             j['income'] = cents(commercial['total'], imported=True)
             j['collected'] = cents(commercial['pagado'], imported=True)
-            jcosts = [c for c in costs if c['job_id'] == j['id']]
+            j['secondary_jobs'] = [child for child in jobs if child.get('parent_job_id') == j['id']]
+            family = {j['id']} | {child['id'] for child in jobs if child.get('parent_job_id') == j['id']}
+            jcosts = [c for c in costs if c['job_id'] in family or c.get('parent_job_id') == j['id']]
             op = next((o for o in operations if o['job_id'] == j['id']), {})
             j['cost_total'] = sum(c['total'] for c in jcosts)
             j['pending'] = sum(c['pending'] for c in jcosts)
             j['paid'] = sum(c['paid'] for c in jcosts)
-            j['cash_out'] = sum(a['amount'] * p['sign'] for p in payments for a in p['allocations'] if a['job_id'] == j['id'])
-            j['cash_out'] += sum(p['amount'] * p['sign'] for p in payments if p.get('advance_id') and p.get('job_id') == j['id'])
+            j['cash_out'] = sum(a['amount'] * p['sign'] for p in payments for a in p['allocations'] if a['job_id'] in family)
+            j['cash_out'] += sum(p['amount'] * p['sign'] for p in payments if p.get('advance_id') and p.get('job_id') in family)
             j['margin'] = j['income'] - j['cost_total']
             j['percent'] = round(j['margin'] * 100 / j['income'], 1) if j['income'] else None
             j['cash'] = j['collected'] - j['cash_out']
@@ -653,10 +664,10 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                 'upcoming':'Próxima', 'past':'Pasada', 'undated':'Sin fecha'}[j['teams_phase']]
             j['team_pending'] = sum(c['pending'] for c in jcosts if c['beneficiary'] in member_map)
             j['has_commitments'] = bool(jcosts or any(a['job_id'] == j['id'] for a in assignments))
-            j['closed'] = bool(op.get('closed'))
+            j['closed'] = bool(op.get('closed') or any(o['job_id'] == j.get('parent_job_id') and o.get('closed') for o in operations))
             j['report'] = next((r for r in extra['report'] if r['id'] == op.get('report_id')), None)
             j['income_delta'] = j['income'] - j['report']['income'] if j['report'] else 0
-            if j['closed']:
+            if j['closed'] and j['report']:
                 j['income'] = j['report']['income']
                 j['margin'] = j['report']['margin']
                 j['percent'] = round(j['margin'] * 100 / j['income'], 1) if j['income'] else None
@@ -681,7 +692,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                         next(iter(extra['config']), {}).get('roles', DEFAULT_ROLES).splitlines() if r.strip())))
 
     from src.teams_calendar_routes import register_calendar
-    calendar_email = register_calendar(app, blueprint, crm_store, database, read_job, canonical_jobs)
+    calendar_email = register_calendar(app, blueprint, crm_store, database, read_job, operational_jobs)
 
     @app.context_processor
     def team_mail_history():
@@ -772,7 +783,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             report_jobs = [j for j in data['jobs'] if report_year == 'all' or str(j.get('boda_date') or '').startswith(report_year + '-')]
             data.update(report_year=report_year, report_years=sorted({str(j['boda_date'])[:4] for j in data['jobs']
                         if j.get('boda_date')} | {str(datetime.now(LOCAL_ZONE).year)} | ({report_year} if report_year != 'all' else set()), reverse=True),
-                        report_totals=job_totals(report_jobs), report_jobs_count=len(report_jobs))
+                        report_totals=job_totals(report_jobs), report_jobs_count=sum(not j.get('secondary') for j in report_jobs))
             def in_view(job):
                 if view == 'all':
                     return True

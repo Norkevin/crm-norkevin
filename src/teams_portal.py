@@ -201,7 +201,8 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                     person = store.get(db, tenant, 'member', invitation['member'])
                     coverage = store.get(db, tenant, 'assignment', invitation['assignment'])
                     g.teams_portal_tenant = tenant
-                    job = crm_store.get('jobs', coverage['job_id'])
+                    from src.linked_coverages import resolve_job
+                    job = resolve_job(crm_store, coverage['job_id'])
                     valid = (person['active'] and invitation['access'] == person.get('access_version', 1)
                              and invitation['email'] == person.get('email')
                              and coverage['member_id'] == person['id'] and coverage['status'] in VISIBLE_ASSIGNMENTS
@@ -234,7 +235,8 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
         return render_template('teams_portal.html', login=True, csrf=session['teams_login_csrf'], error=error)
 
     def read_job(identifier):
-        job = crm_store.get('jobs', identifier)
+        from src.linked_coverages import resolve_job
+        job = resolve_job(crm_store, identifier)
         if not job:
             raise TeamsError('Cobertura no disponible.', 404)
         return job
@@ -247,7 +249,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             jobs = {}
             for identifier in job_ids:
                 job = read_job(identifier)
-                jobs[identifier] = {k: job.get(k) for k in ('id', 'nombre', 'boda_date', 'end_date', 'location', 'status')}
+                jobs[identifier] = {k: job.get(k) for k in ('id', 'nombre', 'boda_date', 'end_date', 'location', 'status', 'parent_job_id', 'parent_name', 'secondary')}
             published = {a['id'] for a in store.records(db, tenant, 'assignment') if a['member_id'] == member['id']
                          and (a.get('published_at') or a['status'] in VISIBLE_ASSIGNMENTS)}
             cost_rows = [c for c in store.records(db, tenant, 'cost') if c['beneficiary'] == member['id']

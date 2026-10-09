@@ -126,3 +126,32 @@ def test_appointment_creates_calendar_event_too(auth_client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data['calendar_event']['type'] == 'event'
+
+
+def test_civil_is_a_secondary_job_row_and_opens_teams(auth_client):
+    import app as crm
+    job_id = _make_job_with_client(crm, uuid.uuid4().hex[:6])
+    created = auth_client.post(f'/api/jobs/{job_id}/workflow-task',json=dict(type='extra-event',name='Boda civil operativa',
+                              start_date='2026-11-07',start_time='10:00',end_time='12:00',location='Civil de prueba')).get_json()
+    identifier = 'secondary:' + created['task']['calendar_event_id']
+    html = auth_client.get('/jobs').get_data(as_text=True)
+    assert 'Boda civil operativa' in html and 'Trabajo secundario' in html
+    assert f'/jobs/{job_id}' in html and f'/teams/jobs/{identifier}' in html
+    opened = auth_client.get('/jobs/'+identifier)
+    assert opened.status_code == 302 and opened.headers['Location'].endswith('/teams/jobs/'+identifier)
+    assert 'Trabajos secundarios' in auth_client.get('/jobs/'+job_id).get_data(as_text=True)
+
+
+def test_secondary_source_cannot_be_deleted_with_team_history(auth_client, monkeypatch, tmp_path):
+    import app as crm
+    from src.teams import TeamsStore
+    database = TeamsStore(tmp_path/'secondary.sqlite3')
+    monkeypatch.setitem(crm.app.extensions,'teams',database)
+    job_id = _make_job_with_client(crm,uuid.uuid4().hex[:6])
+    created = auth_client.post(f'/api/jobs/{job_id}/workflow-task',json=dict(type='extra-event',name='Boda civil',start_date='2026-11-07')).get_json()
+    task = created['task']
+    with database.transaction() as db:
+        database.create(db,'tenant-norkevin','assignment',job_id='secondary:'+task['calendar_event_id'],member_id='synthetic')
+    assert auth_client.post(f'/api/jobs/{job_id}/workflow-task/{task["id"]}/delete').status_code == 409
+    assert auth_client.delete(f'/api/calendar/events/{task["calendar_event_id"]}').status_code == 409
+    assert crm.store.get('jobs',job_id)['manual_workflow_tasks']

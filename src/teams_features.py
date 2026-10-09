@@ -465,10 +465,10 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
         record['status'] = text(data, 'status')
         if record['status'] not in ('aprobada', 'rechazada'):
             raise TeamsError('Estado de revisión inválido.')
-        job_reader(record['job_id'])
+        job = job_reader(record['job_id'])
         member = store.get(db, tenant, 'member', record['member_id'])
         if record['status'] == 'aprobada':
-            cost = store.create(db, tenant, 'cost', job_id=record['job_id'], beneficiary=member['id'], beneficiary_name=member['name'],
+            cost = store.create(db, tenant, 'cost', job_id=record['job_id'], parent_job_id=job.get('parent_job_id'), beneficiary=member['id'], beneficiary_name=member['name'],
                                 category='Reembolso', description=record['description'], budget=record['amount'],
                                 estimate=record['amount'], final=record['amount'], status='incurrido', due_date='', currency='GTQ',
                                 evidence=record['evidence'], expense_request_id=record['id'])
@@ -551,14 +551,14 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
             if job['id'] in seen or portion <= 0:
                 raise TeamsError('No repitas una boda ni uses importes vacíos.')
             seen.add(job['id'])
-            parts.append(dict(job_id=job['id'], amount=portion))
+            parts.append(dict(job_id=job['id'], parent_job_id=job.get('parent_job_id'), amount=portion))
         if sum(p['amount'] for p in parts) != amount:
             raise TeamsError('Las partes deben sumar exactamente el gasto común.')
         name = text(data, 'beneficiary_name', maximum=150)
         record = store.create(db, tenant, 'shared_cost', amount=amount, distribution=parts,
                               description=text(data, 'description'), evidence=text(data, 'evidence'), created_at=now())
         for p in parts:
-            store.create(db, tenant, 'cost', job_id=p['job_id'], shared_id=record['id'], category='Gasto compartido',
+            store.create(db, tenant, 'cost', job_id=p['job_id'], parent_job_id=p.get('parent_job_id'), shared_id=record['id'], category='Gasto compartido',
                          description=record['description'], beneficiary='supplier:' + name.casefold(), beneficiary_name=name,
                          budget=p['amount'], estimate=p['amount'], final=p['amount'], status='incurrido', due_date='', currency='GTQ')
             store.invalidate(db, tenant, p['job_id'])
@@ -598,14 +598,15 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
             op.update(closed=False, reopen_reason=text(data, 'reason', maximum=1000))
             record = store.save(db, tenant, 'operation', op)
         else:
-            costs = [c for c in store.records(db, tenant, 'cost') if c['job_id'] == job['id']]
-            assignments = [a for a in store.records(db, tenant, 'assignment') if a['job_id'] == job['id']]
-            advances = [a for a in store.records(db, tenant, 'advance') if a['job_id'] == job['id']]
+            costs = [c for c in store.records(db, tenant, 'cost') if c['job_id'] == job['id'] or c.get('parent_job_id') == job['id']]
+            family = {job['id']} | {c['job_id'] for c in costs}
+            assignments = [a for a in store.records(db, tenant, 'assignment') if a['job_id'] in family]
+            advances = [a for a in store.records(db, tenant, 'advance') if a['job_id'] in family]
             income = job.get('reference_income_cents', cents(job.get('price_total', '0'), imported=True))
             if (op.get('closed') or not op['reviewed'] or not income or job.get('status') in ('Cancelado', 'Archivado')
                     or any(c['status'] not in ('incurrido', 'anulado') for c in costs)
                     or any(a['status'] not in ('realizada', 'cancelada', 'rechazada') for a in assignments)
-                    or any(r['job_id'] == job['id'] and r['status'] == 'pendiente' for r in store.records(db, tenant, 'expense_request'))
+                    or any(r['job_id'] in family and r['status'] == 'pendiente' for r in store.records(db, tenant, 'expense_request'))
                     or any(advance_balance(store, db, tenant, a) for a in advances)):
                 raise TeamsError('Para cerrar: servicios validados, costos finales revisados, ingreso conocido y fondos liquidados.')
             total = sum(cost_amount(c) for c in costs if c['status'] != 'anulado')

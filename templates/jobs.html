@@ -179,7 +179,7 @@
                 <div class="job-name-stack">
                   <a class="job-title" href="{{ url_for('job_detail', job_id=job.id) }}">{{ job.nombre or 'Sin nombre' }}</a>
                 </div>
-                <span class="job-type-text sn-ellipsis">{{ job.type or 'BODAS' }}</span>
+                <span class="job-type-text sn-ellipsis">{{ job.type or 'BODAS' }}</span>{% if job.secondary %}<a class="sn-muted" href="{{ url_for('job_detail',job_id=job.parent_job_id) }}">Ligado a {{ job.parent_name }}</a>{% endif %}
               </div>
             </div>
           </td>
@@ -210,9 +210,9 @@
             </div>
           </td>
           <td class="stack-actions" style="text-align:right;">
-            <button class="sn-menu-dots" type="button" title="Acciones del trabajo" aria-label="Acciones de {{ job.nombre }}" onclick="openRowMenu(event, '{{ job.id }}')">
+            {% if job.secondary %}<a class="sn-btn sn-btn-sm" href="/teams/jobs/{{ job.id }}">Ver equipo</a>{% else %}<button class="sn-menu-dots" type="button" title="Acciones del trabajo" aria-label="Acciones de {{ job.nombre }}" onclick="openRowMenu(event, '{{ job.id }}')">
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
-            </button>
+            </button>{% endif %}
           </td>
         </tr>
         {% else %}

@@ -78,7 +78,8 @@
   </section>
   <div class="lead-workspace job-workspace">
     <aside class="lead-workflow-panel job-workflow" id="job-workflow" aria-labelledby="job-workflow-title">
-      <div class="lead-section-heading"><div><h2 id="job-workflow-title">Workflow</h2><p>{{ workflow_name }}</p></div><button class="sn-btn sn-btn-primary" type="button" onclick="openModal('workflow-task-modal')">+ Agregar</button></div>
+      {% if linked_coverages %}<section class="job-secondary-coverages" aria-label="Trabajos secundarios"><h2>Trabajos secundarios</h2><p class="sn-muted">Coberturas ligadas a esta boda. Los honorarios y gastos del equipo se descuentan del trabajo principal.</p>{% for coverage in linked_coverages %}<div class="sn-list-item"><div class="sn-list-row"><div><strong>{{ coverage.nombre }}</strong><div class="sn-list-meta">{{ coverage.boda_date|fecha_es }}{% if coverage.start_time %} · {{ coverage.start_time }}{% if coverage.end_time %}–{{ coverage.end_time }}{% endif %}{% endif %} · {{ coverage.location or 'Lugar por definir' }}</div></div><a class="sn-btn sn-btn-sm" href="/teams/jobs/{{ coverage.id }}">Organizar equipo</a></div></div>{% endfor %}</section>{% endif %}
+    <div class="lead-section-heading"><div><h2 id="job-workflow-title">Workflow</h2><p>{{ workflow_name }}</p></div><button class="sn-btn sn-btn-primary" type="button" onclick="openModal('workflow-task-modal')">+ Agregar</button></div>
       <div class="lead-workflow-card">
         {% if job.studio_ninja_workflow is defined %}
         <div class="lead-phase-heading"><h3>{{ workflow_name }}</h3><span>{{ workflow_progress }}% completado</span></div>

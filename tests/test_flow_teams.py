@@ -1768,3 +1768,52 @@ def test_travel_routes_portal_download_and_stale_answer(web):
     with owner.session_transaction() as state:
         state.update(tenant_id='brand-b', user_email='other@example.invalid')
     assert owner.get('/teams/jobs/job-1').status_code == 404
+
+
+def test_secondary_coverage_team_costs_roll_up_once_to_parent_and_portal(web):
+    application, owner, storage = web
+    store = application.extensions['teams']
+    with application.test_request_context('/'):
+        from flask import session
+        session['tenant_id'] = 'brand-a'
+        job = storage.get('jobs', 'job-1')
+        job['manual_workflow_tasks'] = [dict(id='civil-task',type='extra-event',name='Boda civil',start_date='2026-11-07',
+           start_time='10:00',end_time='12:00',location='Civil de prueba',calendar_event_id='civil-event')]
+        storage.upsert('jobs',job)
+        storage.upsert('calendar',dict(id='civil-event',type='event',title='Boda civil - Ejemplo',date='2026-11-07',job_id='job-1'))
+    summary = owner.get('/api/teams/summary').get_json()
+    secondary = next(j for j in summary['jobs'] if j.get('secondary'))
+    assert secondary['id'] == 'secondary:civil-event' and secondary['parent_job_id'] == 'job-1'
+    assert secondary['boda_date'] == '2026-11-07' and secondary['income'] == 0
+    assert len([j for j in summary['jobs'] if j.get('secondary')]) == 1
+    assert 'Trabajo secundario' in owner.get('/teams/jobs').get_data(as_text=True)
+    assert 'Ligado a' in owner.get('/teams/jobs/secondary:civil-event').get_data(as_text=True)
+    person = member(store)
+    def command(action, **values):
+        result = owner.post('/api/teams/command',headers={'X-Teams-CSRF':'csrf'},json=dict(action=action,key=str(uuid4()),**values))
+        assert result.status_code == 200, result.get_json()
+        return result.get_json()['record']
+    a = command('assignment',job_id=secondary['id'],member_id=person['id'],role='Foto',slot='Civil',amount='900',
+                start='2026-11-07T10:00',end='2026-11-07T12:00',buffer=30)
+    a = command('assignment_publish',id=a['id'],version=a['version'])
+    extra = command('cost',job_id=secondary['id'],member_id=person['id'],category='Gasolina',description='Gasolina para civil',amount='100')
+    summary = owner.get('/api/teams/summary').get_json()
+    primary = next(j for j in summary['jobs'] if j['id'] == 'job-1')
+    secondary = next(j for j in summary['jobs'] if j['id'] == secondary['id'])
+    assert primary['income'] == 2000000 and primary['cost_total'] == secondary['cost_total'] == 100000
+    assert primary['margin'] == 1900000 and summary['totals']['cost_total'] == 100000
+    assert summary['totals']['pending'] == 90000
+    assert records(store, 'cost')[0]['parent_job_id'] == 'job-1'
+    fee = records(store, 'cost')[0]
+    command('payment',amount='300',allocations=[dict(cost_id=fee['id'],amount='300')],effective_date='2026-11-08',method='Transferencia',reference='Pago civil sintético')
+    refreshed = owner.get('/api/teams/summary').get_json()
+    assert refreshed['totals']['paid'] == 30000 and refreshed['totals']['pending'] == 60000
+    assert next(j for j in refreshed['jobs'] if j['id'] == 'job-1')['paid'] == 30000
+    client = member_client(application,owner,person)
+    html = client.get('/teams-portal/?job_id='+secondary['id']).get_data(as_text=True)
+    assert 'Trabajo secundario' in html and 'sábado, 7 de noviembre de 2026' in html and 'Ejemplo' in html
+    assert client.get('/teams-portal/calendar.ics?job_id='+secondary['id']).status_code == 200
+    with store.transaction() as db:
+        store.create(db,'brand-a','operation',job_id='job-1',closed=True,reviewed=True)
+    blocked = owner.post('/api/teams/command',headers={'X-Teams-CSRF':'csrf'},json=dict(action='cost',key='closed-parent',job_id=secondary['id'],category='Comida',description='Comida',amount='10'))
+    assert blocked.status_code == 409

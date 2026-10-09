@@ -54,7 +54,7 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None
                 start={'date':start.isoformat()},end={'date':(max(start,end)+timedelta(days=1)).isoformat()},
                 description='Boda en Flow CRM\n'+origin+'/teams/jobs/'+job['id'],visibility='private',
                 guestsCanInviteOthers=False,guestsCanModify=False)
-        result['job:'+job['id']]=event
+        result['job:'+job['id']]=None if job.get('secondary') else event
         for assignment in assignments:
             if eligible_ids is not None and assignment['id'] not in eligible_ids:continue
             person=members[assignment['member_id']];event=None
@@ -66,6 +66,8 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None
                 end=datetime.fromisoformat(assignment['end']).replace(tzinfo=zone)
                 lines=['Rol: '+assignment['role'],'Cobertura: '+start.strftime('%d/%m/%Y %H:%M')+' – '+end.strftime('%d/%m/%Y %H:%M'),
                        assignment.get('instructions') or '']
+                if job.get('secondary'):
+                    lines += ['Trabajo secundario ligado a: '+job['parent_name']]
                 trip=assignment_trip(assignment, plans)
                 if trip:
                     lines += ['Viaje y disponibilidad: salida '+teams_date(trip['departure'])+' · regreso '+teams_date(trip['return_date']),

@@ -4990,11 +4990,26 @@ def _job_pago_label(job, job_payments):
     return f'Saldo Q{saldo:,.0f}', 'muted'
 
 
+def _operational_jobs():
+    from src.linked_coverages import linked_coverages
+    jobs = _canonical_jobs()
+    return jobs + linked_coverages(jobs, list_calendar())
+
+
+def _secondary_coverage_has_history(identifier):
+    database = app.extensions.get('teams')
+    if not database:
+        return False
+    with database.transaction() as db:
+        return any(r.get('job_id') == identifier for kind in ('assignment', 'cost', 'advance', 'expense_request')
+                   for r in database.records(db, store.current_tenant_id(), kind))
+
+
 @app.route('/jobs')
 def jobs_list():
     """Jobs Overview con barra de progreso workflow (estilo Studio Ninja)."""
     from datetime import datetime
-    jobs = _canonical_jobs()
+    jobs = _operational_jobs()
     clients = {c['id']: c for c in _canonical_clients()}
     payments_by_job = defaultdict(list)
     for p in list_payments():
@@ -5062,6 +5077,9 @@ def jobs_list():
         j['es_activo'] = j['estado_key'] in ESTADOS_JOB_ACTIVOS
         j['es_completado'] = j['estado_key'] in ESTADOS_JOB_COMPLETOS
         j['pago_label'], j['pago_tone'] = _job_pago_label(j, job_payments)
+    for j in jobs:
+        if j.get('secondary'):
+            j.update(next_task='Asignar o revisar equipo en Teams', workflow_progress=0, pago_label='Incluido en el trabajo principal', pago_tone='muted')
     jobs.sort(key=_job_orden_relevancia)
     all_clients = sorted(clients.values(), key=lambda c: (c.get('first_name') or '').lower())
     return render_template('jobs.html', jobs=jobs, all_clients=all_clients)
@@ -5079,6 +5097,10 @@ def job_source_document(job_id, document_id):
 @app.route('/jobs/<job_id>')
 def job_detail(job_id):
     """Job Detail con Production Workflow vertical."""
+    if job_id.startswith('secondary:'):
+        if not any(j['id'] == job_id for j in _operational_jobs()):
+            abort(404)
+        return redirect('/teams/jobs/' + job_id)
     job = get_job(job_id)
     if not job:
         abort(404)
@@ -5185,6 +5207,7 @@ def job_detail(job_id):
     roles_disponibles = [(r, ETIQUETA_ROL.get(r, r)) for r in ROLES_JOB_CLIENT]
 
     return render_template('job_detail.html',
+                          linked_coverages=[j for j in _operational_jobs() if j.get('parent_job_id') == job_id],
                           booking=_booking_progress(job),
                           job_clientes=job_clientes,
                           roles_disponibles=roles_disponibles,
@@ -9878,6 +9901,9 @@ def api_job_workflow_task_delete(job_id, task_id):
     if not task:
         return jsonify({'ok': False, 'error': 'Tarea no encontrada'}), 404
 
+    identifier = 'secondary:' + (task.get('calendar_event_id') or task['id'])
+    if task.get('type') == 'extra-event' and _secondary_coverage_has_history(identifier):
+        return jsonify(ok=False, error='Esta cobertura tiene equipo o movimientos en Teams. Conserva el evento para mantener su historial.'), 409
     if task.get('calendar_event_id'):
         store.delete('calendar', task['calendar_event_id'])
 
@@ -11905,6 +11931,8 @@ def api_calendar_release_block(event_id):
 @app.route('/api/calendar/events/<event_id>', methods=['DELETE'])
 def api_calendar_delete_event(event_id):
     """Elimina un evento del calendario."""
+    if _secondary_coverage_has_history('secondary:' + event_id):
+        return jsonify(ok=False, error='Este evento tiene equipo o movimientos en Teams. Conserva el evento para mantener su historial.'), 409
     store.delete('calendar', event_id)
     return jsonify({'ok': True})
 

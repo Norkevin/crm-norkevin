@@ -449,3 +449,14 @@ def test_travel_invitation_reserves_entire_trip_and_keeps_coverage(prepared):
     event = events(store,TENANT,JOB,ORIGIN,ZONE,'secret')['assignment:'+assignments[0]['id']]
     assert 'dateTime' in event['start'] and event['start']['dateTime'].startswith('2026-11-14T13:00')
     assert 'Solo el día de la boda' in event['description']
+
+
+def test_secondary_coverage_invites_crew_without_duplicate_wedding_mirror(prepared):
+    store,people,assignments,doc = prepared
+    child = dict(JOB,secondary=True,parent_job_id='main',parent_name='Boda principal')
+    result = events(store,TENANT,child,ORIGIN,ZONE,'secret')
+    assert result['job:wedding'] is None
+    event = result['assignment:'+assignments[0]['id']]
+    assert 'Trabajo secundario ligado a: Boda principal' in event['description']
+    assert event['start']['dateTime'].startswith('2026-11-14T13:00')
+    assert event['attendees'] == [{'email':people[0]['email']}]
