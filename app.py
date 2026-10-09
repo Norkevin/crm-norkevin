@@ -1043,9 +1043,25 @@ def _lead_packages_unavailable(lead, step_id, jobs=None):
     return brand.brand_key == 'norkevin' and bool(_lead_date_conflicts(lead, jobs))
 
 
+def _lead_packages_from_2028(lead, step_id):
+    from src.tenant_brand_map import resolve_brand, UnresolvedBrandError
+    if step_id != 'envio_paquetes':
+        return False
+    try:
+        return (resolve_brand(lead.get('tenant_id')).brand_key == 'norkevin'
+                and date.fromisoformat(str(lead.get('fecha_tentativa') or lead.get('fecha_evento') or '')[:10]).year >= 2028)
+    except (UnresolvedBrandError, ValueError):
+        return False
+
+
 def _lead_step_email_template(lead, step_id, template_id, jobs=None):
     template = _get_email_template(template_id)
     if not _lead_packages_unavailable(lead, step_id, jobs):
+        if _lead_packages_from_2028(lead, step_id):
+            return next((item for item in store.list('email_templates')
+                         if item.get('tenant_id') == lead.get('tenant_id') and item.get('activo', True)
+                         and ' '.join((item.get('name') or '').casefold().split()) == 'paquetes de boda norkevin 2028'
+                         and (item.get('cuerpo') or '').strip()), None)
         return template
     return next((item for item in store.list('email_templates')
                  if item.get('tenant_id') == lead.get('tenant_id') and item.get('activo', True)
@@ -1101,6 +1117,11 @@ def _complete_lead_workflow_step_locked(lead, step_id, result_message=None, *, s
         if not to_email:
             return {'completed': False, 'warning': 'Este lead no tiene email'}
         template = _lead_step_email_template(lead, step_id, step.email_template_id)
+        if _lead_packages_from_2028(lead, step_id) and not _lead_packages_unavailable(lead, step_id):
+            if not template:
+                return {'completed': False, 'warning': 'Activa la plantilla Paquetes de boda Norkevin 2028 para esta fecha.'}
+            if template_override_id != template['id']:
+                subject_override = body_override = None
         if _lead_packages_unavailable(lead, step_id):
             if not template:
                 return {'completed': False, 'warning': 'La fecha está ocupada. Activa una plantilla Fecha no disponible con contenido.'}
@@ -4167,11 +4188,11 @@ def api_lead_send_email(lead_id):
 
     data = request.get_json() or {}
     template = _get_email_template(data.get('template_id'))
-    if data.get('complete_step') and _lead_packages_unavailable(lead, data.get('step_id')):
+    if data.get('complete_step') and (_lead_packages_unavailable(lead, data.get('step_id')) or _lead_packages_from_2028(lead, data.get('step_id'))):
         step = next((item for item in LEAD_WORKFLOW(lead.get('tenant_id')).steps if item.id == 'envio_paquetes'), None)
         template = _lead_step_email_template(lead, 'envio_paquetes', step.email_template_id if step else None)
         if not template:
-            return jsonify({'ok': False, 'error': 'La fecha está ocupada. Activa una plantilla Fecha no disponible con contenido.'}), 400
+            return jsonify({'ok': False, 'error': 'La fecha está ocupada. Activa una plantilla Fecha no disponible con contenido.' if _lead_packages_unavailable(lead, 'envio_paquetes') else 'Activa la plantilla Paquetes de boda Norkevin 2028 para esta fecha.'}), 400
         if data.get('template_id') != template['id']:
             data.pop('subject', None)
             data.pop('body', None)

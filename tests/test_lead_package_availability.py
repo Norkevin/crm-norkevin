@@ -26,13 +26,13 @@ def booking(auth_client, monkeypatch):
                           'unit': 'hours', 'relative_to': 'lead_created'}}]
     crm.store.save_tenant_dict('workflow_templates', {workflow['id']: workflow}, tenant)
     lead = {'id': 'lead-availability-' + suffix, 'nombre': 'Ana', 'email': 'ana@example.invalid',
-            'tenant_id': tenant, 'fecha_tentativa': '2034-05-15', 'status': 'Nuevo',
+            'tenant_id': tenant, 'fecha_tentativa': '2027-05-15', 'status': 'Nuevo',
             'created': '2026-10-01T00:00:00'}
     crm.store.upsert('leads', lead)
     instance = crm.trigger_workflow_for_lead(lead['id'], 'Ana', tenant)
     instance.trigger_at = datetime(2026, 10, 1)
     job = {'id': 'job-booked-' + suffix, 'lead_id': 'lead-other-' + suffix, 'tenant_id': tenant,
-           'nombre': 'Boda reservada', 'boda_date': '2034-05-15', 'status': 'Confirmado'}
+           'nombre': 'Boda reservada', 'boda_date': '2027-05-15', 'status': 'Confirmado'}
     yield crm, auth_client, lead, job, normal, unavailable, instance
     crm.store.save_tenant_dict('workflow_templates', saved, tenant)
     for table, ids in [('jobs', [job['id']]), ('leads', [lead['id']]), ('email_templates', [normal, unavailable])]:
@@ -54,13 +54,13 @@ def test_scheduled_first_mail_selects_template_and_remains_pending(booking, occu
     mail = crm.store.get('pending_emails', prepared[0]['mail_id'])
     assert mail['status'] == 'pending'
     assert mail['template_id'] == (unavailable if occupied else normal)
-    assert '%job_date%' not in mail['body'] and '2034' in mail['body']
+    assert '%job_date%' not in mail['body'] and '2027' in mail['body']
     assert not crm._prepare_due_workflow_emails(now=instance.trigger_at + timedelta(days=1))
 
 
 def test_modal_workflow_and_availability_check_agree(booking):
     crm, client, lead, job, normal, unavailable, instance = booking
-    crm.store.upsert('jobs', dict(job, boda_date='2034-05-14', end_date='2034-05-16'))
+    crm.store.upsert('jobs', dict(job, boda_date='2027-05-14', end_date='2027-05-16'))
     step = crm.compute_workflow_steps_for_lead(lead)[0][0]
     assert step['email_template_id'] == unavailable
     assert 'FECHA NO DISPONIBLE' in step['email_template_name']
@@ -164,3 +164,39 @@ def test_owner_notice_html_escapes_lead_content_and_has_direct_link(booking, mon
     assert '<strong>Email:</strong>' in html and 'Abrir ficha del lead' in html
     assert '<script>' not in html and '&lt;script&gt;' in html
     assert '/leads/' + lead['id'] in html
+
+
+@pytest.mark.parametrize('year', [2027, 2028, 2029])
+@pytest.mark.parametrize('overview', [False, True])
+def test_first_packages_follow_event_year_and_ignore_stale_old_composer(booking, year, overview):
+    crm, client, lead, job, normal, unavailable, instance = booking
+    new_id = normal + '-2028'
+    crm.store.upsert('email_templates', dict(id=new_id, tenant_id=lead['tenant_id'], activo=True,
+        name='Paquetes de boda Norkevin 2028', asunto='Paquetes nuevos', cuerpo='Precios 2028 %client_name%'))
+    try:
+        lead['fecha_tentativa'] = f'{year}-05-15'
+        crm.store.upsert('leads', lead)
+        expected = new_id if year >= 2028 else normal
+        assert crm.compute_workflow_steps_for_lead(lead)[0][0]['email_template_id'] == expected
+        route = 'send-email' if overview else 'trigger-step'
+        result = client.post(f"/api/leads/{lead['id']}/{route}", json=dict(step_id='envio_paquetes', complete_step=True,
+            template_id=normal, subject='Paquetes anteriores', body='Precios anteriores'))
+        assert result.status_code == 200
+        mail = next(m for m in crm.store.list('pending_emails') if m.get('lead_id') == lead['id'])
+        assert mail['template_id'] == expected and mail['status'] == 'pending'
+        if year >= 2028:
+            assert 'Precios 2028' in mail['body'] and 'Ana' in mail['body']
+        assert crm._lead_step_email_template(lead, 'seguimiento_cliente', normal)['id'] == normal
+        crm.store.upsert('jobs', dict(job, boda_date=lead['fecha_tentativa']))
+        assert crm._lead_step_email_template(lead, 'envio_paquetes', normal)['id'] == unavailable
+        assert not crm._lead_packages_from_2028(dict(lead, tenant_id='tenant-norkevin'), 'envio_paquetes')
+    finally:
+        crm.store.delete('email_templates', new_id)
+
+
+def test_missing_2028_template_does_not_prepare_old_prices(booking):
+    crm, client, lead, *_ = booking
+    lead['fecha_tentativa'] = '2028-07-29'
+    crm.store.upsert('leads', lead)
+    response = client.post(f"/api/leads/{lead['id']}/trigger-step", json={'step_id':'envio_paquetes'})
+    assert response.status_code == 400 and '2028' in response.get_json()['error']

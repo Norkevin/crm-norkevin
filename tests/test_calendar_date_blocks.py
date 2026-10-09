@@ -6,19 +6,19 @@ import pytest
 def test_block_range_release_and_tenant_isolation(booking):
     crm, client, lead, job, *_ = booking
     response = client.post('/api/calendar/events', json={
-        'type': 'block', 'date': '2034-05-14', 'end_date': '2034-05-16'})
+        'type': 'block', 'date': '2027-05-14', 'end_date': '2027-05-16'})
     assert response.status_code == 200
     block = response.json['event']
     assert block['title'] == 'Fecha bloqueada'
     assert block['tenant_id'] == lead['tenant_id']
     exported = client.get('/api/calendar/export.ics').get_data(as_text=True)
-    assert 'DTEND;VALUE=DATE:20340517' in exported and 'TRANSP:OPAQUE' in exported
+    assert 'DTEND;VALUE=DATE:20270517' in exported and 'TRANSP:OPAQUE' in exported
     assert block['id'] in exported
     availability = client.post(f"/api/leads/{lead['id']}/check-date").json
     assert availability['disponible'] is False
     assert availability['conflicts'][0]['type'] == 'block'
     assert not [m for m in crm.store.list('pending_emails') if m.get('lead_id') == lead['id']]
-    page = client.get('/calendar?year=2034&month=5').get_data(as_text=True)
+    page = client.get('/calendar?year=2027&month=5').get_data(as_text=True)
     assert 'Bloquear fecha' in page and f'data-block-id="{block["id"]}"' in page
     foreign = dict(block, id='foreign-' + block['id'], tenant_id='tenant-astral-weddings')
     token = crm._workflow_tenant.set(foreign['tenant_id'])
@@ -41,8 +41,8 @@ def test_block_range_release_and_tenant_isolation(booking):
         crm._workflow_tenant.reset(token)
 
 
-@pytest.mark.parametrize('date,end', [('invalid',''), ('2034-05-15','2034-05-14'),
-                                     ('2034-02-30',''), ('20340515','')])
+@pytest.mark.parametrize('date,end', [('invalid',''), ('2027-05-15','2027-05-14'),
+                                     ('2027-02-30',''), ('20270515','')])
 def test_invalid_block_does_not_write(booking, date, end):
     crm, client, *_ = booking
     before = crm.store.list('calendar')
@@ -64,7 +64,7 @@ def test_new_blocked_lead_sends_once_and_tracks_delivery(booking, monkeypatch, d
     template = crm.store.get('email_templates', unavailable)
     template['cuerpo'] = 'Fecha no disponible %job_date%. Te recomendamos Astral.'
     crm.store.upsert('email_templates', template)
-    block = client.post('/api/calendar/events', json={'type': 'block', 'date': '2034-05-15',
+    block = client.post('/api/calendar/events', json={'type': 'block', 'date': '2027-05-15',
                                                      'title': 'Mi descanso privado'}).json['event']
     if channel == 'public':
         monkeypatch.setattr(crm, '_notify_new_lead', lambda *args: None)
@@ -74,7 +74,7 @@ def test_new_blocked_lead_sends_once_and_tracks_delivery(booking, monkeypatch, d
         try:
             with crm.app.test_client() as anonymous:
                 response = anonymous.post('/api/leads/nuevo', json={'nombre': 'Nueva pareja',
-                    'email': 'pareja@example.invalid', 'apellido': 'Prueba', 'pais': 'Guatemala', 'fecha_boda': '2034-05-15',
+                    'email': 'pareja@example.invalid', 'apellido': 'Prueba', 'pais': 'Guatemala', 'fecha_boda': '2027-05-15',
                     'tenant_slug': 'norkevin-photography'})
         finally:
             crm._workflow_tenant.reset(token)
@@ -82,7 +82,7 @@ def test_new_blocked_lead_sends_once_and_tracks_delivery(booking, monkeypatch, d
         new_id = response.json['lead_id']
     else:
         response = client.post('/api/leads/new', json={'nombre': 'Nueva pareja', 'email': 'pareja@example.invalid',
-                                                     'fecha_tentativa': '2034-05-15'})
+                                                     'fecha_tentativa': '2027-05-15'})
         new_id = response.json['lead']['id']
     assert response.status_code == 200
     new_lead = crm.get_lead(new_id)
@@ -141,6 +141,6 @@ def test_whole_day_cells_and_mobile_date_headers_open_date_actions(booking):
             if 'agenda-day-head calendar-day-action' in attrs.get('class',''):self.mobile.append(attrs)
         def handle_endtag(self,tag):
             if tag=='button':self.depth-=1
-    document=Buttons();document.feed(client.get('/calendar?year=2034&month=5').get_data(as_text=True))
+    document=Buttons();document.feed(client.get('/calendar?year=2027&month=5').get_data(as_text=True))
     assert len(document.cells)==31 and len(document.mobile)==31
     assert all('openDateMenu(' in b['onclick'] and b.get('aria-label') for b in document.cells+document.mobile)
