@@ -3,7 +3,7 @@ import base64
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from src.teams import LOCAL_ZONE, TeamsError, cents, day, now, text, payment_deadline
+from src.teams import LOCAL_ZONE, TeamsError, cents, day, now, text, payment_deadline, assignment_trip, availability_window, TRAVEL_RESPONSES
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
 
@@ -105,10 +105,103 @@ def file_fields(data):
     return dict(file_data=encoded, file_name=name, file_type=mime)
 
 
+def travel_dates(data, job, assignment=None):
+    departure = day(data.get('departure'))
+    return_date = day(data.get('return_date'))
+    wedding = (job.get('boda_date') or '')[:10]
+    finish = (job.get('end_date') or wedding)[:10]
+    if not wedding or not departure <= wedding <= finish <= return_date:
+        raise TeamsError('La salida debe ser antes o el día de la boda y el regreso después o el último día del evento.')
+    if assignment and not departure <= assignment['start'][:10] <= assignment['end'][:10] <= return_date:
+        raise TeamsError('Las fechas de viaje deben incluir toda la cobertura de esta persona.')
+    return departure, return_date
+
+
 def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
     action = data['action']
     before, warnings = None, []
-    if action in ('assignment_publish', 'assignment_edit'):
+    if action in ('travel', 'assignment_travel'):
+        if action == 'travel':
+            job = job_reader(text(data, 'job_id', maximum=200))
+            if job.get('status') in ('Cancelado', 'Archivado'):
+                raise TeamsError('Esta boda no está disponible para planificar un viaje.')
+            record = next((r for r in store.records(db, tenant, 'travel') if r['job_id'] == job['id']),
+                          dict(id=uuid4().hex, job_id=job['id'], version=0))
+            store.check_version(record, data)
+            before = dict(record)
+            enabled = data.get('enabled')
+            if type(enabled) is not bool:
+                raise TeamsError('Indica si esta boda requiere viaje.')
+            departure, return_date = '', ''
+            if enabled:
+                departure, return_date = travel_dates(data, job)
+            record.update(enabled=enabled, departure=departure, return_date=return_date,
+                          note=text(data, 'note', required=False, maximum=1000), updated_at=now())
+            store.save(db, tenant, 'travel', record)
+            affected = [a for a in store.records(db, tenant, 'assignment') if a['job_id'] == job['id']
+                        and a['status'] not in ('cancelada', 'rechazada', 'realizada')]
+        else:
+            record = store.get(db, tenant, 'assignment', text(data, 'id'))
+            store.check_version(record, data)
+            before = dict(record)
+            job = job_reader(record['job_id'])
+            if record['status'] in ('cancelada', 'rechazada', 'realizada'):
+                raise TeamsError('Esta cobertura está cerrada.')
+            if not assignment_trip(record, store.records(db, tenant, 'travel')):
+                raise TeamsError('Primero activa el viaje de esta boda.')
+            if data.get('personal') is True:
+                departure, return_date = travel_dates(data, job, record)
+                record['travel_override'] = dict(departure=departure, return_date=return_date)
+            elif data.get('personal') is False:
+                record['travel_override'] = None
+            else:
+                raise TeamsError('Indica si esta persona viaja en otras fechas.')
+            affected = [record]
+        for a in affected:
+            if action == 'travel':
+                old_trip = assignment_trip(a, [before])
+                new_trip = assignment_trip(a, [record])
+                if new_trip and not new_trip['departure'] <= a['start'][:10] <= a['end'][:10] <= new_trip['return_date']:
+                    raise TeamsError('Las fechas de viaje deben incluir todas las coberturas. Revisa salida y regreso.')
+                if (old_trip or {}).get('departure') == (new_trip or {}).get('departure') and (old_trip or {}).get('return_date') == (new_trip or {}).get('return_date'):
+                    continue
+            else:
+                new_trip = assignment_trip(a, store.records(db, tenant, 'travel'))
+                if not new_trip['departure'] <= a['start'][:10] <= a['end'][:10] <= new_trip['return_date']:
+                    raise TeamsError('El viaje debe incluir toda la cobertura.')
+            # Any revised itinerary requires a fresh answer, independent of attendance and fees.
+            a.update(travel_response='pending', travel_response_note='', travel_answered_at=None)
+            if action == 'travel' and not record['enabled']:
+                a['travel_override'] = None
+            store.save(db, tenant, 'assignment', a)
+        warnings.append('Viaje guardado. El equipo debe responder a las fechas vigentes en su portal.')
+    elif action == 'travel_response':
+        record = store.get(db, tenant, 'assignment', text(data, 'id'))
+        if record['member_id'] != member_id:
+            raise TeamsError('Solo puedes responder por tu propia cobertura.', 403)
+        store.check_version(record, data)
+        valid_assignment(store, db, tenant, record, job_reader)
+        if record['status'] == 'realizada':
+            raise TeamsError('Esta cobertura ya está realizada.', 409)
+        trip = assignment_trip(record, store.records(db, tenant, 'travel'))
+        if not trip:
+            raise TeamsError('Esta boda no tiene un viaje activo.', 409)
+        answer = text(data, 'response')
+        if answer not in TRAVEL_RESPONSES or answer == 'pending':
+            raise TeamsError('Elige tu disponibilidad para este viaje.')
+        before = dict(record)
+        record.update(travel_response=answer, travel_response_note=text(data, 'note', required=False, maximum=500))
+        if answer == 'available':
+            start, end = availability_window(record, assignment_trip(record, store.records(db, tenant, 'travel')))
+            unavailable = any(r['member_id'] == member_id and r.get('status') != 'retirada'
+                              and r['start'] <= (end - timedelta(days=1)).date().isoformat()
+                              and r['end'] >= start.date().isoformat() for r in store.records(db, tenant, 'availability'))
+            conflicts = store.conflicts(db, tenant, member_id, record['start'], record['end'], record['buffer'], record['id'], candidate=record)
+            if unavailable or any(a['status'] in ('aceptada', 'realizada') for a in conflicts):
+                raise TeamsError('Estas fechas se cruzan con tu indisponibilidad u otra cobertura confirmada. Revisa con el responsable.', 409)
+        record['travel_answered_at'] = now()
+        store.save(db, tenant, 'assignment', record)
+    elif action in ('assignment_publish', 'assignment_edit'):
         record = store.get(db, tenant, 'assignment', text(data, 'id'))
         store.check_version(record, data)
         before = dict(record)
@@ -147,6 +240,8 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
                     raise TeamsError('El honorario debe coincidir con las cuotas acordadas.')
             store.create(db, tenant, 'terms_history', assignment_id=record['id'], terms=dict(record), reason=reason, actor=actor, created_at=now())
             cancel_pending(store, db, tenant, record['id'])
+            if replacement['id'] != record['member_id'] or start.isoformat() != record['start'] or end.isoformat() != record['end']:
+                record.update(travel_response='pending', travel_response_note='', travel_answered_at=None)
             record.update(member_id=replacement['id'], slot=slot, start=start.isoformat(), end=end.isoformat(), buffer=buffer, job_day=job.get('boda_date'),
                           role=text(data, 'role', maximum=100) if 'role' in data else record['role'],
                           instructions=text(data, 'instructions', required=False, maximum=3000),
@@ -166,7 +261,10 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
             if cost['status'] == 'estimado':
                 cost['status'] = 'aprobado'
                 store.save(db, tenant, 'cost', cost)
-        conflicts = store.conflicts(db, tenant, record['member_id'], record['start'], record['end'], record['buffer'], record['id'])
+        trip = assignment_trip(record, store.records(db, tenant, 'travel'))
+        if trip and not trip['departure'] <= record['start'][:10] <= record['end'][:10] <= trip['return_date']:
+            raise TeamsError('El horario de cobertura quedó fuera de las fechas de viaje. Revisa el viaje de esta persona.')
+        conflicts = store.conflicts(db, tenant, record['member_id'], record['start'], record['end'], record['buffer'], record['id'], candidate=record)
         if any(a['status'] in ('aceptada', 'realizada') for a in conflicts):
             record['conflict_override'] = text(data, 'conflict_reason', maximum=1000)
             warnings.append('Excepción de solapamiento registrada por administración.')
@@ -189,11 +287,12 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
         if status not in ('aceptada', 'rechazada'):
             raise TeamsError('Elige aceptar o rechazar.')
         if status == 'aceptada':
-            unavailable = any(r['member_id'] == member_id and r.get('status') != 'retirada' and r['start'] <= record['end'][:10]
-                              and r['end'] >= record['start'][:10] for r in store.records(db, tenant, 'availability'))
+            start, end = availability_window(record, assignment_trip(record, store.records(db, tenant, 'travel')))
+            unavailable = any(r['member_id'] == member_id and r.get('status') != 'retirada' and r['start'] <= (end - timedelta(microseconds=1)).date().isoformat()
+                              and r['end'] >= start.date().isoformat() for r in store.records(db, tenant, 'availability'))
             if unavailable and not record.get('conflict_override'):
                 raise TeamsError('Declaraste indisponibilidad en estas fechas. Solicita revisión al responsable.', 409)
-            conflicts = store.conflicts(db, tenant, member_id, record['start'], record['end'], record['buffer'], record['id'])
+            conflicts = store.conflicts(db, tenant, member_id, record['start'], record['end'], record['buffer'], record['id'], candidate=record)
             if any(a['status'] in ('aceptada', 'realizada') for a in conflicts) and not record.get('conflict_override'):
                 raise TeamsError('Otra cobertura confirmada se superpone. Solicita revisión al responsable.', 409)
             record.update(accepted_terms=record['terms_version'], accepted_at=now(), accepted_by=actor)

@@ -99,3 +99,14 @@ body.ft-portal-body{margin:0;background:var(--flow-canvas);color:var(--sn-ink);f
 
 /* Keep each worker's primary action visible; secondary tools open only when needed. */
 .ft-crew-card .ft-person-money{margin:16px 0 8px;padding-top:14px}.ft-crew-card .ft-invitation{margin-top:16px;padding-top:14px}.ft-crew-card .ft-invitation>p{margin:4px 0;font-size:13px}.ft-crew-card .ft-invitation-form{gap:10px;margin-bottom:4px}.ft-crew-card .ft-invitation-form>.sn-btn-primary{background:#2563eb;border-color:#2563eb;color:#fff}.ft-crew-card .ft-invitation-form>.sn-btn-primary:hover{background:#1d4ed8}.ft-crew-controls{margin-top:18px;border-top:1px solid var(--sn-line)}.ft-crew-controls>details{margin:0;padding:0;border-top:0;border-bottom:1px solid var(--sn-line)}.ft-crew-controls>details:last-child{border-bottom:0}.ft-crew-controls>details>summary{padding:14px 0;font-size:14px;font-weight:550;width:auto;color:var(--sn-ink);cursor:pointer}.ft-crew-controls>details[open]{padding-bottom:16px}.ft-crew-controls .ft-worker-expenses>summary span{float:right;font-variant-numeric:tabular-nums;color:var(--sn-muted);font-weight:400}.ft-crew-options .ft-actions{display:flex;gap:10px;flex-wrap:wrap}.ft-crew-card .ft-invitation-schedule summary{font-size:12px;padding:4px 0}.ft-crew-card .ft-invitation-schedule:not([open]){border:0}.ft-crew-card .ft-person-money strong{font-variant-numeric:tabular-nums}
+
+/* Trip dates are availability; coverage hours retain their own block. */
+.ft-travel-dates{display:flex;flex-wrap:wrap;gap:20px 32px;margin:16px 0}
+.ft .ft-travel-dates>div{display:block;flex:1 1 180px;border:0;padding:0;font-size:14px}
+.ft-travel-dates dt{font-size:13px;color:var(--sn-muted)}
+.ft .ft-travel-dates dd{margin:4px 0 0;font-weight:650;line-height:1.5}
+.ft-person-travel{padding:16px 0;margin:12px 0;border-top:1px solid var(--sn-line);border-bottom:1px solid var(--sn-line)}
+.ft-person-travel p{margin:8px 0}
+.ft-form [hidden]{display:none!important}
+@media(max-width:640px){.ft-travel-dates{gap:12px}.ft .ft-travel-dates>div{flex-basis:100%}}
+.ft-person-travel .ft-travel-allowance{background:var(--sn-surface-2);border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.65}

@@ -1676,3 +1676,95 @@ def test_send_calendar_publishes_draft_and_confirms_fee_once(web, monkeypatch):
     assert repeated.status_code==200 and repeated.get_json()['record']['queued']==0
     assert len([r for r in records(store,'calendar_sync') if r['identity'].startswith('assignment:')])==1
     assert len(records(store,'notice'))==1
+
+
+def test_travel_dates_personal_answers_and_finances_stay_separate(teams):
+    from src.teams import assignment_trip
+    person = member(teams)
+    a = assignment(teams, person)
+    a = run(teams, 'assignment_publish', id=a['id'], version=a['version'])
+    original_costs = records(teams, 'cost')
+    plan = run(teams, 'travel', job_id='job-1', version=0, enabled=True,
+               departure='2026-11-13', return_date='2026-11-15', note='Salir de la ciudad a las 10:00')
+    a = records(teams, 'assignment')[0]
+    assert a['status'] == 'pendiente'
+    assert records(teams, 'cost') == original_costs
+    answer = dict(action='travel_response', key='travel-answer', id=a['id'], version=a['version'],
+                  response='available', note='Voy por mi cuenta')
+    reader = lambda identifier: dict(id=identifier, boda_date='2026-11-14', status='En curso')
+    with pytest.raises(TeamsError):
+        teams.command('brand-a', 'owner', answer, reader)
+    with pytest.raises(TeamsError):
+        teams.command('brand-a', 'other member', answer, reader, member_id='someone-else')
+    a = teams.command('brand-a', 'member', answer, reader, member_id=person['id'])['record']
+    assert a['travel_response'] == 'available' and a['status'] == 'pendiente'
+    assert teams.command('brand-a', 'member', answer, reader, member_id=person['id'])['record'] == a
+    a = run(teams, 'assignment_travel', id=a['id'], version=a['version'], personal=True,
+            departure='2026-11-14', return_date='2026-11-15')
+    assert a['travel_response'] == 'pending'
+    assert assignment_trip(a, [plan])['departure'] == '2026-11-14'
+    plan = run(teams, 'travel', job_id='job-1', version=plan['version'], enabled=True,
+               departure='2026-11-12', return_date='2026-11-16', note='Nueva salida del equipo')
+    assert assignment_trip(records(teams, 'assignment')[0], [plan])['departure'] == '2026-11-14'
+    run(teams, 'travel', job_id='job-1', version=plan['version'], enabled=False)
+    assert assignment_trip(records(teams, 'assignment')[0], records(teams, 'travel')) is None
+    assert records(teams, 'cost') == original_costs
+
+
+@pytest.mark.parametrize('departure,return_date', [('2026-11-15','2026-11-16'),('2026-11-13','2026-11-13'),('invalid','2026-11-15')])
+def test_travel_rejects_dates_not_covering_wedding(teams, departure, return_date):
+    with pytest.raises(TeamsError):
+        run(teams, 'travel', job_id='job-1', version=0, enabled=True, departure=departure, return_date=return_date)
+    assert records(teams, 'travel') == []
+
+
+def test_travel_conflicts_cover_departure_day_and_can_use_wedding_only(teams):
+    person = member(teams)
+    friday = assignment(teams, person, job='other-job', start='2026-11-13T13:00', end='2026-11-13T22:00')
+    friday = run(teams, 'assignment_publish', id=friday['id'], version=friday['version'])
+    reader = lambda identifier: dict(id=identifier, boda_date='2026-11-14', status='En curso')
+    teams.command('brand-a', 'member', dict(action='response', key='friday', id=friday['id'], version=friday['version'],
+                  terms_version=friday['terms_version'], status='aceptada'), reader, member_id=person['id'])
+    a = assignment(teams, person)
+    a = run(teams, 'assignment_publish', id=a['id'], version=a['version'])
+    run(teams, 'travel', job_id='job-1', version=0, enabled=True, departure='2026-11-13', return_date='2026-11-15')
+    a = next(r for r in records(teams, 'assignment') if r['id'] == a['id'])
+    answer = dict(action='travel_response', key='full-trip', id=a['id'], version=a['version'], response='available')
+    with pytest.raises(TeamsError, match='cruzan'):
+        teams.command('brand-a', 'member', answer, reader, member_id=person['id'])
+    a = teams.command('brand-a', 'member', dict(answer, key='wedding-only', response='wedding_only'), reader, member_id=person['id'])['record']
+    with teams.transaction() as db:
+        assert teams.conflicts(db, 'brand-a', person['id'], a['start'], a['end'], a['buffer'], a['id']) == []
+    with pytest.raises(TeamsError, match='cruzan'):
+        teams.command('brand-a', 'member', dict(answer, key='full-trip-again', version=a['version']), reader, member_id=person['id'])
+
+
+def test_travel_routes_portal_download_and_stale_answer(web):
+    application, owner, storage = web
+    store = application.extensions['teams']
+    person = member(store)
+    a = assignment(store, person)
+    a = run(store, 'assignment_publish', id=a['id'], version=a['version'])
+    headers = {'X-Teams-CSRF':'csrf'}
+    plan = owner.post('/api/teams/command', headers=headers, json=dict(action='travel', key='trip', job_id='job-1',
+                     version=0, enabled=True, departure='2026-11-13', return_date='2026-11-15')).get_json()['record']
+    html = owner.get('/teams/jobs/job-1').get_data(as_text=True)
+    assert 'Viaje y disponibilidad' in html and 'viernes, 13 de noviembre de 2026' in html
+    client = member_client(application, owner, person)
+    html = client.get('/teams-portal/?job_id=job-1').get_data(as_text=True)
+    assert 'Tu viaje para esta boda' in html and 'Guardar disponibilidad de viaje' in html
+    assert 'Si viajas por tu cuenta' in html and 'hospedaje cuando sea necesario' in html
+    assert 'DTSTART;VALUE=DATE:20261113' in client.get('/teams-portal/calendar.ics?job_id=job-1').get_data(as_text=True)
+    assert 'DTEND;VALUE=DATE:20261116' in client.get('/teams-portal/calendar.ics?job_id=job-1').get_data(as_text=True)
+    a = records(store, 'assignment')[0]
+    with client.session_transaction() as state:
+        csrf = state['teams_portal_csrf']
+    portal_headers = {'X-Teams-CSRF':csrf}
+    run(store, 'travel', job_id='job-1', version=plan['version'], enabled=True,
+        departure='2026-11-12', return_date='2026-11-15')
+    response = client.post('/teams-portal/command', headers=portal_headers, json=dict(action='travel_response', key='old-answer',
+                           id=a['id'], version=a['version'], response='available'))
+    assert response.status_code == 409
+    with owner.session_transaction() as state:
+        state.update(tenant_id='brand-b', user_email='other@example.invalid')
+    assert owner.get('/teams/jobs/job-1').status_code == 404

@@ -430,3 +430,22 @@ def test_reconciliation_preserves_revoked_links_and_does_not_upgrade_old_invites
     assert link()==first  # Only an explicit new invitation can grant access again.
     sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False,invite_ids=[assignments[0]['id']],delivery_key='explicit-resend')
     assert link()!=first
+
+
+def test_travel_invitation_reserves_entire_trip_and_keeps_coverage(prepared):
+    store, people, assignments, doc = prepared
+    with store.transaction() as db:
+        store.create(db,TENANT,'travel',job_id='wedding',enabled=True,departure='2026-11-13',return_date='2026-11-15',note='Salida a las 10:00')
+    event = events(store,TENANT,JOB,ORIGIN,ZONE,'secret')['assignment:'+assignments[0]['id']]
+    assert event['start'] == {'date':'2026-11-13'}
+    assert event['end'] == {'date':'2026-11-16'}
+    assert 'Cobertura: 14/11/2026 13:00' in event['description']
+    assert 'Salida a las 10:00' in event['description'] and 'login#invite=' in event['description']
+    assert event['attendees'] == [{'email':people[0]['email']}]
+    with store.transaction() as db:
+        a = store.get(db,TENANT,'assignment',assignments[0]['id'])
+        a['travel_response'] = 'wedding_only'
+        store.save(db,TENANT,'assignment',a)
+    event = events(store,TENANT,JOB,ORIGIN,ZONE,'secret')['assignment:'+assignments[0]['id']]
+    assert 'dateTime' in event['start'] and event['start']['dateTime'].startswith('2026-11-14T13:00')
+    assert 'Solo el día de la boda' in event['description']

@@ -10,7 +10,7 @@ from itsdangerous import URLSafeSerializer, BadData
 
 from flask import Blueprint, abort, g, jsonify, redirect, render_template, request, send_file, session, url_for
 
-from src.teams import LOCAL_ZONE, TeamsError, now, text, teams_zone, payment_deadline
+from src.teams import LOCAL_ZONE, TeamsError, now, text, teams_zone, payment_deadline, assignment_trip, teams_date
 from src.teams_features import VISIBLE_ASSIGNMENTS, advance_balance, cost_amount, document_visible, file_fields, MAX_FILE_BYTES
 
 
@@ -20,12 +20,20 @@ def calendar_text(assignments, jobs):
     lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Flow CRM//Teams Local//ES', 'CALSCALE:GREGORIAN']
     for a in assignments:
         job = jobs[a['job_id']]
-        lines.extend(['BEGIN:VEVENT', f"UID:{a['id']}@flow-teams.local", f"SEQUENCE:{a['terms_version']}",
+        trip = a.get('trip')
+        start_line = 'DTSTART:' + datetime.fromisoformat(a['start']).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+        end_line = 'DTEND:' + datetime.fromisoformat(a['end']).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+        description = 'Consulta las condiciones vigentes en tu portal privado de Flow Teams.'
+        if trip:
+            description += f" Viaje: {teams_date(trip['departure'])} a {teams_date(trip['return_date'])}. Cobertura: {teams_date(a['start'])} a {teams_date(a['end'])}."
+            if trip['response'] != 'wedding_only':
+                start_line = 'DTSTART;VALUE=DATE:' + trip['departure'].replace('-', '')
+                end_line = 'DTEND;VALUE=DATE:' + (datetime.fromisoformat(trip['return_date']) + timedelta(days=1)).strftime('%Y%m%d')
+        lines.extend(['BEGIN:VEVENT', f"UID:{a['id']}@flow-teams.local", f"SEQUENCE:{a.get('version', a['terms_version'])}",
                       'DTSTAMP:' + datetime.now(LOCAL_ZONE).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
-                      'DTSTART:' + datetime.fromisoformat(a['start']).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
-                      'DTEND:' + datetime.fromisoformat(a['end']).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
+                      start_line, end_line,
                       'SUMMARY:' + escape(f"{job['nombre']} · {a['role']}"), 'LOCATION:' + escape(job.get('location', '')),
-                      'DESCRIPTION:Consulta las condiciones vigentes en tu portal privado de Flow Teams.',
+                      'DESCRIPTION:' + escape(description),
                       'CLASS:PRIVATE', 'STATUS:' + ('CONFIRMED' if a['status'] in ('aceptada','realizada') else 'TENTATIVE'), 'END:VEVENT'])
     lines.append('END:VCALENDAR')
     # RFC 5545 lines fold at 75 octets without splitting a UTF-8 character.
@@ -268,11 +276,12 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                 costs.append(dict(id=c['id'], job_id=c['job_id'], category=c['category'], description=c['description'],
                                   amount=cost_amount(c), paid=paid, pending=cost_amount(c)-paid if c['status'] in ('aprobado','incurrido') else 0,
                                   status=c['status'], honorarium=bool(c.get('assignment_id')), assignment_id=c.get('assignment_id'), schedule_id=c.get('schedule_id')))
+            travel_plans = store.records(db, tenant, 'travel')
             coverage = []
             for a in assignments:
                 c = next((c for c in cost_rows if c.get('assignment_id') == a['id']), None)
                 own = {k: a.get(k) for k in ('id','job_id','role','slot','start','end','buffer','status','instructions','version','terms_version','accepted_terms')}
-                own.update(job=jobs[a['job_id']], amount=cost_amount(c) if c else 0,
+                own.update(trip=assignment_trip(a, travel_plans), job=jobs[a['job_id']], amount=cost_amount(c) if c else 0,
                            changed=a['job_day'] != jobs[a['job_id']]['boda_date'] or jobs[a['job_id']]['status'] in ('Cancelado','Archivado'))
                 coverage.append(own)
             current_job_ids = {a['job_id'] for a in assignments if a['job_day'] == jobs[a['job_id']]['boda_date']
@@ -399,7 +408,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
         actor = ('Vista de prueba del propietario · ' if session.get('teams_member_preview') else 'Miembro · ') + member['id']
         result=store.command(g.teams_portal_tenant, actor, request.get_json(silent=True), read_job, member_id=member['id'])
         data=request.get_json(silent=True) or {}
-        if data.get('action')=='response' and not app.config.get('FLOW_TEAMS_LOCAL'):
+        if data.get('action') in ('response', 'travel_response') and not app.config.get('FLOW_TEAMS_LOCAL'):
             from src.google_calendar import connected_email
             from src.teams import teams_zone
             if connected_email(g.teams_portal_tenant):
@@ -553,6 +562,9 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
         with store.transaction() as db:
             assignments = [a for a in store.records(db, g.teams_portal_tenant, 'assignment') if a['member_id'] == g.teams_member['id']
                            and a['status'] in VISIBLE_ASSIGNMENTS]
+            plans = store.records(db, g.teams_portal_tenant, 'travel')
+            for a in assignments:
+                a['trip'] = assignment_trip(a, plans)
         selected_job_id = request.args.get('job_id', '')
         if selected_job_id:
             if selected_job_id not in {a['job_id'] for a in assignments}:

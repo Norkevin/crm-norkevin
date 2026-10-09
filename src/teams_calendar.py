@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from itsdangerous import URLSafeSerializer
 
-from src.teams import TeamsError, now
+from src.teams import TeamsError, now, assignment_trip, teams_date
 from src.teams_features import VISIBLE_ASSIGNMENTS, document_visible
 from src.google_calendar import CalendarClient, connected_email, delivery_error
 from src.tenant_brand_map import all_known_tenant_ids
@@ -43,6 +43,7 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None
     with store.transaction() as db:
         members={m['id']:m for m in store.records(db,tenant,'member')}
         assignments=[a for a in store.records(db,tenant,'assignment') if a['job_id']==job['id']]
+        plans=store.records(db,tenant,'travel')
         documents=[d for d in store.records(db,tenant,'document') if d['job_id']==job['id']]
         eligible=bool(job.get('boda_date')) and job.get('status') not in ('Cancelado','Archivado')
         result={}
@@ -65,6 +66,13 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None
                 end=datetime.fromisoformat(assignment['end']).replace(tzinfo=zone)
                 lines=['Rol: '+assignment['role'],'Cobertura: '+start.strftime('%d/%m/%Y %H:%M')+' – '+end.strftime('%d/%m/%Y %H:%M'),
                        assignment.get('instructions') or '']
+                trip=assignment_trip(assignment, plans)
+                if trip:
+                    lines += ['Viaje y disponibilidad: salida '+teams_date(trip['departure'])+' · regreso '+teams_date(trip['return_date']),
+                              'Respuesta de viaje: '+trip['response_label'], trip['note'], trip['response_note'],
+                              'Confirma también tu disponibilidad para el viaje en el portal. El horario de cobertura aparece arriba.',
+                              'Si viajas por tu cuenta, se te asignarán viáticos para gasolina o transporte y alimentación; '
+                              'hospedaje cuando sea necesario. El responsable te indicará los importes de esta boda.']
                 for document in documents:
                     if document_visible(store,db,tenant,document,person['id']):
                         token=document_token(secret,tenant,person,document,assignment)
@@ -82,6 +90,9 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None
                     start={'dateTime':start.isoformat(),'timeZone':str(zone)},end={'dateTime':end.isoformat(),'timeZone':str(zone)},
                     attendees=[{'email':person['email']}],visibility='private',guestsCanInviteOthers=False,
                     guestsCanModify=False,guestsCanSeeOtherGuests=False)
+                if trip and trip['response'] != 'wedding_only':
+                    event.update(start={'date':trip['departure']},
+                                 end={'date':(date.fromisoformat(trip['return_date'])+timedelta(days=1)).isoformat()})
             result['assignment:'+assignment['id']]=event
         return result
 

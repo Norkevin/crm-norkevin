@@ -28,6 +28,30 @@ def payment_deadline(job, earlier=''):
     return min(earlier, limit) if earlier else limit
 
 
+TRAVEL_RESPONSES = {'available': 'Disponible todo el viaje', 'wedding_only': 'Solo el día de la boda',
+                    'unavailable': 'No disponible', 'pending': 'Por responder'}
+
+
+def assignment_trip(assignment, plans):
+    plan = next((p for p in plans if p['job_id'] == assignment['job_id']), {})
+    if not plan.get('enabled'):
+        return None
+    override = assignment.get('travel_override') or {}
+    return dict(departure=override.get('departure') or plan['departure'],
+                return_date=override.get('return_date') or plan['return_date'],
+                note=plan.get('note', ''), personal=bool(override),
+                response=assignment.get('travel_response', 'pending'),
+                response_label=TRAVEL_RESPONSES.get(assignment.get('travel_response'), 'Por responder'),
+                response_note=assignment.get('travel_response_note', ''))
+
+
+def availability_window(assignment, trip=None):
+    if trip and trip['response'] != 'wedding_only':
+        return (datetime.fromisoformat(trip['departure']).replace(tzinfo=LOCAL_ZONE),
+                datetime.fromisoformat(trip['return_date']).replace(tzinfo=LOCAL_ZONE) + timedelta(days=1))
+    return datetime.fromisoformat(assignment['start']), datetime.fromisoformat(assignment['end'])
+
+
 class TeamsError(Exception):
     def __init__(self, message, status=400):
         self.message, self.status = message, status
@@ -138,15 +162,20 @@ class TeamsStore:
             operations[0]['reviewed'] = False
             self.save(db, tenant, 'operation', operations[0])
 
-    def conflicts(self, db, tenant, member_id, start, end, buffer, exclude=None):
-        start = datetime.fromisoformat(start) - timedelta(minutes=buffer)
-        end = datetime.fromisoformat(end) + timedelta(minutes=buffer)
+    def conflicts(self, db, tenant, member_id, start, end, buffer, exclude=None, candidate=None):
+        plans = self.records(db, tenant, 'travel')
+        current = candidate or next((a for a in self.records(db, tenant, 'assignment') if a['id'] == exclude), None)
+        trip = assignment_trip(current, plans) if current else None
+        start, end = availability_window(dict(start=start, end=end), trip)
+        start = start - timedelta(minutes=buffer)
+        end = end + timedelta(minutes=buffer)
         conflicts = []
         for a in self.records(db, tenant, 'assignment'):
             if a['id'] == exclude or a['member_id'] != member_id or a['status'] in ('cancelada', 'rechazada'):
                 continue
-            other_start = datetime.fromisoformat(a['start']) - timedelta(minutes=a['buffer'])
-            other_end = datetime.fromisoformat(a['end']) + timedelta(minutes=a['buffer'])
+            other_start, other_end = availability_window(a, assignment_trip(a, plans))
+            other_start -= timedelta(minutes=a['buffer'])
+            other_end += timedelta(minutes=a['buffer'])
             if start < other_end and other_start < end:
                 conflicts.append(a)
         return conflicts
@@ -155,12 +184,12 @@ class TeamsStore:
         if not isinstance(data, dict):
             raise TeamsError('Se necesita un objeto JSON.')
         key = text(data, 'key', maximum=100)
-        member_actions = ('response', 'document_read', 'task_complete', 'expense_request', 'availability', 'availability_remove')
+        member_actions = ('response', 'document_read', 'task_complete', 'expense_request', 'availability', 'availability_remove', 'travel_response')
         if member_id:
             if data.get('action') not in member_actions:
                 raise TeamsError('Esta acción no pertenece al portal del miembro.', 403)
             key = f'member:{member_id}:{key}'
-        elif data.get('action') in ('response', 'document_read', 'expense_request', 'availability', 'availability_remove'):
+        elif data.get('action') in ('response', 'document_read', 'expense_request', 'availability', 'availability_remove', 'travel_response'):
             raise TeamsError('Esta acción requiere la identidad individual del miembro.', 403)
         fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
         with self.transaction() as db:
@@ -174,7 +203,7 @@ class TeamsStore:
             def guarded_job_reader(identifier):
                 job = original_reader(identifier)
                 protected = ('assignment', 'assignment_status', 'assignment_publish', 'assignment_edit', 'cost',
-                             'cost_status', 'cost_edit', 'operation', 'advance', 'settlement', 'expense_review', 'cost_shared', 'schedule')
+                             'cost_status', 'cost_edit', 'operation', 'advance', 'settlement', 'expense_review', 'cost_shared', 'schedule', 'travel', 'assignment_travel')
                 if action in protected and any(o['job_id'] == identifier and o.get('closed') for o in self.records(db, tenant, 'operation')):
                     raise TeamsError('La operación está cerrada. Reábrela con un motivo antes de cambiar sus costos o coberturas.', 409)
                 return job
@@ -242,7 +271,11 @@ class TeamsStore:
                 if any(a['job_id'] == job['id'] and a['slot'].casefold() == slot.casefold()
                        and a['status'] not in ('cancelada', 'rechazada') for a in self.records(db, tenant, 'assignment')):
                     raise TeamsError('Esta plaza ya tiene una asignación. Usa otra plaza o cancela la anterior.', 409)
-                conflicts = self.conflicts(db, tenant, member['id'], start.isoformat(), end.isoformat(), buffer)
+                candidate = dict(job_id=job['id'], start=start.isoformat(), end=end.isoformat())
+                trip = assignment_trip(candidate, self.records(db, tenant, 'travel'))
+                if trip and not trip['departure'] <= start.date().isoformat() <= end.date().isoformat() <= trip['return_date']:
+                    raise TeamsError('La cobertura debe estar dentro de las fechas de viaje de esta boda.')
+                conflicts = self.conflicts(db, tenant, member['id'], start.isoformat(), end.isoformat(), buffer, candidate=candidate)
                 if conflicts:
                     warnings.append('Borrador guardado con conflicto de horario. Revisa el calendario antes de confirmar con el equipo.')
                 fee = cents(data.get('amount'))
@@ -541,11 +574,13 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             operations = database.records(db, tenant, 'operation')
             audit = database.records(db, tenant, 'audit')
             extra = {kind: database.records(db, tenant, kind) for kind in (
-                'document', 'receipt', 'notice', 'task', 'expense_request', 'availability', 'advance', 'settlement', 'report', 'config', 'schedule', 'job_classification', 'calendar_sync')}
+                'document', 'receipt', 'notice', 'task', 'expense_request', 'availability', 'advance', 'settlement', 'report', 'config', 'schedule', 'job_classification', 'calendar_sync', 'travel')}
             from src.teams_features import advance_balance, clean
             for advance in extra['advance']:
                 advance['remaining'] = advance_balance(database, db, tenant, advance)
             extra['document'] = [clean(d) for d in extra['document']]
+        for a in assignments:
+            a['trip'] = assignment_trip(a, extra['travel'])
         member_map = {m['id']: m for m in members}
         job_map = {j['id']: j for j in jobs}
         paid = {}
@@ -585,8 +620,8 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             a['changed'] = a['job_day'] != job_map.get(a['job_id'], {}).get('boda_date')
             a['conflicts'] = [other['id'] for other in assignments if other['id'] != a['id']
                 and other['member_id'] == a['member_id'] and other['status'] not in ('cancelada','rechazada') and a['status'] not in ('cancelada','rechazada')
-                and datetime.fromisoformat(a['start']) - timedelta(minutes=a['buffer']) < datetime.fromisoformat(other['end']) + timedelta(minutes=other['buffer'])
-                and datetime.fromisoformat(other['start']) - timedelta(minutes=other['buffer']) < datetime.fromisoformat(a['end']) + timedelta(minutes=a['buffer'])]
+                and availability_window(a, a['trip'])[0] - timedelta(minutes=a['buffer']) < availability_window(other, other['trip'])[1] + timedelta(minutes=other['buffer'])
+                and availability_window(other, other['trip'])[0] - timedelta(minutes=other['buffer']) < availability_window(a, a['trip'])[1] + timedelta(minutes=a['buffer'])]
         billable = [p for p in crm_store.list('payments') if p.get('tipo') != 'team_payment']
         today = datetime.now(teams_zone(crm_store, tenant)).date()
         for j in jobs:
@@ -608,6 +643,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             j['reviewed'] = bool(op.get('reviewed'))
             j['configured'] = bool(jcosts or j['reviewed'])
             j['incomplete'] = not j['income'] or not j['reviewed'] or bool(commercial['descuadre_cotizado_vs_cuotas'])
+            j['travel'] = next((p for p in extra['travel'] if p['job_id'] == j['id']), {})
             j['assignments'] = [a for a in assignments if a['job_id'] == j['id'] and a['status'] not in ('cancelada', 'rechazada')]
             classification = next((r for r in extra['job_classification'] if r['job_id'] == j['id']), {})
             j['teams_state'] = classification.get('state', 'included')

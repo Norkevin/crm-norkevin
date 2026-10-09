@@ -85,6 +85,14 @@
     update();
   });
   dateControls(document);
+  document.querySelectorAll('[data-travel-toggle]').forEach(select => {
+    const fields = select.form.querySelector('[data-travel-fields]');
+    const update = () => {
+      fields.hidden = select.value !== 'true';
+      fields.querySelectorAll('input[type="date"]').forEach(input => { input.required = !fields.hidden; });
+    };
+    select.addEventListener('change', update); update();
+  });
   document.querySelectorAll('form[data-command="calendar_sync"] input[name="send_at"]').forEach(input => {
     const button = input.form.querySelector('[data-calendar-submit]');
     const update = () => { button.textContent = input.value
@@ -114,6 +122,8 @@
         .map(row => `${row.querySelector('[data-quota-date]').value} ${row.querySelector('[data-quota-amount]').value}`).join('\n');
       if ('version' in data) data.version = Number(data.version);
       if ('terms_version' in data) data.terms_version = Number(data.terms_version);
+      if (data.action === 'travel') data.enabled = data.enabled === 'true';
+      if (data.action === 'assignment_travel') data.personal = data.personal === 'true';
       if ('active' in data) data.active = data.active === 'true';
       if (data.action === 'operation') data.reviewed = form.elements.reviewed.checked;
       if (data.action === 'payment') {
