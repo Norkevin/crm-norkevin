@@ -2,6 +2,8 @@
 from threading import Event, Thread
 from datetime import date, datetime, timedelta, timezone
 import hashlib
+import base64
+import hmac
 import json
 import logging
 import re
@@ -16,6 +18,7 @@ from src.google_calendar import CalendarClient, connected_email, delivery_error
 from src.tenant_brand_map import all_known_tenant_ids
 
 LOGGER=logging.getLogger(__name__)
+PORTAL_LINK_PATTERN = r'/teams-portal/login#invite=[^\s]+|/p/[A-Za-z0-9_-]+'
 
 
 def valid_invitation_email(email):
@@ -39,7 +42,17 @@ def portal_token(secret, tenant, member, assignment):
         expires=(datetime.fromisoformat(assignment['end']) + timedelta(days=90)).timestamp()))
 
 
-def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None):
+def calendar_portal_code(store, db, secret, tenant, member, assignment):
+    legacy = portal_token(secret, tenant, member, assignment)
+    code = base64.urlsafe_b64encode(hmac.new(secret.encode(), legacy.encode(), hashlib.sha256).digest()[:16]).decode().rstrip('=')
+    identifier = hashlib.sha256(code.encode()).hexdigest()
+    if not db.execute("SELECT 1 FROM entities WHERE kind='calendar_access' AND id=?", (identifier,)).fetchone():
+        claims = URLSafeSerializer(secret, salt='teams-calendar-portal').loads(legacy)
+        store.save(db, tenant, 'calendar_access', dict(id=identifier, **claims))
+    return code
+
+
+def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None,previous_events=None):
     with store.transaction() as db:
         members={m['id']:m for m in store.records(db,tenant,'member')}
         assignments=[a for a in store.records(db,tenant,'assignment') if a['job_id']==job['id']]
@@ -81,7 +94,14 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None
                         lines += [document['title']+': '+origin+'/teams-portal/calendar-document/'+token]
                 portal_link = origin+'/teams-portal/login'
                 if portal_ids is None or assignment['id'] in portal_ids:
-                    portal_link += '#invite=' + portal_token(secret, tenant, person, assignment)
+                    if previous_events is None:
+                        portal_link = origin + '/p/' + calendar_portal_code(store, db, secret, tenant, person, assignment)
+                    else:
+                        previous = previous_events.get('assignment:' + assignment['id'], {})
+                        old_link = re.search(PORTAL_LINK_PATTERN, previous.get('description', ''))
+                        if old_link and previous.get('attendees') == [{'email': person['email']}]:
+                            portal_link = origin + old_link.group(0)
+                if portal_link != origin+'/teams-portal/login':
                     lines += ['Tu correo: '+person['email'],
                               'Abre tu portal con este enlace privado. No necesitas contraseña. No lo reenvíes. '
                               'Válido hasta 90 días después de esta cobertura; después solicita un nuevo acceso.']
@@ -185,19 +205,12 @@ class CalendarSync:
             tracked=[r for r in self.store.records(db,tenant,'calendar_sync') if r['status']!='paused']
         wanted=invite_ids if invite_ids is not None else (None if include_new else [r['identity'].split(':',1)[1] for r in tracked if r['identity'].startswith('assignment:')])
         portal_ids = {r['identity'].split(':',1)[1] for r in tracked
-                      if r['identity'].startswith('assignment:') and '#invite=' in (r.get('event') or {}).get('description','')}
+                      if r['identity'].startswith('assignment:') and re.search(PORTAL_LINK_PATTERN, (r.get('event') or {}).get('description',''))}
         if delivery_key is not None:
             portal_ids.update(invite_ids or (a['id'] for a in self._assignments(tenant, job['id'])))
-        desired=events(self.store,tenant,job,origin,zone,secret,wanted,portal_ids)
-        if delivery_key is None:
-            # Reconciliation must not mint a new credential after an owner revokes access.
-            for previous in tracked:
-                event = desired.get(previous['identity'])
-                old_event = previous.get('event') or {}
-                old_link = re.search(r'/teams-portal/login#invite=[^\s]+', old_event.get('description',''))
-                if event and old_link:
-                    replacement = old_link.group(0) if event.get('attendees') == old_event.get('attendees') else '/teams-portal/login'
-                    event['description'] = re.sub(r'/teams-portal/login#invite=[^\s]+', replacement, event['description'])
+        # Reconciliation preserves credentials; only an explicit invitation may issue a new one.
+        previous_events = {r['identity']: r.get('event') or {} for r in tracked} if delivery_key is None else None
+        desired=events(self.store,tenant,job,origin,zone,secret,wanted,portal_ids,previous_events)
         return self.enqueue_events(tenant,job['id'],desired,background=background,invite_ids=invite_ids,
             send_at=send_at,include_new=include_new,delivery_key=delivery_key,skip_unchanged=skip_unchanged)
 

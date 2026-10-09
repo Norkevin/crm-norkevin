@@ -2618,7 +2618,7 @@ def api_gallery_job_search():
 import re as _re_auth
 
 PUBLIC_EXACT_PATHS = {
-    '/login', '/logout', '/dev/login', '/contacto', '/api/leads/nuevo', '/captacion', '/api/captacion',
+    '/login', '/logout', '/dev/login', '/teams-portal/login', '/contacto', '/api/leads/nuevo', '/captacion', '/api/captacion',
     '/api/integrations/gallery/jobs',
     '/manifest.webmanifest', '/service-worker.js', '/offline.html',
 }

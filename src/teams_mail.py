@@ -9,7 +9,7 @@ from src.teams import LOCAL_ZONE, TeamsError, now
 
 
 def issue_code(store, tenant, member, actor):
-    token = secrets.token_urlsafe(32)
+    token = secrets.token_urlsafe(16)
     with store.transaction() as db:
         current = store.get(db, tenant, 'member', member['id'])
         if not current['active'] or current.get('access_version', 1) != member.get('access_version', 1):
@@ -24,6 +24,7 @@ def issue_code(store, tenant, member, actor):
 
 def safe_mail_body(body):
     # Keep the content for owners, never archive usable bearer credentials.
+    body = re.sub(r'https?://[^\s]+/p/[A-Za-z0-9_-]+', '[enlace privado protegido]', body)
     body = re.sub(r'(https?://[^\s]+/teams-portal/login)#(?:access|invite)=[^\s]+',
                   r'\1 [enlace privado protegido]', body)
     return re.sub(r'https?://[^\s]+/teams-portal/calendar-document/[^\s]+',
@@ -47,9 +48,9 @@ def send_portal_email(store, tenant, member, origin, actor, *, event=None, calen
         raise TeamsError('Agrega un correo válido en la ficha del trabajador.')
     if not gmail_delivery.is_connected(tenant_id=tenant):
         raise TeamsError('Conecta Gmail para esta marca en Configuración del CRM.')
-    invitation = re.search(r'https?://[^\s]+/teams-portal/login#invite=[^\s]+', (event or {}).get('description', ''))
+    invitation = re.search(r'https?://[^\s]+(?:/p/[A-Za-z0-9_-]+|/teams-portal/login#invite=[^\s]+)', (event or {}).get('description', ''))
     token = None if invitation else issue_code(store, tenant, member, actor)
-    link = invitation.group(0) if invitation else origin.rstrip('/') + '/teams-portal/login#access=' + token
+    link = invitation.group(0) if invitation else origin.rstrip('/') + '/p/' + token
     subject = 'Tu acceso personal a Teams'
     lines = [f"Hola, {member['name']}."]
     if event:

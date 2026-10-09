@@ -1153,11 +1153,11 @@ def test_real_personal_link_authenticates_outside_owner_and_cannot_access_peer(w
     publish(store,assignment(store,person));publish(store,assignment(store,other,slot='Video'))
     issued=owner.post('/api/teams/access',headers={'X-Teams-CSRF':'csrf'},json=dict(member_id=person['id'])).get_json()
     parsed=urlparse(issued['login_url'])
-    assert parsed.path=='/teams-portal/login' and parse_qs(parsed.fragment)['access']==[issued['code']]
+    assert parsed.path=='/p/'+issued['code'] and not parsed.fragment and len(issued['code']) == 22
     assert '/preview/' not in issued['login_url'] and not parsed.query
     client=application.test_client();client.get(parsed.path)
     with client.session_transaction() as state: csrf=state['teams_login_csrf'];assert 'logged_in' not in state
-    assert client.post(parsed.path,data=dict(code=issued['code'],csrf=csrf)).status_code==302
+    assert client.post('/teams-portal/login',data=dict(code=issued['code'],csrf=csrf)).status_code==302
     data=client.get('/teams-portal/summary').get_json()
     assert data['member']['id']==person['id'] and data['preview'] is False and 'Peer secret' not in str(data)
     with client.session_transaction() as state: csrf=state['teams_portal_csrf']
@@ -1435,7 +1435,7 @@ def test_portal_email_scoped_single_use_and_idempotent(web, monkeypatch):
         return owner.post('/api/teams/access/email', headers={'X-Teams-CSRF':'csrf'}, json=data)
     assert send().status_code == 200 and send().status_code == 200
     assert len(sent) == 1 and sent[0][1]['tenant_id'] == 'brand-a'
-    token = re.search(r'#access=([\w-]+)', sent[0][0][2]).group(1)
+    token = re.search(r'/p/([\w-]+)', sent[0][0][2]).group(1)
     assert token not in str(records(store, 'audit') + records(store, 'portal_delivery') + records(store, 'access'))
     assert records(store, 'access')[0]['id'] == hashlib.sha256(token.encode()).hexdigest()
     worker = application.test_client(); worker.get('/teams-portal/login')
@@ -1557,7 +1557,7 @@ def test_calendar_bulk_skips_missing_email_and_sends_personal_portal_link(web, m
     assert deliveries == []
     sync.drain('brand-a')
     assert len(deliveries)==1 and deliveries[0][0][0]==valid['email']
-    assert '#invite=' in deliveries[0][0][2] and 'calendar.google.com/event' in deliveries[0][0][2]
+    assert '/p/' in deliveries[0][0][2] and 'calendar.google.com/event' in deliveries[0][0][2]
     assert deliveries[0][1]['tenant_id']=='brand-a'
     row=next(r for r in records(store,'calendar_sync') if r['identity']=='assignment:'+a['id'])
     assert row['status']=='synced' and row['email_status']=='sent'

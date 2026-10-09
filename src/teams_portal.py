@@ -53,6 +53,7 @@ def calendar_text(assignments, jobs):
 
 def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
     portal = Blueprint('teams_portal', __name__, url_prefix='/teams-portal')
+    entry = Blueprint('teams_entry', __name__)
     original_resolver = crm_store.tenant_resolver
     crm_store.tenant_resolver = lambda: getattr(g, 'teams_portal_tenant', None) or original_resolver()
 
@@ -61,19 +62,23 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
     for index, hook in enumerate(hooks):
         if hook.__name__ == '_require_login':
             def local_portal_login_gate(original=hook):
-                if (app.config.get('FLOW_TEAMS_LOCAL') or app.config.get('FLOW_TEAMS_ENABLED')) and (request.path == '/teams-portal' or request.path.startswith('/teams-portal/')):
+                if (app.config.get('FLOW_TEAMS_LOCAL') or app.config.get('FLOW_TEAMS_ENABLED')) and (request.path == '/teams-portal' or request.path.startswith('/teams-portal/') or request.endpoint == 'teams_entry.enter'):
                     return None
                 return original()
             hooks[index] = local_portal_login_gate
 
-    @portal.before_request
-    def member_only():
+    @entry.before_request
+    def check_enabled():
         local = app.config.get('FLOW_TEAMS_LOCAL')
         if not (local or app.config.get('FLOW_TEAMS_ENABLED')) or (local and request.remote_addr not in ('127.0.0.1', '::1')):
             abort(404)
         limit = MAX_FILE_BYTES + 1024*1024 if request.endpoint == 'teams_portal.expense_upload' else 65536
         if request.content_length and request.content_length > limit:
             abort(413)
+
+    @portal.before_request
+    def member_only():
+        check_enabled()
         if request.endpoint in ('teams_portal.login','teams_portal.calendar_document'):
             return
         tenant, member_id = session.get('teams_member_tenant'), session.get('teams_member_id')
@@ -98,12 +103,14 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             if not token or not secrets.compare_digest(request.headers.get('X-Teams-CSRF', ''), token):
                 abort(403)
 
+    @entry.after_request
     @portal.after_request
     def private(response):
         response.headers.update({'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',
                                  'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY'})
         return response
 
+    @entry.errorhandler(TeamsError)
     @portal.errorhandler(TeamsError)
     def invalid(error):
         return jsonify(ok=False, error=error.message), error.status
@@ -133,8 +140,8 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
         with store.transaction() as db:
             member = store.get(db, session['tenant_id'], 'member', text(data, 'member_id'))
         token = issue_code(store, session['tenant_id'], member, session['user_email'])
-        # The raw code is returned once, never written to the audit, URL, outbox or idempotency table.
-        return jsonify(ok=True, code=token, login_url=url_for('teams_portal.login', _external=True) + '#access=' + token,
+        # The raw code is returned once; owner copies and persisted access records omit it.
+        return jsonify(ok=True, code=token, login_url=url_for('teams_entry.enter', token=token, _external=True),
                        message='Enlace privado de un solo uso. Caduca en 24 horas. No se ha enviado.')
 
     @owner_blueprint.route('/api/teams/access/email', methods=['POST'])
@@ -177,6 +184,56 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             store.save(db, tenant, 'portal_delivery', delivery)
         return jsonify(ok=True, warnings=['Acceso personal enviado a ' + member['email'] + '. El enlace dura 24 horas.'])
 
+    def calendar_identity(db, invitation):
+        tenant = invitation['tenant']
+        person = store.get(db, tenant, 'member', invitation['member'])
+        coverage = store.get(db, tenant, 'assignment', invitation['assignment'])
+        g.teams_portal_tenant = tenant
+        try:
+            from src.linked_coverages import resolve_job
+            job = resolve_job(crm_store, coverage['job_id'])
+        finally:
+            g.pop('teams_portal_tenant', None)
+        valid = (person['active'] and invitation['access'] == person.get('access_version', 1)
+                 and invitation['email'] == person.get('email')
+                 and coverage['member_id'] == person['id'] and coverage['status'] in VISIBLE_ASSIGNMENTS
+                 and invitation['expires'] > datetime.now(timezone.utc).timestamp()
+                 and job and job.get('status') not in ('Cancelado', 'Archivado'))
+        return (tenant, person, coverage) if valid else None
+
+    @entry.route('/p/<token>')
+    def enter(token):
+        if len(token) not in (22, 43):
+            abort(404)
+        identifier = hashlib.sha256(token.encode()).hexdigest()
+        session.setdefault('teams_login_csrf', secrets.token_urlsafe(32))
+        with store.transaction() as db:
+            row = db.execute("SELECT tenant,payload FROM entities WHERE kind='calendar_access' AND id=?", (identifier,)).fetchone()
+            if row:
+                try:
+                    identity = calendar_identity(db, json.loads(row['payload']))
+                    if identity:
+                        tenant, person, coverage = identity
+                        bind_member(tenant, person)
+                        return redirect(url_for('teams_portal.page', job_id=coverage['job_id']))
+                except (TeamsError, KeyError, TypeError, ValueError):
+                    pass
+            else:
+                row = db.execute("SELECT tenant,payload FROM entities WHERE kind='access' AND id=?", (identifier,)).fetchone()
+                if row:
+                    access = json.loads(row['payload'])
+                    person = store.get(db, row['tenant'], 'member', access['member_id'])
+                    if (person['active'] and access['expires'] > now()
+                            and access['access_version'] == person.get('access_version', 1)):
+                        if not access['used']:
+                            return render_template('teams_portal.html', login=True, csrf=session['teams_login_csrf'], auto_code=token)
+                        if (session.get('teams_member_id') == person['id'] and session.get('teams_member_tenant') == row['tenant']
+                                and session.get('teams_member_access_version') == person.get('access_version', 1)
+                                and not session.get('teams_member_preview')):
+                            return redirect(url_for('teams_portal.page'))
+        return render_template('teams_portal.html', login=True, csrf=session['teams_login_csrf'],
+                               error='Enlace inválido o caducado. Solicita un nuevo acceso al responsable.')
+
     @portal.route('/login', methods=['GET', 'POST'])
     def login():
         session.setdefault('teams_login_csrf', secrets.token_urlsafe(32))
@@ -196,27 +253,17 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                     return render_template('teams_portal.html', login=True, csrf=session['teams_login_csrf'], error='Demasiados intentos. Espera un minuto.'), 429
                 # Calendar links are reusable while the member and coverage remain authorized.
                 try:
-                    invitation = URLSafeSerializer(app.secret_key, salt='teams-calendar-portal').loads(token)
-                    tenant = invitation['tenant']
-                    person = store.get(db, tenant, 'member', invitation['member'])
-                    coverage = store.get(db, tenant, 'assignment', invitation['assignment'])
-                    g.teams_portal_tenant = tenant
-                    from src.linked_coverages import resolve_job
-                    job = resolve_job(crm_store, coverage['job_id'])
-                    valid = (person['active'] and invitation['access'] == person.get('access_version', 1)
-                             and invitation['email'] == person.get('email')
-                             and coverage['member_id'] == person['id'] and coverage['status'] in VISIBLE_ASSIGNMENTS
-                             and invitation['expires'] > datetime.now(timezone.utc).timestamp()
-                             and job and job.get('status') not in ('Cancelado', 'Archivado'))
-                    if valid:
+                    calendar_row = db.execute("SELECT payload FROM entities WHERE kind='calendar_access' AND id=?", (token_hash,)).fetchone()
+                    invitation = json.loads(calendar_row['payload']) if calendar_row else URLSafeSerializer(app.secret_key, salt='teams-calendar-portal').loads(token)
+                    identity = calendar_identity(db, invitation)
+                    if identity:
+                        tenant, person, coverage = identity
                         bind_member(tenant, person)
                         count['count'] = 0
                         store.save(db, '_local', 'login_attempt', count)
                         return redirect(url_for('teams_portal.page', job_id=coverage['job_id']))
                 except (BadData, TeamsError, KeyError, TypeError, ValueError):
                     pass
-                finally:
-                    g.pop('teams_portal_tenant', None)
                 row = db.execute("SELECT tenant,payload FROM entities WHERE kind='access' AND id=?", (token_hash,)).fetchone()
                 access = json.loads(row['payload']) if row else None
                 member = store.get(db, row['tenant'], 'member', access['member_id']) if access else None
@@ -579,3 +626,4 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                          as_attachment=True, download_name='mis-coberturas.ics', max_age=0)
 
     app.register_blueprint(portal)
+    app.register_blueprint(entry)

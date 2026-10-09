@@ -421,13 +421,17 @@ def test_reconciliation_preserves_revoked_links_and_does_not_upgrade_old_invites
     def link():
         with store.transaction() as db:
             row=next(r for r in store.records(db,TENANT,'calendar_sync') if r['identity']=='assignment:'+assignments[0]['id'])
-        return re.search(r'#invite=([^\s]+)',row['event']['description']).group(1)
+        return re.search(r'/p/([A-Za-z0-9_-]+)',row['event']['description']).group(1)
     first=link()
+    with store.transaction() as db:
+        access_count = len(store.records(db, TENANT, 'calendar_access'))
     with store.transaction() as db:
         person=store.get(db,TENANT,'member',people[0]['id']);person['access_version']=2
         store.save(db,TENANT,'member',person)
     sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False)
     assert link()==first  # Only an explicit new invitation can grant access again.
+    with store.transaction() as db:
+        assert len(store.records(db, TENANT, 'calendar_access')) == access_count
     sync.enqueue(TENANT,JOB,ORIGIN,ZONE,'secret',background=False,invite_ids=[assignments[0]['id']],delivery_key='explicit-resend')
     assert link()!=first
 
@@ -440,7 +444,7 @@ def test_travel_invitation_reserves_entire_trip_and_keeps_coverage(prepared):
     assert event['start'] == {'date':'2026-11-13'}
     assert event['end'] == {'date':'2026-11-16'}
     assert 'Cobertura: 14/11/2026 13:00' in event['description']
-    assert 'Salida a las 10:00' in event['description'] and 'login#invite=' in event['description']
+    assert 'Salida a las 10:00' in event['description'] and '/p/' in event['description']
     assert event['attendees'] == [{'email':people[0]['email']}]
     with store.transaction() as db:
         a = store.get(db,TENANT,'assignment',assignments[0]['id'])
