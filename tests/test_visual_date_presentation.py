@@ -12,3 +12,16 @@ import pytest
 def test_spanish_date_presentation_preserves_the_stored_calendar_day(stored, expected):
     from app import _format_date_es
     assert _format_date_es(stored) == expected
+
+
+@pytest.mark.parametrize('stored, expected', [
+    ('2027-10-30', 'sábado, 30 de octubre de 2027'),
+    ('2027-10-31', 'domingo, 31 de octubre de 2027'),
+    ('2026-10-06T23:50:00-06:00', 'martes, 6 de octubre de 2026'),
+    ('2024-02-29', 'jueves, 29 de febrero de 2024'),
+    ('2026-02-29', ''),
+    (None, ''),
+])
+def test_event_weekday_preserves_local_date(stored, expected):
+    from app import app
+    assert app.jinja_env.filters['fecha_evento'](stored) == expected

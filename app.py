@@ -58,11 +58,13 @@ def _parse_iso_day(value):
         return None
 
 
-def _format_date_es(value):
+def _format_date_es(value, weekday=False):
     day = value if isinstance(value, date) else _parse_iso_day(value)
     if not day:
         return ''
-    return f"{day.day} de {MONTH_NAMES_ES.get(day.month, '')} de {day.year}"
+    label = f"{day.day} de {MONTH_NAMES_ES.get(day.month, '')} de {day.year}"
+    weekdays = ('lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo')
+    return f"{weekdays[day.weekday()]}, {label}" if weekday else label
 
 
 
@@ -127,6 +129,7 @@ app.secret_key = os.environ.get('FLASK_SECRET', 'norkevin-crm-dev-secret-change-
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.jinja_env.auto_reload = True
 app.jinja_env.filters['fecha_legible'] = _format_date_es
+app.jinja_env.filters['fecha_evento'] = lambda value: _format_date_es(value, weekday=True)
 
 # Aislamiento multi-tenant: JsonStore filtra automaticamente por
 # Cuenta activa de la peticion en curso. Dos fuentes, en este orden:

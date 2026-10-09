@@ -5,7 +5,7 @@
 {% block topbar_title %}Lead{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css', v='20261008-event-weekday') }}">
 <section class="sn-page-wide lead-detail">
   <nav class="lead-breadcrumb" aria-label="Ruta de navegación"><a href="/leads">← Leads</a><span>/</span><span>Detalle del lead</span></nav>
   <header class="lead-hero">
@@ -33,9 +33,9 @@
     </div>
     {% endif %}
     <details class="mobile-event-details" data-mobile-fold open>
-      <summary>Detalles del evento <span>{{ lead.fecha_tentativa|fecha_legible or 'Por definir' }}</span></summary>
+      <summary>Detalles del evento <span class="event-date-summary">{{ lead.fecha_tentativa|fecha_evento or 'Por definir' }}</span></summary>
     <dl class="lead-event-facts">
-      <div><dt>Fecha del evento</dt><dd>{{ lead.fecha_tentativa|fecha_legible or 'Por definir' }} {% if lead.date_conflict_details %}<span class="sn-chip red"><span aria-hidden="true">⚠</span> Fecha ocupada</span>{% endif %}</dd></div>
+      <div class="event-date-highlight"><dt>Fecha del evento</dt><dd>{{ lead.fecha_tentativa|fecha_evento or 'Por definir' }} {% if lead.date_conflict_details %}<span class="sn-chip red"><span aria-hidden="true">⚠</span> Fecha ocupada</span>{% endif %}</dd></div>
       <div><dt>Lugar</dt><dd>{{ lead.locacion or 'Por definir' }}</dd></div>
       <div><dt>Origen</dt><dd>{{ lead.fuente or 'Sin especificar' }}</dd></div>
       <div><dt>Presupuesto</dt><dd>{{ lead.presupuesto or 'Por definir' }}</dd></div>

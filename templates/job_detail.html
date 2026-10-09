@@ -4,7 +4,7 @@
 
 {% block content %}
 {% set source_quotes=(job.studio_ninja_service_documents or [])|selectattr('kind','equalto','quote')|list %}
-<link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css', v='20261008-event-weekday') }}">
 <section class="sn-page-wide lead-detail job-detail">
   <nav class="lead-breadcrumb" aria-label="Ruta de navegación"><a href="/jobs">← Trabajos</a><span>/</span><span>Detalle del trabajo</span></nav>
   <header class="lead-hero">
@@ -34,9 +34,9 @@
       </div>
     </div>
     <details class="mobile-event-details" data-mobile-fold open>
-      <summary>Detalles del evento <span>{{ job.boda_date|fecha_legible or 'Por definir' }}</span></summary>
+      <summary>Detalles del evento <span class="event-date-summary">{{ job.boda_date|fecha_evento or 'Por definir' }}</span></summary>
     <dl class="lead-event-facts">
-      <div><dt>Fecha del evento</dt><dd>{{ job.boda_date|fecha_legible or 'Por definir' }}{% if job.end_date and job.end_date != job.boda_date %} — {{ job.end_date|fecha_legible }}{% endif %}</dd></div>
+      <div class="event-date-highlight"><dt>Fecha del evento</dt><dd>{{ job.boda_date|fecha_evento or 'Por definir' }}{% if job.end_date and job.end_date != job.boda_date %} — {{ job.end_date|fecha_evento }}{% endif %}</dd></div>
       <div><dt>Lugar</dt><dd>{{ job.location or 'Por definir' }}</dd></div>
       <div><dt>Origen</dt><dd>{{ (lead.fuente if lead else '') or job.lead_source or 'Sin especificar' }}</dd></div>
       <div><dt>Avance del workflow</dt><dd>{{ workflow_progress or 0 }}%</dd></div>

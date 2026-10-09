@@ -140,3 +140,10 @@
 .job-detail .job-wedding-milestone { background: var(--sn-white); }
 .job-detail .job-wedding-milestone .lead-template-link,
 .job-detail .job-wedding-milestone .lead-text-button { display: inline-block; margin: 8px 12px 0 0; }
+
+/* Make the booking day easy to compare at a glance, including in the folded mobile header. */
+.lead-detail .lead-event-facts .event-date-highlight{align-self:start;padding:10px 12px;border-left:3px solid var(--sn-accent-text);border-radius:0 8px 8px 0;background:var(--sn-mint)}
+.lead-detail .event-date-highlight dd{font-size:17px;font-weight:650;line-height:1.5;color:var(--sn-ink)}
+.lead-detail .event-date-highlight dd::first-letter,.lead-detail .event-date-summary::first-letter{text-transform:uppercase}
+.lead-detail .mobile-event-details>summary .event-date-summary{font-size:16px;font-weight:650;line-height:1.5;color:var(--sn-ink)}
+@media(max-width:760px){.lead-detail .lead-event-facts .event-date-highlight{grid-column:1 / -1}}
