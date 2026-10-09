@@ -86,7 +86,9 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None
                               'Abre tu portal con este enlace privado. No necesitas contraseña. No lo reenvíes. '
                               'Válido hasta 90 días después de esta cobertura; después solicita un nuevo acceso.']
                 lines += ['Portal del equipo: '+portal_link,
-                          'Aceptar en Google Calendar confirma la invitación; revisa las condiciones de tu cobertura en el portal.']
+                          'Si estás disponible, acepta esta invitación en Google Calendar. Si no puedes asistir, recházala; '
+                          'tu respuesta aparecerá en Teams para que el responsable pueda organizar un reemplazo. '
+                          'Revisa los detalles de tu cobertura y del viaje en tu portal.']
                 event=dict(summary=(job.get('nombre') or 'Boda')+' · '+assignment['role'],
                     location=job.get('location') or '',description='\n\n'.join(line for line in lines if line),
                     start={'dateTime':start.isoformat(),'timeZone':str(zone)},end={'dateTime':end.isoformat(),'timeZone':str(zone)},

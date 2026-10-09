@@ -1817,3 +1817,17 @@ def test_secondary_coverage_team_costs_roll_up_once_to_parent_and_portal(web):
         store.create(db,'brand-a','operation',job_id='job-1',closed=True,reviewed=True)
     blocked = owner.post('/api/teams/command',headers={'X-Teams-CSRF':'csrf'},json=dict(action='cost',key='closed-parent',job_id=secondary['id'],category='Comida',description='Comida',amount='10'))
     assert blocked.status_code == 409
+
+
+def test_calendar_decline_is_prominent_on_worker_card(web):
+    application, client, _ = web
+    store = application.extensions['teams']
+    person = member(store)
+    a = publish(store, assignment(store, person))
+    with store.transaction() as db:
+        store.create(db, 'brand-a', 'calendar_sync', job_id='job-1', identity='assignment:'+a['id'],
+                     status='synced', event={'attendees':[{'email':person['email']}]}, response_status='declined')
+    html = client.get('/teams/jobs/job-1').get_data(as_text=True)
+    assert 'No disponible · Invitación rechazada' in html
+    assert 'rechazó la invitación en Google Calendar' in html
+    assert a['id'] in html and person['name'] in html

@@ -460,3 +460,19 @@ def test_secondary_coverage_invites_crew_without_duplicate_wedding_mirror(prepar
     assert 'Trabajo secundario ligado a: Boda principal' in event['description']
     assert event['start']['dateTime'].startswith('2026-11-14T13:00')
     assert event['attendees'] == [{'email':people[0]['email']}]
+
+
+def test_invitation_explains_declining_and_refresh_shows_declined_without_cancelling_fee(prepared):
+    store, people, assignments, _ = prepared
+    fake = FakeCalendar()
+    sync = CalendarSync(store, lambda tenant: fake)
+    sync.enqueue(TENANT, JOB, ORIGIN, ZONE, 'secret', background=False, include_new=True)
+    sync.drain(TENANT)
+    before = deepcopy(rows(store, 'assignment'))
+    count = len(fake.calls)
+    fake.response = lambda *args: dict(attendees=[dict(email=people[0]['email'], responseStatus='declined')])
+    sync.refresh_responses(TENANT)
+    item = next(r for r in rows(store) if r['identity'] == 'assignment:'+assignments[0]['id'])
+    assert 'Si no puedes asistir, recházala' in item['event']['description']
+    assert item['response_status'] == 'declined'
+    assert len(fake.calls) == count and rows(store, 'assignment') == before
