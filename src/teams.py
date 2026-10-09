@@ -436,7 +436,8 @@ def teams_date(value):
         date = datetime.strptime(raw[:10], '%Y-%m-%d')
     except ValueError:
         return 'Fecha por revisar'
-    result = f'{date.day} de {MONTHS_ES[date.month - 1]} de {date.year}'
+    weekday = ('lunes','martes','miércoles','jueves','viernes','sábado','domingo')[date.weekday()]
+    result = f'{weekday}, {date.day} de {MONTHS_ES[date.month - 1]} de {date.year}'
     if len(raw) >= 16 and raw[10] in ('T', ' '):
         result += ' · ' + raw[11:16]
     return result

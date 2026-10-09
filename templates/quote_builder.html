@@ -234,7 +234,7 @@
         <div class="sn-card-body">
           <div class="quote-info-row">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z"/></svg>
-            <div><strong>Boda</strong><br>{{ job.boda_date or 'Sin fecha confirmada' }}{% if job.time %}<br>{{ job.time }}{% endif %}</div>
+            <div><strong>Boda</strong><br>{{ job.boda_date|fecha_es or 'Sin fecha confirmada' }}{% if job.time %}<br>{{ job.time }}{% endif %}</div>
           </div>
           <div class="quote-info-row">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2"/></svg>

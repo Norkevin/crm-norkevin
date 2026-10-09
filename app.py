@@ -58,7 +58,7 @@ def _parse_iso_day(value):
         return None
 
 
-def _format_date_es(value, weekday=False):
+def _format_date_es(value, weekday=True):
     day = value if isinstance(value, date) else _parse_iso_day(value)
     if not day:
         return ''
@@ -2130,7 +2130,7 @@ def _workflow_time_labels(steps, instance):
             local = when.astimezone(ZoneInfo('America/Guatemala'))
             period = 'a. m.' if local.hour < 12 else 'p. m.'
             step['scheduled_display'] = (
-                f"{local.day} de {MONTH_NAMES_ES[local.month]} de {local.year}, "
+                f"{_format_date_es(local)}, "
                 f"{local.hour % 12 or 12}:{local.minute:02d} {period}"
             )
             step['scheduled_epoch'] = int(when.timestamp() * 1000)
@@ -2339,7 +2339,7 @@ def fmt_dt(s) -> str:
     if not s: return ''
     try:
         d = datetime.fromisoformat(s.replace('Z', '+00:00'))
-        return d.strftime('%Y-%m-%d %H:%M')
+        return f"{_format_date_es(d)} · {d:%H:%M}"
     except:
         return s
 
@@ -3113,9 +3113,9 @@ def _compute_custom_range_payload(start_day, end_day):
 
     days = [start_day + _timedelta(days=i) for i in range(total_days)]
     if total_days > 62:
-        labels = [f'{d.day} {MONTH_NAMES_ES[d.month][:3]}' if d.day in (1, 15) else '' for d in days]
+        labels = [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" if d.day in (1, 15) else '' for d in days]
     else:
-        labels = [f'{d.day} {MONTH_NAMES_ES[d.month][:3]}' for d in days]
+        labels = [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" for d in days]
     date_label = f"{_format_date_es(start_day)} — {_format_date_es(end_day)}"
     base_keys = [d.isoformat() for d in days]
     keys_index = {key: idx for idx, key in enumerate(base_keys)}
@@ -3391,17 +3391,17 @@ def dashboard():
         if range_key == '7':
             start_day = today - timedelta(days=6)
             days = [start_day + timedelta(days=i) for i in range(7)]
-            return days, [f'{d.day} {MONTH_NAMES_ES[d.month][:3]}' for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
+            return days, [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
         if range_key == '30':
             start_day = today - timedelta(days=29)
             days = [start_day + timedelta(days=i) for i in range(30)]
-            return days, [f'{d.day} {MONTH_NAMES_ES[d.month][:3]}' for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
+            return days, [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
         if range_key == 'ytd':
             months = [date(today.year, m, 1) for m in range(1, 13)]
-            return months, [MONTH_NAMES_ES[d.month][:3] for d in months], f"1 de enero de {today.year} — 31 de diciembre de {today.year}"
+            return months, [MONTH_NAMES_ES[d.month][:3] for d in months], f"{_format_date_es(date(today.year, 1, 1))} — {_format_date_es(date(today.year, 12, 31))}"
         start_day = today.replace(day=1)
         days = [start_day + timedelta(days=i) for i in range((today - start_day).days + 1)]
-        return days, [f'{d.day} {MONTH_NAMES_ES[d.month][:3]}' for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
+        return days, [f"{_format_date_es(d).split(',')[0][:3]} {d.day} {MONTH_NAMES_ES[d.month][:3]}" for d in days], f"{_format_date_es(start_day)} — {_format_date_es(today)}"
 
     def _bucket_key(day, range_key):
         if not day:
@@ -5029,7 +5029,7 @@ def jobs_list():
         try:
             d = datetime.strptime(j['boda_date'], '%Y-%m-%d').date()
             j['dias_restantes'] = (d - datetime.now().date()).days
-            j['boda_date_display'] = d.strftime('%a, %d %b %Y')
+            j['boda_date_display'] = _format_date_es(d)
         except Exception:
             j['dias_restantes'] = None
             j['boda_date_display'] = None
@@ -7286,7 +7286,7 @@ def calendar_view():
     for e in upcoming_events:
         try:
             d = datetime.strptime(e['date'], '%Y-%m-%d').date()
-            e['date_label'] = f"{d.day:02d} {month_names_short[d.month]} {d.year}"
+            e['date_label'] = _format_date_es(d)
             e['days_away'] = (d - today).days
         except ValueError:
             e['date_label'] = e['date']

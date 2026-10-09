@@ -671,7 +671,7 @@ function updateSummary() {
         var row = document.createElement('div');
         row.className = 'summary-row';
         var due = (PAYMENT_PREVIEW[selectedPlan] || [])[i - 1];
-        var label = due ? new Date(due + 'T12:00:00').toLocaleDateString('es-GT', {day:'numeric', month:'short', year:'numeric'}) : '';
+        var label = due ? new Date(due + 'T12:00:00').toLocaleDateString('es-GT', {weekday:'long',day:'numeric', month:'short', year:'numeric'}) : '';
         row.innerHTML = '<span class="k">Pago ' + i + ' · ' + label + '</span><span>' + fmtMoney(monto) + '</span>';
         scheduleEl.appendChild(row);
       }

@@ -7,8 +7,8 @@ const path = require('node:path');
 test('Spanish display keeps the stored day and clock without timezone conversion', () => {
   const context = vm.createContext({});
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/date-range.js'), 'utf8'), context);
-  assert.equal(context.formatFlowDate('2026-10-05T23:50:00-06:00', true), '5 de octubre de 2026 · 23:50');
-  assert.equal(context.formatFlowDate('2024-02-29'), '29 de febrero de 2024');
+  assert.equal(context.formatFlowDate('2026-10-05T23:50:00-06:00', true), 'lunes, 5 de octubre de 2026 · 23:50');
+  assert.equal(context.formatFlowDate('2024-02-29'), 'jueves, 29 de febrero de 2024');
   assert.equal(context.formatFlowDate('2026-02-29'), '2026-02-29', 'an invalid date must not silently roll into March');
   assert.equal(context.formatFlowDate(''), '');
 });

@@ -107,7 +107,7 @@
               <span class="agenda-day-num">{{ cell.day }}</span>
               {# El numero del dia ya se ve grande al lado; repetirlo aca
                  daba encabezados tipo "15 Agosto 15". #}
-              <span class="agenda-day-label">{{ month_name }}{{ ' · Hoy' if cell.today else '' }}</span>
+              <span class="agenda-day-label">{{ (cell.iso_date|fecha_es).split(',')[0] }} · {{ month_name }}{{ ' · Hoy' if cell.today else '' }}</span>
             </button>
             <div class="agenda-events">
               {% for evt in cell.events %}

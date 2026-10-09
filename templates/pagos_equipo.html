@@ -89,7 +89,7 @@
             Marcar Pagado
           </button>
           {% else %}
-          <span class="text-xs text-ink-soft">{{ p.paid_date or 'pagado' }}</span>
+          <span class="text-xs text-ink-soft">{{ p.paid_date|fecha_es or 'pagado' }}</span>
           {% endif %}
         </td>
       </tr>

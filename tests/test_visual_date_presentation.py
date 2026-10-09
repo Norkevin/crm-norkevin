@@ -11,7 +11,7 @@ import pytest
 ])
 def test_spanish_date_presentation_preserves_the_stored_calendar_day(stored, expected):
     from app import _format_date_es
-    assert _format_date_es(stored) == expected
+    assert _format_date_es(stored, weekday=False) == expected
 
 
 @pytest.mark.parametrize('stored, expected', [
@@ -25,3 +25,4 @@ def test_spanish_date_presentation_preserves_the_stored_calendar_day(stored, exp
 def test_event_weekday_preserves_local_date(stored, expected):
     from app import app
     assert app.jinja_env.filters['fecha_evento'](stored) == expected
+    assert app.jinja_env.filters['fecha_legible'](stored) == expected

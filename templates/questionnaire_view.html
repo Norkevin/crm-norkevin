@@ -76,7 +76,7 @@ fieldset.q-field { border:0; padding:0; margin:0; }
       {% if client or job %}<div class="hero-card__meta">
         {{ ui.meta_item('Preparado para', ((client.first_name or '') ~ ' ' ~ (client.last_name or '')) if client else '', 'users') }}
         {{ ui.meta_item('Evento', job.nombre if job else '', 'sparkle') }}
-        {{ ui.meta_item('Fecha', job.boda_date if job else '', 'calendar') }}
+        {{ ui.meta_item('Fecha', job.boda_date|fecha_es if job else '', 'calendar') }}
       </div>{% endif %}
     </div>
   </section>

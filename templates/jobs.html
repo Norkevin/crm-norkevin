@@ -151,7 +151,7 @@
               <div class="job-date" aria-label="{{ job.boda_date|fecha_legible }}">
               <span class="date-badge">
                 <strong>{{ job.boda_date[8:10] }}</strong>
-                <em>{{ (job.boda_date|fecha_legible).split(' ')[2][:3] if job.boda_date|fecha_legible else '' }}</em>
+                <em>{{ (job.boda_date|fecha_legible(false)).split(' ')[2][:3] if job.boda_date|fecha_legible else '' }}</em>
               </span>
               <div class="job-date-meta">
                 <span>{{ job.boda_date|fecha_es }}</span>

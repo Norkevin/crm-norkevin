@@ -15,7 +15,7 @@ def test_schedule_displays_guatemala_time_on_either_server_clock(monkeypatch, se
         monkeypatch.setattr(a, '_get_email_template', lambda _: {'cuerpo':'Hola'})
         instance = SimpleNamespace(auto_prepare=True,status=a.WorkflowStatus.ACTIVE)
         result = a._workflow_time_labels([step], instance)[0]
-        assert result['scheduled_display'] == '1 de octubre de 2026, 1:43 p. m.'
+        assert result['scheduled_display'] == 'jueves, 1 de octubre de 2026, 1:43 p. m.'
         assert result['scheduled_epoch'] == 1790883780000
         assert result['auto_prepare'] is True
     finally:

@@ -787,10 +787,10 @@ def test_private_member_fields_excluded_from_summary_portal_audit_and_result(web
 
 def test_teams_dates_keep_stored_calendar_day_and_time():
     from src.teams import teams_date
-    assert teams_date('2026-10-05') == '5 de octubre de 2026'
-    assert teams_date('2026-12-31T23:40:00-06:00') == '31 de diciembre de 2026 · 23:40'
-    assert teams_date('2027-01-01T00:10:00Z') == '1 de enero de 2027 · 00:10'
-    assert teams_date('2024-02-29') == '29 de febrero de 2024'
+    assert teams_date('2026-10-05') == 'lunes, 5 de octubre de 2026'
+    assert teams_date('2026-12-31T23:40:00-06:00') == 'jueves, 31 de diciembre de 2026 · 23:40'
+    assert teams_date('2027-01-01T00:10:00Z') == 'viernes, 1 de enero de 2027 · 00:10'
+    assert teams_date('2024-02-29') == 'jueves, 29 de febrero de 2024'
     assert teams_date('2026-02-29') == 'Fecha por revisar'
     assert teams_date('') == 'Sin fecha'
 
@@ -1370,7 +1370,7 @@ def test_invitation_button_is_visible_and_missing_contact_blocks_send(web,monkey
     with application.test_request_context('/'):
         from flask import session
         session['tenant_id']='brand-a'
-        assert application.jinja_env.filters['teams_calendar_date']('2026-10-10T22:54:00+00:00')=='10 de octubre de 2026 · 16:54'
+        assert application.jinja_env.filters['teams_calendar_date']('2026-10-10T22:54:00+00:00')=='sábado, 10 de octubre de 2026 · 16:54'
 
 
 def test_worker_replacement_updates_portal_and_preserves_financial_safeguards(web):

@@ -144,7 +144,7 @@
               <div class="sn-list-row">
                 <div>
                   <div class="sn-list-title">{{ lead.nombre }}</div>
-                  <div class="sn-list-meta">{{ lead.tipo_evento or 'BODAS' }} · {{ lead.fecha_tentativa or 'No date' }} · {{ lead.fuente or 'Manual' }}</div>
+                  <div class="sn-list-meta">{{ lead.tipo_evento or 'BODAS' }} · {{ lead.fecha_tentativa|fecha_es or 'Sin fecha' }} · {{ lead.fuente or 'Manual' }}</div>
                 </div>
                 <span class="sn-chip {% if lead.status == 'Convertido' %}green{% elif lead.status == 'Perdido' %}red{% else %}cyan{% endif %}">{{ lead.status or 'Nuevo' }}</span>
               </div>
@@ -185,7 +185,7 @@
                 <div style="min-width:0;">
                   <div class="sn-list-title">{{ r.job.nombre or 'Sin nombre' }}</div>
                   <div class="sn-list-meta">
-                    {{ r.job.boda_date or 'Sin fecha' }}
+                    {{ r.job.boda_date|fecha_es or 'Sin fecha' }}
                     {% if r.job.location %} · {{ r.job.location }}{% endif %}
                   </div>
                   {% if r.rol_etiqueta %}
@@ -208,7 +208,7 @@
                   Pendiente <strong>Q{{ '{:,.0f}'.format(r.pagos.pendiente or 0) }}</strong>
                   de Q{{ '{:,.0f}'.format(r.pagos.total or 0) }}
                   {% if r.pagos.proximo_pago_fecha %}
-                  · proximo pago {{ r.pagos.proximo_pago_fecha }}
+                  · proximo pago {{ r.pagos.proximo_pago_fecha|fecha_es }}
                   {% endif %}
                 {% endif %}
                 {% if r.pagos.vencidas %}
@@ -254,7 +254,7 @@
               <div class="sn-list-row">
                 <div>
                   <div class="sn-list-title">{{ q.paquete_nombre or q.id }}</div>
-                  <div class="sn-list-meta">{{ q.created or '' }} · {{ q.status or 'Draft' }}</div>
+                  <div class="sn-list-meta">{{ q.created|fecha_es or '' }} · {{ q.status or 'Draft' }}</div>
                 </div>
                 <div class="sn-money">Q{{ '{:,.2f}'.format(q.precio_total or 0) }}</div>
               </div>
@@ -288,7 +288,7 @@
               <div class="sn-list-row">
                 <div>
                   <div class="sn-list-title">{{ c.tipo or 'Contract' }}</div>
-                  <div class="sn-list-meta">{{ c.created or '' }} · {{ c.status or 'Draft' }}</div>
+                  <div class="sn-list-meta">{{ c.created|fecha_es or '' }} · {{ c.status or 'Draft' }}</div>
                 </div>
                 {% if c.signed %}<span class="sn-chip green">Signed</span>{% else %}<span class="sn-chip gray">Not signed</span>{% endif %}
               </div>
@@ -328,7 +328,7 @@
               <div class="sn-list-row">
                 <div>
                   <div class="sn-list-title">{{ p.invoice_id or p.id }}</div>
-                  <div class="sn-list-meta">{{ p.due_date or 'No due date' }} · {{ p.concepto or 'Invoice' }}</div>
+                  <div class="sn-list-meta">{{ p.due_date|fecha_es or 'Sin vencimiento' }} · {{ p.concepto or 'Invoice' }}</div>
                 </div>
                 <div class="sn-money">Q{{ '{:,.2f}'.format(p.amount or 0) }}</div>
               </div>
@@ -368,7 +368,7 @@
               <div class="sn-list-row">
                 <div>
                   <div class="sn-list-title">{{ p.invoice_id or p.id }}</div>
-                  <div class="sn-list-meta">{{ p.paid_at or p.due_date or '' }} · {{ p.concepto or 'Payment' }}</div>
+                  <div class="sn-list-meta">{{ (p.paid_at or p.due_date)|fecha_es or '' }} · {{ p.concepto or 'Payment' }}</div>
                 </div>
                 <div class="sn-money">Q{{ '{:,.2f}'.format(p.amount or 0) }}</div>
               </div>
@@ -400,7 +400,7 @@
               <div class="sn-list-row">
                 <div>
                   <div class="sn-list-title">{{ e.subject or '(sin asunto)' }}</div>
-                  <div class="sn-list-meta">{{ e.sent_at or '' }} · {{ e.to }}</div>
+                  <div class="sn-list-meta">{{ e.sent_at|fecha_es or '' }} · {{ e.to }}</div>
                 </div>
                 {% if e.status == 'failed' %}<span class="sn-chip red">Failed</span>
                 {% elif e.status == 'opened' or e.status == 'clicked' %}<span class="sn-chip green">Opened</span>

@@ -52,5 +52,5 @@
 {% if fee_summary.unconfirmed %}<p class="ft-muted">{{ fee_summary.unconfirmed }} {{ 'honorario por confirmar' if fee_summary.unconfirmed == 1 else 'honorarios por confirmar' }}. Sus propuestas no se incluyen como deuda confirmada.</p>{% endif %}
 {% if fee_summary.advance_paid %}<p class="ft-warning">Hay {{ fee_summary.advance_paid|teams_money }} recibidos de coberturas con condiciones por confirmar. Su saldo aún requiere revisión.</p>{% endif %}{% if fee_summary.overpaid %}<p class="ft-warning">Se detectaron pagos por encima de un importe registrado. El responsable debe revisar el saldo.</p>{% endif %}
 <button class="sn-btn" type="button" data-open-payments>Ver Mis pagos</button></aside></div>
-<footer class="ft-footer">Portal privado de Teams</footer><script>window.flowTeamsCSRF={{ csrf|tojson }};window.flowTeamsEndpoint={{ url_for('teams_portal.command')|tojson }};</script><script src="{{ url_for('static',filename='teams.js',v='20261008-wedding') }}" defer></script>
+<footer class="ft-footer">Portal privado de Teams</footer><script>window.flowTeamsCSRF={{ csrf|tojson }};window.flowTeamsEndpoint={{ url_for('teams_portal.command')|tojson }};</script><script src="{{ url_for('static',filename='teams.js',v='20261008-weekdays') }}" defer></script>
 {% endif %}</main></body></html>

@@ -67,7 +67,7 @@
   const formatDate = value => {
     if (!value) return 'Selecciona una fecha';
     const [year, month, day] = value.slice(0, 10).split('-').map(Number);
-    const date = new Intl.DateTimeFormat('es-GT', {day:'numeric', month:'long', year:'numeric', timeZone:'UTC'})
+    const date = new Intl.DateTimeFormat('es-GT', {weekday:'long',day:'numeric', month:'long', year:'numeric', timeZone:'UTC'})
       .format(new Date(Date.UTC(year, month - 1, day)));
     return date + (value.length > 10 ? ' · ' + value.slice(11, 16) : '');
   };

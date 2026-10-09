@@ -365,7 +365,7 @@
             <div class="sn-list-row">
               <div>
                 <div class="sn-list-title">{{ q.paquete_nombre or 'Quote' }}</div>
-                <div class="sn-list-meta">{{ {'pending':'Pendiente de aprobación', 'failed':'Falló el envío', 'blocked':'Envío bloqueado', 'discarded':'Correo descartado'}.get(q.delivery_status) or ('Enviado el ' ~ q.sent_at if q.sent_at else 'Preparado · sin envío confirmado') }}</div>
+                <div class="sn-list-meta">{{ {'pending':'Pendiente de aprobación', 'failed':'Falló el envío', 'blocked':'Envío bloqueado', 'discarded':'Correo descartado'}.get(q.delivery_status) or ('Enviado el ' ~ (q.sent_at|fecha_es) if q.sent_at else 'Preparado · sin envío confirmado') }}</div>
                 <div class="sn-list-meta">{{ q.status or 'Draft' }}</div>
               </div>
               <div class="sn-money">Q{{ '{:,.2f}'.format(q.get('precio_total') or 0) }}</div>
@@ -446,7 +446,7 @@
               <div>
                 <div class="sn-list-title">{{ q.name or q.id }}</div>
                 <div class="sn-list-meta">
-                  {{ 'Enviado el ' ~ q.sent_at if q.sent_at else 'Preparado · sin envío confirmado' }}
+                  {{ 'Enviado el ' ~ (q.sent_at|fecha_es) if q.sent_at else 'Preparado · sin envío confirmado' }}
                   {% if q.status == 'Respondido' and q.answered_at %} · Completed on {{ q.answered_at[:10] }}{% endif %}
                 </div>
               </div>
