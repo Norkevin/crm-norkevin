@@ -204,7 +204,7 @@ class TeamsStore:
             original_reader = job_reader
             def guarded_job_reader(identifier):
                 job = original_reader(identifier)
-                protected = ('assignment', 'assignment_status', 'assignment_publish', 'assignment_edit', 'cost',
+                protected = ('assignment', 'assignment_status', 'assignment_publish', 'assignment_edit', 'assignment_acknowledge', 'cost',
                              'cost_status', 'cost_edit', 'operation', 'advance', 'settlement', 'expense_review', 'cost_shared', 'schedule', 'travel', 'assignment_travel')
                 if action in protected and any(o['job_id'] in (identifier, job.get('parent_job_id')) and o.get('closed') for o in self.records(db, tenant, 'operation')):
                     raise TeamsError('La operación está cerrada. Reábrela con un motivo antes de cambiar sus costos o coberturas.', 409)
@@ -627,6 +627,11 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             a['member_name'] = member_map.get(a['member_id'], {}).get('name', 'Miembro inactivo')
             a['job_name'] = job_map.get(a['job_id'], {}).get('nombre', 'Evento no disponible')
             a['changed'] = a['job_day'] != job_map.get(a['job_id'], {}).get('boda_date')
+            current = not a['changed'] and job_map.get(a['job_id'], {}).get('status') not in ('Cancelado', 'Archivado')
+            a['can_confirm_manually'] = current and member_map.get(a['member_id'], {}).get('active', False) and a['status'] in ('pendiente', 'aceptada', 'reconfirmar')
+            confirmation = a.get('manual_confirmation') or {}
+            a['manual_confirmed'] = bool(current and a['status'] in ('pendiente', 'aceptada', 'reconfirmar', 'realizada')
+                and confirmation.get('member_id') == a['member_id'] and confirmation.get('terms_version') == a['terms_version'])
             a['conflicts'] = [other['id'] for other in assignments if other['id'] != a['id']
                 and other['member_id'] == a['member_id'] and other['status'] not in ('cancelada','rechazada') and a['status'] not in ('cancelada','rechazada')
                 and availability_window(a, a['trip'])[0] - timedelta(minutes=a['buffer']) < availability_window(other, other['trip'])[1] + timedelta(minutes=other['buffer'])

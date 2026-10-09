@@ -68,7 +68,11 @@
     {% if c and c.due_date %}<p class="ft-muted">Fecha límite de pago: <strong>{{ c.due_date|teams_date }}</strong> · máximo 30 días después de la boda.</p>{% endif %}
     {% if a.status in ['borrador','pendiente','aceptada','reconfirmar','realizada'] %}
     <div class="ft-invitation">
-      {% if invitation %}{% include 'teams_calendar_response.html' %}{% if invitation.event and invitation.response_status == 'declined' %}<p class="ft-warning" role="status">{{ a.member_name }} rechazó la invitación en Google Calendar. No está disponible para esta cobertura; revisa su reemplazo.</p>{% endif %}{% endif %}
+      {% include 'teams_calendar_response.html' %}{% if invitation and invitation.event and invitation.response_status == 'declined' %}<p class="ft-warning" role="status">{{ a.member_name }} rechazó la invitación en Google Calendar. No está disponible para esta cobertura; revisa su reemplazo.</p>{% endif %}
+      {% if not selected.closed and a.can_confirm_manually %}
+      {% if a.manual_confirmed %}<button class="sn-btn" type="button" data-action="assignment_acknowledge" data-id="{{ a.id }}" data-version="{{ a.version }}" data-status="withdrawn">Quitar confirmación manual</button>
+      {% else %}<button class="sn-btn" type="button" data-action="assignment_acknowledge" data-id="{{ a.id }}" data-version="{{ a.version }}" data-status="confirmed">Registrar confirmación manual</button><small>Deja constancia de que {{ a.member_name }} conoce esta cobertura. Las respuestas del portal y Google Calendar se muestran por separado.</small>{% endif %}
+      {% endif %}
       <p class="ft-invitation-status">Invitación de calendario · {{ {'synced':'Sincronizada','pending':'Programada' if invitation.not_before else 'En cola','failed':'No se confirmó el envío','paused':'Envío cancelado'}.get(invitation.status,invitation.status) if invitation else 'Sin enviar' }}</p>
       <p class="ft-muted">{{ a.member_email or 'Correo pendiente' }}</p>
       <p>Correo · {{ {'sent':'Enviado por Gmail','pending':'Pendiente','sending':'En proceso; no reenviar todavía','failed':'No confirmado'}.get(invitation.email_status, 'Sin enviar') if invitation else 'Sin enviar' }}</p>

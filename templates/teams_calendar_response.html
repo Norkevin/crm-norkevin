@@ -3,3 +3,9 @@
 {% if invitation.response_checked_at %}<small>Consultado {{ invitation.response_checked_at|teams_calendar_date }}</small>{% endif %}
 {% if invitation.response_error %}<small class="ft-warning-text">{{ invitation.response_error }}</small>{% endif %}
 {% endif %}
+{% if a.manual_confirmed %}
+<p><span class="ft-pill ft-status-aceptada">Confirmación manual · Enterado</span></p>
+<small>Registrado {{ a.manual_confirmation.at|teams_date }} · Por {{ a.manual_confirmation.by }}</small>
+{% elif a.manual_confirmation %}
+<small class="ft-warning-text">La confirmación manual anterior requiere revisar las condiciones actuales.</small>
+{% endif %}

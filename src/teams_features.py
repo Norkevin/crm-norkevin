@@ -274,6 +274,24 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
         if record['status'] in VISIBLE_ASSIGNMENTS:
             notice(store, db, tenant, record, 'asignacion', 'Revisa tu cobertura y sus condiciones vigentes en el portal.')
             tasks_for(store, db, tenant, record)
+    elif action == 'assignment_acknowledge':
+        record = store.get(db, tenant, 'assignment', text(data, 'id'))
+        store.check_version(record, data)
+        valid_assignment(store, db, tenant, record, job_reader)
+        if record['status'] not in ('pendiente', 'aceptada', 'reconfirmar'):
+            raise TeamsError('Esta cobertura ya está cerrada.', 409)
+        before = dict(record)
+        status = text(data, 'status')
+        if status == 'confirmed':
+            record['manual_confirmation'] = dict(member_id=record['member_id'], terms_version=record['terms_version'],
+                                               at=now(), by=actor)
+            warnings.append('Confirmación manual registrada: la persona está enterada de esta cobertura.')
+        elif status == 'withdrawn' and record.get('manual_confirmation'):
+            record['manual_confirmation'] = None
+            warnings.append('Confirmación manual retirada. El historial se conserva.')
+        else:
+            raise TeamsError('Revisa la confirmación manual.')
+        store.save(db, tenant, 'assignment', record)
     elif action == 'response':
         record = store.get(db, tenant, 'assignment', text(data, 'id'))
         if not member_id or record['member_id'] != member_id:
