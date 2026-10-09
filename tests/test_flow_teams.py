@@ -1482,6 +1482,60 @@ def test_annual_report_defaults_to_current_year_and_history_includes_undated(web
     assert owner.get('/teams/jobs?year=bad').status_code == 400
 
 
+def test_wedding_list_year_combines_with_view_search_and_preserves_financial_report(web):
+    from datetime import datetime
+    from flask import session, template_rendered
+    from src.teams import LOCAL_ZONE
+    application, owner, storage = web
+    today = datetime.now(LOCAL_ZONE).date()
+    current, next_year, previous = str(today.year), str(today.year + 1), str(today.year - 1)
+    with application.test_request_context('/'):
+        session['tenant_id'] = 'brand-a'
+        for identifier, name, event_date in [
+            ('job-1', 'Cercana Antigua', today.isoformat()),
+            ('job-2', 'Lejana Antigua', current + '-12-31'),
+            ('future', 'Otra boda', next_year + '-01-01'),
+            ('past', 'Pasada Antigua', previous + '-12-31'),
+            ('undated', 'Sin fecha', ''),
+        ]:
+            storage.upsert('jobs', dict(id=identifier, tenant_id='brand-a', nombre=name,
+                boda_date=event_date, price_total=1000, status='En curso'))
+        session['tenant_id'] = 'brand-b'
+        storage.upsert('jobs', dict(id='foreign', tenant_id='brand-b', nombre='Otra marca',
+            boda_date='2040-01-01', price_total=5000, status='En curso'))
+    contexts = []
+    def capture(sender, template, context, **extra): contexts.append(context)
+    with template_rendered.connected_to(capture, application):
+        assert owner.get('/teams/jobs').status_code == 200
+        baseline = contexts[-1]
+        assert baseline['list_year'] == 'all'
+        assert [j['id'] for j in baseline['jobs']] == ['job-1', 'job-2', 'future']
+        assert baseline['list_years'] == [next_year, current, previous]
+        for path in ('/teams', '/teams/jobs', '/teams/dashboard'):
+            response = owner.get(path + '?list_year=' + current)
+            filtered = contexts[-1]
+            assert response.status_code == 200
+            assert [j['id'] for j in filtered['jobs']] == ['job-1', 'job-2']
+            assert filtered['totals'] == baseline['totals']
+            assert filtered['report_totals'] == baseline['report_totals']
+            assert f'value="{current}" selected>{current} · Año actual' in response.get_data(as_text=True)
+            assert f'name="list_year" value="{current}"' in response.get_data(as_text=True)
+        assert owner.get('/teams/jobs?view=all&list_year='+current+'&q=Cercana&year='+previous).status_code == 200
+        assert [j['id'] for j in contexts[-1]['jobs']] == ['job-1']
+        assert contexts[-1]['report_year'] == previous and contexts[-1]['report_jobs_count'] == 1
+        assert owner.get('/teams/jobs?view=past&list_year='+previous).status_code == 200
+        assert [j['id'] for j in contexts[-1]['jobs']] == ['past']
+        response = owner.get('/teams/jobs?list_year='+previous)
+        assert contexts[-1]['jobs'] == []
+        assert 'Buscar en todas las bodas de '+previous in response.get_data(as_text=True)
+        assert 'list_year='+previous in response.get_data(as_text=True)
+        assert 'Ver todos los años' in response.get_data(as_text=True)
+        assert owner.get('/teams/jobs?view=all&list_year=all').status_code == 200
+        assert [j['id'] for j in contexts[-1]['jobs']] == ['past', 'job-1', 'job-2', 'future', 'undated']
+    for invalid in ('bad', '', '202', '20260', '２０２６'):
+        assert owner.get('/teams/jobs', query_string={'list_year': invalid}).status_code == 400
+
+
 def test_calendar_bulk_skips_missing_email_and_sends_personal_portal_link(web, monkeypatch):
     from src import gmail_delivery, google_calendar
     application, owner, _ = web; store=application.extensions['teams']

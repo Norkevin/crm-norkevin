@@ -779,10 +779,16 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         if view not in ('upcoming', 'past', 'archived', 'not_applicable', 'all') or len(query) > 200:
             abort(400)
         if section == 'jobs' and not job_id:
-            report_year = year or str(datetime.now(teams_zone(crm_store, session['tenant_id'])).year)
+            list_year = request.args.get('list_year', 'all')
+            if list_year != 'all' and (len(list_year) != 4 or not list_year.isascii() or not list_year.isdigit()):
+                abort(400)
+            current_year = str(datetime.now(teams_zone(crm_store, session['tenant_id'])).year)
+            report_year = year or current_year
             report_jobs = [j for j in data['jobs'] if report_year == 'all' or str(j.get('boda_date') or '').startswith(report_year + '-')]
-            data.update(report_year=report_year, report_years=sorted({str(j['boda_date'])[:4] for j in data['jobs']
-                        if j.get('boda_date')} | {str(datetime.now(LOCAL_ZONE).year)} | ({report_year} if report_year != 'all' else set()), reverse=True),
+            event_years = {str(j['boda_date'])[:4] for j in data['jobs'] if j.get('boda_date')}
+            data.update(list_year=list_year, current_year=current_year,
+                        list_years=sorted(event_years | {current_year} | ({list_year} if list_year != 'all' else set()), reverse=True),
+                        report_year=report_year, report_years=sorted(event_years | {current_year} | ({report_year} if report_year != 'all' else set()), reverse=True),
                         report_totals=job_totals(report_jobs), report_jobs_count=sum(not j.get('secondary') for j in report_jobs))
             def in_view(job):
                 if view == 'all':
@@ -791,7 +797,9 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                     return job['teams_state'] == view
                 return job['teams_state'] == 'included' and job['teams_phase'] == view
             data['all_jobs_count'] = len(data['jobs'])
-            data['jobs'] = sorted((j for j in data['jobs'] if in_view(j) and query.casefold() in
+            data['jobs'] = sorted((j for j in data['jobs'] if in_view(j)
+                                  and (list_year == 'all' or str(j.get('boda_date') or '').startswith(list_year + '-'))
+                                  and query.casefold() in
                                   (str(j.get('nombre', ''))+' '+str(j.get('location', ''))).casefold()),
                                   key=lambda j: (not bool(j.get('boda_date')), j.get('boda_date') or '', j.get('nombre') or ''))
         selected = None

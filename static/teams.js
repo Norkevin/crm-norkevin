@@ -1,4 +1,7 @@
 (() => {
+  document.querySelectorAll('.ft-list-filter select').forEach(select => {
+    select.addEventListener('change', () => select.form.requestSubmit());
+  });
   const feedback = document.querySelector('#ft-feedback');
   const showError = (message, source) => {
     const inline = source?.querySelector('[data-calendar-error]');
