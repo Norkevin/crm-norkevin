@@ -16,7 +16,7 @@ Fecha: 10 de octubre de 2026. Alcance: código local y fuentes oficiales; no ins
 | PWA | `static/manifest.webmanifest`: standalone, scope `/`, iconos 192/512 y máscara. `service-worker.js` precarga offline/manifest y permite caché de `/static/`; no contiene push/notificationclick. Es base instalable, no prueba de instalación actual del iPhone. |
 | Seguridad HTTP | Cookies HttpOnly/SameSite Lax y Secure según entorno; cabeceras de seguridad en `app.py`; guardia de cambios web por Origin/Referer/Sec-Fetch-Site. HTTPS real, proxy, CSP/CORS y cabeceras de producción pendientes de inspección. No se habilitó CORS para la app: URLSession nativo no lo necesita. |
 | Trabajos de fondo | Hilo de workflow existente; recordatorios de correo apagados por defecto tras incidente histórico. La nueva cola móvil tiene su propio proceso explícito y no envía correos ni activa esos hilos. |
-| Herramientas Apple | Swift 6.3 y CommandLineTools presentes. `xcode-select -p` apunta a `/Library/Developer/CommandLineTools`. Falta Xcode completo y SDK/Simulator de iOS; tampoco está XCTest. Se compilaron y ejecutaron verificaciones Foundation sin XCTest. |
+| Herramientas Apple | Auditoría inicial: Swift 6.3 y CommandLineTools, sin Xcode. Actualización del mismo día: Xcode 27.0 (27A266a) instalado en `/Applications/Xcode.app`; falta aceptar su licencia y completar primera apertura. Build iOS devolvió exit 69; aún no hay Simulator ejecutado ni UI compilada. Verificaciones Foundation con herramientas existentes aprobadas. |
 
 ## Eventos y significado
 
@@ -32,7 +32,7 @@ Primera lectura por empresa: registra un baseline y no genera avisos del histori
 
 ## Bloqueos y riesgos
 
-1. Xcode completo, firma, identificador de aplicación y capacidad push de Apple necesarios para compilar/instalar. No se ha solicitado ni comprado ninguna cuenta.
+1. Xcode completo ya instalado. Primera apertura/licencia de Apple, firma, identificador de aplicación y capacidad push pendientes. No se ha comprado ninguna cuenta.
 2. APNs requiere configuración de servidor y prueba física. El adaptador existe, pero no se enviaron notificaciones reales.
 3. Fuente JSON y journal SQLite no comparten transacción. La cola propia sí es transaccional, con claves únicas y leases; no prometer captura instantánea/exactamente una vez de todos los cambios del CRM.
 4. Worker necesita acceso al mismo disco persistente, Teams y variables del servidor. No añadir un servicio separado con otro disco creyendo que tendrá los mismos datos. La topología Render actual debe validarse antes de activar.

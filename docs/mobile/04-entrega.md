@@ -2,6 +2,8 @@
 
 Fecha: 10 de octubre de 2026. Estado: base local implementada y comprobada en servidor; compilación iOS y prueba física pendientes.
 
+Reporte histórico de la primera entrega, anterior a instalar Xcode. El avance posterior y el bloqueo de primera apertura se registran en [Compilación y QA](05-compilacion-y-qa.md).
+
 ## 1. Diagnóstico real
 
 Flowing usa Flask/Jinja y JSON operativo, con Teams en SQLite. Ya existe una PWA y bandeja web; no había entrega push persistente al iPhone. No hay frontend React compilable para empaquetar directamente. [Auditoría](00-auditoria.md).

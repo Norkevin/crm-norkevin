@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct RootView: View {
     @EnvironmentObject var flow: FlowSession
@@ -75,17 +76,61 @@ struct ConnectView: View {
 
 struct HomeView: View {
     @EnvironmentObject var flow: FlowSession
+    @Environment(\.dynamicTypeSize) private var textSize
     var body: some View {
         List {
             Section {
-                Text(flow.overview?.tenant_name ?? "Tu estudio").foregroundStyle(.secondary)
-                if let overview = flow.overview {
-                    LabeledContent("Leads abiertos", value: String(overview.lead_count))
-                    LabeledContent("Trabajos activos", value: String(overview.job_count))
-                    LabeledContent("Cobrado en \(String(overview.year))") { Text(overview.paid, format: .currency(code: "GTQ")).monospacedDigit() }
-                    LabeledContent("Saldo de \(String(overview.year))") { Text(overview.due, format: .currency(code: "GTQ")).monospacedDigit() }
-                } else if flow.busy { ProgressView("Cargando tu estudio…") }
-                else { Button("Cargar resumen") { Task { await flow.refresh() } } }
+                HStack(spacing: 12) {
+                    Image("FlowingMark").resizable().scaledToFit().frame(width: 44, height: 44)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(flow.overview?.tenant_name ?? "Tu estudio").font(.headline)
+                        Text(Date(), format: MobileURL.dayStyle).font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }.padding(.vertical, 4)
+            }.listRowBackground(Color.clear)
+            if let overview = flow.overview {
+                Section {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
+                        count: textSize.isAccessibilitySize ? 1 : 2), spacing: 12) {
+                        StudioMetric(title: "Leads abiertos", value: String(overview.lead_count), symbol: "person.badge.plus")
+                        StudioMetric(title: "Trabajos activos", value: String(overview.job_count), symbol: "camera")
+                        StudioMetric(title: "Cobrado en \(String(overview.year))", value: overview.paid.formatted(.currency(code: "GTQ")), symbol: "creditcard")
+                        StudioMetric(title: "Por cobrar en \(String(overview.year))", value: overview.due.formatted(.currency(code: "GTQ")), symbol: "calendar.badge.clock")
+                    }
+                }.listRowBackground(Color.clear).listRowInsets(EdgeInsets())
+                if let monthly = overview.monthly_paid, monthly.count == 12 {
+                    Section("Cobros de \(String(overview.year))") {
+                        Chart(Array(monthly.enumerated()), id: \.offset) { item in
+                            LineMark(x: .value("Mes", item.offset + 1), y: .value("Cobrado", item.element))
+                                .foregroundStyle(Color.accentColor)
+                                .accessibilityLabel(monthName(item.offset))
+                                .accessibilityValue(item.element.formatted(.currency(code: "GTQ")))
+                        }
+                        .chartXAxis {
+                            AxisMarks(values: [1, 3, 5, 7, 9, 11]) { axis in
+                                AxisValueLabel { if let month = axis.as(Int.self) { Text(monthName(month - 1)) } }
+                            }
+                        }
+                        .frame(height: textSize.isAccessibilitySize ? 220 : 170)
+                        .accessibilityLabel("Cobros por mes en quetzales")
+                        Text("Pagos registrados como pagados, según su fecha de cobro.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                Section("Próximos trabajos") {
+                    ForEach(overview.upcoming ?? []) { record in
+                        NavigationLink { RecordDetail(record: record) } label: { RecordRow(record: record) }
+                    }
+                    if (overview.upcoming ?? []).isEmpty {
+                        Text("No hay trabajos próximos programados.").foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                Section {
+                    if flow.busy { ProgressView("Cargando tu estudio…") }
+                    else { Button("Cargar resumen") { Task { await flow.refresh() } } }
+                }
             }
             Section("Para revisar") {
                 NavigationLink { NoticeView() } label: { Label("Notificaciones · \(flow.unread) sin leer", systemImage: "bell") }
@@ -96,10 +141,30 @@ struct HomeView: View {
                 Text("Tus datos se actualizan desde Flowing. Desliza hacia abajo para actualizar.").font(.footnote).foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Hola")
+        .navigationTitle("Inicio")
         .toolbar { InboxButton() }
         .refreshable { await flow.refresh() }
         .task { await flow.refresh() }
+    }
+    private func monthName(_ index: Int) -> String {
+        ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"][max(0, min(11, index))]
+    }
+}
+
+struct StudioMetric: View {
+    let title: String
+    let value: String
+    let symbol: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: symbol).foregroundStyle(Color.accentColor).font(.title3)
+                .accessibilityHidden(true)
+            Text(value).font(.title3.weight(.semibold)).monospacedDigit().fixedSize(horizontal: false, vertical: true)
+            Text(title).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 108, alignment: .leading)
+        .padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -337,7 +402,10 @@ struct MoreView: View {
     @State private var confirmLogout = false
     var body: some View {
         List {
-            Section { Label(flow.overview?.tenant_name ?? "Flowing", systemImage: "building.2") }
+            Section {
+                Label(flow.overview?.tenant_name ?? "Flowing", systemImage: "building.2")
+                if let email = flow.overview?.user_email { Text(email).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
+            }
             Section {
                 NavigationLink { RecordsView(kind: "clients", title: "Clientes") } label: { Label("Clientes", systemImage: "person.crop.circle") }
                 NavigationLink { PaymentsView() } label: { Label("Pagos", systemImage: "creditcard") }

@@ -14,8 +14,8 @@ Fecha: 10 de octubre de 2026.
 
 ## Validación ejecutada
 
-- `.venv/bin/python -m pytest -q`: 1547 passed, 1 skipped. Suite usa datos temporales y proveedores simulados.
-- API móvil final: 23 casos incluidos en la suite, con carrera de desactivación, privacidad y revisión de dispositivo.
+- `.venv/bin/python -m pytest -q`: 1548 passed, 1 skipped. Suite usa datos temporales y proveedores simulados.
+- API móvil: 24 casos incluidos en la suite, con carrera de desactivación, privacidad, revisión de dispositivo y cobros mensuales.
 - Prueba focalizada inicial de móvil/avisos/navegación: 26 passed.
 - `swift run --package-path mobile/ios FlowingContractChecks`: 14 verificaciones Foundation aprobadas; incluye URL HTTPS, separación de origen, segmentos, fecha y JSON paginado.
 - `swiftc -frontend -parse ...`: sintaxis de las cuatro fuentes Swift aceptada. Esto no valida APIs SwiftUI/UIKit ni linkage.
@@ -26,7 +26,7 @@ Registros completos: `.context-shears/artifacts/` (local, ignorado por Git). Nun
 
 ## Siguiente hito exacto
 
-1. Instalar Xcode completo y seleccionar su developer directory. Abrir `mobile/ios/Flowing.xcodeproj`; comprobar Simulator y corregir cualquier error de compilación iOS. Capturar iPhone en claro/oscuro y tamaño grande de texto. No sustituir capturas por un mockup web.
+1. Xcode 27.0 ya instalado: aceptar su licencia y autorizar primera apertura directamente en el Mac. La compilación devolvió exit 69 por ese requisito. Después usar `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`, abrir `mobile/ios/Flowing.xcodeproj`, comprobar Simulator y corregir errores reales. Capturar iPhone en claro/oscuro y tamaño grande de texto. No sustituir capturas por un mockup web.
 2. Preparar staging con copia sintética, HTTPS, mismo disco del worker y las variables de `mobile/.env.example`. API activada, push desactivado. Conectar propietario y comprobar datos nativos sin operaciones financieras.
 3. Confirmar Bundle ID, equipo Apple y capacidad Push Notifications. Instalar en iPhone físico. Guardar clave APNs/Fernet como secretos del servidor; instalar requisitos opcionales del transporte. No hacer compras/publicaciones automáticamente.
 4. Inicializar baseline del worker, producir un lead sintético y activar envíos solo para ese entorno. Cerrar app, recibir aviso, tocar y comprobar ficha y empresa; registrar SO/modelo/hora/capturas. Repetir logout, cambio de cuenta, correcciones/cancelaciones y conexión caída.

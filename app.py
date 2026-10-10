@@ -15005,7 +15005,7 @@ start_reminder_scheduler()
 # Native mobile routes remain unavailable until explicitly enabled in staging.
 from src.mobile import register_mobile
 register_mobile(app, store, _open_leads, _canonical_jobs, _job_is_active,
-                _visible_billable_payments, _payment_financial_summary, coerce_amount)
+                _visible_billable_payments, _payment_financial_summary, coerce_amount, _payment_reporting_day)
 
 
 # ============================================================

@@ -18,6 +18,9 @@ public struct Overview: Decodable {
     public let paid: Double
     public let due: Double
     public let year: Int
+    public let monthly_paid: [Double]?
+    public let upcoming: [CRMRecord]?
+    public let user_email: String?
 }
 
 public struct Notice: Decodable, Identifiable {

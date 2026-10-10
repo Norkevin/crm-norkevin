@@ -199,7 +199,7 @@ def source_events(store, tenant_id, teams=None, today=None):
     return events
 
 
-def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billable_payments, financial_summary, amount):
+def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billable_payments, financial_summary, amount, reporting_day):
     bp = Blueprint('mobile', __name__)
 
     def data():
@@ -294,9 +294,16 @@ def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billa
         leads = open_leads(me['tenant_id'])
         jobs = [j for j in canonical_jobs() if job_is_active(j)]
         today = datetime.now(ZoneInfo('America/Guatemala')).date()
-        money = financial_summary(billable_payments(me['tenant_id']), today, today.year)
+        payments = billable_payments(me['tenant_id'])
+        money = financial_summary(payments, today, today.year)
+        monthly = [financial_summary([p for p in payments if (day := reporting_day(p))
+                    and day.year == today.year and day.month == month], today, today.year)['paid']
+                   for month in range(1, 13)]
+        upcoming = sorted([job for job in jobs if str(job.get('boda_date') or '')[:10] >= today.isoformat()],
+                          key=lambda job: (str(job.get('boda_date') or ''), job['id']))[:4]
         return jsonify(tenant_name=tenant.get('name') or 'Flowing', lead_count=len(leads), job_count=len(jobs),
-                       paid=money['paid'], due=money['due'], year=today.year)
+                       paid=money['paid'], due=money['due'], year=today.year, monthly_paid=monthly,
+                       upcoming=[project_record(job, 'jobs') for job in upcoming], user_email=me['recipient'])
 
     def project_record(record, kind):
         name = record.get('nombre') or record.get('title') or ' '.join(filter(None, (record.get('first_name'), record.get('last_name'))))

@@ -286,6 +286,25 @@ def test_mobile_money_uses_existing_rules_and_numeric_wire_values(mobile):
     assert client.get('/api/mobile/overview', headers=headers).json['paid'] == 1200
 
 
+def test_overview_chart_uses_cash_dates_and_filters_upcoming_jobs(mobile):
+    crm, client, db, headers, tenant, owner = mobile
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo('America/Guatemala')).date()
+    crm.store.upsert('payments', dict(id='chart-paid', tenant_id=tenant, status='Pagado',
+                                    amount=1750, paid_date=f'{today.year}-02-03'))
+    crm.store.upsert('payments', dict(id='chart-pending', tenant_id=tenant, status='Pendiente',
+                                    amount=9000, due_date=f'{today.year}-02-03'))
+    for identifier, days in [('next', 7), ('past', -7)]:
+        crm.store.upsert('jobs', dict(id=identifier, tenant_id=tenant, nombre=identifier,
+                                   status='Confirmado', boda_date=(today + timedelta(days=days)).isoformat()))
+    data = client.get('/api/mobile/overview', headers=headers).json
+    assert len(data['monthly_paid']) == 12
+    assert data['monthly_paid'][1] == 1750 and sum(data['monthly_paid']) == data['paid'] == 1750
+    assert [record['id'] for record in data['upcoming']] == ['next']
+    assert data['user_email'] == owner
+
+
 def test_apns_jwt_real_p256_signature_without_network(monkeypatch):
     import base64
     import json
