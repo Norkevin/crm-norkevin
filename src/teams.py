@@ -832,7 +832,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                     and crm_store.get('tenants', b.internal_tenant_id)] if current_app.config.get('FLOW_TEAMS_LOCAL') else []
         return render_template('teams.html', section=section, selected=selected, year=year, view=view, query=query, switches=switches,
                                action_labels={'member':'Miembro actualizado','assignment':'Cobertura creada','assignment_edit':'Condiciones revisadas',
-                                   'assignment_publish':'Cobertura compartida','assignment_status':'Servicio actualizado','assignment_acknowledge':'Confirmación manual','response':'Respuesta del miembro',
+                                   'assignment_publish':'Cobertura compartida','assignment_status':'Servicio actualizado','assignment_acknowledge':'Confirmación manual','response':'Respuesta del miembro','calendar_response':'Respuesta de Google Calendar',
                                    'cost':'Gasto registrado','cost_status':'Importe aprobado o validado','operation':'Revisión interna',
                                    'payment':'Pago registrado','reverse':'Pago revertido','document':'Documento revisado','document_publish':'Documento publicado',
                                    'document_read':'Lectura confirmada','document_withdraw':'Documento retirado','advance':'Fondo entregado',

@@ -247,7 +247,7 @@ class CalendarSync:
                         (previous.get('event') or {}).get('attendees') != event.get('attendees'))):
                     record.update(email_status='not_sent' if event else 'cancelled', email_error='', email_sent_at=None,
                                   response_status='unknown' if event else 'cancelled', response_checked_at=None,
-                                  response_retry_at=None, response_error='')
+                                  response_retry_at=None, response_error='', response_notified_status=None)
                 if (identity.startswith('assignment:') and event and delivery_key is not None
                         and delivery_key != (previous or {}).get('delivery_key')):
                     record.update(email_status='pending', email_error='')
@@ -292,7 +292,8 @@ class CalendarSync:
                     retry_after=(datetime.now(timezone.utc)+timedelta(minutes=15)).isoformat() if status=='failed' else None,
                     html_url=result.get('htmlLink',''))
                 if status == 'synced' and record['identity'].startswith('assignment:') and record['event']:
-                    current.update(response_status=attendee_response(record,result),response_checked_at=now(),response_error='')
+                    self._record_response(db, tenant, current, dict(response_status=attendee_response(record,result),
+                        response_checked_at=now(),response_error=''))
                 if skip_reason:
                     current.update(bulk_skip_reason=str(skip_reason),email_status='skipped',email_error='')
                 elif status=='synced':current.pop('bulk_skip_reason',None)
@@ -335,6 +336,20 @@ class CalendarSync:
                     if record.get('invite_unanswered_only'):current['invite_unanswered_only']=False
                     self.store.save(db,tenant,'calendar_sync',current)
 
+    def _record_response(self, db, tenant, current, fields):
+        previous = current.get('response_notified_status', current.get('response_status'))
+        current.update(fields)
+        response = fields.get('response_status')
+        if response not in ('accepted', 'declined'):
+            return
+        if previous != response:
+            assignment = self.store.get(db, tenant, 'assignment', current['identity'].split(':', 1)[1])
+            self.store.create(db, tenant, 'audit', action='calendar_response', actor='Google Calendar',
+                created_at=now(), before=dict(status=previous), after=dict(id=assignment['id'],
+                    member_id=assignment['member_id'], job_id=assignment['job_id'],
+                    status='aceptada' if response == 'accepted' else 'rechazada'))
+        current['response_notified_status'] = response
+
     def refresh_responses(self, tenant):
         """Read Google RSVP without updating events or sending invitations."""
         clock = datetime.now(timezone.utc)
@@ -355,5 +370,5 @@ class CalendarSync:
                 current = self.store.get(db, tenant, 'calendar_sync', record['id'])
                 if current['digest'] != record['digest'] or current['status'] != 'synced':
                     continue
-                current.update(fields)
+                self._record_response(db, tenant, current, fields)
                 self.store.save(db, tenant, 'calendar_sync', current)
