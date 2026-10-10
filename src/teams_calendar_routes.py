@@ -291,7 +291,7 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
         job_id=None
         if request.endpoint=='teams.command':
             body=request.get_json(silent=True) or {}
-            if body.get('action') in ('assignment_publish','assignment_edit','assignment_status','document','document_publish','document_withdraw','member_revoke','member'):
+            if body.get('action') in ('assignment_publish','assignment_edit','assignment_schedule_pending','assignment_status','document','document_publish','document_withdraw','member_revoke','member'):
                 result=response.get_json(silent=True) or {};record=result.get('record') or {};job_id=record.get('job_id')
                 if not job_id and body.get('action') in ('member','member_revoke'):
                     with database.transaction() as db:

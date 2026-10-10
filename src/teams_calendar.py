@@ -77,7 +77,10 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None
                     raise TeamsError(f"{person['name']} necesita un correo válido. Agrégalo en su ficha de Miembros y vuelve a enviar.")
                 start=datetime.fromisoformat(assignment['start']).replace(tzinfo=zone)
                 end=datetime.fromisoformat(assignment['end']).replace(tzinfo=zone)
-                lines=['Rol: '+assignment['role'],'Cobertura: '+start.strftime('%d/%m/%Y %H:%M')+' – '+end.strftime('%d/%m/%Y %H:%M'),
+                coverage = ('Horario pendiente. La hora de llegada y salida se confirmará más adelante.'
+                            if assignment.get('schedule_pending') else
+                            'Cobertura: '+start.strftime('%d/%m/%Y %H:%M')+' – '+end.strftime('%d/%m/%Y %H:%M'))
+                lines=['Rol: '+assignment['role'],coverage,
                        assignment.get('instructions') or '']
                 if job.get('secondary'):
                     lines += ['Trabajo secundario ligado a: '+job['parent_name']]
@@ -109,11 +112,14 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None
                           'Si estás disponible, acepta esta invitación en Google Calendar. Si no puedes asistir, recházala; '
                           'tu respuesta aparecerá en Teams para que el responsable pueda organizar un reemplazo. '
                           'Revisa los detalles de tu cobertura y del viaje en tu portal.']
-                event=dict(summary=(job.get('nombre') or 'Boda')+' · '+assignment['role'],
+                event=dict(summary=(job.get('nombre') or 'Boda')+' · '+assignment['role']+(' · Horario pendiente' if assignment.get('schedule_pending') else ''),
                     location=job.get('location') or '',description='\n\n'.join(line for line in lines if line),
                     start={'dateTime':start.isoformat(),'timeZone':str(zone)},end={'dateTime':end.isoformat(),'timeZone':str(zone)},
                     attendees=[{'email':person['email']}],visibility='private',guestsCanInviteOthers=False,
                     guestsCanModify=False,guestsCanSeeOtherGuests=False)
+                if assignment.get('schedule_pending'):
+                    event.update(start={'date':start.date().isoformat()},
+                                 end={'date':(end.date()+timedelta(days=1)).isoformat()})
                 if trip and trip['response'] != 'wedding_only':
                     event.update(start={'date':trip['departure']},
                                  end={'date':(date.fromisoformat(trip['return_date'])+timedelta(days=1)).isoformat()})

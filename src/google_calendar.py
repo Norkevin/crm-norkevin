@@ -155,6 +155,14 @@ class CalendarClient:
         if previous.get('attendees') and event.get('attendees'):
             old=previous['attendees'];new=event['attendees']
             if {a.get('email') for a in old}=={a.get('email') for a in new}:event.pop('attendees')
+        # PATCH retains omitted fields; clear the former date type when changing modes.
+        for boundary in ('start', 'end'):
+            new = event.get(boundary, {})
+            old = previous.get(boundary, {})
+            if new.get('date') and old.get('dateTime'):
+                event[boundary] = dict(new, dateTime=None, timeZone=None)
+            elif new.get('dateTime') and old.get('date'):
+                event[boundary] = dict(new, date=None)
         event['status']='confirmed'
         options={'if_match':previous['etag']} if invite_unanswered_only else {}
         return self.request('PATCH',event_id,event,notify=True,**options)

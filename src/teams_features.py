@@ -3,7 +3,7 @@ import base64
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from src.teams import LOCAL_ZONE, TeamsError, cents, day, now, text, payment_deadline, assignment_trip, availability_window, TRAVEL_RESPONSES
+from src.teams import LOCAL_ZONE, TeamsError, cents, day, now, text, payment_deadline, assignment_trip, availability_window, coverage_times, TRAVEL_RESPONSES
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
 
@@ -201,7 +201,7 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
                 raise TeamsError('Estas fechas se cruzan con tu indisponibilidad u otra cobertura confirmada. Revisa con el responsable.', 409)
         record['travel_answered_at'] = now()
         store.save(db, tenant, 'assignment', record)
-    elif action in ('assignment_publish', 'assignment_edit'):
+    elif action in ('assignment_publish', 'assignment_edit', 'assignment_schedule_pending'):
         record = store.get(db, tenant, 'assignment', text(data, 'id'))
         store.check_version(record, data)
         before = dict(record)
@@ -210,17 +210,17 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
         if not member['active'] or job.get('status') in ('Cancelado', 'Archivado'):
             raise TeamsError('Miembro o evento no disponible.')
         cost = next(c for c in store.records(db, tenant, 'cost') if c.get('assignment_id') == record['id'])
+        if action == 'assignment_schedule_pending':
+            if record.get('schedule_pending'):
+                raise TeamsError('El horario ya está pendiente.', 409)
+            data = dict(data, schedule_pending=True, buffer=record['buffer'],
+                        amount=f"{cost_amount(cost) / 100:.2f}", instructions=record.get('instructions', ''),
+                        reason='Horario pendiente de confirmar')
+            action = 'assignment_edit'
         if action == 'assignment_edit':
             if record['status'] in ('realizada', 'cancelada', 'rechazada') or cost['status'] == 'incurrido':
                 raise TeamsError('Una cobertura cerrada conserva sus condiciones. Revisa una compensación por separado.')
-            try:
-                start = datetime.fromisoformat(data['start']).replace(tzinfo=LOCAL_ZONE)
-                end = datetime.fromisoformat(data['end']).replace(tzinfo=LOCAL_ZONE)
-                buffer = int(data.get('buffer', 0))
-                if start >= end or not 0 <= buffer <= 1440:
-                    raise ValueError
-            except (ValueError, TypeError, KeyError):
-                raise TeamsError('Revisa inicio, fin y margen de traslado.')
+            start, end, buffer, schedule_pending = coverage_times(data, job, pending=record.get('schedule_pending', False))
             amount = cents(data.get('amount'))
             if amount < store.paid(db, tenant, cost['id']):
                 raise TeamsError('El honorario no puede quedar debajo de lo ya pagado.')
@@ -242,7 +242,7 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
             cancel_pending(store, db, tenant, record['id'])
             if replacement['id'] != record['member_id'] or start.isoformat() != record['start'] or end.isoformat() != record['end']:
                 record.update(travel_response='pending', travel_response_note='', travel_answered_at=None)
-            record.update(member_id=replacement['id'], slot=slot, start=start.isoformat(), end=end.isoformat(), buffer=buffer, job_day=job.get('boda_date'),
+            record.update(member_id=replacement['id'], slot=slot, start=start.isoformat(), end=end.isoformat(), buffer=buffer, schedule_pending=schedule_pending, job_day=job.get('boda_date'),
                           role=text(data, 'role', maximum=100) if 'role' in data else record['role'],
                           instructions=text(data, 'instructions', required=False, maximum=3000),
                           status='reconfirmar' if record['status'] in VISIBLE_ASSIGNMENTS else 'borrador',

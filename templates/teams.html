@@ -78,5 +78,5 @@
   <footer class="ft-footer">Teams · {{ "Laboratorio local · bodas de prueba" if config.FLOW_TEAMS_LOCAL else "Operación del equipo" }} · {{ 'Google Calendar conectado · Invitaciones individuales y pendientes en lote' if calendar_email else 'Calendar sin conectar · Invitaciones por correo desde cada boda' }} · <a href="/teams/roadmap">Cómo funciona Teams</a></footer>
 </section>
 <script>window.flowTeamsCSRF = {{ csrf|tojson }};</script>
-<script src="{{ url_for('static',filename='teams.js',v='20261009-bulk-invites') }}" defer></script>
+<script src="{{ url_for('static',filename='teams.js',v='20261009-pending-schedule') }}" defer></script>
 {% endblock %}

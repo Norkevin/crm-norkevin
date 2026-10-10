@@ -49,7 +49,30 @@ def availability_window(assignment, trip=None):
     if trip and trip['response'] != 'wedding_only':
         return (datetime.fromisoformat(trip['departure']).replace(tzinfo=LOCAL_ZONE),
                 datetime.fromisoformat(trip['return_date']).replace(tzinfo=LOCAL_ZONE) + timedelta(days=1))
+    if assignment.get('schedule_pending'):
+        return (datetime.fromisoformat(assignment['start']).replace(hour=0, minute=0, second=0, microsecond=0),
+                datetime.fromisoformat(assignment['end']).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1))
     return datetime.fromisoformat(assignment['start']), datetime.fromisoformat(assignment['end'])
+
+
+def coverage_times(data, job, *, pending=False):
+    pending = data.get('schedule_pending', pending)
+    if type(pending) is not bool:
+        raise TeamsError('Revisa si el horario está pendiente.')
+    try:
+        if pending:
+            start = datetime.fromisoformat(day(job.get('boda_date'))).replace(tzinfo=LOCAL_ZONE)
+            end = datetime.fromisoformat(day(job.get('end_date') or job.get('boda_date'))).replace(
+                hour=23, minute=59, second=59, tzinfo=LOCAL_ZONE)
+        else:
+            start = datetime.fromisoformat(data['start']).replace(tzinfo=LOCAL_ZONE)
+            end = datetime.fromisoformat(data['end']).replace(tzinfo=LOCAL_ZONE)
+        buffer = int(data.get('buffer', 0))
+        if start >= end or not 0 <= buffer <= 1440:
+            raise ValueError
+    except (ValueError, KeyError, TypeError):
+        raise TeamsError('Revisa inicio, fin y margen de traslado. El fin debe ser posterior al inicio.')
+    return start, end, buffer, pending
 
 
 class TeamsError(Exception):
@@ -168,7 +191,7 @@ class TeamsStore:
         plans = self.records(db, tenant, 'travel')
         current = candidate or next((a for a in self.records(db, tenant, 'assignment') if a['id'] == exclude), None)
         trip = assignment_trip(current, plans) if current else None
-        start, end = availability_window(dict(start=start, end=end), trip)
+        start, end = availability_window(dict(start=start, end=end, schedule_pending=(current or {}).get('schedule_pending')), trip)
         start = start - timedelta(minutes=buffer)
         end = end + timedelta(minutes=buffer)
         conflicts = []
@@ -207,7 +230,7 @@ class TeamsStore:
             original_reader = job_reader
             def guarded_job_reader(identifier):
                 job = original_reader(identifier)
-                protected = ('assignment', 'assignment_status', 'assignment_publish', 'assignment_edit', 'assignment_acknowledge', 'cost',
+                protected = ('assignment', 'assignment_status', 'assignment_publish', 'assignment_edit', 'assignment_schedule_pending', 'assignment_acknowledge', 'cost',
                              'cost_status', 'cost_edit', 'operation', 'advance', 'settlement', 'expense_review', 'cost_shared', 'schedule', 'travel', 'assignment_travel')
                 if action in protected and any(o['job_id'] in (identifier, job.get('parent_job_id')) and o.get('closed') for o in self.records(db, tenant, 'operation')):
                     raise TeamsError('La operación está cerrada. Reábrela con un motivo antes de cambiar sus costos o coberturas.', 409)
@@ -265,19 +288,12 @@ class TeamsStore:
                 member = self.get(db, tenant, 'member', text(data, 'member_id'))
                 if not member['active']:
                     raise TeamsError('Este miembro está inactivo.')
-                try:
-                    start = datetime.fromisoformat(data['start']).replace(tzinfo=LOCAL_ZONE)
-                    end = datetime.fromisoformat(data['end']).replace(tzinfo=LOCAL_ZONE)
-                    buffer = int(data.get('buffer', 0))
-                    if start >= end or not 0 <= buffer <= 1440:
-                        raise ValueError
-                except (ValueError, KeyError, TypeError):
-                    raise TeamsError('Revisa inicio, fin y margen de traslado. El fin debe ser posterior al inicio.')
+                start, end, buffer, schedule_pending = coverage_times(data, job)
                 slot = text(data, 'slot', required=False, maximum=100) or (text(data, 'role', maximum=100) + ' · ' + member['name'])[:100]
                 if any(a['job_id'] == job['id'] and a['slot'].casefold() == slot.casefold()
                        and a['status'] not in ('cancelada', 'rechazada') for a in self.records(db, tenant, 'assignment')):
                     raise TeamsError('Esta plaza ya tiene una asignación. Usa otra plaza o cancela la anterior.', 409)
-                candidate = dict(job_id=job['id'], start=start.isoformat(), end=end.isoformat())
+                candidate = dict(job_id=job['id'], start=start.isoformat(), end=end.isoformat(), schedule_pending=schedule_pending)
                 trip = assignment_trip(candidate, self.records(db, tenant, 'travel'))
                 if trip and not trip['departure'] <= start.date().isoformat() <= end.date().isoformat() <= trip['return_date']:
                     raise TeamsError('La cobertura debe estar dentro de las fechas de viaje de esta boda.')
@@ -290,7 +306,7 @@ class TeamsStore:
                 fee = cents(data.get('amount'))
                 record = self.create(db, tenant, 'assignment', job_id=job['id'], member_id=member['id'],
                                      role=text(data, 'role', maximum=100), slot=slot, start=start.isoformat(),
-                                     end=end.isoformat(), buffer=buffer, status='borrador', terms_version=1,
+                                     end=end.isoformat(), buffer=buffer, schedule_pending=schedule_pending, status='borrador', terms_version=1,
                                      job_day=job.get('boda_date'), instructions=text(data, 'instructions', required=False, maximum=3000))
                 cost = self.create(db, tenant, 'cost', job_id=job['id'], parent_job_id=job.get('parent_job_id'), assignment_id=record['id'],
                                    category='Honorarios', description=f"{record['role']} · {member['name']}",
@@ -832,7 +848,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                     and crm_store.get('tenants', b.internal_tenant_id)] if current_app.config.get('FLOW_TEAMS_LOCAL') else []
         return render_template('teams.html', section=section, selected=selected, year=year, view=view, query=query, switches=switches,
                                action_labels={'member':'Miembro actualizado','assignment':'Cobertura creada','assignment_edit':'Condiciones revisadas',
-                                   'assignment_publish':'Cobertura compartida','assignment_status':'Servicio actualizado','assignment_acknowledge':'Confirmación manual','response':'Respuesta del miembro','calendar_response':'Respuesta de Google Calendar',
+                                   'assignment_publish':'Cobertura compartida','assignment_status':'Servicio actualizado','assignment_schedule_pending':'Horario pendiente','assignment_acknowledge':'Confirmación manual','response':'Respuesta del miembro','calendar_response':'Respuesta de Google Calendar',
                                    'cost':'Gasto registrado','cost_status':'Importe aprobado o validado','operation':'Revisión interna',
                                    'payment':'Pago registrado','reverse':'Pago revertido','document':'Documento revisado','document_publish':'Documento publicado',
                                    'document_read':'Lectura confirmada','document_withdraw':'Documento retirado','advance':'Fondo entregado',
