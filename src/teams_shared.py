@@ -76,7 +76,13 @@ def register_shared(owner_blueprint, store, crm_store):
         brands = shared_brands(crm_store)
         tenant = session.get('tenant_id')
         other = next((b for t, b in brands.items() if t != tenant), None) if tenant in brands else None
-        return dict(teams_copy_target=other.display_name if other else None)
+        last_copy = None
+        if other and request.path == '/teams/members':
+            with store.transaction() as db:
+                row = db.execute("SELECT result FROM commands WHERE tenant=? AND key LIKE 'copy-members:%' ORDER BY rowid DESC LIMIT 1", (tenant,)).fetchone()
+                if row:
+                    last_copy = json.loads(row['result'])['record']
+        return dict(teams_copy_target=other.display_name if other else None, teams_last_copy=last_copy)
 
     @owner_blueprint.route('/api/teams/members/copy', methods=['POST'])
     def copy_members():
@@ -115,7 +121,9 @@ def register_shared(owner_blueprint, store, crm_store):
                 store.create(db, target, 'audit', action='member_copy', actor=session['user_email'], created_at=now(),
                              before=None, after=dict(person), source_brand=brands[tenant].display_name)
                 created += 1
+            added = 'miembro añadido' if created == 1 else 'miembros añadidos'
+            omitted = 'ficha ya existente o repetida omitida' if skipped == 1 else 'fichas ya existentes o repetidas omitidas'
             result = dict(ok=True, record=dict(created=created, skipped=skipped),
-                warnings=[f"{created} miembros añadidos a {brands[target].display_name}. {skipped} fichas ya existentes o repetidas omitidas."])
+                warnings=[f"{created} {added} a {brands[target].display_name}. {skipped} {omitted}."])
             db.execute('INSERT INTO commands VALUES (?,?,?,?)', (tenant, key, fingerprint, json.dumps(result)))
         return jsonify(result)

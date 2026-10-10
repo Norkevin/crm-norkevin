@@ -2,7 +2,7 @@
 {% block title %}Teams{% endblock %}
 {% block header %}Teams{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='teams.css',v='20261009-enrollment-final') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='teams.css',v='20261009-shared-feedback') }}">
 <section class="ft sn-page-wide">
   <header class="ft-heading ft-owner-hero">
     <div><h1>{{ selected.nombre if selected else 'Teams' }}</h1>
@@ -50,7 +50,7 @@
   </section>
   {% elif section == 'members' %}
   <div class="ft-section-title"><div><h2>Directorio del equipo</h2><p class="ft-muted">Los roles describen el trabajo. No conceden acceso a finanzas.</p></div></div>
-  {% if teams_copy_target %}<details class="ft-panel"><summary>Usar este equipo también en {{ teams_copy_target }}</summary><p>Copia nombre, contacto, habilidades, Instagram, rol y tarifa. Cada marca conserva sus bodas y pagos. Los miembros con el mismo correo podrán consultar ambas marcas en su portal.</p><form data-command="copy_members" data-endpoint="/api/teams/members/copy"><button class="sn-btn">Copiar miembros a {{ teams_copy_target }}</button><small>Las fichas existentes se conservan y los duplicados se omiten.</small></form></details>{% endif %}
+  {% if teams_copy_target %}<details class="ft-panel"><summary>Usar este equipo también en {{ teams_copy_target }}</summary><p>Copia nombre, contacto, habilidades, Instagram, rol y tarifa. Cada marca conserva sus bodas y pagos. Los miembros con el mismo correo podrán consultar ambas marcas en su portal.</p><form data-command="copy_members" data-endpoint="/api/teams/members/copy"><button class="sn-btn">Copiar miembros a {{ teams_copy_target }}</button><small>Las fichas existentes se conservan y los duplicados se omiten.</small></form>{% if teams_last_copy %}<p>Última copia a {{ teams_copy_target }}: <strong>{{ teams_last_copy.created }} {{ 'miembro añadido' if teams_last_copy.created == 1 else 'miembros añadidos' }}</strong>; {{ teams_last_copy.skipped }} {{ 'ficha existente o repetida omitida' if teams_last_copy.skipped == 1 else 'fichas existentes o repetidas omitidas' }}.</p>{% endif %}</details>{% endif %}
   <section class="ft-panel" data-enrollment-link>
     <h2>Registro de nuevos miembros</h2><p>Comparte este formulario para que cada persona complete su contacto, habilidades y datos bancarios opcionales. Aparecerá en Miembros con el rol y la tarifa por definir.</p>
     <button class="sn-btn sn-btn-primary" type="button" data-create-enrollment>Crear enlace de registro</button>

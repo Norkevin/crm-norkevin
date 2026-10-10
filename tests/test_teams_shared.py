@@ -148,6 +148,8 @@ def test_directory_copy_atomic_idempotent_deduplicated_without_bank_or_access_da
     assert owner.post('/api/teams/members/copy',json={'key':'copy'}).status_code == 403
     result = owner.post('/api/teams/members/copy',json={'key':'copy'},headers=headers).get_json()
     assert result['record'] == dict(created=1,skipped=2)
+    assert 'Última copia a Astral Weddings' in owner.get('/teams/members').get_data(as_text=True)
+    assert '1 miembro añadido' in str(result['warnings'])
     assert owner.post('/api/teams/members/copy',json={'key':'copy'},headers=headers).get_json() == result
     assert owner.post('/api/teams/members/copy',json={'key':'copy-again'},headers=headers).get_json()['record']['created'] == 0
     assert records(store,'member',n) == before
