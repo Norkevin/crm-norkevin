@@ -49,7 +49,7 @@ struct ConnectView: View {
                 Text("Consulta tus bodas, sigue tus leads y recibe los avisos de tu empresa.")
                     .foregroundStyle(.secondary)
             }
-            Section("Tu Flowing") {
+            Section {
                 TextField("https://tu-flowing.com", text: $flow.serverText)
                     .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     .disabled(flow.connecting)
@@ -66,7 +66,7 @@ struct ConnectView: View {
                     HStack { ProgressView(); Text("Esperando tu autorización…").foregroundStyle(.secondary) }
                     Button("Cancelar", role: .cancel) { flow.cancelPairing() }
                 }
-            } footer: {
+            } header: { Text("Tu Flowing") } footer: {
                 Text("La web sigue funcionando. La aplicación usa tu misma cuenta y respeta los permisos de cada empresa.")
             }
         }
@@ -426,12 +426,12 @@ struct NotificationSettings: View {
     let kinds = [("lead", "Leads nuevos"), ("payment", "Pagos registrados"), ("wedding", "Bodas próximas"), ("teams", "Respuestas de Teams"), ("mail", "Correos no entregados")]
     var body: some View {
         Form {
-            Section("Este iPhone") {
+            Section {
                 Toggle("Ocultar detalles en pantalla bloqueada", isOn: Binding(get: { flow.hideDetails }, set: { value in Task { await flow.privacy(value) } }))
                 Button(flow.pushActive ? "Actualizar permiso y privacidad" : "Activar notificaciones") { Task { await flow.enablePush() } }
                 Button("Enviar prueba a este iPhone") { Task { await flow.pushTest() } }
                 Button("Desactivar avisos en este iPhone", role: .destructive) { Task { await flow.disablePush() } }
-            } footer: { Text("Activa los avisos y prueba la recepción con la aplicación cerrada. Los avisos se conservan en la bandeja aunque desactives push.") }
+            } header: { Text("Este iPhone") } footer: { Text("Activa los avisos y prueba la recepción con la aplicación cerrada. Los avisos se conservan en la bandeja aunque desactives push.") }
             Section("Tipos de aviso") {
                 ForEach(kinds, id: \.0) { kind, label in
                     Toggle(label, isOn: Binding(get: { flow.preferences[kind] ?? true }, set: { value in Task { await flow.preference(kind, enabled: value) } }))

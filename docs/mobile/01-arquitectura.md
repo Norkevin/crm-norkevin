@@ -1,6 +1,6 @@
 # ADR: complemento nativo de Flowing para iPhone
 
-Fecha: 10 de octubre de 2026. Estado: decisión local implementada como primer incremento, pendiente de compilación iOS y validación física.
+Fecha: 10 de octubre de 2026. Estado: primer incremento compilado para Simulator y destino iOS sin firma; ConnectView observada en Simulator. Pendientes sesión nativa conectada, capturas, revisión visual y validación física. Se descargó iOS 26 de Apple y la importación del DMG oficial ya descargado alcanzó `Verified/Ready`; el puente de instalación, CA y capturas sigue bloqueado pese a seleccionar Xcode y reiniciar CoreSimulator. Reiniciar el Mac después de guardar trabajo es el siguiente diagnóstico propuesto, aún no realizado; seguimiento en [Compilación y QA](05-compilacion-y-qa.md).
 
 ## Decisión
 

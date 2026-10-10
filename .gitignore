@@ -89,4 +89,5 @@ artifacts/
 .context-shears/
 mobile/ios/.build/
 mobile/ios/DerivedData/
+mobile/ios/DerivedData-device/
 mobile/ios/**/xcuserdata/

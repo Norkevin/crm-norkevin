@@ -2,7 +2,7 @@
 
 Fecha: 10 de octubre de 2026. Estado: base local implementada y comprobada en servidor; compilación iOS y prueba física pendientes.
 
-Reporte histórico de la primera entrega, anterior a instalar Xcode. El avance posterior y el bloqueo de primera apertura se registran en [Compilación y QA](05-compilacion-y-qa.md).
+Reporte histórico de la primera entrega, anterior a instalar Xcode; los pendientes descritos corresponden a ese momento. El avance posterior, las builds aprobadas, el runtime importado `Verified/Ready` y el bloqueo restante del puente de QA se registran en [Compilación y QA](05-compilacion-y-qa.md).
 
 ## 1. Diagnóstico real
 

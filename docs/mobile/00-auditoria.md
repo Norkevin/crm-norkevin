@@ -16,7 +16,7 @@ Fecha: 10 de octubre de 2026. Alcance: código local y fuentes oficiales; no ins
 | PWA | `static/manifest.webmanifest`: standalone, scope `/`, iconos 192/512 y máscara. `service-worker.js` precarga offline/manifest y permite caché de `/static/`; no contiene push/notificationclick. Es base instalable, no prueba de instalación actual del iPhone. |
 | Seguridad HTTP | Cookies HttpOnly/SameSite Lax y Secure según entorno; cabeceras de seguridad en `app.py`; guardia de cambios web por Origin/Referer/Sec-Fetch-Site. HTTPS real, proxy, CSP/CORS y cabeceras de producción pendientes de inspección. No se habilitó CORS para la app: URLSession nativo no lo necesita. |
 | Trabajos de fondo | Hilo de workflow existente; recordatorios de correo apagados por defecto tras incidente histórico. La nueva cola móvil tiene su propio proceso explícito y no envía correos ni activa esos hilos. |
-| Herramientas Apple | Auditoría inicial: Swift 6.3 y CommandLineTools, sin Xcode. Actualización del mismo día: Xcode 27.0 (27A266a) instalado en `/Applications/Xcode.app`; falta aceptar su licencia y completar primera apertura. Build iOS devolvió exit 69; aún no hay Simulator ejecutado ni UI compilada. Verificaciones Foundation con herramientas existentes aprobadas. |
+| Herramientas Apple | Auditoría inicial: Swift 6.3 y CommandLineTools, sin Xcode. Actualización del mismo día: Xcode 27.0 (27A266a) instalado en `/Applications/Xcode.app`; propietario completó licencia y primera apertura (`checkFirstLaunchStatus` exit 0). Builds para Simulator y destino iOS sin firma aprobadas (exit 0). La app se instaló y mostró ConnectView en Simulator mediante DeviceHub; aún no hay capturas ni sesión nativa conectada. El runtime iOS 27 reportó `-67054` en la ruta Cryptex; esto no demuestra contenido corrupto. Se descargó también iOS 26 desde Apple. La importación del DMG oficial ya descargado mediante `simctl runtime add` alcanzó `signatureState Verified` y `Ready` (UUID `76E6DC20-9781-4780-A4FD-745598105B0E`); el puente de instalación/capturas sigue bloqueado. |
 
 ## Eventos y significado
 
@@ -32,10 +32,12 @@ Primera lectura por empresa: registra un baseline y no genera avisos del histori
 
 ## Bloqueos y riesgos
 
-1. Xcode completo ya instalado. Primera apertura/licencia de Apple, firma, identificador de aplicación y capacidad push pendientes. No se ha comprado ninguna cuenta.
+1. Xcode instalado y primera apertura/licencia completadas por el propietario. Builds Simulator e iOS sin firma aprobadas; firma, identificador definitivo y capacidad push pendientes. Solo se detectó el Simulator propio iPhone 16 (`BC5B50F1-67F2-4A21-BB5E-3B2EB1FA385F`); no hay dispositivo físico conectado ni se compró una cuenta. El runtime importado está `Verified/Ready`, pero instalación, CA y capturas siguen bloqueadas.
 2. APNs requiere configuración de servidor y prueba física. El adaptador existe, pero no se enviaron notificaciones reales.
 3. Fuente JSON y journal SQLite no comparten transacción. La cola propia sí es transaccional, con claves únicas y leases; no prometer captura instantánea/exactamente una vez de todos los cambios del CRM.
 4. Worker necesita acceso al mismo disco persistente, Teams y variables del servidor. No añadir un servicio separado con otro disco creyendo que tendrá los mismos datos. La topología Render actual debe validarse antes de activar.
-5. Pantallas nativas, API y contrato están escritos; UI iOS, OAuth en Safari, firma, privacidad App Store y comportamiento con app cerrada no están validados. No se publica este incremento como aplicación terminada.
+5. UI iOS compilada y ConnectView observada parcialmente en Simulator; `devicectl` para instalar app y capturar pantalla terminó con exit 2 por timeout de 30 segundos, y `simctl` para la CA raíz se bloqueó. Seleccionar Xcode como toolchain global y reiniciar servicios CoreSimulator con autorización no resolvió el puente. No hay capturas, sesión nativa conectada ni validación de OAuth en Safari, firma, privacidad App Store o comportamiento físico con app cerrada. No se publica este incremento como aplicación terminada.
+
+El siguiente diagnóstico propuesto es reiniciar el Mac después de guardar el trabajo; no se realizó. La importación verificada está registrada en `.context-shears/artifacts/command-20261010T172555.190202Z-2420b08af2b8.log`. Un [caso reportado en Apple Developer Forums](https://developer.apple.com/forums/thread/830152) describe un fallo similar de Cryptex y registro mediante DMG; no constituye prueba de la causa exacta de este Mac.
 
 No se modificaron datos reales, producción, DNS, facturación ni credenciales.

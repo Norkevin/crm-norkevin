@@ -11,6 +11,7 @@ from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('control', type=Path)
+    parser.add_argument('--approve-code', help='Approve only the code displayed by the native QA app.')
     args = parser.parse_args()
     control = json.loads(args.control.read_text())
     base = control['url']
@@ -33,11 +34,14 @@ def main():
         with opener.open(Request(base + path, data=body, method=method, headers=headers), timeout=10) as response:
             return response.read(), response.headers
 
-    pair = json.loads(send('/api/mobile/pair/start', 'POST', {})[0])
+    pair = None if args.approve_code else json.loads(send('/api/mobile/pair/start', 'POST', {})[0])
     page, headers = send('/mobile/connect', cookie='session=' + control['cookie'])
     csrf = re.search(rb'name="csrf" value="([^"]+)"', page).group(1).decode()
     cookie = headers['Set-Cookie'].split(';', 1)[0]
-    send('/mobile/connect', 'POST', dict(code=pair['code'], csrf=csrf), cookie=cookie, form=True)
+    send('/mobile/connect', 'POST', dict(code=args.approve_code or pair['code'], csrf=csrf), cookie=cookie, form=True)
+    if args.approve_code:
+        print('Native QA code approved through the real owner/CSRF route.')
+        return
     token = json.loads(send('/api/mobile/pair/poll', 'POST', dict(device_secret=pair['device_secret']))[0])['token']
     overview = json.loads(send('/api/mobile/overview', token=token)[0])
     leads = json.loads(send('/api/mobile/records/leads', token=token)[0])['records']
@@ -49,7 +53,8 @@ def main():
     assert json.loads(send('/api/mobile/payments', token=token)[0])['summary']['paid'] == overview['paid']
     inbox = json.loads(send('/api/mobile/notifications', token=token)[0])
     assert inbox['count'] > 0
-    nid = inbox['notifications'][0]['id']
+    # Read an unread item: a repeated QA run may have read the first row already.
+    nid = next(item['id'] for item in inbox['notifications'] if not item['read'])
     assert json.loads(send(f'/api/mobile/notifications/{nid}/target', token=token)[0])['record'] is not None
     send('/api/mobile/notifications/read', 'POST', {'ids': [nid]}, token=token)
     assert json.loads(send('/api/mobile/notifications', token=token)[0])['count'] == inbox['count'] - 1
