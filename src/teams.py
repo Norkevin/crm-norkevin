@@ -75,6 +75,37 @@ def coverage_times(data, job, *, pending=False):
     return start, end, buffer, pending
 
 
+def wedding_schedule(store, db, tenant, job, rows=None):
+    rows = store.records(db, tenant, 'coverage_schedule') if rows is None else rows
+    return next((r for r in rows if r['job_id'] == job['id']),
+                dict(job_id=job['id'], job_day=job.get('boda_date'), version=0, schedule_pending=not (job.get('start_time') and job.get('end_time')),
+                     start=f"{job.get('boda_date') or ''}T{job['start_time']}" if job.get('start_time') else '',
+                     end=f"{job.get('end_date') or job.get('boda_date') or ''}T{job['end_time']}" if job.get('end_time') else ''))
+
+
+def uses_general_schedule(assignment, schedule):
+    if assignment.get('schedule_source'):
+        return assignment['schedule_source'] == 'general'
+    # Preserve legacy exceptions; matching wedding hours already share the general schedule.
+    if assignment.get('schedule_pending'):
+        return bool(schedule.get('schedule_pending'))
+    return (not schedule.get('schedule_pending') and assignment['start'][:16] == schedule.get('start', '')[:16]
+            and assignment['end'][:16] == schedule.get('end', '')[:16])
+
+
+def assignment_times(store, db, tenant, data, job, current=None):
+    schedule = wedding_schedule(store, db, tenant, job)
+    default = 'individual' if 'start' in data or 'schedule_pending' in data else (
+        'general' if not current or uses_general_schedule(current, schedule) else 'individual')
+    source = data.get('schedule_source', default)
+    if source not in ('general', 'individual'):
+        raise TeamsError('Elige el horario general o personalizado.')
+    if source == 'general' and schedule.get('job_day') != job.get('boda_date'):
+        raise TeamsError('La fecha de la boda cambió. Actualiza su horario general antes de usarlo.', 409)
+    times = dict(data, start=schedule['start'], end=schedule['end'], schedule_pending=schedule['schedule_pending']) if source == 'general' else data
+    return (*coverage_times(times, job, pending=(current or {}).get('schedule_pending', False)), source)
+
+
 class TeamsError(Exception):
     def __init__(self, message, status=400):
         self.message, self.status = message, status
@@ -230,7 +261,7 @@ class TeamsStore:
             original_reader = job_reader
             def guarded_job_reader(identifier):
                 job = original_reader(identifier)
-                protected = ('assignment', 'assignment_status', 'assignment_publish', 'assignment_edit', 'assignment_schedule_pending', 'assignment_acknowledge', 'cost',
+                protected = ('assignment', 'assignment_status', 'assignment_publish', 'assignment_edit', 'assignment_schedule_pending', 'job_schedule', 'assignment_acknowledge', 'cost',
                              'cost_status', 'cost_edit', 'operation', 'advance', 'settlement', 'expense_review', 'cost_shared', 'schedule', 'travel', 'assignment_travel')
                 if action in protected and any(o['job_id'] in (identifier, job.get('parent_job_id')) and o.get('closed') for o in self.records(db, tenant, 'operation')):
                     raise TeamsError('La operación está cerrada. Reábrela con un motivo antes de cambiar sus costos o coberturas.', 409)
@@ -288,7 +319,7 @@ class TeamsStore:
                 member = self.get(db, tenant, 'member', text(data, 'member_id'))
                 if not member['active']:
                     raise TeamsError('Este miembro está inactivo.')
-                start, end, buffer, schedule_pending = coverage_times(data, job)
+                start, end, buffer, schedule_pending, schedule_source = assignment_times(self, db, tenant, data, job)
                 slot = text(data, 'slot', required=False, maximum=100) or (text(data, 'role', maximum=100) + ' · ' + member['name'])[:100]
                 if any(a['job_id'] == job['id'] and a['slot'].casefold() == slot.casefold()
                        and a['status'] not in ('cancelada', 'rechazada') for a in self.records(db, tenant, 'assignment')):
@@ -306,7 +337,7 @@ class TeamsStore:
                 fee = cents(data.get('amount'))
                 record = self.create(db, tenant, 'assignment', job_id=job['id'], member_id=member['id'],
                                      role=text(data, 'role', maximum=100), slot=slot, start=start.isoformat(),
-                                     end=end.isoformat(), buffer=buffer, schedule_pending=schedule_pending, status='borrador', terms_version=1,
+                                     end=end.isoformat(), buffer=buffer, schedule_pending=schedule_pending, schedule_source=schedule_source, status='borrador', terms_version=1,
                                      job_day=job.get('boda_date'), instructions=text(data, 'instructions', required=False, maximum=3000))
                 cost = self.create(db, tenant, 'cost', job_id=job['id'], parent_job_id=job.get('parent_job_id'), assignment_id=record['id'],
                                    category='Honorarios', description=f"{record['role']} · {member['name']}",
@@ -605,6 +636,8 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             costs = database.records(db, tenant, 'cost')
             payments = database.records(db, tenant, 'payment')
             operations = database.records(db, tenant, 'operation')
+            schedule_rows = database.records(db, tenant, 'coverage_schedule')
+            schedules = {j['id']: wedding_schedule(database, db, tenant, j, schedule_rows) for j in jobs}
             audit = database.records(db, tenant, 'audit')
             extra = {kind: database.records(db, tenant, kind) for kind in (
                 'document', 'receipt', 'notice', 'task', 'expense_request', 'availability', 'advance', 'settlement', 'report', 'config', 'schedule', 'job_classification', 'calendar_sync', 'travel')}
@@ -620,6 +653,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             extra['document'] = [clean(d) for d in extra['document']]
         for a in assignments:
             a['trip'] = assignment_trip(a, extra['travel'])
+            a['schedule_source'] = 'general' if uses_general_schedule(a, schedules.get(a['job_id'], {})) else 'individual'
         member_map = {m['id']: m for m in members}
         job_map = {j['id']: j for j in jobs}
         paid = {}
@@ -690,6 +724,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             j['configured'] = bool(jcosts or j['reviewed'])
             j['incomplete'] = not j['income'] or not j['reviewed'] or bool(commercial['descuadre_cotizado_vs_cuotas'])
             j['travel'] = next((p for p in extra['travel'] if p['job_id'] == j['id']), {})
+            j['coverage_schedule'] = schedules[j['id']]
             j['assignments'] = [a for a in assignments if a['job_id'] == j['id'] and a['status'] not in ('cancelada', 'rechazada')]
             classification = next((r for r in extra['job_classification'] if r['job_id'] == j['id']), {})
             j['teams_state'] = classification.get('state', 'included')
@@ -848,7 +883,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                     and crm_store.get('tenants', b.internal_tenant_id)] if current_app.config.get('FLOW_TEAMS_LOCAL') else []
         return render_template('teams.html', section=section, selected=selected, year=year, view=view, query=query, switches=switches,
                                action_labels={'member':'Miembro actualizado','assignment':'Cobertura creada','assignment_edit':'Condiciones revisadas',
-                                   'assignment_publish':'Cobertura compartida','assignment_status':'Servicio actualizado','assignment_schedule_pending':'Horario pendiente','assignment_acknowledge':'Confirmación manual','response':'Respuesta del miembro','calendar_response':'Respuesta de Google Calendar',
+                                   'assignment_publish':'Cobertura compartida','assignment_status':'Servicio actualizado','assignment_schedule_pending':'Horario pendiente','job_schedule':'Horario general actualizado','assignment_acknowledge':'Confirmación manual','response':'Respuesta del miembro','calendar_response':'Respuesta de Google Calendar',
                                    'cost':'Gasto registrado','cost_status':'Importe aprobado o validado','operation':'Revisión interna',
                                    'payment':'Pago registrado','reverse':'Pago revertido','document':'Documento revisado','document_publish':'Documento publicado',
                                    'document_read':'Lectura confirmada','document_withdraw':'Documento retirado','advance':'Fondo entregado',

@@ -91,10 +91,16 @@
   dateControls(document);
   document.querySelectorAll('[data-schedule-toggle]').forEach(select => {
     const fields = select.form.querySelector('[data-schedule-fields]');
+    const source = select.form.querySelector('[data-schedule-source]');
+    const personal = select.form.querySelector('[data-personal-schedule]');
+    const general = select.form.querySelector('[data-general-schedule]');
     const update = () => {
-      fields.hidden = select.value === 'true';
+      const inherited = source?.value === 'general';
+      if (personal) { personal.hidden = inherited; general.hidden = !inherited; select.disabled = inherited; }
+      fields.hidden = inherited || select.value === 'true';
       fields.querySelectorAll('input').forEach(input => { input.disabled = fields.hidden; input.required = !fields.hidden; });
     };
+    source?.addEventListener('change', update);
     select.addEventListener('change', update); update();
   });
   document.querySelectorAll('[data-travel-toggle]').forEach(select => {
