@@ -1894,8 +1894,36 @@ def _notification_moment(value, time=''):
         return dict(timestamp=0, date=value[:10], time='')
 
 
+def _teams_response_notifications(tenant_id):
+    database = app.extensions.get('teams')
+    owner = store.get('tenants', tenant_id)
+    if not database or not owner or not session.get('logged_in') or session.get('user_email') != owner.get('login_email'):
+        return []
+    from src.linked_coverages import linked_coverages
+    jobs = [j for j in store.list('jobs') if _same_tenant_or_legacy(j, tenant_id)]
+    jobs = {j['id']: j for j in jobs + linked_coverages(jobs, store.list('calendar'))}
+    with database.transaction() as db:
+        members = {m['id']: m for m in database.records(db, tenant_id, 'member')}
+        audit = database.records(db, tenant_id, 'audit')
+    notifications = []
+    for entry in audit:
+        response = entry.get('after') or {}
+        if entry.get('action') not in ('response', 'calendar_response') or response.get('status') not in ('aceptada', 'rechazada'):
+            continue
+        member = members.get(response.get('member_id'))
+        job = jobs.get(response.get('job_id'))
+        if not member or not job:
+            continue
+        verb = 'aceptó' if response['status'] == 'aceptada' else 'rechazó'
+        notifications.append(dict(id='teams-response-' + entry['id'], type='teams',
+            title=f"Teams · {member['name']} {verb} la boda {job.get('nombre') or 'sin nombre'}",
+            age='Google Calendar' if entry['action'] == 'calendar_response' else 'Portal de Teams',
+            url='/teams/jobs/' + job['id'], **_notification_moment(entry.get('created_at'))))
+    return notifications
+
+
 def _build_recent_notifications(tenant_id, limit=5):
-    """Leads y correos recientes para la campana de notificaciones. Se usa
+    """Leads, correos y respuestas de Teams para la campana de notificaciones. Se usa
     tanto en el render inicial de la pagina como en /api/notifications/recent
     (que el JS del bell consulta cada rato) para que quede reflejado un lead
     nuevo sin tener que recargar la pagina entera."""
@@ -1951,6 +1979,10 @@ def _build_recent_notifications(tenant_id, limit=5):
             })
     except Exception:
         recent_notifications = []
+    try:
+        recent_notifications.extend(_teams_response_notifications(tenant_id))
+    except Exception:
+        logger.warning('Teams response notifications unavailable; will retry')
     read_ids = {row.get('notification_id') for row in store.list('notification_reads')}
     recent_notifications.sort(key=lambda n: n['timestamp'], reverse=True)
     for notification in recent_notifications:

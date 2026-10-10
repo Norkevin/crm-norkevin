@@ -89,6 +89,20 @@
     update();
   });
   dateControls(document);
+  document.querySelectorAll('[data-schedule-toggle]').forEach(select => {
+    const fields = select.form.querySelector('[data-schedule-fields]');
+    const source = select.form.querySelector('[data-schedule-source]');
+    const personal = select.form.querySelector('[data-personal-schedule]');
+    const general = select.form.querySelector('[data-general-schedule]');
+    const update = () => {
+      const inherited = source?.value === 'general';
+      if (personal) { personal.hidden = inherited; general.hidden = !inherited; select.disabled = inherited; }
+      fields.hidden = inherited || select.value === 'true';
+      fields.querySelectorAll('input').forEach(input => { input.disabled = fields.hidden; input.required = !fields.hidden; });
+    };
+    source?.addEventListener('change', update);
+    select.addEventListener('change', update); update();
+  });
   document.querySelectorAll('[data-travel-toggle]').forEach(select => {
     const fields = select.form.querySelector('[data-travel-fields]');
     const update = () => {
@@ -126,6 +140,7 @@
         .map(row => `${row.querySelector('[data-quota-date]').value} ${row.querySelector('[data-quota-amount]').value}`).join('\n');
       if ('version' in data) data.version = Number(data.version);
       if ('terms_version' in data) data.terms_version = Number(data.terms_version);
+      if ('schedule_pending' in data) data.schedule_pending = data.schedule_pending === 'true';
       if (data.action === 'travel') data.enabled = data.enabled === 'true';
       if (data.action === 'assignment_travel') data.personal = data.personal === 'true';
       if ('active' in data) data.active = data.active === 'true';

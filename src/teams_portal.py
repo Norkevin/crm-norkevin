@@ -25,15 +25,22 @@ def calendar_text(assignments, jobs):
         start_line = 'DTSTART:' + datetime.fromisoformat(a['start']).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         end_line = 'DTEND:' + datetime.fromisoformat(a['end']).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         description = 'Consulta las condiciones vigentes en tu portal privado de Flow Teams.'
+        coverage = f"Cobertura: {teams_date(a['start'])} a {teams_date(a['end'])}."
+        if a.get('schedule_pending'):
+            coverage = 'Horario pendiente. La hora de llegada y salida se confirmará más adelante.'
+            if not trip:
+                description += ' ' + coverage
+            start_line = 'DTSTART;VALUE=DATE:' + a['start'][:10].replace('-', '')
+            end_line = 'DTEND;VALUE=DATE:' + (datetime.fromisoformat(a['end']) + timedelta(days=1)).strftime('%Y%m%d')
         if trip:
-            description += f" Viaje: {teams_date(trip['departure'])} a {teams_date(trip['return_date'])}. Cobertura: {teams_date(a['start'])} a {teams_date(a['end'])}."
+            description += f" Viaje: {teams_date(trip['departure'])} a {teams_date(trip['return_date'])}. {coverage}"
             if trip['response'] != 'wedding_only':
                 start_line = 'DTSTART;VALUE=DATE:' + trip['departure'].replace('-', '')
                 end_line = 'DTEND;VALUE=DATE:' + (datetime.fromisoformat(trip['return_date']) + timedelta(days=1)).strftime('%Y%m%d')
         lines.extend(['BEGIN:VEVENT', f"UID:{a['id']}@flow-teams.local", f"SEQUENCE:{a.get('version', a['terms_version'])}",
                       'DTSTAMP:' + datetime.now(LOCAL_ZONE).astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
                       start_line, end_line,
-                      'SUMMARY:' + escape(f"{job['nombre']} · {a['role']}"), 'LOCATION:' + escape(job.get('location', '')),
+                      'SUMMARY:' + escape(f"{job['nombre']} · {a['role']}" + (' · Horario pendiente' if a.get('schedule_pending') else '')), 'LOCATION:' + escape(job.get('location', '')),
                       'DESCRIPTION:' + escape(description),
                       'CLASS:PRIVATE', 'STATUS:' + ('CONFIRMED' if a['status'] in ('aceptada','realizada') else 'TENTATIVE'), 'END:VEVENT'])
     lines.append('END:VCALENDAR')
@@ -368,7 +375,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             coverage = []
             for a in assignments:
                 c = next((c for c in cost_rows if c.get('assignment_id') == a['id']), None)
-                own = {k: a.get(k) for k in ('id','job_id','role','slot','start','end','buffer','status','instructions','version','terms_version','accepted_terms')}
+                own = {k: a.get(k) for k in ('id','job_id','role','slot','start','end','buffer','schedule_pending','status','instructions','version','terms_version','accepted_terms')}
                 own.update(trip=assignment_trip(a, travel_plans), job=jobs[a['job_id']], amount=cost_amount(c) if c else 0,
                            changed=a['job_day'] != jobs[a['job_id']]['boda_date'] or jobs[a['job_id']]['status'] in ('Cancelado','Archivado'))
                 coverage.append(own)
