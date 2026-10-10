@@ -90,7 +90,7 @@ def exchange_code(tenant,code,redirect_uri):
 class CalendarClient:
     def __init__(self,tenant):self.tenant=tenant
 
-    def request(self,method,event_id='',body=None,notify=False):
+    def request(self,method,event_id='',body=None,notify=False,if_match=None):
         token=load_token(self.tenant)
         if not token or not token.get('refresh_token'):raise ValueError('Conecta Google Calendar para esta marca.')
         if token.get('expires_at',0)<=time.time():
@@ -101,8 +101,10 @@ class CalendarClient:
             save_token(self.tenant,token)
         url=BASE+('/'+quote(event_id,safe='') if event_id else '')
         if notify:url+='?sendUpdates=all'
+        headers={'Authorization':'Bearer '+token['access_token'],'Content-Type':'application/json'}
+        if if_match is not None:headers['If-Match']=if_match
         request=Request(url,data=json.dumps(body).encode() if body is not None else None,
-            headers={'Authorization':'Bearer '+token['access_token'],'Content-Type':'application/json'},method=method)
+            headers=headers,method=method)
         with urlopen(request,timeout=15) as response:return json.loads(response.read() or '{}')
 
     def response(self, event_id, identity):
@@ -111,33 +113,48 @@ class CalendarClient:
             raise ValueError('El evento no pertenece a esta cobertura.')
         return event
 
-    def sync(self,event_id,event,digest,identity):
+    def sync(self,event_id,event,digest,identity,invite_unanswered_only=False):
         try:previous=self.request('GET',event_id)
         except HTTPError as error:
             if error.code not in (404,410):raise
+            if invite_unanswered_only and error.code==410:
+                return dict(status='cancelled',_flow_invite_skipped='cancelled')
             previous=None
-        if event is None and previous and previous.get('status')=='cancelled':return previous
+        if event is None and previous and previous.get('status')=='cancelled':
+            return dict(previous,_flow_invite_skipped='cancelled') if invite_unanswered_only else previous
         if previous and previous.get('extendedProperties',{}).get('private',{}).get('flow_identity')!=identity:
             raise ValueError('El evento de Calendar no pertenece a esta cobertura de Flow.')
         if event is None:
+            if invite_unanswered_only:return dict(previous or {},_flow_invite_skipped='inactive')
             if previous and previous.get('status')!='cancelled':self.request('DELETE',event_id,notify=True)
             return dict(status='cancelled')
-        if previous and previous.get('status')!='cancelled' and previous.get('extendedProperties',{}).get('private',{}).get('flow_digest')==digest:
-            return previous
         event=dict(event,extendedProperties={'private':{'flow_identity':identity,'flow_digest':digest}})
-        if previous:
-            # Preserve the guest's Google RSVP when updating role, schedule or documents.
-            if previous.get('attendees') and event.get('attendees'):
-                old=previous['attendees'];new=event['attendees']
-                if {a.get('email') for a in old}=={a.get('email') for a in new}:event.pop('attendees')
-            event['status']='confirmed'
-            return self.request('PATCH',event_id,event,notify=True)
-        try:return self.request('POST',body=dict(event,id=event_id),notify=True)
-        except HTTPError as error:
-            if error.code!=409:raise
-            # An uncertain insert can already exist: deterministic IDs make retry safe.
-            existing=self.request('GET',event_id)
-            tags=existing.get('extendedProperties',{}).get('private',{})
-            if tags.get('flow_identity')!=identity:raise ValueError('Conflicto de identidad del evento de Calendar.')
-            if tags.get('flow_digest')==digest:return existing
-            return self.request('PATCH',event_id,event,notify=True)
+        if not previous:
+            try:return self.request('POST',body=dict(event,id=event_id),notify=True)
+            except HTTPError as error:
+                if error.code!=409:raise
+                # An uncertain insert can already exist: recheck its RSVP before retrying.
+                previous=self.request('GET',event_id)
+                if previous.get('extendedProperties',{}).get('private',{}).get('flow_identity')!=identity:
+                    raise ValueError('Conflicto de identidad del evento de Calendar.')
+        if invite_unanswered_only:
+            expected={a.get('email','').casefold() for a in event.get('attendees',[])}
+            guests=previous.get('attendees',[])
+            response=next((a.get('responseStatus','unknown') for a in guests
+                           if a.get('email','').casefold() in expected),'unknown')
+            if response not in ('accepted','declined','tentative','needsAction'):response='unknown'
+            reason=('cancelled' if previous.get('status')=='cancelled' else
+                    'guest_changed' if len(expected)!=1 or not all(expected) or expected!={a.get('email','').casefold() for a in guests} else
+                    response if response!='needsAction' else '')
+            if reason:return dict(previous,_flow_invite_skipped=reason)
+        if previous.get('status')!='cancelled' and previous.get('extendedProperties',{}).get('private',{}).get('flow_digest')==digest:
+            return dict(previous,_flow_invite_skipped='already_delivered') if invite_unanswered_only else previous
+        if invite_unanswered_only and not previous.get('etag'):
+            return dict(previous,_flow_invite_skipped='missing_etag')
+        # Preserve the guest's Google RSVP when updating role, schedule or documents.
+        if previous.get('attendees') and event.get('attendees'):
+            old=previous['attendees'];new=event['attendees']
+            if {a.get('email') for a in old}=={a.get('email') for a in new}:event.pop('attendees')
+        event['status']='confirmed'
+        options={'if_match':previous['etag']} if invite_unanswered_only else {}
+        return self.request('PATCH',event_id,event,notify=True,**options)

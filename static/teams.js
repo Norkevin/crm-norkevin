@@ -28,7 +28,7 @@
     if (data.action === 'calendar_sync') {
       const inline = source.querySelector('[data-calendar-error]');
       if (inline) inline.hidden = true;
-      button.textContent = data.send_at ? 'Guardando programación…' : 'Preparando invitación…';
+      button.textContent = data.scope === 'pending_invitations' ? 'Preparando invitaciones…' : data.send_at ? 'Guardando programación…' : 'Preparando invitación…';
     }
     button.disabled = true;
     try {
@@ -45,7 +45,8 @@
       const response = await fetch(endpoint, {method: 'POST', headers, body: payload});
       const result = await response.json();
       if (!response.ok) {
-        if (response.status < 500 || data.action !== 'access_email') {
+        const preserveRetry = data.action === 'access_email' || (data.action === 'calendar_sync' && data.scope === 'pending_invitations');
+        if (response.status < 500 || !preserveRetry) {
           delete source.dataset.commandKey;
           delete source.dataset.commandBody;
         }

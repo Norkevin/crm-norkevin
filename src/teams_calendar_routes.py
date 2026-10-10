@@ -1,14 +1,15 @@
 """Owner Calendar controls; Google consent remains an explicit owner action."""
 from datetime import datetime, timedelta, timezone
 import hashlib
+import json
 import os
 import secrets
 
 from flask import abort, jsonify, redirect, request, session, url_for
 
 from src import google_calendar, gmail_delivery
-from src.teams import TeamsError, teams_zone
-from src.teams_calendar import CalendarSync
+from src.teams import TeamsError, teams_zone, text, now
+from src.teams_calendar import CalendarSync, events, valid_invitation_email
 from src.teams_features import VISIBLE_ASSIGNMENTS
 
 
@@ -45,6 +46,39 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
         return send_portal_email(database,tenant,member,os.environ.get('APP_BASE_URL','https://flowingcrm.com'),
                                  'Invitación de Teams',event=record['event'],calendar_url=record.get('html_url',''),job_id=assignment['job_id'])
     sync.send_invitation_email=send_invitation_email
+
+    def invitation_eligible(tenant, record):
+        """Last local check for this bulk action; never send stale or answered terms."""
+        with database.transaction() as db:
+            a=database.get(db,tenant,'assignment',record['identity'].split(':',1)[1])
+            member=database.get(db,tenant,'member',a['member_id'])
+            closed={o['job_id'] for o in database.records(db,tenant,'operation') if o.get('closed')}
+            apartados={r['job_id'] for r in database.records(db,tenant,'job_classification') if r['state']!='included'}
+            clashes=database.conflicts(db,tenant,a['member_id'],a['start'],a['end'],a['buffer'],a['id'],candidate=a)
+        if a['status'] not in ('pendiente','reconfirmar'):
+            return 'La cobertura ya tiene respuesta o está cerrada.'
+        if not member['active'] or not valid_invitation_email(member.get('email','')):
+            return 'El miembro está inactivo o necesita revisar su correo.'
+        if member.get('shared_portal_blocked'):
+            return 'El acceso personal necesita revisión. Usa la invitación individual.'
+        if datetime.fromisoformat(a['end'])<=datetime.now(timezone.utc):
+            return 'La cobertura ya terminó.'
+        if clashes:return 'Hay un cruce de horario. Revisa la invitación individual.'
+        jobs=crm_store.list_privileged('jobs',tenant_id=tenant,reason='Teams: validar la cobertura propia antes de una invitación en lote')
+        if a['job_id'].startswith('secondary:'):
+            from src.linked_coverages import linked_coverages
+            calendar=crm_store.list_privileged('calendar',tenant_id=tenant,reason='Teams: validar la cobertura secundaria propia antes de una invitación en lote')
+            jobs+=linked_coverages(jobs,calendar)
+        job=next((j for j in jobs if j['id']==a['job_id']),None)
+        if (not job or not job.get('boda_date') or job.get('status') in ('Cancelado','Archivado') or job.get('boda_date')!=a['job_day']
+                or job['id'] in closed or job.get('parent_job_id') in closed
+                or job['id'] in apartados or job.get('parent_job_id') in apartados):
+            return 'La boda cambió o su operación está cerrada.'
+        desired=events(database,tenant,job,os.environ.get('APP_BASE_URL','https://flowingcrm.com').rstrip('/'),
+            teams_zone(crm_store,tenant),app.secret_key,eligible_ids=[a['id']],portal_ids={a['id']},
+            previous_events={record['identity']:record['event']})
+        return True if desired.get(record['identity'])==record['event'] else 'Las condiciones cambiaron. Revisa la invitación individual.'
+    sync.invitation_eligible=invitation_eligible
     def reconcile_tenant(tenant):
         # Reuse the CRM's explicit tenant context, also used by workflow workers.
         from app import _workflow_tenant, _calendar_non_job_events
@@ -84,6 +118,73 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
         except (ValueError,TypeError,KeyError):
             raise TeamsError('Revisa fecha, horarios y correos antes de sincronizar Calendar.')
 
+    def invite_pending(data):
+        tenant=session['tenant_id']
+        key='calendar-bulk:'+text(data,'key',maximum=100)
+        fingerprint=hashlib.sha256(b'calendar-pending-invitations').hexdigest()
+        with database.transaction() as db:
+            previous=db.execute('SELECT fingerprint,result FROM commands WHERE tenant=? AND key=?',(tenant,key)).fetchone()
+            if previous:
+                if previous['fingerprint']!=fingerprint:raise TeamsError('La clave del envío ya está en uso.',409)
+                return jsonify(json.loads(previous['result']))
+            assignments=database.records(db,tenant,'assignment')
+            members={m['id']:m for m in database.records(db,tenant,'member')}
+            invitations={r['identity']:r for r in database.records(db,tenant,'calendar_sync')}
+            closed={o['job_id'] for o in database.records(db,tenant,'operation') if o.get('closed')}
+            apartados={r['job_id'] for r in database.records(db,tenant,'job_classification') if r['state']!='included'}
+        jobs={j['id']:j for j in canonical_jobs()}
+        grouped={};answered=busy=review=0
+        for a in assignments:
+            job=jobs.get(a['job_id']);member=members.get(a['member_id'])
+            if not job or job.get('status') in ('Cancelado','Archivado') or datetime.fromisoformat(a['end'])<=datetime.now(timezone.utc):continue
+            if a['status'] not in ('borrador','pendiente','reconfirmar'):
+                answered+=a['status'] in ('aceptada','rechazada');continue
+            invitation=invitations.get('assignment:'+a['id'],{})
+            if invitation.get('response_status') in ('accepted','declined','tentative','cancelled'):
+                answered+=1;continue
+            if (invitation.get('status')=='pending' or invitation.get('email_status') in ('pending','sending','failed')
+                    or invitation.get('not_before')):
+                busy+=1;continue
+            if (not member or not member['active'] or member.get('shared_portal_blocked')
+                    or not valid_invitation_email(member.get('email','')) or not job.get('boda_date')
+                    or a['job_day']!=job.get('boda_date') or job['id'] in closed or job.get('parent_job_id') in closed
+                    or job['id'] in apartados or job.get('parent_job_id') in apartados):
+                review+=1;continue
+            grouped.setdefault(job['id'],[]).append(a)
+        queued=0
+        for job_id,candidates in grouped.items():
+            ids=[]
+            for a in candidates:
+                try:
+                    with database.transaction() as db:
+                        if database.conflicts(db,tenant,a['member_id'],a['start'],a['end'],a['buffer'],a['id'],candidate=a):
+                            review+=1;continue
+                    if a['status']=='borrador':
+                        database.command(tenant,session['user_email'],dict(action='assignment_publish',
+                            key=hashlib.sha256((key+':publish:'+a['id']).encode()).hexdigest(),id=a['id'],version=a['version']),read_job)
+                    ids.append(a['id'])
+                except TeamsError:
+                    review+=1
+            if not ids:continue
+            try:
+                delivery_key=hashlib.sha256((key+':'+job_id).encode()).hexdigest()
+                sync.enqueue(tenant,read_job(job_id),origin(),teams_zone(crm_store,tenant),app.secret_key,
+                    include_new=True,invite_ids=ids,delivery_key=delivery_key,skip_unchanged=True,
+                    background=False,invite_unanswered_only=True)
+                queued+=len(ids)
+            except (TeamsError,ValueError,TypeError,KeyError):
+                review+=len(ids)
+        message=(f'{queued} invitaciones pendientes en cola para esta marca. '
+            f'{answered} respuestas ya registradas omitidas; {busy} envíos en curso o programados conservados. '
+            'Se vuelve a comprobar la respuesta de Google antes de enviar. Revisa el resultado en cada cobertura.')
+        if review:message+=f' {review} coberturas necesitan revisión; consulta sus fichas.'
+        result=dict(ok=True,record=dict(queued=queued,answered=answered,busy=busy,review=review),warnings=[message])
+        with database.transaction() as db:
+            db.execute('INSERT OR IGNORE INTO commands VALUES (?,?,?,?)',(tenant,key,fingerprint,json.dumps(result)))
+            database.create(db,tenant,'audit',action='calendar_bulk_invite',actor=session['user_email'],created_at=now(),before=None,after=result['record'])
+        if queued:sync.wakeup.set()
+        return jsonify(result)
+
     @blueprint.route('/teams/calendar/connect')
     def calendar_connect():
         if app.config.get('FLOW_TEAMS_LOCAL'):raise TeamsError('Las conexiones externas están bloqueadas en la propuesta local.')
@@ -99,6 +200,8 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
         if not isinstance(data,dict):raise TeamsError('Revisa la invitación.')
         if app.config.get('FLOW_TEAMS_LOCAL') or not google_calendar.connected_email(session['tenant_id']):
             raise TeamsError('Conecta Google Calendar en Configuración para esta marca.')
+        if data.get('scope')=='pending_invitations':
+            return invite_pending(data)
         if data.get('scope')=='retry_failed':
             count=0
             with database.transaction() as db:

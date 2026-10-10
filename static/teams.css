@@ -117,3 +117,7 @@ body.ft-portal-body{margin:0;background:var(--flow-canvas);color:var(--sn-ink);f
 .ft-brand-tabs a:hover { background: var(--sn-surface-2); }
 .ft-brand-tabs a[aria-current="page"] { background: #f3efff; border-color: #7252c7; color: #5331a1; font-weight: 600; }
  .ft-brand-tabs a:focus-visible { outline: 2px solid var(--sn-green); outline-offset: 3px; }
+
+.ft-bulk-invites { margin-block: 12px; }
+.ft .ft-bulk-invites summary { min-height: 44px; display: list-item; color: var(--sn-accent-text); font-size: 13px; }
+.ft-bulk-invites p { max-width: 75ch; }

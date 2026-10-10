@@ -137,6 +137,7 @@ class CalendarSync:
         self.started=False
         self.reconcile_tenant=None
         self.send_invitation_email=None
+        self.invitation_eligible=None
 
     def start(self):
         if self.started:return
@@ -200,7 +201,7 @@ class CalendarSync:
                 except (ValueError,TypeError,KeyError,TeamsError):
                     LOGGER.warning('Calendar entry invalid; other events continue')
 
-    def enqueue(self,tenant,job,origin,zone,secret,*,background=True, invite_ids=None, send_at=None, include_new=False, delivery_key=None,skip_unchanged=False):
+    def enqueue(self,tenant,job,origin,zone,secret,*,background=True, invite_ids=None, send_at=None, include_new=False, delivery_key=None,skip_unchanged=False,invite_unanswered_only=False):
         with self.store.transaction() as db:
             tracked=[r for r in self.store.records(db,tenant,'calendar_sync') if r['status']!='paused']
         wanted=invite_ids if invite_ids is not None else (None if include_new else [r['identity'].split(':',1)[1] for r in tracked if r['identity'].startswith('assignment:')])
@@ -212,14 +213,15 @@ class CalendarSync:
         previous_events = {r['identity']: r.get('event') or {} for r in tracked} if delivery_key is None else None
         desired=events(self.store,tenant,job,origin,zone,secret,wanted,portal_ids,previous_events)
         return self.enqueue_events(tenant,job['id'],desired,background=background,invite_ids=invite_ids,
-            send_at=send_at,include_new=include_new,delivery_key=delivery_key,skip_unchanged=skip_unchanged)
+            send_at=send_at,include_new=include_new,delivery_key=delivery_key,skip_unchanged=skip_unchanged,
+            invite_unanswered_only=invite_unanswered_only)
 
     def _assignments(self, tenant, job_id):
         with self.store.transaction() as db:
             return [a for a in self.store.records(db, tenant, 'assignment') if a['job_id'] == job_id]
 
     def enqueue_events(self,tenant,source_id,desired,*,background=True,invite_ids=None,send_at=None,
-                       include_new=False,delivery_key=None,skip_unchanged=False):
+                       include_new=False,delivery_key=None,skip_unchanged=False,invite_unanswered_only=False):
         queued=0
         with self.store.transaction() as db:
             existing={r['identity']:r for r in self.store.records(db,tenant,'calendar_sync')}
@@ -237,6 +239,10 @@ class CalendarSync:
                 if previous and previous['event'] is None and event is not None and previous['status']=='synced':
                     record['event_id']=hashlib.sha256((tenant+':'+identity+':'+str(previous['version'])).encode()).hexdigest()
                 record.update(digest=digest,delivery_key=delivery,event=event,status='pending',error='',queued_at=now(),retry_after=None)
+                if identity.startswith('assignment:'):
+                    if event is None:record['invite_unanswered_only']=False
+                    elif delivery_key is not None:record['invite_unanswered_only']=bool(invite_unanswered_only)
+                    if delivery_key is not None:record.pop('bulk_skip_reason',None)
                 if identity.startswith('assignment:') and (not event or (previous and
                         (previous.get('event') or {}).get('attendees') != event.get('attendees'))):
                     record.update(email_status='not_sent' if event else 'cancelled', email_error='', email_sent_at=None,
@@ -262,9 +268,18 @@ class CalendarSync:
             with self.store.transaction() as db:
                 current=self.store.get(db,tenant,'calendar_sync',record['id'])
                 if current['digest']!=record['digest'] or current['status']=='paused':continue
+            skip_reason=''
             try:
-                result=client.sync(record['event_id'],record['event'],record['digest'],record['identity'])
-                status,error='synced',''
+                if record.get('invite_unanswered_only'):
+                    eligible=self.invitation_eligible(tenant,record) if self.invitation_eligible else 'validation_unavailable'
+                    if eligible is not True:skip_reason=eligible or 'inactive'
+                if skip_reason:
+                    result={};status,error='paused',''
+                else:
+                    options={'invite_unanswered_only':True} if record.get('invite_unanswered_only') else {}
+                    result=client.sync(record['event_id'],record['event'],record['digest'],record['identity'],**options)
+                    skip_reason=result.get('_flow_invite_skipped','')
+                    status,error='synced',''
             except Exception as exception:
                 # Never put Google responses, credentials or document access URLs into logs/UI.
                 code,error=delivery_error(exception)
@@ -278,11 +293,28 @@ class CalendarSync:
                     html_url=result.get('htmlLink',''))
                 if status == 'synced' and record['identity'].startswith('assignment:') and record['event']:
                     current.update(response_status=attendee_response(record,result),response_checked_at=now(),response_error='')
+                if skip_reason:
+                    current.update(bulk_skip_reason=str(skip_reason),email_status='skipped',email_error='')
+                elif status=='synced':current.pop('bulk_skip_reason',None)
+                if record.get('invite_unanswered_only') and (status=='paused' or (status=='synced' and
+                        (skip_reason or current.get('email_status')!='pending' or not self.send_invitation_email))):
+                    current['invite_unanswered_only']=False
                 self.store.save(db,tenant,'calendar_sync',current)
-                if status == 'synced' and record['event'] and record['identity'].startswith('assignment:'):
+                if status == 'synced' and not skip_reason and record['event'] and record['identity'].startswith('assignment:'):
                     from src.teams_mail import archive_calendar
                     archive_calendar(self.store, db, tenant, record)
-            if status == 'synced' and record['event'] and self.send_invitation_email:
+            if status == 'synced' and not skip_reason and record['event'] and self.send_invitation_email:
+                if record.get('invite_unanswered_only'):
+                    try:eligible=self.invitation_eligible(tenant,record) if self.invitation_eligible else 'validation_unavailable'
+                    except Exception:eligible='validation_unavailable'
+                    if eligible is not True:
+                        with self.store.transaction() as db:
+                            current=self.store.get(db,tenant,'calendar_sync',record['id'])
+                            if current['digest']==record['digest']:
+                                current.update(email_status='skipped',email_error='',bulk_skip_reason=str(eligible or 'inactive'),
+                                               invite_unanswered_only=False)
+                                self.store.save(db,tenant,'calendar_sync',current)
+                        continue
                 with self.store.transaction() as db:
                     current=self.store.get(db,tenant,'calendar_sync',record['id'])
                     if current['digest']!=record['digest'] or current.get('email_status')!='pending':continue
@@ -300,6 +332,7 @@ class CalendarSync:
                     if current['digest']!=record['digest']:continue
                     current.update(email_status=email_status,email_error=email_error,
                                    email_sent_at=now() if email_status=='sent' else None)
+                    if record.get('invite_unanswered_only'):current['invite_unanswered_only']=False
                     self.store.save(db,tenant,'calendar_sync',current)
 
     def refresh_responses(self, tenant):
