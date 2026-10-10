@@ -12,6 +12,7 @@ from flask import Blueprint, abort, g, jsonify, redirect, render_template, reque
 
 from src.teams import LOCAL_ZONE, TeamsError, now, text, teams_zone, payment_deadline, assignment_trip, teams_date
 from src.teams_features import VISIBLE_ASSIGNMENTS, advance_balance, cost_amount, document_visible, file_fields, MAX_FILE_BYTES
+from src.teams_shared import peers, shared_brands
 
 
 def calendar_text(assignments, jobs):
@@ -95,6 +96,28 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             if (not session.get('logged_in') or session.get('tenant_id') != tenant or not owner
                     or session.get('user_email') != owner.get('login_email')):
                 abort(403)
+        brands = shared_brands(crm_store)
+        choices = [(tenant, brands.get(tenant), member)]
+        if not session.get('teams_member_preview'):
+            grants = dict(session.get('teams_member_brands', {}))
+            with store.transaction() as db:
+                for other, brand, person in peers(store, db, tenant, member, portal=True):
+                    grant = dict(id=person['id'], access=person.get('access_version', 1))
+                    if other not in grants:
+                        grants[other] = grant
+                    if grants[other] == grant:
+                        choices.append((other, brand, person))
+            session['teams_member_brands'] = grants
+        g.teams_portal_brands = [dict(key=b.brand_key if b else 'current',
+            name='Norkevin Foto' if b and b.brand_key == 'norkevin' else 'Astral Films' if b else 'Mi equipo',
+            tenant=t, member_id=p['id']) for t, b, p in choices]
+        selected = request.args.get('brand')
+        if selected:
+            target = next((c for c in g.teams_portal_brands if c['key'] == selected), None)
+            if not target:
+                abort(403)
+            tenant, _, member = next(c for c in choices if c[0] == target['tenant'])
+        g.teams_portal_brand = next(c['key'] for c in g.teams_portal_brands if c['tenant'] == tenant)
         g.teams_portal_tenant, g.teams_member = tenant, member
         if request.method == 'POST':
             if session.get('teams_member_preview') and request.endpoint != 'teams_portal.logout':
@@ -102,6 +125,12 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             token = session.get('teams_portal_csrf')
             if not token or not secrets.compare_digest(request.headers.get('X-Teams-CSRF', ''), token):
                 abort(403)
+
+    @app.url_defaults
+    def portal_brand_urls(endpoint, values):
+        if (endpoint.startswith('teams_portal.') and endpoint not in ('teams_portal.login', 'teams_portal.calendar_document')
+                and getattr(g, 'teams_portal_brand', 'current') != 'current'):
+            values.setdefault('brand', g.teams_portal_brand)
 
     @entry.after_request
     @portal.after_request
@@ -115,9 +144,20 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
     def invalid(error):
         return jsonify(ok=False, error=error.message), error.status
 
-    def bind_member(tenant, member, preview=False):
+    def bind_member(tenant, member, preview=False, db=None):
+        grants = {}
+        if not preview:
+            if db is None:
+                raise RuntimeError('Member authentication requires its existing transaction')
+            # Only a fresh, validated link for this brand restores its shared portal access.
+            if member.get('shared_portal_blocked'):
+                member['shared_portal_blocked'] = False
+                store.save(db, tenant, 'member', member)
+            grants = {t: dict(id=p['id'], access=p.get('access_version', 1))
+                      for t, _, p in peers(store, db, tenant, member, portal=True)}
         session.update(teams_member_tenant=tenant, teams_member_id=member['id'],
                        teams_member_access_version=member.get('access_version', 1), teams_member_preview=preview,
+                       teams_member_brands=grants,
                        teams_portal_csrf=secrets.token_urlsafe(32))
 
     @owner_blueprint.route('/teams/preview/<member_id>')
@@ -214,7 +254,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                     identity = calendar_identity(db, json.loads(row['payload']))
                     if identity:
                         tenant, person, coverage = identity
-                        bind_member(tenant, person)
+                        bind_member(tenant, person, db=db)
                         return redirect(url_for('teams_portal.page', job_id=coverage['job_id']))
                 except (TeamsError, KeyError, TypeError, ValueError):
                     pass
@@ -258,7 +298,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                     identity = calendar_identity(db, invitation)
                     if identity:
                         tenant, person, coverage = identity
-                        bind_member(tenant, person)
+                        bind_member(tenant, person, db=db)
                         count['count'] = 0
                         store.save(db, '_local', 'login_attempt', count)
                         return redirect(url_for('teams_portal.page', job_id=coverage['job_id']))
@@ -271,7 +311,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                         and access['access_version'] == member.get('access_version', 1)):
                     access['used'] = True
                     store.save(db, row['tenant'], 'access', access)
-                    bind_member(row['tenant'], member)
+                    bind_member(row['tenant'], member, db=db)
                     count['count'] = 0
                     store.save(db, '_local', 'login_attempt', count)
                     return redirect(url_for('teams_portal.page'))
@@ -440,6 +480,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                     upcoming_assignments=sorted((a for a in coverage if a['end'][:10] >= datetime.now(teams_zone(crm_store, tenant)).date().isoformat()), key=lambda a:a['start']),
                     past_assignments=sorted((a for a in coverage if a['end'][:10] < datetime.now(teams_zone(crm_store, tenant)).date().isoformat()), key=lambda a:a['start'], reverse=True),
                     brand_name=crm_store.get('tenants',tenant).get('name','Tu equipo'),
+                    brands=[dict(key=b['key'], name=b['name']) for b in g.teams_portal_brands], brand=g.teams_portal_brand,
                     preview=bool(session.get('teams_member_preview')))
 
     @portal.route('')

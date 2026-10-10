@@ -180,6 +180,9 @@ class TeamsStore:
             other_end += timedelta(minutes=a['buffer'])
             if start < other_end and other_start < end:
                 conflicts.append(a)
+        if getattr(self, 'crm_store', None):
+            from src.teams_shared import cross_conflicts
+            conflicts.extend(cross_conflicts(self, db, tenant, member_id, start, end))
         return conflicts
 
     def command(self, tenant, actor, data, job_reader, *, member_id=None):
@@ -245,6 +248,7 @@ class TeamsStore:
                     raise TeamsError('Estado del miembro inválido.')
                 if identifier and (record['email'].casefold() != email.casefold() or record['active'] != data.get('active', True)):
                     record['access_version'] = record.get('access_version', 1) + 1
+                    record['shared_portal_blocked'] = True
                 record.update(name=text(data, 'name', maximum=150), email=email,
                               phone=text(data, 'phone', required=False, maximum=80),
                               role=text(data, 'role', maximum=100), rate=cents(data.get('rate', '0')),
@@ -280,6 +284,9 @@ class TeamsStore:
                 conflicts = self.conflicts(db, tenant, member['id'], start.isoformat(), end.isoformat(), buffer, candidate=candidate)
                 if conflicts:
                     warnings.append('Borrador guardado con conflicto de horario. Revisa el calendario antes de confirmar con el equipo.')
+                    brands = sorted({a['brand_name'] for a in conflicts if a.get('brand_name')})
+                    if brands:
+                        warnings.append('Esta persona ya tiene una cobertura en ' + ', '.join(brands) + ' en ese horario.')
                 fee = cents(data.get('amount'))
                 record = self.create(db, tenant, 'assignment', job_id=job['id'], member_id=member['id'],
                                      role=text(data, 'role', maximum=100), slot=slot, start=start.isoformat(),
@@ -505,6 +512,7 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
     """Owner-only extension; production data stays on the CRM persistent disk."""
     data_dir = Path(crm_store.data_dir)
     database = TeamsStore((data_dir.parent if app.config.get('FLOW_TEAMS_LOCAL') else data_dir) / 'teams.sqlite3')
+    database.crm_store = crm_store
     app.extensions['teams'] = database
     blueprint = Blueprint('teams', __name__)
     app.jinja_env.filters['teams_money'] = money
@@ -584,6 +592,12 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             audit = database.records(db, tenant, 'audit')
             extra = {kind: database.records(db, tenant, kind) for kind in (
                 'document', 'receipt', 'notice', 'task', 'expense_request', 'availability', 'advance', 'settlement', 'report', 'config', 'schedule', 'job_classification', 'calendar_sync', 'travel')}
+            from src.teams_shared import cross_conflicts
+            for a in assignments:
+                start, end = availability_window(a, assignment_trip(a, extra['travel']))
+                margin = timedelta(minutes=a['buffer'])
+                a['other_brand_conflicts'] = (cross_conflicts(database, db, tenant, a['member_id'], start-margin, end+margin)
+                    if a['status'] not in ('cancelada', 'rechazada') else [])
             from src.teams_features import advance_balance, clean
             for advance in extra['advance']:
                 advance['remaining'] = advance_balance(database, db, tenant, advance)
@@ -828,6 +842,8 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                                csrf=session['teams_csrf'], today=datetime.now(LOCAL_ZONE).date().isoformat(), **data)
 
     from src.teams_portal import register_portal
+    from src.teams_shared import register_shared
+    register_shared(blueprint, database, crm_store)
     register_portal(app, blueprint, database, crm_store, read_job)
     from src.teams_enrollment import register_enrollment
     register_enrollment(app, blueprint, database, crm_store)

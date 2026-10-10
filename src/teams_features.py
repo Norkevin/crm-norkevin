@@ -265,6 +265,9 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
         if trip and not trip['departure'] <= record['start'][:10] <= record['end'][:10] <= trip['return_date']:
             raise TeamsError('El horario de cobertura quedó fuera de las fechas de viaje. Revisa el viaje de esta persona.')
         conflicts = store.conflicts(db, tenant, record['member_id'], record['start'], record['end'], record['buffer'], record['id'], candidate=record)
+        other_brands = sorted({a['brand_name'] for a in conflicts if a.get('brand_name')})
+        if other_brands:
+            warnings.append('Esta persona tiene otra cobertura en ' + ', '.join(other_brands) + ' en ese horario.')
         if any(a['status'] in ('aceptada', 'realizada') for a in conflicts):
             record['conflict_override'] = text(data, 'conflict_reason', maximum=1000)
             warnings.append('Excepción de solapamiento registrada por administración.')
@@ -330,6 +333,7 @@ def handle_command(store, db, tenant, actor, data, job_reader, member_id=None):
         store.check_version(record, data)
         before = dict(record)
         record['access_version'] = record.get('access_version', 1) + 1
+        record['shared_portal_blocked'] = True
         store.save(db, tenant, 'member', record)
     elif action == 'document':
         job = job_reader(text(data, 'job_id', maximum=200))

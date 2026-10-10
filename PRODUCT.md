@@ -12,7 +12,7 @@ Kevin administra Norkevin Photography y Astral Weddings. Sus clientes consultan 
 Dar seguimiento a una consulta hasta la entrega de la boda, reuniendo personas, fechas, documentos, comunicaciones y pagos.
 
 ## Operating Context
-Uso diario en computadora y teléfono, incluido el iPhone 14 Pro Max. Guatemala, español y quetzales. Las dos marcas comparten colaboradores y conservan sus registros separados.
+Uso diario en computadora y teléfono, incluido el iPhone 14 Pro Max. Guatemala, español y quetzales. Las dos marcas comparten colaboradores y conservan sus registros separados. Teams ofrece al miembro un portal personal con pestañas por marca cuando sus fichas tienen el mismo correo. La administración recibe avisos de cruces de cobertura entre las dos marcas.
 
 ## Capabilities and Constraints
 Flask y plantillas Jinja existentes. Conservar rutas, permisos por empresa, aprobación de correos, formularios, firma, cálculos y proveedores. Teams muestra eventos activos; Jobs abre por fecha más cercana. No usar datos reales para pruebas de escritura ni enviar comunicaciones durante las comprobaciones.

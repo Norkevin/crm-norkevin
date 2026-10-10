@@ -111,3 +111,9 @@ body.ft-portal-body{margin:0;background:var(--flow-canvas);color:var(--sn-ink);f
 .ft-form [hidden]{display:none!important}
 @media(max-width:640px){.ft-travel-dates{gap:12px}.ft .ft-travel-dates>div{flex-basis:100%}}
 .ft-person-travel .ft-travel-allowance{background:var(--sn-surface-2);border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.65}
+
+.ft-brand-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-block: 16px; }
+.ft-brand-tabs a { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 18px; border: 1px solid var(--sn-line); border-radius: 8px; color: var(--sn-ink); text-decoration: none; }
+.ft-brand-tabs a:hover { background: var(--sn-surface-2); }
+.ft-brand-tabs a[aria-current="page"] { background: #f3efff; border-color: #7252c7; color: #5331a1; font-weight: 600; }
+ .ft-brand-tabs a:focus-visible { outline: 2px solid var(--sn-green); outline-offset: 3px; }

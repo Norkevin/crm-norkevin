@@ -91,6 +91,7 @@
       {% if invitation.status == 'pending' and invitation.not_before %}<button class="sn-btn" data-action="calendar_cancel_scheduled" data-endpoint="/api/teams/calendar/cancel-scheduled" data-id="{{ invitation.id }}" data-version="{{ invitation.version }}">Cancelar envío programado</button>{% endif %}
       {% if invitation.html_url %}<a class="ft-text-link" href="{{ invitation.html_url }}" target="_blank" rel="noopener noreferrer">Ver en Google Calendar ↗</a>{% endif %}
     </div>{% endif %}
+    {% if a.other_brand_conflicts %}<p class="ft-warning">Esta persona tiene otra cobertura en {{ a.other_brand_conflicts|map(attribute='brand_name')|unique|join(', ') }} en este horario. Revisa antes de confirmar.</p>{% endif %}
     {% if a.changed or a.conflicts %}<p class="ft-warning">{{ 'Fecha comercial modificada. Revisa las condiciones.' if a.changed else 'Hay un solapamiento de horario; revisa antes de confirmar.' }}</p>{% endif %}
     <div class="ft-crew-controls">
     {% if c and not selected.closed %}<details class="ft-crew-payment"><summary>Registrar pago o ver abonos</summary>{{ cost_controls(c,true) }}</details>{% endif %}

@@ -547,3 +547,14 @@ Nada de la etapa 1 ni de la etapa 3 esta ejecutado. `src/public_tokens.py`
 tiene la arquitectura (token de 256 bits, guardado como hash, comparado en
 tiempo constante) y `src/public_links.py` la clasificacion, las dos cubiertas
 con tests. **Ningun enlace fue generado, rotado ni desactivado.**
+
+
+## Excepción autorizada: colaboradores de Teams (9 de octubre de 2026)
+
+Kevin autorizó compartir únicamente el portal personal y la disponibilidad de colaboradores entre Norkevin Photography y Astral. `src/teams_shared.py` limita el vínculo a esas dos identidades canónicas y valida sus cuentas propietarias activas. No se extiende a otras empresas.
+
+El portal identifica al mismo colaborador por correo no vacío, único en cada marca. Cada petición valida la identidad de origen, el miembro de destino, su estado y la versión de acceso. Revocar o cambiar correo/estado bloquea la entrada desde la otra marca; se restaura solo al autenticar un enlace nuevo de la marca afectada. La vista previa del propietario conserva una sola marca y es de consulta.
+
+Las pestañas seleccionan un contexto de Teams por petición; documentos, respuestas, honorarios y comprobantes siguen limitados a ese miembro y esa empresa. El CRM, sus clientes, ingresos, contratos y finanzas internas conservan el aislamiento existente.
+
+La copia administrativa conserva solo el directorio operativo, crea IDs propios y auditoría, omite duplicados y nunca copia bancos, DPI, credenciales, bodas, asignaciones ni saldos. Los avisos de horario consultan únicamente las coberturas del colaborador vinculado y devuelven marca, intervalo y estado; no revelan datos de clientes ni honorarios ajenos. La procedencia de una ficha copiada permite comprobar cruces aunque todavía no tenga correo; acceder al portal de ambas marcas siempre requiere el mismo correo.
