@@ -98,16 +98,15 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                 abort(403)
         brands = shared_brands(crm_store)
         choices = [(tenant, brands.get(tenant), member)]
-        if not session.get('teams_member_preview'):
-            grants = dict(session.get('teams_member_brands', {}))
-            with store.transaction() as db:
-                for other, brand, person in peers(store, db, tenant, member, portal=True):
-                    grant = dict(id=person['id'], access=person.get('access_version', 1))
-                    if other not in grants:
-                        grants[other] = grant
-                    if grants[other] == grant:
-                        choices.append((other, brand, person))
-            session['teams_member_brands'] = grants
+        grants = dict(session.get('teams_member_brands', {}))
+        with store.transaction() as db:
+            for other, brand, person in peers(store, db, tenant, member, portal=True):
+                grant = dict(id=person['id'], access=person.get('access_version', 1))
+                if other not in grants:
+                    grants[other] = grant
+                if grants[other] == grant:
+                    choices.append((other, brand, person))
+        session['teams_member_brands'] = grants
         g.teams_portal_brands = [dict(key=b.brand_key if b else 'current',
             name='Norkevin Foto' if b and b.brand_key == 'norkevin' else 'Astral Films' if b else 'Mi equipo',
             tenant=t, member_id=p['id']) for t, b, p in choices]

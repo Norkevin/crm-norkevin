@@ -91,7 +91,7 @@ def test_revocation_and_identity_changes_do_not_reopen_through_other_brand(share
     assert restored.get('/teams-portal/summary').status_code == 403
 
 
-def test_new_membership_appears_and_owner_preview_cannot_cross_brands(shared):
+def test_new_membership_appears_in_member_portal_and_owner_preview(shared):
     app, owner, crm, store, n, a, p, q = shared
     with store.transaction() as db:
         db.execute("DELETE FROM entities WHERE kind='member' AND id=?", (q['id'],))
@@ -100,8 +100,8 @@ def test_new_membership_appears_and_owner_preview_cannot_cross_brands(shared):
     q = run(store, 'member', a, name='Emerson', email=p['email'], role='Foto')
     assert visitor.get('/teams-portal/summary?brand=astral').status_code == 200
     owner.get('/teams/preview/' + p['id'])
-    assert len(owner.get('/teams-portal/summary').get_json()['brands']) == 1
-    assert owner.get('/teams-portal/summary?brand=astral').status_code == 403
+    assert len(owner.get('/teams-portal/summary').get_json()['brands']) == 2
+    assert owner.get('/teams-portal/summary?brand=astral').get_json()['member']['id'] == q['id']
     run(store, 'member', a, id=q['id'], version=q['version'], name=q['name'], email=q['email'], role=q['role'], active=False)
     assert visitor.get('/teams-portal/summary?brand=astral').status_code == 403
 
@@ -181,3 +181,35 @@ def test_pair_is_disabled_when_brand_ownership_is_unrecognized(shared):
     visitor = member_client(app,owner,p)
     assert visitor.get('/teams-portal/summary?brand=astral').status_code == 403
     assert owner.post('/api/teams/members/copy', headers={'X-Teams-CSRF':'csrf'}, json={'key':'copy-deny'}).status_code == 403
+
+
+@pytest.mark.parametrize('origin', ['norkevin', 'astral'])
+def test_owner_preview_shows_both_own_weddings_but_cannot_answer_or_change_owner(origin, shared):
+    app, owner, crm, store, n, a, p, q = shared
+    first = coverage(store,n,p,'norkevin-job')
+    second = coverage(store,a,q,'astral-job')
+    foreign = run(store,'member',a,name='Another member',email='another@example.invalid',role='Video')
+    coverage(store,a,foreign,'astral-job',slot='Other video')
+    tenant, person, email = (n,p,'norkevinfoto@gmail.com') if origin == 'norkevin' else (a,q,'astralweddingsgt@gmail.com')
+    with owner.session_transaction() as s:
+        s.update(tenant_id=tenant,user_email=email)
+    assert owner.get('/teams/preview/'+person['id']).status_code == 302
+    for brand, expected_person, expected_coverage in [('norkevin',p,first),('astral',q,second)]:
+        summary = owner.get('/teams-portal/summary?brand='+brand).get_json()
+        assert summary['preview'] and summary['member']['id'] == expected_person['id']
+        assert [r['id'] for r in summary['assignments']] == [expected_coverage['id']]
+        page = owner.get('/teams-portal/?brand='+brand).get_data(as_text=True)
+        assert 'Norkevin Foto' in page and 'Astral Films' in page
+        assert '/teams/members/'+person['id'] in page
+        assert 'data-command="response"' not in page
+        with owner.session_transaction() as s:
+            csrf = s['teams_portal_csrf']
+        response = owner.post('/teams-portal/command?brand='+brand,headers={'X-Teams-CSRF':csrf},json=dict(
+            action='response',key=str(uuid4()),id=expected_coverage['id'],version=expected_coverage['version'],terms_version=1,status='aceptada'))
+        assert response.status_code == 403 and 'vista previa' in response.get_json()['error']
+    assert records(store,'assignment',n)[0]['status'] == 'pendiente'
+    assert records(store,'assignment',a)[0]['status'] == 'pendiente'
+    assert owner.get('/teams-portal/summary?brand=brand-b').status_code == 403
+    with owner.session_transaction() as s:
+        s.update(tenant_id='brand-b',user_email='other@example.invalid')
+    assert owner.get('/teams-portal/summary?brand=astral').status_code == 403

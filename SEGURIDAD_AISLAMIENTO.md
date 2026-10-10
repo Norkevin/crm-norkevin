@@ -553,7 +553,7 @@ con tests. **Ningun enlace fue generado, rotado ni desactivado.**
 
 Kevin autorizó compartir únicamente el portal personal y la disponibilidad de colaboradores entre Norkevin Photography y Astral. `src/teams_shared.py` limita el vínculo a esas dos identidades canónicas y valida sus cuentas propietarias activas. No se extiende a otras empresas.
 
-El portal identifica al mismo colaborador por correo no vacío, único en cada marca. Cada petición valida la identidad de origen, el miembro de destino, su estado y la versión de acceso. Revocar o cambiar correo/estado bloquea la entrada desde la otra marca; se restaura solo al autenticar un enlace nuevo de la marca afectada. La vista previa del propietario conserva una sola marca y es de consulta.
+El portal identifica al mismo colaborador por correo no vacío, único en cada marca. Cada petición valida la identidad de origen, el miembro de destino, su estado y la versión de acceso. Revocar o cambiar correo/estado bloquea la entrada desde la otra marca; se restaura solo al autenticar un enlace nuevo de la marca afectada. La vista previa del propietario muestra las mismas dos pestañas del colaborador y es de consulta; cada petición sigue exigiendo la sesión propietaria de la marca de origen. Volver a administración siempre regresa a la ficha de esa marca.
 
 Las pestañas seleccionan un contexto de Teams por petición; documentos, respuestas, honorarios y comprobantes siguen limitados a ese miembro y esa empresa. El CRM, sus clientes, ingresos, contratos y finanzas internas conservan el aislamiento existente.
 
