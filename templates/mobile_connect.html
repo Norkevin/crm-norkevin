@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Conectar iPhone · Flowing{% endblock %}
+{% block content %}
+<div class="sn-page-head"><div><h1>Conectar tu iPhone</h1><p>{{ current_tenant.name }}</p></div></div>
+<section class="sn-card" style="max-width:560px;padding:24px">
+  {% if connected %}
+  <h2>Cuenta conectada</h2><p>Vuelve a Flowing en tu iPhone. Solo tendrá acceso a esta empresa.</p>
+  {% else %}
+  <p>Abre Flowing en tu iPhone e introduce aquí el código que muestra la aplicación.</p>
+  <p>Autoriza únicamente una conexión que hayas iniciado tú. Comprueba la empresa antes de continuar.</p>
+  {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ session.get('mobile_csrf', '') }}">
+    <label for="mobile-code">Código del iPhone</label>
+    <input class="sn-input" id="mobile-code" name="code" value="{{ code }}" required minlength="8" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" style="display:block;margin:12px 0;width:100%;min-height:44px">
+    <button class="sn-btn sn-btn-primary" type="submit" style="min-height:44px">Conectar a {{ current_tenant.name }}</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

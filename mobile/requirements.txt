@@ -1,0 +1,2 @@
+# Optional server-side native push transport. Install only in approved staging.
+httpx[http2]>=0.28,<1
