@@ -30,7 +30,21 @@ La revisión independiente confirmó el cierre de tres defectos: el worker o una
 
 Revisión de UI ejecutada en Chrome, viewport 430×932 y datos ficticios: se corrigió el popover móvil que salía por la izquierda. Confirmación final: x=16, ancho=398, borde derecho=414 y botón de activar de 44px. `avisos-movil.png` captura esa interfaz ejecutada; no es una captura de iPhone físico ni acredita push recibido. No se solicitó permiso al navegador durante esa revisión.
 
-Estado de despliegue y recepción física: **pendientes de registrar al terminar este incremento**. Los tests con proveedor ficticio acreditan lógica y cifrado, no llegada a un iPhone. No se debe declarar push físico probado solo por un HTTP 2xx del proveedor.
+Tras integrar la actualización de galerías del PR #20 en la rama, 42 pruebas de galería/Web Push/fixture/supervisor aprobadas; log `.context-shears/artifacts/command-20261011T065213.183467Z-a064449e094b.log`. Las dos comprobaciones finales del runner y las nueve de PWA también pasaron tras el ajuste visual y el auto-reload exclusivo del fixture.
+
+## Publicación y activación
+
+El [PR #21](https://github.com/Norkevin/crm-norkevin/pull/21) quedó fusionado en `af83ffb0d793675f456c2982ef400f2d8a35ed71`. Render confirmó el código publicado. Su configuración manual todavía usaba el comando antiguo; se guardó exclusivamente `python tools/start_web_service.py` en Start Command después de confirmar el código nuevo Live.
+
+Despliegue de arranque `dep-db5j61g473hc73bc8b90`: iniciado el 11 de octubre a las 00:56:06 Guatemala, estado **Deploy succeeded | Live**, 20.5 segundos. El log acreditó el comando nuevo, pausa sin envíos y Gunicorn atendiendo en el puerto existente.
+
+Después se añadió únicamente `FLOW_WEB_PUSH_ENABLED=1` en el panel. `FLOW_MOBILE_PUSH_ENABLED` y las demás variables no se editaron. No se creó servicio ni se cambió plan/disco. Despliegue `dep-db5j7v4s728c73815tsg`: iniciado el 11 de octubre a las 01:00:12 Guatemala, estado **Deploy succeeded | Live**, 1m22s, fuente `af83ffb`. El log confirmó el wrapper y dos scans del worker con cero aceptaciones antes del opt-in. Captura privada de estado: `.local/render-web-push-live.png` en el checkout original de la conversación.
+
+Probes sin credenciales después de publicar: `/login` HTTP 200 y `/api/web-push/status` HTTP 401 «Sesion expirada, inicia sesion de nuevo». Son comprobaciones de disponibilidad y protección. La campana real de la sesión autenticada mostró el estado disponible y el botón Activar habilitado; no se solicitaron permisos ni se suscribió ese navegador de revisión.
+
+El propietario ya confirmó que la web instalada abre con sus datos reales. Se le dieron los pasos de cerrar/reabrir desde el icono, activar en la campana, Permitir en iPhone y enviar una prueba propia antes de cerrar la web. **Recepción física todavía pendiente de su respuesta.** Los tests con proveedor ficticio y un HTTP 2xx de un proveedor no sustituyen esa comprobación.
+
+El fixture ficticio se cerró al finalizar la revisión. La preparación pagada de App Store continúa aplazada; este incremento no requiere esa membresía ni cambia el vencimiento de la preview nativa.
 
 El runner `tools/run_mobile_qa.py --browser --web-push-ui` sirve solo datos ficticios en loopback HTTP, considerado contexto seguro por Chrome. Su sesión de revisión y proveedor falso existen únicamente dentro del runner; no se añaden a `wsgi`. El modo predeterminado sigue usando HTTPS para el QA nativo. Nunca se confía un certificado en el Mac ni se desactiva TLS de producción.
 
