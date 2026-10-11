@@ -340,7 +340,7 @@ struct NoticeView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(notice.title).fontWeight(notice.read ? .regular : .semibold).foregroundStyle(.primary)
                             Text(Date(timeIntervalSince1970: notice.created), format: MobileURL.momentStyle)
-                                .font(.footnote).foregroundStyle(.secondary)
+                                .font(.footnote).foregroundStyle(Color(uiColor: .label))
                         }
                         if !notice.read { Image(systemName: "circle.fill").font(.caption2).accessibilityLabel("Sin leer") }
                     }.padding(.vertical, 6)
@@ -376,7 +376,8 @@ struct PaymentsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(payment.name).fontWeight(.medium)
                         Text(payment.amount, format: .currency(code: "GTQ")).monospacedDigit()
-                        Text(payment.status + " · " + payment.date).font(.footnote).foregroundStyle(.secondary)
+                        Text(payment.status + " · " + (MobileURL.weddingDate(payment.date)?.formatted(MobileURL.dayStyle) ?? payment.date))
+                            .font(.footnote).foregroundStyle(.secondary)
                     }.padding(.vertical, 4)
                 }
                 if let nextOffset { Button("Cargar más") { Task { await load(offset: nextOffset) } }.disabled(loading) }

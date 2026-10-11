@@ -1,6 +1,6 @@
 # Flowing para iPhone
 
-Complemento SwiftUI del CRM Flask existente. Primer incremento local; compila para Simulator y destino iOS físico sin firma. Aún no está publicada ni instalada en un iPhone físico.
+Complemento SwiftUI del CRM Flask existente. Primer incremento local; compila y conecta en Simulator con firma local; la build para destino iOS físico compila sin firma. Aún no está publicada ni instalada en un iPhone físico.
 
 - Proyecto: `ios/Flowing.xcodeproj`; scheme compartido `Flowing`; iPhone, iOS 17 o posterior.
 - API: `/api/mobile/`, desactivada por defecto. Datos existentes, sin seeds reales ni escrituras financieras nuevas.
@@ -49,3 +49,5 @@ El icono deriva del asset existente `static/icons/icon-512.png` (F azul sobre bl
 `python tools/check_mobile_qa.py <ruta/control.json> --approve-code <código>` autoriza solo el código de la app de prueba con la cuenta ficticia, sin imprimir secretos. El modo normal verifica TLS y recorre conexión por código, aprobación con sesión/CSRF, consultas, gráfica financiera, aislamiento, destino/lectura de avisos y logout. Nunca imprime cookie ni bearer. El certificado debe confiarse solo en un Simulator de prueba creado para este proyecto; no se instaló en el Mac ni en un iPhone real.
 
 Xcode 27 instalado y licencia aceptada por el propietario. Builds aprobadas; estado de pruebas: ver `docs/mobile/05-compilacion-y-qa.md`.
+
+La prueba nativa usa firma local de Simulator (`CODE_SIGN_IDENTITY=-`). No usar `CODE_SIGNING_ALLOWED=NO` para validar el llavero: abrir la app sin firma no acredita guardar la sesión. Las capturas reales y los límites de la revisión están en `docs/mobile/05-compilacion-y-qa.md`.

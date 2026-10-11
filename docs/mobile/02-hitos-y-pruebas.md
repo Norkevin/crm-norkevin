@@ -8,7 +8,7 @@ Fecha: 10 de octubre de 2026.
 | --- | --- |
 | Auditoría y arquitectura | Código local inspeccionado; ADR y mapa en `00-auditoria.md` y `01-arquitectura.md`. Hosting efectivo pendiente. |
 | API y journal | Implementados con flags, conexión por código, bearer, tenant, bandeja paginada, lectura, preferencias, dispositivo, privacidad y prueba propia. Pruebas de aislamiento ejecutadas. |
-| Primer cliente iPhone | Proyecto Xcode y fuentes SwiftUI creados; contratos Foundation compilados/ejecutados. Builds reales para Simulator y destino iOS físico sin firma aprobadas; ejecución visual pendiente. |
+| Primer cliente iPhone | Proyecto Xcode y fuentes SwiftUI creados; contratos Foundation compilados/ejecutados. Build Simulator con firma local y destino iOS físico sin firma aprobadas; sesión HTTPS nativa, capturas claro/oscuro/texto grande y correcciones visuales revisadas en iPhone 16. Falta prueba física. |
 | APNs | Adaptador y cola implementados, pruebas simuladas de aceptación, reintentos, caducidad/revocación. No hay envío real, firma Apple ni prueba física. |
 | Producto completo | Pendientes login integrado, edición nativa, trabajo/cliente completo, adjuntos, nuevas asignaciones al trabajador, respuestas entrantes, quiet hours, paridad y Android. |
 
@@ -26,7 +26,7 @@ Registros completos: `.context-shears/artifacts/` (local, ignorado por Git). Nun
 
 ## Siguiente hito exacto
 
-1. Licencia y primera apertura completadas por el propietario. Builds Simulator e iOS físico sin firma exit 0; dos inicializadores `Section` corregidos. Runtime iOS26 Verified/Ready; el puente install/capture sigue en timeout30s. Reiniciar el Mac cuando el propietario guarde su trabajo, después usar `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`, abrir `mobile/ios/Flowing.xcodeproj`, comprobar Simulator y corregir errores reales. Capturar iPhone en claro/oscuro y tamaño grande de texto. No sustituir capturas por un mockup web.
+1. Simulator comprobado después del reinicio: sesión y Keychain funcionales, capturas reales y dos correcciones visuales aprobadas a su alcance. Conectar y desbloquear iPhone; configurar Apple Account y equipo de firma en Xcode. Evidencia en `05-compilacion-y-qa.md`.
 2. Preparar staging con copia sintética, HTTPS, mismo disco del worker y las variables de `mobile/.env.example`. API activada, push desactivado. Conectar propietario y comprobar datos nativos sin operaciones financieras.
 3. Confirmar Bundle ID, equipo Apple y capacidad Push Notifications. Instalar en iPhone físico. Guardar clave APNs/Fernet como secretos del servidor; instalar requisitos opcionales del transporte. No hacer compras/publicaciones automáticamente.
 4. Inicializar baseline del worker, producir un lead sintético y activar envíos solo para ese entorno. Cerrar app, recibir aviso, tocar y comprobar ficha y empresa; registrar SO/modelo/hora/capturas. Repetir logout, cambio de cuenta, correcciones/cancelaciones y conexión caída.
