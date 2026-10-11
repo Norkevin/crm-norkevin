@@ -51,6 +51,11 @@ def main():
     for kind in ('clients', 'jobs', 'calendar'):
         assert json.loads(send('/api/mobile/records/' + kind, token=token)[0])['records']
     assert json.loads(send('/api/mobile/payments', token=token)[0])['summary']['paid'] == overview['paid']
+    teams = json.loads(send('/api/mobile/teams', token=token)[0])
+    assert teams['enabled'] and len(teams['members']) == 2
+    assert all('Astral' not in member['name'] for member in teams['members'])
+    job = next(job for job in teams['jobs'] if job['id'] == 'qa-job-0')
+    assert len(job['assignments']) == 2 and job['pending'] == 250000
     inbox = json.loads(send('/api/mobile/notifications', token=token)[0])
     assert inbox['count'] > 0
     # Read an unread item: a repeated QA run may have read the first row already.

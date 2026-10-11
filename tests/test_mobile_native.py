@@ -324,3 +324,52 @@ def test_apns_jwt_real_p256_signature_without_network(monkeypatch):
     assert len(raw) == 64
     key.public_key().verify(encode_dss_signature(int.from_bytes(raw[:32], 'big'), int.from_bytes(raw[32:], 'big')),
                             (header + '.' + claims).encode(), ec.ECDSA(hashes.SHA256()))
+
+
+def test_native_teams_reuses_report_and_keeps_bearer_scope(mobile, monkeypatch):
+    from uuid import uuid4
+    crm, client, _, headers, tenant, owner = mobile
+    monkeypatch.setitem(crm.app.config, 'FLOW_TEAMS_ENABLED', True)
+    from flask import Flask
+    from src.teams import register_teams
+    team_app = Flask('native_teams_test')
+    team_app.secret_key = 'synthetic-native-teams'
+    team_app.config.update(TESTING=True, FLOW_TEAMS_LOCAL=False)
+    # Registration wraps this resolver; restore it when this isolated test ends.
+    monkeypatch.setattr(crm.store, 'tenant_resolver', crm.store.tenant_resolver)
+    register_teams(team_app, crm.store, crm._canonical_jobs, crm._job_payment_summary, crm._job_is_active)
+    monkeypatch.setitem(crm.app.extensions, 'teams_snapshot', team_app.extensions['teams_snapshot'])
+    database = team_app.extensions['teams']
+    crm.store.upsert('jobs', dict(id='native-team-job', tenant_id=tenant, nombre='Boda QA',
+                                 boda_date='2026-11-14', status='Confirmado', currency='GTQ'))
+    def command(action, brand=tenant, **values):
+        return database.command(brand, owner, dict(action=action, key=str(uuid4()), **values),
+                                lambda identifier: dict(id=identifier, boda_date='2026-11-14', status='Confirmado'))['record']
+    member = command('member', name='Fotógrafo QA', email='foto@example.invalid', role='Foto', rate='1500')
+    command('member', brand='foreign-native-teams', name='Persona ajena', email='ajena@example.invalid', role='Video', rate='2000')
+    command('assignment', job_id='native-team-job', member_id=member['id'], slot='Foto 1', role='Foto',
+            amount='1500', start='2026-11-14T13:00', end='2026-11-14T22:00', buffer=30)
+    with database.transaction() as conn:
+        cost = next(c for c in database.records(conn, tenant, 'cost') if c['job_id'] == 'native-team-job')
+    command('cost_status', id=cost['id'], version=cost['version'], status='aprobado')
+    command('payment', amount='500', allocations=[dict(cost_id=cost['id'], amount='500')],
+            effective_date='2026-10-10', method='Transferencia', reference='QA')
+    login_as_tenant(client, 'foreign-native-teams', email='foreign@example.invalid')
+    response = client.get('/api/mobile/teams', headers=headers)
+    assert response.status_code == 200
+    data = response.json
+    assert data['enabled']
+    assert [m['name'] for m in data['members']] == ['Fotógrafo QA']
+    assignment = data['jobs'][0]['assignments'][0]
+    assert (assignment['amount'], assignment['paid'], assignment['pending']) == (150000, 50000, 100000)
+    assert data['jobs'][0]['pending'] == 100000 and data['jobs'][0]['incomplete']
+    assert 'email' not in data['members'][0] and 'audit' not in data
+    with client.session_transaction() as session:
+        assert session['tenant_id'] == 'foreign-native-teams'
+    assert client.get('/api/mobile/teams').status_code == 401
+    monkeypatch.setitem(crm.app.config, 'FLOW_TEAMS_LOCAL', True)
+    assert not client.get('/api/mobile/teams', headers=headers,
+                          environ_overrides={'REMOTE_ADDR': '192.0.2.10'}).json['enabled']
+    monkeypatch.setitem(crm.app.config, 'FLOW_TEAMS_ENABLED', False)
+    monkeypatch.setitem(crm.app.config, 'FLOW_TEAMS_LOCAL', False)
+    assert client.get('/api/mobile/teams', headers=headers).json == dict(enabled=False, jobs=[], members=[])

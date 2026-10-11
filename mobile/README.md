@@ -51,3 +51,9 @@ El icono deriva del asset existente `static/icons/icon-512.png` (F azul sobre bl
 Xcode 27 instalado y licencia aceptada por el propietario. Builds aprobadas; estado de pruebas: ver `docs/mobile/05-compilacion-y-qa.md`.
 
 La prueba nativa usa firma local de Simulator (`CODE_SIGN_IDENTITY=-`). No usar `CODE_SIGNING_ALLOWED=NO` para validar el llavero: abrir la app sin firma no acredita guardar la sesión. Las capturas reales y los límites de la revisión están en `docs/mobile/05-compilacion-y-qa.md`.
+
+## Teams en la app
+
+Pestaña Teams: coberturas, equipo, horarios, respuestas, conflictos e importes de la misma empresa. Trabajos queda en Inicio y Más. La consulta usa el snapshot y cálculos de Teams existentes, con autorización nativa por bearer; asignaciones, invitaciones y pagos se gestionan en la ficha web. El servidor debe registrar Teams (entrada `wsgi.py`) y habilitarlo; no basta activar la API móvil en un proceso que no registra Teams.
+
+Para instalar después: conectar y desbloquear iPhone, aceptar Confiar; añadir Apple Account en Xcode Settings → Accounts; seleccionar Team en Signing & Capabilities; elegir iPhone y Run. Completar personalmente contraseñas, acuerdos y autorizaciones que solicite Apple. La app necesitará un servidor HTTPS de prueba accesible desde ese iPhone; el fixture localhost del Mac aún no resuelve ese paso. La build física sin firma no se puede instalar directamente.

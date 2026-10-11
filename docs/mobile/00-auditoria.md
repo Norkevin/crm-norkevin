@@ -1,6 +1,6 @@
 # Flowing móvil — auditoría del repositorio
 
-Fecha: 10 de octubre de 2026. Alcance: código local y fuentes oficiales; no inspección del despliegue vivo, cuentas Apple ni dispositivo físico.
+Fecha inicial: 10 de octubre de 2026; actualización Teams: 11 de octubre de 2026. Alcance: código local y fuentes oficiales; no inspección del despliegue vivo, cuentas Apple ni dispositivo físico.
 
 ## Sistema real
 
@@ -47,3 +47,9 @@ Fixture HTTPS local `.local/iphone-qa-9fqio9g3`, con archivo de control privado 
 Los dos ajustes de revisión quedaron verificados: fechas de avisos usan `label` (contraste 21:1 en claro y 17.01:1 en oscuro; `secondaryLabel` daba 3.44:1 en claro) y pagos muestran fecha larga `es_GT`. El dictamen permite entregar los ajustes dentro del alcance de las capturas reales del Simulator iPhone 16; no certifica toda la superficie, dispositivos físicos ni push. El seguimiento quedó pausado al completar el hito Simulator; estado registrado en `05-compilacion-y-qa.md`.
 
 No se modificaron datos reales, producción, DNS, facturación ni credenciales.
+
+## Extensión Teams — 11 de octubre de 2026
+
+Teams pasa a pestaña principal; Trabajos permanece accesible desde Inicio y Más. Consulta nativa de Coberturas (próximas, pasadas y todas) y Equipo, con detalle de miembros/asignaciones, horarios, estado, conflictos y honorarios. `/api/mobile/teams` proyecta una allowlist del snapshot Teams existente con empresa explícita de la identidad bearer y guardas locales/flags de Teams. No envía invitaciones, registra pagos ni modifica asignaciones. Conserva cálculos originales en centavos y el indicador de costes parciales; los importes incompletos no se presentan como coste total confirmado.
+
+Fixture sintético nuevo `.local/iphone-qa-58y53m7e`, conexión aprobada con sesión/CSRF y checklist HTTPS aprobado: dos miembros, Q3,000 de coste y Q2,500 pendientes. Capturas reales `screenshots/teams*.png`. El contraste de Cobertura y Miembro quedó corregido y verificado: 21:1 en claro y 17.01:1 en oscuro. Dictamen favorable limitado a las capturas Teams revisadas en Simulator iPhone 16; no incluye la sección inferior no revisada ni toda la app. Los iconos de pestañas se renderizan como vectores Core Graphics derivados de los SVG existentes en `templates/base.html`; procedencia en código, sin nuevos assets raster. Producción intacta. El propietario pospuso firma/prueba física; no hay iPhone físico ni identidades de firma disponibles. Esta sigue siendo una etapa de consulta nativa.

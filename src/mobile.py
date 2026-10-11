@@ -393,6 +393,36 @@ def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billa
         return jsonify(payments=projected[offset:offset + 50], next_offset=offset + 50 if len(projected) > offset + 50 else None,
                        summary=financial_summary(rows, today, today.year), year=today.year)
 
+    @bp.get('/api/mobile/teams')
+    def teams():
+        local = app.config.get('FLOW_TEAMS_LOCAL')
+        available = bool((app.config.get('FLOW_TEAMS_ENABLED') or local) and
+                         (not local or request.remote_addr in ('127.0.0.1', '::1')))
+        if not available or 'teams_snapshot' not in app.extensions:
+            return jsonify(enabled=False, jobs=[], members=[])
+        report = app.extensions['teams_snapshot'](tenant=identity()['tenant_id'])
+        jobs = []
+        for job in report['jobs']:
+            if job['teams_state'] != 'included':
+                continue
+            assignments = []
+            for item in job['assignments']:
+                cost = item.get('cost') or {}
+                assignments.append(dict(id=item['id'], member_id=item['member_id'], name=item['member_name'],
+                    role=item['role'], status=item['status'], start=item['start'], end=item['end'],
+                    schedule_pending=bool(item.get('schedule_pending')), changed=bool(item['changed']),
+                    conflicts=len(item.get('conflicts', [])) + len(item.get('other_brand_conflicts', [])),
+                    amount=cost.get('total'), paid=cost.get('paid'), pending=cost.get('pending')))
+            jobs.append(dict(id=job['id'], name=job.get('nombre') or 'Evento sin nombre',
+                date=job.get('boda_date') or '', location=job.get('location') or '', phase=job['teams_phase'],
+                cost=job['cost_total'], pending=job['team_pending'], incomplete=bool(job['incomplete']),
+                closed=bool(job['closed']), assignments=assignments))
+        jobs.sort(key=lambda j: (j['date'] or '9999', j['name'], j['id']))
+        members = [dict(id=m['id'], name=m['name'], role=m['role'], active=bool(m['active']),
+                        paid=m['paid'], pending=m['pending'], rate_missing=bool(m['rate_missing']))
+                   for m in report['members']]
+        return jsonify(enabled=True, jobs=jobs, members=members)
+
     @bp.post('/api/mobile/notifications/read')
     def read():
         ids = data().get('ids')

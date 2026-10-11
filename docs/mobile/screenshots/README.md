@@ -7,3 +7,6 @@ Datos ficticios del runner HTTPS loopback, empresa «Norkevin · Demostración»
 Inicio, leads, trabajos, detalle, calendario, pagos y avisos en claro. Inicio y avisos en oscuro. Inicio y leads con la categoría `accessibility-extra-extra-extra-large`; leads también oscuro con ese tamaño. Pagos y avisos claros, y avisos oscuros se recapturaron tras corregir fechas/contraste. La sesión permanece en Keychain después de relanzar.
 
 Revisión independiente inicial y dos pases de correcciones: `ship` acotado a fechas de pagos y contraste de avisos. No certifica toda la app, dashboard inferior completo, VoiceOver integral, todos los dispositivos, instalación física ni recepción push. El detalle conserva acceso a operaciones completas en la web durante esta etapa. Ver `../05-compilacion-y-qa.md`.
+
+
+Capturas Teams posteriores: listas de coberturas/equipo, detalle de cobertura claro/oscuro y texto accesible máximo, detalle de miembro claro/oscuro. Importes recapturados tras contraste explícito. Inicio claro actualizado muestra la nueva pestaña Teams y los iconos de líneas adaptados de la web. Las otras capturas anteriores conservan la navegación histórica del incremento previo y no acreditan el menú actual.

@@ -95,3 +95,27 @@ public enum MobileURL {
         return formatter.date(from: String(value.prefix(10)))
     }
 }
+
+
+public struct TeamPage: Decodable {
+    public let enabled: Bool
+    public let jobs: [TeamJob]
+    public let members: [TeamMember]
+}
+public struct TeamJob: Decodable, Identifiable {
+    public let id, name, date, location, phase: String
+    public let cost, pending: Int
+    public let incomplete, closed: Bool
+    public let assignments: [TeamAssignment]
+}
+public struct TeamAssignment: Decodable, Identifiable {
+    public let id, member_id, name, role, status, start, end: String
+    public let schedule_pending, changed: Bool
+    public let conflicts: Int
+    public let amount, paid, pending: Int?
+}
+public struct TeamMember: Decodable, Identifiable {
+    public let id, name, role: String
+    public let active, rate_missing: Bool
+    public let paid, pending: Int
+}

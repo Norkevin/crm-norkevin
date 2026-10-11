@@ -28,9 +28,11 @@ flowchart LR
     APNs --> iPhone
 ```
 
-Cliente: Inicio, Leads, Trabajos, Calendario, Más; Clientes/Pagos/Notificaciones/Preferencias accesibles desde Más. Detalles en navegación nativa. Edición, archivos, contratos y demás operaciones complejas abren la ficha web durante esta etapa. No se promete paridad funcional completa todavía.
+Cliente actualizado el 11 de octubre: Inicio, Leads, Teams, Calendario, Más; Trabajos accesible desde Inicio y Más, y Clientes/Pagos/Notificaciones/Preferencias desde Más. Teams ofrece Coberturas próximas/pasadas/todas y Equipo, con detalle de miembros y asignaciones, horarios, estado, conflictos y honorarios. Detalles en navegación nativa. Edición, archivos, contratos y demás operaciones complejas abren la ficha web durante esta etapa. No se promete paridad funcional completa todavía.
 
 API: sesión, resumen y listas por empresa; pagos reutilizan `_visible_billable_payments`, `_payment_financial_summary`, `coerce_amount`; clientes, trabajos y fechas proyectan campos mínimos. La bandeja móvil es persistente y separada de la bandeja web actual: las lecturas todavía no se sincronizan entre ambas.
+
+API Teams: `/api/mobile/teams` es de lectura y proyecta una allowlist del snapshot existente. La empresa se pasa explícitamente desde la identidad bearer; respeta flags y guardas locales Teams. Conserva cálculos en centavos e indicador de costes parciales. No añade envíos de invitaciones, pagos ni mutaciones de asignaciones. QA sintético y HTTPS aprobados. El contraste de Cobertura y Miembro quedó corregido y verificado: 21:1 en claro y 17.01:1 en oscuro. Dictamen favorable limitado a las capturas Teams revisadas en Simulator iPhone 16; no incluye la sección inferior no revisada ni toda la app.
 
 ## Conexión y aislamiento
 

@@ -87,3 +87,17 @@ La revisión independiente devolvió `ship` para las dos correcciones, con fecha
 Build final Simulator: exit 0, 3.63 s, log `command-20261011T021922.208063Z-b3a8e8895173.log`. El seguimiento automático del bloqueo de Simulator se detiene tras esta revisión. La continuación física necesita iPhone, equipo de firma y servidor HTTPS accesible desde el teléfono.
 
 Build física final sin firma tras los cambios visuales: exit 0, 4.44 s; log `command-20261011T022001.485688Z-46e3e968bb14.log`. No instala sin firma.
+
+## Teams e iconos — 10 de octubre, 20:32 Guatemala
+
+Petición posterior del propietario: Teams visible y preferencia por iconos de la web. Teams ocupa una pestaña principal; Trabajos sigue accesible desde Inicio y Más. Navegación dibujada con CoreGraphics a partir de la geometría SVG existente en `templates/base.html`, sin dependencias ni nuevos archivos raster; conserva tint y semántica de selección nativos.
+
+Teams nativo permite consultar eventos próximos/pasados/todos, miembros, asignaciones, respuesta, horarios, conflictos e importes. El endpoint `/api/mobile/teams` proyecta una lista explícita de campos del snapshot financiero existente; utiliza el tenant del bearer, respeta flags/local-only y omite documentos privados, auditoría y datos de otros miembros/empresas. Preserva importes en centavos y avisos de revisión pendiente; no calcula márgenes alternativos. Asignar, invitar, cambiar condiciones y pagar continúan en web desde la ficha. Esta entrega no completa toda la paridad del CRM.
+
+Fixture HTTPS nuevo `.local/iphone-qa-58y53m7e/`, exclusivamente sintético. Teams local habilitado, sin sync de Google ni comunicaciones. Dos miembros con honorarios de Q1,500 cada uno, pago ficticio Q500, pendiente Q2,500. El checker verificó estos datos y excluyó el miembro de Astral. App conectada con el código autorizado por la ruta real sesión/CSRF del propietario ficticio.
+
+Pruebas: 25 casos móviles aprobados; suite completa 1550 passed, 1 skipped (25.31 s), log `command-20261011T022731.337498Z-1e8e5a00d9c0.log`. La primera ejecución completa detectó que el test nuevo no restauraba el resolver envuelto por registrar Teams; se corrigió el aislamiento del test y la suite pasó. Comprobación focalizada posterior del guard local: 25 passed, log `command-20261011T022931.142707Z-7cfe103df9a3.log`.
+
+Build final Simulator con firma local: exit 0, log `command-20261011T023014.877494Z-e4ee9924fc6d.log`. Build iOS físico sin firma: exit 0, log `command-20261011T023016.021452Z-d34f90f6a5ea.log`. Capturas reales `screenshots/teams*.png` incluyen lista, cobertura claro/oscuro/texto grande y ficha de miembro. Revisión independiente pidió contraste explícito de importes; se corrigió, recompiló y recapturó. Dictamen `ship` para esa corrección: contraste 21:1 claro y 17.01:1 oscuro. No acredita sección inferior no observada, VoiceOver integral ni toda la app.
+
+El propietario indicó que conectará el iPhone y añadirá la cuenta Apple después. No hay dispositivo físico detectado; solo Simulators. Instalación física, servidor HTTPS accesible al teléfono y push cerrado siguen pendientes. Seguimiento automático permanece pausado; no se publicó, activó producción ni compró una cuenta.

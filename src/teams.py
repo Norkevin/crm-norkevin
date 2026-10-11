@@ -626,9 +626,9 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
         totals['incomplete'] = sum(j['incomplete'] for j in report_jobs)
         return totals
 
-    def snapshot(year=None, *, active_only=False):
+    def snapshot(year=None, *, active_only=False, tenant=None):
         from src.teams_calendar import valid_invitation_email
-        tenant = session['tenant_id']
+        tenant = tenant or session['tenant_id']
         jobs = operational_jobs()
         with database.transaction() as db:
             members = database.records(db, tenant, 'member')
@@ -760,6 +760,8 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
                     reports=extra['report'], calendar_sync=extra['calendar_sync'], team_config=next(iter(extra['config']), {}),
                     role_options=list(dict.fromkeys(r.strip() for r in
                         next(iter(extra['config']), {}).get('roles', DEFAULT_ROLES).splitlines() if r.strip())))
+
+    app.extensions['teams_snapshot'] = snapshot
 
     from src.teams_calendar_routes import register_calendar
     calendar_email = register_calendar(app, blueprint, crm_store, database, read_job, operational_jobs)

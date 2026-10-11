@@ -30,7 +30,7 @@ def main():
     os.environ.update(CRM_DATA_DIR=str(data_dir), FLASK_SECRET=secrets.token_urlsafe(48),
                       FLOW_MOBILE_ENABLED='1', FLOW_MOBILE_PUSH_ENABLED='0',
                       FLOW_MOBILE_ENCRYPTION_KEY=Fernet.generate_key().decode(),
-                      FLOW_TEAMS_ENABLED='0', ENABLE_WORKFLOW_QUEUE='0', ENABLE_REMINDER_SCHEDULER='0',
+                      FLOW_TEAMS_ENABLED='1', ENABLE_WORKFLOW_QUEUE='0', ENABLE_REMINDER_SCHEDULER='0',
                       OUTBOUND_EMAIL_ENABLED='0', DISABLE_OUTBOUND_EMAIL='1',
                       GOOGLE_CLIENT_ID='', GOOGLE_CLIENT_SECRET='', RECURRENTE_SECRET_KEY='',
                       RECURRENTE_SECRET_KEY_TEST='', ADMIN_ONE_TIME_TOKEN='')
@@ -64,6 +64,26 @@ def main():
     crm.store.upsert('leads', dict(id='qa-foreign', tenant_id='qa-astral', nombre='Registro exclusivo de Astral', status='Nuevo'))
     crm.store.upsert('calendar', dict(id='qa-meeting', tenant_id=tenant, title='Reunión de planificación',
                                     date=today.isoformat(), type='meeting', status='Programada'))
+    from uuid import uuid4
+    from src.teams import register_teams
+    crm.app.config.update(FLOW_TEAMS_LOCAL=True, FLOW_TEAMS_ENABLED=False)
+    register_teams(crm.app, crm.store, crm._canonical_jobs, crm._job_payment_summary, crm._job_is_active)
+    teams = crm.app.extensions['teams']
+    def team_command(action, brand=tenant, **values):
+        return teams.command(brand, owner, dict(action=action, key=str(uuid4()), **values),
+                             lambda identifier: crm.store.get('jobs', identifier))['record']
+    for i, (name, role) in enumerate([('Valeria · Demostración', 'Fotografía'), ('Andrés · Demostración', 'Video')]):
+        person = team_command('member', name=name, email=f'equipo-{i}@example.invalid', role=role, rate='1500')
+        job = crm.store.get('jobs', 'qa-job-0')
+        team_command('assignment', job_id=job['id'], member_id=person['id'], slot=role, role=role,
+                     amount='1500', start=job['boda_date']+'T13:00', end=job['boda_date']+'T22:00', buffer=30)
+    with teams.transaction() as conn:
+        costs = teams.records(conn, tenant, 'cost')
+    for cost in costs:
+        team_command('cost_status', id=cost['id'], version=cost['version'], status='aprobado')
+    team_command('payment', amount='500', allocations=[dict(cost_id=costs[0]['id'], amount='500')],
+                 effective_date=today.isoformat(), method='Transferencia', reference='QA ficticio')
+    team_command('member', brand='qa-astral', name='Equipo exclusivo de Astral', email='equipo-astral@example.invalid', role='Foto', rate='1000')
     from src.mobile import journal, source_events
     mobile = journal(crm.app, crm.store)
     mobile.observe(tenant, owner, [])
