@@ -101,3 +101,11 @@ Pruebas: 25 casos móviles aprobados; suite completa 1550 passed, 1 skipped (25.
 Build final Simulator con firma local: exit 0, log `command-20261011T023014.877494Z-e4ee9924fc6d.log`. Build iOS físico sin firma: exit 0, log `command-20261011T023016.021452Z-d34f90f6a5ea.log`. Capturas reales `screenshots/teams*.png` incluyen lista, cobertura claro/oscuro/texto grande y ficha de miembro. Revisión independiente pidió contraste explícito de importes; se corrigió, recompiló y recapturó. Dictamen `ship` para esa corrección: contraste 21:1 claro y 17.01:1 oscuro. No acredita sección inferior no observada, VoiceOver integral ni toda la app.
 
 El propietario indicó que conectará el iPhone y añadirá la cuenta Apple después. No hay dispositivo físico detectado; solo Simulators. Instalación física, servidor HTTPS accesible al teléfono y push cerrado siguen pendientes. Seguimiento automático permanece pausado; no se publicó, activó producción ni compró una cuenta.
+
+## Preparacion del iPhone fisico - 10 de octubre, 21:04 Guatemala
+
+El propietario conecto su iPhone. CoreDevice reconoce un iPhone 14 Pro Max con iOS 26.5, emparejado por cable. Developer Mode sigue Disabled; se solicitaron activacion, reinicio y confirmacion directamente en el telefono. No se cambio esa proteccion automaticamente.
+
+Xcode abrio el proyecto con el iPhone como destino. Firma automatica aun sin equipo y 0 identidades validas. Settings > Apple Accounts mostro inicialmente Sign In; durante la entrada del propietario, Apple mostro un error de cuenta o contrasena incorrectas. Se dejo el acceso para que el propietario corrija sus credenciales directamente; no se introdujeron contrasenas ni codigos. No hay build fisica firmada ni instalacion acreditada. No se repitio la compilacion sin firma, ya validada: no resolveria este bloqueo.
+
+Xcode reformateo Info.plist y project.pbxproj al abrirlos, anadiendo solo hasScannedForEncodings=0. Se comprobo equivalencia semantica y se restituyo ese formato/metadato automatico. No se alteraron capacidades APNs, equipo, bundle ID ni configuracion TLS. Sigue pendiente un servidor HTTPS autorizado accesible al iPhone despues de instalar.
