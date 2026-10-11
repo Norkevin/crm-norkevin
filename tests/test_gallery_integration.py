@@ -125,3 +125,40 @@ def test_gallery_brand_missing_registry_fails_closed(client, monkeypatch):
     response = client.get('/api/integrations/gallery/jobs?brand=norkevin&all=1',
                           headers={'Authorization': 'Bearer test-gallery-token'})
     assert response.status_code == 503
+
+
+def test_active_gallery_browse_prioritizes_deliveries_and_search_keeps_inactive(client, monkeypatch):
+    from datetime import timedelta
+    today = app_module.datetime.now(app_module.ZoneInfo('America/Guatemala')).date()
+    tenant = 'tenant-norkevin-photography'
+    def job(identifier, days, status='Confirmado', progress=0):
+        return {'id': identifier, 'tenant_id': tenant, 'nombre': identifier,
+                'boda_date': (today + timedelta(days=days)).isoformat() if days is not None else '',
+                'status': status, 'workflow_progress': progress}
+    jobs = [job('far-future', 365), job('completed', -30, 'Listo', 100),
+            job('older', -10), job('upcoming', 3), job('recent', -1),
+            job('debt', -20, 'Listo', 100), job('archived', 1, 'Archivado'),
+            job('cancelled', 0, 'Cancelado'), job('without-date', None)]
+    payments = [{'job_id': 'debt', 'tenant_id': tenant, 'amount': 100, 'status': 'Pendiente'},
+                {'job_id': 'completed', 'tenant_id': 'tenant-norkevin', 'amount': 99999, 'status': 'Pendiente'}]
+    def records(table):
+        if table == 'jobs': return jobs
+        if table == 'payments': return payments
+        return _records(table)
+    monkeypatch.setenv('GALLERY_INTEGRATION_TOKEN', 'test-gallery-token')
+    monkeypatch.setattr(app_module.store, 'list', records)
+    monkeypatch.setattr(app_module.store, '_read_raw', records)
+    headers = {'Authorization': 'Bearer test-gallery-token'}
+    response = client.get('/api/integrations/gallery/jobs?brand=norkevin&all=1&active=1&limit=3', headers=headers)
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert [j['id'] for j in payload['jobs']] == ['recent', 'older', 'debt']
+    assert payload['total'] == 6
+    assert payload['hasMore'] is True
+    page2 = client.get('/api/integrations/gallery/jobs?brand=norkevin&all=1&active=1&limit=3&offset=3', headers=headers).get_json()
+    assert [j['id'] for j in page2['jobs']] == ['upcoming', 'far-future', 'without-date']
+    assert page2['hasMore'] is False
+    search = client.get('/api/integrations/gallery/jobs?brand=norkevin&q=completed&active=1', headers=headers).get_json()
+    assert [j['id'] for j in search['jobs']] == ['completed']
+    assert 'amount' not in str(payload)
+    assert 'amount' not in str(search)
