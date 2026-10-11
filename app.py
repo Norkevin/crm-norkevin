@@ -153,6 +153,8 @@ _workflow_tenant = ContextVar('workflow_tenant', default=None)
 def _active_tenant_id():
     if _workflow_tenant.get():
         return _workflow_tenant.get()
+    if getattr(g, 'mobile_identity', None):
+        return g.mobile_identity['tenant_id']
     tid = session.get('tenant_id')
     if tid:
         return tid
@@ -325,6 +327,8 @@ def get_current_tenant_id():
     if _workflow_tenant.get():
         return _workflow_tenant.get()
     try:
+        if getattr(g, 'mobile_identity', None):
+            return g.mobile_identity['tenant_id']
         return session.get('tenant_id')
     except RuntimeError:
         # Fuera de un contexto de request (hilo en segundo plano/scripts).
@@ -2929,6 +2933,9 @@ def _set_public_tenant():
 
 @app.before_request
 def _require_login():
+    if request.path.startswith('/api/mobile/'):
+        from src.mobile import authorize_request
+        return authorize_request(app, store)
     if _is_public_path(request.path):
         return None
     if request.path in _ADMIN_PATHS:
@@ -14994,6 +15001,11 @@ def start_reminder_scheduler():
 
 
 start_reminder_scheduler()
+
+# Native mobile routes remain unavailable until explicitly enabled in staging.
+from src.mobile import register_mobile
+register_mobile(app, store, _open_leads, _canonical_jobs, _job_is_active,
+                _visible_billable_payments, _payment_financial_summary, coerce_amount, _payment_reporting_day)
 
 
 # ============================================================

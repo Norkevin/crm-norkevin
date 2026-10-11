@@ -87,3 +87,7 @@ artifacts/
 *.sqlite3
 *.sqlite3-*
 .context-shears/
+mobile/ios/.build/
+mobile/ios/DerivedData/
+mobile/ios/DerivedData-device/
+mobile/ios/**/xcuserdata/
