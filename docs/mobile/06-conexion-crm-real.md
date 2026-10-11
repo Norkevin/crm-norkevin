@@ -52,3 +52,11 @@ Antes de guardar los flags en Render, los probes públicos sin credenciales obse
 El propietario completó el acceso al panel de Render. Se aplicaron y guardaron los dos flags móviles y se confirmó el despliegue Live, según el estado actual documentado arriba.
 
 CoreDevice abrió la preview física con `-FlowingServer https://flowingcrm.com`, exit 0. Captura nativa privada `.local/iphone-real-onboarding.png` (1290×2796) confirmó esa dirección en la pantalla de conexión. La captura permanece local y no se sube al repositorio. Pendiente generar y aprobar el código en la cuenta Google de la empresa correcta y comprobar consultas reales desde el iPhone. No se declaró sesión física conectada ni push probado.
+
+## Corrección del origen en el formulario de vinculación
+
+El propietario reportó «Solicitud desde otro sitio bloqueada. Abre Flow y vuelve a intentarlo.». El blueprint aplicaba `Referrer-Policy: no-referrer` también al formulario HTML `/mobile/connect`. En un POST de navegación esa política serializa `Origin` como `null`, según [Fetch Standard](https://fetch.spec.whatwg.org/#append-a-request-origin-header), y el guard de origen lo rechaza.
+
+La corrección conserva `no-referrer` en `/api/mobile/*` y deja que el HTML herede la política web existente `strict-origin-when-cross-origin`. No cambia el guard, la aprobación del propietario, CSRF, la expiración del código ni el aislamiento. Una prueba real en Chrome, con formulario ficticio servido solo en loopback, reprodujo `Origin: null` antes y origen propio después. Evidencia privada `.local/pair-origin-fixed-browser.jpg`; no contiene datos reales ni se publica en Git.
+
+La regresión falló antes de corregir la cabecera y pasó después. Resultado: 76 pruebas móviles, de seguridad web, autenticación y aislamiento aprobadas; log `command-20261011T042131.834287Z-aa0c01b5b67a.log`. Se verifican CSRF incorrecto, origen externo y `Origin: null` rechazados, origen propio autorizado y cabecera privada de la API intacta. Revisión independiente sin bloqueantes. Pendiente confirmar despliegue de este ajuste y reintento físico con un código nuevo; no requiere reinstalar la app.
