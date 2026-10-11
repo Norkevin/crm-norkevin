@@ -2592,8 +2592,23 @@ def api_gallery_job_search():
             reason='integracion de galeria (token servidor-a-servidor)')
     }
 
+    active_only = browse_all and request.args.get('active') == '1'
+    today = datetime.now(ZoneInfo('America/Guatemala')).date()
+    payments_by_job = defaultdict(list)
+    if active_only:
+        for payment in store.list_privileged('payments', tenant_id=gallery_tenant_id,
+                                             reason='estado activo para entregas de galeria'):
+            payments_by_job[payment.get('job_id')].append(payment)
     results = []
     for job in jobs:
+        if active_only:
+            candidate = dict(job)
+            try:
+                candidate['dias_restantes'] = (date.fromisoformat(job.get('boda_date') or '') - today).days
+            except ValueError:
+                candidate['dias_restantes'] = None
+            if not _job_is_active(candidate, payments_by_job.get(job.get('id'), [])):
+                continue
         contacts = []
         seen = set()
         for role, client_id in (
@@ -2639,7 +2654,19 @@ def api_gallery_job_search():
             'contacts': contacts,
         })
 
-    results.sort(key=lambda item: (item.get('eventDate') or '', item.get('name') or ''), reverse=True)
+    if active_only:
+        def delivery_order(item):
+            try:
+                event = date.fromisoformat(item.get('eventDate') or '')
+            except ValueError:
+                return (2, 0, item['name'].casefold(), str(item.get('id') or ''))
+            # Delivery work: recent past weddings first, future bookings later.
+            return (0 if event <= today else 1,
+                    -event.toordinal() if event <= today else event.toordinal(),
+                    item['name'].casefold(), str(item.get('id') or ''))
+        results.sort(key=delivery_order)
+    else:
+        results.sort(key=lambda item: (item.get('eventDate') or '', item.get('name') or ''), reverse=True)
     total = len(results)
     page = results[offset:offset + limit]
     return jsonify({
