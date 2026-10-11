@@ -59,11 +59,16 @@ def main():
             ('Valentina y Pablo', 'Contactado', 'Web'), ('Isabel y Andrés', 'Nuevo', 'Recomendación')]):
         crm.store.upsert('leads', dict(id=f'qa-lead-{i}', tenant_id=tenant, nombre=name, status=status,
                                      fuente=source, created=today.isoformat(), created_time='10:00',
-                                     fecha_tentativa=(today + timedelta(days=90 + i * 15)).isoformat(),
+                                     fecha_tentativa=(today + timedelta(days=4 if i == 0 else 90 + i * 15)).isoformat(),
                                      email=f'lead-{i}@example.invalid'))
     crm.store.upsert('leads', dict(id='qa-foreign', tenant_id='qa-astral', nombre='Registro exclusivo de Astral', status='Nuevo'))
     crm.store.upsert('calendar', dict(id='qa-meeting', tenant_id=tenant, title='Reunión de planificación',
-                                    date=today.isoformat(), type='meeting', status='Programada'))
+                                    date=today.isoformat(), type='event', status='Programada'))
+    crm.store.upsert('calendar', dict(id='qa-block', tenant_id=tenant, title='Fecha apartada · Demostración',
+                                    date=(today + timedelta(days=3)).isoformat(),
+                                    end_date=(today + timedelta(days=5)).isoformat(), type='block'))
+    crm.store.upsert('calendar', dict(id='qa-released', tenant_id=tenant, title='Bloqueo liberado · Demostración',
+                                    date=today.isoformat(), type='block', released_at=today.isoformat()))
     from uuid import uuid4
     from src.teams import register_teams
     crm.app.config.update(FLOW_TEAMS_LOCAL=True, FLOW_TEAMS_ENABLED=False)

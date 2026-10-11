@@ -8,7 +8,7 @@ private struct PairResult: Decodable { let status: String; let token: String? }
 private struct Target: Decodable { let record: CRMRecord? }
 private struct PreferenceResult: Decodable { let preferences: [String: Bool] }
 private struct EmptyResponse: Decodable {}
-private struct DeviceStatus: Decodable { let push_enabled: Bool; let hide_details: Bool; let revision: Int }
+private struct DeviceStatus: Decodable { let push_enabled: Bool; let hide_details: Bool; let revision: Int; let server_push_available: Bool? }
 private struct DeviceResult: Decodable { let revision: Int }
 
 enum FlowError: LocalizedError {
@@ -63,6 +63,7 @@ final class NoRedirect: NSObject, URLSessionTaskDelegate {
     @Published var selectedRecord: CRMRecord?
     @Published var hideDetails = true
     @Published var pushActive = false
+    @Published var pushAvailable = false
     @Published var busy = false
     private var token: String?
     private var generation = 0
@@ -151,7 +152,7 @@ final class NoRedirect: NSObject, URLSessionTaskDelegate {
     func cancelPairing() { pairingTask?.cancel(); pairingTask = nil; connecting = false; pairingCode = "" }
 
     func refresh() async {
-        guard connected && !disconnecting else { return }
+        guard connected && !disconnecting && !busy else { return }
         let currentGeneration = generation
         let currentDeviceGeneration = deviceGeneration
         error = nil
@@ -166,6 +167,7 @@ final class NoRedirect: NSObject, URLSessionTaskDelegate {
             let device: DeviceStatus = try await call("/api/mobile/device")
             guard currentDeviceGeneration == deviceGeneration else { return }
             pushActive = device.push_enabled; hideDetails = device.hide_details
+            pushAvailable = device.server_push_available ?? false
             deviceRevision = device.revision
             try? await UNUserNotificationCenter.current().setBadgeCount(unread)
             if pushActive && registeredGeneration != generation {
@@ -227,6 +229,11 @@ final class NoRedirect: NSObject, URLSessionTaskDelegate {
             guard currentDeviceGeneration == deviceGeneration else { return }
             deviceRevision = device.revision
             hideDetails = device.hide_details
+            pushAvailable = device.server_push_available ?? false
+            guard pushAvailable else {
+                error = "Los avisos están disponibles en la bandeja. Las alertas con Flowing cerrada aún no están habilitadas."
+                return
+            }
             let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
             guard connected && !disconnecting && currentGeneration == generation && currentDeviceGeneration == deviceGeneration else { return }
             if granted {
@@ -307,7 +314,7 @@ final class NoRedirect: NSObject, URLSessionTaskDelegate {
         deviceRevision = 0
         if let base { TokenVault.remove(base.absoluteString) }
         token = nil; connected = false; overview = nil; notices = []; unread = 0
-        preferences = [:]; pushActive = false; selectedRecord = nil; error = nil; message = nil
+        preferences = [:]; pushActive = false; pushAvailable = false; selectedRecord = nil; error = nil; message = nil
         Task { try? await UNUserNotificationCenter.current().setBadgeCount(0) }
     }
 }

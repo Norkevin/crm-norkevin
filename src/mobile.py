@@ -11,6 +11,7 @@ import secrets
 import sqlite3
 import time
 from contextlib import contextmanager
+from calendar import monthrange
 from datetime import datetime, date
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -104,6 +105,19 @@ class MobileJournal:
                         AND revoked=0 AND expires>? AND push_enabled=1 AND device IS NOT NULL''',
                                (nid, tenant_id, recipient, time.time()))
             db.execute('INSERT OR IGNORE INTO baselines VALUES (?)', (tenant_id,))
+
+    def sync_inbox(self, tenant_id, recipient, events):
+        """Mirror the web inbox without enrolling historical activity for push."""
+        with self.transaction() as db:
+            for event in sorted(events, key=lambda item: item['created']):
+                nid = digest(tenant_id + ':' + recipient + ':' + event['key'])
+                db.execute('''INSERT INTO notifications VALUES (?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(tenant_id,recipient,event_key) DO UPDATE SET
+                    title=excluded.title,target_table=excluded.target_table,
+                    target_id=excluded.target_id,created=excluded.created''',
+                           (nid, tenant_id, recipient, event['key'], event['kind'], event['title'][:240],
+                            event['table'], event['id'], event['created'],
+                            event['created'] if event['read'] else None))
 
 
 def journal(app, store):
@@ -199,7 +213,8 @@ def source_events(store, tenant_id, teams=None, today=None):
     return events
 
 
-def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billable_payments, financial_summary, amount, reporting_day):
+def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billable_payments, financial_summary, amount, reporting_day,
+                    calendar_events=None, recent_notifications=None):
     bp = Blueprint('mobile', __name__)
 
     def data():
@@ -315,6 +330,49 @@ def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billa
                     email=record.get('email') or '', phone=record.get('phone') or record.get('telefono') or '',
                     location=record.get('lugar') or record.get('location') or record.get('locacion') or '')
 
+    @bp.get('/api/mobile/calendar')
+    def calendar_month():
+        month = request.args.get('month', '')
+        if not re.fullmatch(r'[0-9]{4}-(0[1-9]|1[0-2])', month):
+            abort(400)
+        try:
+            year, number = map(int, month.split('-'))
+            first = date(year, number, 1)
+            last = date(year, number, monthrange(year, number)[1])
+        except ValueError:
+            abort(400)
+        if calendar_events is None:
+            abort(404)
+        records = []
+        for event in calendar_events():
+            try:
+                day = str(event.get('date') or '')[:10]
+                start = date.fromisoformat(day)
+                if start.isoformat() != day:
+                    continue
+            except ValueError:
+                continue
+            try:
+                end_day = str(event.get('end_date') or day)[:10]
+                end = date.fromisoformat(end_day)
+                if end.isoformat() != end_day:
+                    end = start
+            except ValueError:
+                end = start
+            end = max(start, end)
+            if start > last or end < first:
+                continue
+            event_type = event.get('type')
+            kind = {'job': 'jobs', 'lead': 'leads'}.get(event_type, 'calendar')
+            identifier = event.get('job_id') if event_type == 'job' else event.get('lead_id') if event_type == 'lead' else event.get('id')
+            if not identifier:
+                continue
+            projected = project_record(dict(event, id=identifier), kind)
+            projected.update(date=start.isoformat(), end_date=end.isoformat(), event_type=event_type)
+            records.append(projected)
+        records.sort(key=lambda record: (record['date'], record['kind'], record['id']))
+        return jsonify(month=month, records=records, next_offset=None)
+
     @bp.get('/api/mobile/records/<kind>')
     def records(kind):
         if kind not in ('leads', 'jobs', 'clients', 'calendar'):
@@ -349,12 +407,43 @@ def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billa
             before = int(request.args.get('before', 9223372036854775807))
         except ValueError:
             abort(400)
+        if not 0 <= before <= 9223372036854775807:
+            abort(400)
+        if recent_notifications:
+            me = identity()
+            events = []
+            for item in recent_notifications(me['tenant_id'], limit=None):
+                match = re.fullmatch(r'/(leads|jobs|teams/jobs)/([^/?#]+)', item.get('url', ''))
+                if not match or item.get('type') not in ('lead', 'mail', 'teams'):
+                    continue
+                kind = 'leads' if match[1] == 'leads' else 'jobs'
+                identifier = match[2]
+                if kind == 'jobs':
+                    from src.linked_coverages import resolve_job
+                    target = resolve_job(store, identifier)
+                else:
+                    target = store.get(kind, identifier)
+                if not target:
+                    continue
+                prefix = {'lead': 'lead-', 'mail': 'mail-', 'teams': 'teams-response-'}[item['type']]
+                if not item['id'].startswith(prefix):
+                    continue
+                key = {'lead': 'lead:', 'mail': 'mail-alert:', 'teams': 'teams:'}[item['type']] + item['id'][len(prefix):]
+                events.append(dict(key=key, kind=item['type'], title=item['title'],
+                                   table=kind, id=identifier, created=item['timestamp'], read=item['read']))
+            journal(app, store).sync_inbox(me['tenant_id'], me['recipient'], events)
         unread = request.args.get('unread') == '1'
         with journal(app, store).transaction() as db:
             tenant, recipient = scoped(db)
-            rows = db.execute('''SELECT rowid AS cursor,* FROM notifications WHERE tenant_id=? AND recipient=? AND rowid<?
-                AND (?=0 OR read_at IS NULL) ORDER BY rowid DESC LIMIT 51''',
-                              (tenant, recipient, before, unread)).fetchall()
+            # The row cursor also anchors the source time, so updated mail rises
+            # to the top without skipping pages with identical timestamps.
+            cursor = db.execute('SELECT created FROM notifications WHERE tenant_id=? AND recipient=? AND rowid=?',
+                                (tenant, recipient, before)).fetchone()
+            cutoff = cursor['created'] if cursor else float('-inf') if 'before' in request.args else float('inf')
+            rows = db.execute('''SELECT rowid AS cursor,* FROM notifications WHERE tenant_id=? AND recipient=?
+                AND (created<? OR (created=? AND rowid<?)) AND (?=0 OR read_at IS NULL)
+                ORDER BY created DESC,rowid DESC LIMIT 51''',
+                              (tenant, recipient, cutoff, cutoff, before, unread)).fetchall()
             count = db.execute('SELECT COUNT(*) FROM notifications WHERE tenant_id=? AND recipient=? AND read_at IS NULL',
                                (tenant, recipient)).fetchone()[0]
         notices = [dict(id=r['id'], kind=r['kind'], title=r['title'], created=r['created'],
@@ -371,7 +460,11 @@ def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billa
             abort(404)
         if not row['target_table']:
             return jsonify(record=None)
-        target = store.get(row['target_table'], row['target_id'])
+        if row['target_table'] == 'jobs':
+            from src.linked_coverages import resolve_job
+            target = resolve_job(store, row['target_id'])
+        else:
+            target = store.get(row['target_table'], row['target_id'])
         if not target:
             abort(404)
         return jsonify(record=project_record(target, row['target_table']))
@@ -488,7 +581,9 @@ def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billa
     @bp.get('/api/mobile/device')
     def device_status():
         me = identity()
-        return jsonify(push_enabled=bool(me['push_enabled'] and me['device']), hide_details=bool(me['hide_details']), revision=me['device_revision'])
+        return jsonify(push_enabled=bool(me['push_enabled'] and me['device']),
+                       server_push_available=os.environ.get('FLOW_MOBILE_PUSH_ENABLED') == '1',
+                       hide_details=bool(me['hide_details']), revision=me['device_revision'])
 
     @bp.post('/api/mobile/device/privacy')
     def device_privacy():

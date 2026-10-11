@@ -1901,7 +1901,12 @@ def _notification_moment(value, time=''):
 def _teams_response_notifications(tenant_id):
     database = app.extensions.get('teams')
     owner = store.get('tenants', tenant_id)
-    if not database or not owner or not session.get('logged_in') or session.get('user_email') != owner.get('login_email'):
+    mobile_owner = getattr(g, 'mobile_identity', None)
+    owner_access = bool(owner and (
+        (mobile_owner and mobile_owner['tenant_id'] == tenant_id
+         and mobile_owner['recipient'] == (owner.get('login_email') or '').strip().lower())
+        or (session.get('logged_in') and session.get('user_email') == owner.get('login_email'))))
+    if not database or not owner_access:
         return []
     from src.linked_coverages import linked_coverages
     jobs = [j for j in store.list('jobs') if _same_tenant_or_legacy(j, tenant_id)]
@@ -2537,7 +2542,7 @@ def enrich_job_ops(job, cotizaciones=None):
 # ============================================================
 @app.route('/api/integrations/gallery/jobs')
 def api_gallery_job_search():
-    """Busca jobs Astral y devuelve solo datos necesarios para destinatarios.
+    """Busca jobs de la marca solicitada y solo devuelve destinatarios.
 
     La credencial es servidor-a-servidor. Nunca se expone al navegador y este
     endpoint no permite crear, editar ni enviar nada desde FlowingCRM.
@@ -2558,22 +2563,27 @@ def api_gallery_job_search():
     except (TypeError, ValueError):
         return jsonify({'ok': False, 'error': 'Paginación inválida'}), 400
 
-    # La galeria es de ASTRAL WEDDINGS. El id se ve raro porque es heredado:
-    # 'tenant-norkevin' ES la cuenta de Astral (ver SEGURIDAD_AISLAMIENTO.md).
-    # Se toma de una variable de entorno para poder apuntarla sin editar
-    # codigo, con el valor actual como default para no cambiar el contrato de
-    # la integracion existente.
-    astral_tenant_id = os.environ.get('GALLERY_TENANT_ID', 'tenant-norkevin')
-    jobs = store.list_privileged('jobs', tenant_id=astral_tenant_id,
+    # Legacy callers belong to Astral. Resolve each brand through the tenant
+    # registry: the inherited tenant-norkevin ID belongs to Astral.
+    brand = (request.args.get('brand') or 'astral').strip().lower()
+    login_email = {'astral': 'astralweddingsgt@gmail.com',
+                   'norkevin': 'norkevinfoto@gmail.com'}.get(brand)
+    if not login_email:
+        return jsonify({'ok': False, 'error': 'Marca inválida'}), 400
+    tenant = _tenant_for_login_email(login_email)
+    if not tenant:
+        return jsonify({'ok': False, 'error': 'Cuenta de galería no configurada'}), 503
+    gallery_tenant_id = tenant['id']
+    jobs = store.list_privileged('jobs', tenant_id=gallery_tenant_id,
                                  reason='integracion de galeria (token servidor-a-servidor)')
     clients = {
         c.get('id'): c for c in store.list_privileged(
-            'clients', tenant_id=astral_tenant_id,
+            'clients', tenant_id=gallery_tenant_id,
             reason='integracion de galeria (token servidor-a-servidor)')
     }
     leads = {
         lead.get('id'): lead for lead in store.list_privileged(
-            'leads', tenant_id=astral_tenant_id,
+            'leads', tenant_id=gallery_tenant_id,
             reason='integracion de galeria (token servidor-a-servidor)')
     }
 
@@ -2629,12 +2639,8 @@ def api_gallery_job_search():
     page = results[offset:offset + limit]
     return jsonify({
         'ok': True,
-        # Esta integracion es servidor-a-servidor con token: NO hay sesion,
-        # asi que get_current_tenant_id() daria None y la marca saldria como
-        # "(empresa sin identificar)". La cuenta a la que sirve ya esta
-        # resuelta arriba (astral_tenant_id, con GALLERY_TENANT_ID como
-        # override), y esa es la fuente correcta.
-        'source': _brand_display_name_for_tenant(astral_tenant_id),
+        'brand': brand,
+        'source': _brand_display_name_for_tenant(gallery_tenant_id),
         'jobs': page,
         'total': total,
         'offset': offset,
@@ -7360,12 +7366,36 @@ def _calendar_non_job_events():
     for lead in _open_leads():
         if lead.get('fecha_tentativa'):
             events.append({
+                'status': lead.get('status', ''),
+                'email': lead.get('email', ''),
+                'phone': lead.get('phone') or lead.get('telefono') or '',
+                'location': lead.get('lugar') or lead.get('location') or lead.get('locacion') or '',
                 'id': 'lead-' + lead.get('id', ''),
                 'date': lead.get('fecha_tentativa'),
+                'end_date': lead.get('fecha_tentativa'),
                 'type': 'lead',
                 'title': lead.get('nombre', 'Lead'),
                 'lead_id': lead.get('id'),
                 'url': f"/leads/{lead.get('id')}",
+            })
+    return events
+
+
+def _calendar_events():
+    """Committed calendar sources shared by the web and native app."""
+    events = _calendar_non_job_events()
+    for job in _canonical_jobs():
+        if job.get('boda_date'):
+            events.append({
+                'status': job.get('status', ''),
+                'location': job.get('lugar') or job.get('location') or job.get('locacion') or '',
+                'id': 'job-' + job.get('id', ''),
+                'date': job.get('boda_date'),
+                'end_date': job.get('end_date') or job.get('boda_date'),
+                'type': 'job',
+                'title': job.get('nombre', 'Job'),
+                'job_id': job.get('id'),
+                'url': f"/jobs/{job.get('id')}",
             })
     return events
 
@@ -7376,18 +7406,7 @@ def calendar_view():
     from datetime import datetime
     import calendar as _cal
 
-    events = _calendar_non_job_events()
-    for job in _canonical_jobs():
-        if job.get('boda_date'):
-            events.append({
-                'id': 'job-' + job.get('id', ''),
-                'date': job.get('boda_date'),
-                'end_date': job.get('end_date') or job.get('boda_date'),
-                'type': 'job',
-                'title': job.get('nombre', 'Job'),
-                'job_id': job.get('id'),
-                'url': f"/jobs/{job.get('id')}",
-            })
+    events = _calendar_events()
     today = datetime.now().date()
 
     mes_param = request.args.get('month', '')
@@ -15005,7 +15024,8 @@ start_reminder_scheduler()
 # Native mobile routes remain unavailable until explicitly enabled in staging.
 from src.mobile import register_mobile
 register_mobile(app, store, _open_leads, _canonical_jobs, _job_is_active,
-                _visible_billable_payments, _payment_financial_summary, coerce_amount, _payment_reporting_day)
+                _visible_billable_payments, _payment_financial_summary, coerce_amount, _payment_reporting_day,
+                calendar_events=_calendar_events, recent_notifications=_build_recent_notifications)
 
 
 # ============================================================
