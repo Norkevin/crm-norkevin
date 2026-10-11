@@ -8,6 +8,10 @@ services:
     envVars:
       - key: CRM_DATA_DIR
         value: /var/data
+      - key: FLOW_MOBILE_ENABLED
+        value: "1"
+      - key: FLOW_MOBILE_PUSH_ENABLED
+        value: "0"
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: GALLERY_INTEGRATION_TOKEN
