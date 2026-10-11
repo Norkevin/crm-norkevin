@@ -4,6 +4,7 @@ The private control file contains a synthetic owner's session cookie, not a
 production credential. No test login route or bypass is added to the CRM.
 """
 import json
+import argparse
 import os
 import secrets
 import sys
@@ -16,6 +17,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--browser', action='store_true',
+                        help='Loopback HTTP UI review with a synthetic browser session; no production use.')
+    parser.add_argument('--web-push-ui', action='store_true',
+                        help='Exercise Web Push UI with a fake provider, only with --browser.')
+    args = parser.parse_args()
+    if args.web_push_ui and not args.browser:
+        parser.error('--web-push-ui requires the loopback --browser fixture')
     from cryptography import x509
     from cryptography.fernet import Fernet
     from cryptography.hazmat.primitives import hashes, serialization
@@ -29,6 +38,7 @@ def main():
     data_dir.mkdir()
     os.environ.update(CRM_DATA_DIR=str(data_dir), FLASK_SECRET=secrets.token_urlsafe(48),
                       FLOW_MOBILE_ENABLED='1', FLOW_MOBILE_PUSH_ENABLED='0',
+                      FLOW_WEB_PUSH_ENABLED='1' if args.web_push_ui else '0',
                       FLOW_MOBILE_ENCRYPTION_KEY=Fernet.generate_key().decode(),
                       FLOW_TEAMS_ENABLED='1', ENABLE_WORKFLOW_QUEUE='0', ENABLE_REMINDER_SCHEDULER='0',
                       OUTBOUND_EMAIL_ENABLED='0', DISABLE_OUTBOUND_EMAIL='1',
@@ -37,7 +47,8 @@ def main():
     sys.path.insert(0, str(ROOT))
     import app as crm
     assert Path(crm.store.data_dir).resolve() == data_dir.resolve(), 'Refuse to touch non-QA data'
-    crm.app.config.update(SESSION_COOKIE_SECURE=True)
+    crm.app.config.update(SESSION_COOKIE_SECURE=not args.browser, TEMPLATES_AUTO_RELOAD=True)
+    crm.app.jinja_env.auto_reload = True
     today = datetime.now(ZoneInfo('America/Guatemala')).date()
     owner = 'qa-owner@example.invalid'
     tenant = 'qa-norkevin'
@@ -94,6 +105,28 @@ def main():
     mobile.observe(tenant, owner, [])
     mobile.observe(tenant, owner, source_events(crm.store, tenant))
 
+    if args.browser:
+        # Available only inside this loopback synthetic runner, never wsgi.
+        from flask import redirect, session
+        @crm.app.get('/__web_push_qa')
+        def browser_qa():
+            session.update(logged_in=True, tenant_id=tenant, user_email=owner,
+                           user_name='Usuario de demostración')
+            return redirect('/dashboard')
+        crm.PUBLIC_EXACT_PATHS.add('/__web_push_qa')
+        if args.web_push_ui:
+            import threading
+            from tools.run_web_push_worker import tick
+            def fake_scan():
+                tick(crm.app, crm.store, sender=lambda *_: 202)
+            fake_scan()
+            def scan_loop():
+                while True:
+                    time.sleep(30)
+                    fake_scan()
+            import time
+            threading.Thread(target=scan_loop, daemon=True).start()
+
     # A private test cookie exercises the real CSRF/approval route over HTTPS.
     cookie = crm.app.session_interface.get_signing_serializer(crm.app).dumps(
         dict(logged_in=True, tenant_id=tenant, user_email=owner, user_name='Usuario de demostración'))
@@ -112,13 +145,14 @@ def main():
     key_path.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
     key_path.chmod(0o600)
     control = folder / 'control.json'
-    control.write_text(json.dumps(dict(url='https://localhost:5443', cookie=cookie,
+    base_url = ('http' if args.browser else 'https') + '://localhost:5443'
+    control.write_text(json.dumps(dict(url=base_url, cookie=cookie,
                                       certificate=str(cert_path), tenant=tenant)))
     control.chmod(0o600)
     print(f'QA_CONTROL={control}', flush=True)
-    print('Synthetic HTTPS fixture: https://localhost:5443; push and email disabled', flush=True)
+    print(f'Synthetic fixture: {base_url}; fake Web Push provider, no real push or email delivery', flush=True)
     crm.app.run(host='127.0.0.1', port=5443, debug=False, use_reloader=False,
-                ssl_context=(str(cert_path), str(key_path)))
+                ssl_context=None if args.browser else (str(cert_path), str(key_path)))
 
 
 if __name__ == '__main__':

@@ -30,6 +30,13 @@ def test_manifest_has_required_pwa_fields(client):
     assert maskable, 'debe incluir al menos un icono maskable'
 
 
+def test_manifest_preserves_existing_installation_identity(client):
+    data = client.get('/manifest.webmanifest').get_json()
+    # Before an explicit id, browsers used the start URL as the app identity.
+    assert data['id'] == data['start_url'] == '/dashboard'
+    assert data['name'] == data['short_name'] == 'Flowing'
+
+
 def test_service_worker_is_reachable_without_login(client):
     resp = client.get('/service-worker.js')
     assert resp.status_code == 200

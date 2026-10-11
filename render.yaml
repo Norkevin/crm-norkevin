@@ -4,13 +4,15 @@ services:
     runtime: python
     plan: starter
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT wsgi:app
+    startCommand: python tools/start_web_service.py
     envVars:
       - key: CRM_DATA_DIR
         value: /var/data
       - key: FLOW_MOBILE_ENABLED
         value: "1"
       - key: FLOW_MOBILE_PUSH_ENABLED
+        value: "0"
+      - key: FLOW_WEB_PUSH_ENABLED
         value: "0"
       - key: PYTHON_VERSION
         value: 3.11.9

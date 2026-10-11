@@ -1,13 +1,14 @@
 {
-  "name": "Flow CRM",
-  "short_name": "Flow CRM",
+  "name": "Flowing",
+  "short_name": "Flowing",
+  "id": "/dashboard",
   "description": "CRM para gestion de clientes, leads, trabajos, pagos y calendario.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#F5F7F9",
-  "theme_color": "#3F5B70",
+  "background_color": "#F7F9FC",
+  "theme_color": "#2563EB",
   "icons": [
     {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
     {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png"},

@@ -1,0 +1,37 @@
+# Flowing Web instalada y notificaciones
+
+11 de octubre de 2026, Guatemala. El propietario decidió aplazar Apple Developer y eligió la web instalada. Confirmó que «Flowing Web» abre en el iPhone con sus datos reales. La preparación de App Store permanece aislada en su rama; la app nativa conserva su firma semanal y APNs apagado.
+
+## Experiencia y alcance
+
+En Safari: abrir `https://flowingcrm.com`, Compartir → Añadir a pantalla de inicio, y abrir desde ese icono. La web instalada no depende del perfil de Xcode. Apple admite Web Push para aplicaciones de pantalla de inicio desde iOS 16.4 sin membresía Apple Developer.
+
+La campana distingue permiso del navegador, suscripción registrada y disponibilidad del proceso de envío. Activar requiere un toque del usuario. Desactivar afecta únicamente este navegador. La prueba confirma primero que quedó en cola; la recepción con la app cerrada requiere confirmación física. Los detalles están ocultos en la pantalla bloqueada por defecto y el aviso abre la bandeja.
+
+La fuente son los avisos existentes de la web: leads, actividad de correo y respuestas de Teams, incluidas coberturas secundarias. Aperturas/clics de correo no se presentan como respuestas del cliente. No se inventan avisos de otros módulos. La lectura de la bandeja conserva sus reglas web.
+
+## Servidor
+
+`FLOW_WEB_PUSH_ENABLED` es independiente de `FLOW_MOBILE_PUSH_ENABLED`. Este último permanece en 0. `requirements.txt` incorpora `pywebpush==2.5.0`; el arranque web usa `python tools/start_web_service.py` para supervisar el proceso de envío en el mismo servicio y disco persistente. No se crea un servicio comercial adicional.
+
+El almacenamiento está bajo `CRM_DATA_DIR/webpush`: journal SQLite, clave de cifrado de suscripciones y clave VAPID persistente. Directorio 0700 y archivos de credenciales 0600; creación bloqueada entre procesos, sin claves en stdout, HTML, logs o Git. La clave pública VAPID se devuelve únicamente en la API autenticada. Conservar estos archivos en las copias del disco; no rotarlos para cada despliegue.
+
+Registro, vinculación de una suscripción existente, baja y prueba exigen propietario activo de la empresa, Origin propio y CSRF. Las suscripciones activas de otra cuenta no pueden apropiarse. La baja y logout cancelan solo las entregas del navegador correspondiente. El registro en una nueva sesión vincula la suscripción ya autorizada sin revivir una revocada.
+
+Solo se aceptan proveedores HTTPS conocidos de Apple, Chrome/FCM y Firefox, con DNS público, sin redirects ni proxies de entorno. Las credenciales de cada suscripción se cifran; la biblioteca estándar de Web Push cifra el contenido de transporte y firma VAPID. Los avisos no contienen cookies ni códigos de acceso.
+
+La primera observación y la reactivación tras pausa establecen baseline: no enviar historial. Un reinicio normal conserva los reintentos. Un fallo de lectura conserva cola y observaciones; no se interpreta como desaparición de eventos. El worker importa la app con schedulers de correo desactivados y lee TeamsStore directamente, sin registrar Calendar ni enviar invitaciones. La web principal debe continuar aunque falle push.
+
+## Comprobación y entrega
+
+Pruebas completas del CRM: **1612 aprobadas y 1 omitida**, 25.39 segundos; log `.context-shears/artifacts/command-20261011T064158.327527Z-489ce7f574d6.log`. Frontend: **26 pruebas Node VM aprobadas** tras recuperar el vínculo de una sesión nueva. Pruebas específicas de backend/auth/aislamiento: **87 aprobadas** tras las correcciones de supervisión, heartbeat, vinculación y lecturas fallidas.
+
+La revisión independiente confirmó el cierre de tres defectos: el worker o una pausa fallidos ya no cortan la web; una sesión nueva vincula el navegador antes del logout; errores de leads o Teams conservan cola, observaciones y heartbeat. Confirmación focal: 6 pruebas Python y 4 Node, sin proveedor real.
+
+Revisión de UI ejecutada en Chrome, viewport 430×932 y datos ficticios: se corrigió el popover móvil que salía por la izquierda. Confirmación final: x=16, ancho=398, borde derecho=414 y botón de activar de 44px. `avisos-movil.png` captura esa interfaz ejecutada; no es una captura de iPhone físico ni acredita push recibido. No se solicitó permiso al navegador durante esa revisión.
+
+Estado de despliegue y recepción física: **pendientes de registrar al terminar este incremento**. Los tests con proveedor ficticio acreditan lógica y cifrado, no llegada a un iPhone. No se debe declarar push físico probado solo por un HTTP 2xx del proveedor.
+
+El runner `tools/run_mobile_qa.py --browser --web-push-ui` sirve solo datos ficticios en loopback HTTP, considerado contexto seguro por Chrome. Su sesión de revisión y proveedor falso existen únicamente dentro del runner; no se añaden a `wsgi`. El modo predeterminado sigue usando HTTPS para el QA nativo. Nunca se confía un certificado en el Mac ni se desactiva TLS de producción.
+
+Fuentes: [Web Push en Apple](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers), [WebKit para pantalla de inicio](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/), [discos y procesos de Render](https://render.com/docs/disks).
