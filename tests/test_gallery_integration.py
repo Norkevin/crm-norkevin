@@ -27,6 +27,8 @@ def _records(table):
         ],
         'leads': [],
     }
+    if table == 'tenants':
+        return app_module._MULTI_TENANT_REAL_TENANTS
     return fixtures.get(table, [])
 
 
@@ -86,3 +88,40 @@ def test_gallery_job_browse_returns_dated_jobs_without_query(client, monkeypatch
     assert payload['jobs'][0]['eventDate'] == '2026-09-12'
     assert payload['total'] == 1
     assert payload['hasMore'] is False
+
+
+def test_gallery_norkevin_returns_only_its_account(client, monkeypatch):
+    monkeypatch.setenv('GALLERY_INTEGRATION_TOKEN', 'test-gallery-token')
+    monkeypatch.setattr(app_module.store, 'list', _records)
+    monkeypatch.setattr(app_module.store, '_read_raw', _records)
+    response = client.get('/api/integrations/gallery/jobs?brand=norkevin&all=1',
+                          headers={'Authorization': 'Bearer test-gallery-token'})
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['brand'] == 'norkevin'
+    assert payload['source'] == 'Norkevin Photography'
+    assert [job['id'] for job in payload['jobs']] == ['job-other-tenant']
+    assert payload['jobs'][0]['contacts'][0]['email'] == 'private@example.com'
+    assert 'ana@example.com' not in str(payload)
+    assert 'luis@example.com' not in str(payload)
+
+
+def test_gallery_brand_is_allowlisted_and_cannot_override_tenant(client, monkeypatch):
+    monkeypatch.setenv('GALLERY_INTEGRATION_TOKEN', 'test-gallery-token')
+    monkeypatch.setattr(app_module.store, 'list', _records)
+    monkeypatch.setattr(app_module.store, '_read_raw', _records)
+    headers = {'Authorization': 'Bearer test-gallery-token'}
+    response = client.get('/api/integrations/gallery/jobs?brand=ramiro&all=1', headers=headers)
+    assert response.status_code == 400
+    response = client.get('/api/integrations/gallery/jobs?brand=astral&tenant_id=tenant-norkevin-photography&all=1', headers=headers)
+    assert response.status_code == 200
+    assert response.get_json()['brand'] == 'astral'
+    assert 'private@example.com' not in str(response.get_json())
+
+
+def test_gallery_brand_missing_registry_fails_closed(client, monkeypatch):
+    monkeypatch.setenv('GALLERY_INTEGRATION_TOKEN', 'test-gallery-token')
+    monkeypatch.setattr(app_module, '_tenant_for_login_email', lambda email: None)
+    response = client.get('/api/integrations/gallery/jobs?brand=norkevin&all=1',
+                          headers={'Authorization': 'Bearer test-gallery-token'})
+    assert response.status_code == 503

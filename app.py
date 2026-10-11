@@ -2537,7 +2537,7 @@ def enrich_job_ops(job, cotizaciones=None):
 # ============================================================
 @app.route('/api/integrations/gallery/jobs')
 def api_gallery_job_search():
-    """Busca jobs Astral y devuelve solo datos necesarios para destinatarios.
+    """Busca jobs de la marca solicitada y solo devuelve destinatarios.
 
     La credencial es servidor-a-servidor. Nunca se expone al navegador y este
     endpoint no permite crear, editar ni enviar nada desde FlowingCRM.
@@ -2558,22 +2558,27 @@ def api_gallery_job_search():
     except (TypeError, ValueError):
         return jsonify({'ok': False, 'error': 'Paginación inválida'}), 400
 
-    # La galeria es de ASTRAL WEDDINGS. El id se ve raro porque es heredado:
-    # 'tenant-norkevin' ES la cuenta de Astral (ver SEGURIDAD_AISLAMIENTO.md).
-    # Se toma de una variable de entorno para poder apuntarla sin editar
-    # codigo, con el valor actual como default para no cambiar el contrato de
-    # la integracion existente.
-    astral_tenant_id = os.environ.get('GALLERY_TENANT_ID', 'tenant-norkevin')
-    jobs = store.list_privileged('jobs', tenant_id=astral_tenant_id,
+    # Legacy callers belong to Astral. Resolve each brand through the tenant
+    # registry: the inherited tenant-norkevin ID belongs to Astral.
+    brand = (request.args.get('brand') or 'astral').strip().lower()
+    login_email = {'astral': 'astralweddingsgt@gmail.com',
+                   'norkevin': 'norkevinfoto@gmail.com'}.get(brand)
+    if not login_email:
+        return jsonify({'ok': False, 'error': 'Marca inválida'}), 400
+    tenant = _tenant_for_login_email(login_email)
+    if not tenant:
+        return jsonify({'ok': False, 'error': 'Cuenta de galería no configurada'}), 503
+    gallery_tenant_id = tenant['id']
+    jobs = store.list_privileged('jobs', tenant_id=gallery_tenant_id,
                                  reason='integracion de galeria (token servidor-a-servidor)')
     clients = {
         c.get('id'): c for c in store.list_privileged(
-            'clients', tenant_id=astral_tenant_id,
+            'clients', tenant_id=gallery_tenant_id,
             reason='integracion de galeria (token servidor-a-servidor)')
     }
     leads = {
         lead.get('id'): lead for lead in store.list_privileged(
-            'leads', tenant_id=astral_tenant_id,
+            'leads', tenant_id=gallery_tenant_id,
             reason='integracion de galeria (token servidor-a-servidor)')
     }
 
@@ -2629,12 +2634,8 @@ def api_gallery_job_search():
     page = results[offset:offset + limit]
     return jsonify({
         'ok': True,
-        # Esta integracion es servidor-a-servidor con token: NO hay sesion,
-        # asi que get_current_tenant_id() daria None y la marca saldria como
-        # "(empresa sin identificar)". La cuenta a la que sirve ya esta
-        # resuelta arriba (astral_tenant_id, con GALLERY_TENANT_ID como
-        # override), y esa es la fuente correcta.
-        'source': _brand_display_name_for_tenant(astral_tenant_id),
+        'brand': brand,
+        'source': _brand_display_name_for_tenant(gallery_tenant_id),
         'jobs': page,
         'total': total,
         'offset': offset,
