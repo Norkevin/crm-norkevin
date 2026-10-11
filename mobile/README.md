@@ -1,20 +1,20 @@
 # Flowing para iPhone
 
-Complemento SwiftUI del CRM Flask existente. La preview sin push está firmada e instalada en el iPhone del propietario, quien confirmó que abre. El CRM real en `https://flowingcrm.com` tiene la API móvil activa y push apagado desde el despliegue del 10 de octubre de 2026. Falta aprobar el código con la cuenta Google correcta y comprobar una sesión física con datos reales. No está publicada en App Store.
+Complemento SwiftUI del CRM Flask existente. La preview sin push está firmada e instalada en el iPhone del propietario. Tras el PR #17 desplegado Live, confirmó **«veo todo»** (Inicio con sus datos y Teams) y **«Sí, conserva la cuenta»** al reabrir. La conexión, las consultas y la persistencia quedan confirmadas por el propietario. El CRM real en `https://flowingcrm.com` mantiene la API móvil activa y push apagado. Siguen pendientes la comparación con la web, la observación independiente y una revisión completa de VoiceOver. No está publicada en App Store.
 
 - Proyecto: `ios/Flowing.xcodeproj`; scheme compartido `Flowing`; iPhone, iOS 17 o posterior.
 - API: `/api/mobile/`, desactivada por defecto en código; activada expresamente en el CRM real. Datos existentes, sin seeds reales ni escrituras financieras nuevas.
 - Notificaciones: journal persistente, APNs opcional, preferencias y privacidad. Worker manual, separado de correo/workflow.
 - Diagnóstico, arquitectura y pruebas: `../docs/mobile/`.
 
-## Conectar la preview instalada al CRM real
+## Conectar al CRM real para una nueva sesión
 
 1. Abre Flowing en el iPhone. Usa `https://flowingcrm.com` y pulsa **Conectar mi cuenta** para generar el código.
 2. Abre [Conectar iPhone](https://flowingcrm.com/mobile/connect) en el navegador e inicia sesión con la cuenta Google de la empresa correcta.
 3. Comprueba el nombre de la empresa e introduce el código del iPhone. La aprobación usa la sesión del propietario y CSRF.
 4. Vuelve a Flowing y compara una ficha y un importe conocidos con la web. Cierra y vuelve a abrir la app para comprobar que conserva la sesión.
 
-Render confirmó `FLOW_MOBILE_ENABLED=1` y `FLOW_MOBILE_PUSH_ENABLED=0`; el despliegue está Live. Los probes independientes dieron `/login` 200 y `/api/mobile/overview` 401 «Conecta tu cuenta de Flowing.». Esto acredita disponibilidad y rechazo sin bearer, no una sesión física conectada. No se inició el worker móvil: la bandeja requiere reconciliación posterior. Detalles y evidencia: [Conexión al CRM real](../docs/mobile/06-conexion-crm-real.md).
+La sesión actual ya está conectada según la confirmación del propietario; no hace falta repetir estos pasos. Render confirmó `FLOW_MOBILE_ENABLED=1` y `FLOW_MOBILE_PUSH_ENABLED=0`. El despliegue `dep-db5guj740ujc73cfnij0`, revisión `67acfaa` del PR #17, está Live. Los probes independientes dieron `/login` 200 y `/api/mobile/overview` 401 «Conecta tu cuenta de Flowing.»; acreditan disponibilidad y rechazo sin bearer. No se inició el worker móvil: la bandeja requiere reconciliación posterior. Detalles y evidencia: [Conexión al CRM real](../docs/mobile/06-conexion-crm-real.md).
 
 ## Comprobar localmente
 
@@ -41,7 +41,7 @@ La instalación y apertura ya están confirmadas. El perfil de la preview expira
 2. En Xcode, abre Settings → Accounts y añade tu Apple Account directamente. No compartas contraseña ni códigos por chat.
 3. Para Personal Team, usa la copia aislada del proyecto y fuentes en `.local/iphone-personal-build`, con `Flowing.entitlements` vacío y bundle `com.flowingcrm.mobile.preview`. Selecciona el equipo en Signing & Capabilities y usa Automatically manage signing. Conserva el proyecto original con APNs.
 4. Selecciona tu iPhone como destino del scheme Flowing y pulsa Run. Completa personalmente las confirmaciones de confianza que solicite iOS.
-5. Abre la preview y sigue **Conectar la preview instalada al CRM real**. El fixture QA en `127.0.0.1:5443` sirve al Simulator del Mac; `localhost` en el teléfono apunta al teléfono y no permite consultarlo.
+5. Abre la preview y sigue **Conectar al CRM real para una nueva sesión** si no conserva la conexión. El fixture QA en `127.0.0.1:5443` sirve al Simulator del Mac; `localhost` en el teléfono apunta al teléfono y no permite consultarlo.
 
 Personal Team rechazó Push Notifications. El override `CODE_SIGN_ENTITLEMENTS=""` no bastó: Xcode seguía leyendo la capacidad del archivo. La instalación aprobada se obtuvo con la copia aislada sin APNs. La capacidad, claves APNs y recepción con app cerrada requieren configuración y prueba independientes. No se ha comprado membresía ni publicado la app.
 
@@ -67,4 +67,4 @@ La prueba nativa usa firma local de Simulator (`CODE_SIGN_IDENTITY=-`). No usar 
 
 Pestaña Teams: coberturas, equipo, horarios, respuestas, conflictos e importes de la misma empresa. Trabajos queda en Inicio y Más. La consulta usa el snapshot y cálculos de Teams existentes, con autorización nativa por bearer; asignaciones, invitaciones y pagos se gestionan en la ficha web. El servidor debe registrar Teams (entrada `wsgi.py`) y habilitarlo; no basta activar la API móvil en un proceso que no registra Teams.
 
-La preview física ya abre y el servidor real está disponible. Sigue pendiente comprobar Teams desde una sesión física autorizada de la empresa correcta; las pruebas sintéticas de Simulator no sustituyen esa comprobación.
+El propietario confirmó que ve Teams y sus datos en la preview física y que conserva la cuenta al reabrir. La comparación de una ficha y un importe con la web, la observación independiente de las vistas y la revisión completa de VoiceOver siguen pendientes. Esta preview permite consultas; las acciones complejas continúan en web y push permanece apagado.
