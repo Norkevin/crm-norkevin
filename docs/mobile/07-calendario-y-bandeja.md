@@ -1,6 +1,6 @@
 # Calendario y bandeja conectados a las fuentes de la web
 
-Estado al 10 de octubre de 2026, Guatemala: correcciones implementadas, verificadas con datos ficticios y compiladas. **La publicación de este incremento en el servidor y su instalación actualizada en el iPhone siguen pendientes.** La preview anterior sí estaba instalada y conectada según el propietario; esa confirmación no acredita estas correcciones nuevas.
+Estado al 10 de octubre de 2026, Guatemala: correcciones implementadas, verificadas con datos ficticios, publicadas e instaladas en el iPhone. Tras actualizar y abrir la app, el propietario confirmó **«Veo la reserva y los avisos»** al comparar una fecha apartada de la web y la bandeja de su empresa. Esta confirmación física procede del propietario; no acredita paridad completa de todos los registros ni recepción push.
 
 ## Calendario
 
@@ -52,7 +52,7 @@ Logs completos locales, conservados por ContextShears:
 - Build Simulator final: `.context-shears/artifacts/command-20261011T053902.233581Z-704c9bc29db0.log`.
 - Build Personal Team final genérica: `.context-shears/artifacts/command-20261011T053952.545173Z-aecf2d7941a1.log`; destino físico: `command-20261011T052552.653739Z-e9d978b600bc.log`.
 
-## Evidencia visual y entrega pendiente
+## Evidencia visual y entrega
 
 Las imágenes `calendario-ocupadas-claro.png`, `calendario-ocupadas-oscuro.png` y `calendario-ocupadas-texto-grande.png` son UI SwiftUI ejecutada en el Simulator propio iPhone 16/iOS 26, con datos ficticios y HTTPS loopback. Claro y oscuro muestran ocupación, tentativa y bloqueo por rango. Texto grande acredita la agenda visible; no el selector completo ni toda la vista. Ver [registro de capturas](screenshots/README.md).
 
@@ -60,4 +60,10 @@ La comprobación independiente final cerró los dos hallazgos de la revisión: f
 
 La build física está firmada en una copia aislada sin APNs; el proyecto original conserva sus entitlements. El perfil comprobado vence el **17 de octubre de 2026 a las 21:10:20 en Guatemala**, equivalente al 18 de octubre a las 03:10:20 UTC. Esta corrección no cambia el vencimiento.
 
-Quedan por registrar el despliegue de estas correcciones, la instalación actualizada y la comprobación del calendario y la bandeja con la cuenta real del iPhone. La evidencia sintética, la compilación y la firma por sí solas no confirman esos pasos. App Store, TestFlight, compras y push físico quedan fuera de esta entrega.
+El [PR #19](https://github.com/Norkevin/crm-norkevin/pull/19) quedó fusionado en `ce937a8badd486bd5173068497944cf874ea3c09`, conservando la integración de galerías publicada por separado en PR #18. Render confirmó **Deploy succeeded | Live** para `dep-db5i7un40ujc73cgkdog`, fuente `ce937a8`, iniciado el 10 de octubre a las 23:51:55 Guatemala y completado en 44.0 segundos. Captura privada `.local/render-calendar-inbox-deployed.png`. No se cambiaron variables ni se activó push.
+
+Probes sin credenciales: `/login` HTTP 200; `/api/mobile/calendar?month=2026-10` HTTP 401 con «Conecta tu cuenta de Flowing.». Acreditan disponibilidad y rechazo sin bearer, no consultas privadas. La revisión y el estado Live acreditan la versión desplegada.
+
+CoreDevice instaló sobre la preview existente el bundle `com.flowingcrm.mobile.preview`, exit 0, en 5.36 segundos. Log `.context-shears/artifacts/command-20261011T055552.559527Z-b83aab4b0df9.log`. La firma estricta pasó; el perfil incluye el iPhone y no contiene `aps-environment`. CoreDevice abrió la app actualizada con exit 0. No se borró la app ni su cuenta para instalar. El propietario confirmó después «Veo la reserva y los avisos». No se extrajo su bearer ni se capturaron datos reales para el repositorio.
+
+El servidor HTTPS ficticio se cerró tras terminar la revisión. Faltan revisión completa de VoiceOver y comparación exhaustiva de datos. App Store, TestFlight, compras y push físico quedan fuera de esta entrega. El vencimiento semanal de Personal Team sigue igual.

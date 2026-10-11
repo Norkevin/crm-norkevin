@@ -1,6 +1,6 @@
 # Flowing para iPhone
 
-Complemento SwiftUI del CRM Flask existente. La preview anterior está instalada en el iPhone y el propietario confirmó sus datos, Teams y la persistencia de cuenta. Este incremento corrige el calendario y la bandeja: está compilado y probado en Simulator; **su publicación en el servidor y su instalación actualizada en el iPhone siguen pendientes**. El CRM real en `https://flowingcrm.com` mantiene la API móvil activa y push apagado. No está publicada en App Store.
+Complemento SwiftUI del CRM Flask existente. La actualización de calendario y bandeja está publicada e instalada en el iPhone. El propietario confirmó **«Veo la reserva y los avisos»** después de comparar una fecha apartada y consultar la bandeja de su empresa. Anteriormente confirmó sus datos, Teams y la persistencia de cuenta. El CRM real en `https://flowingcrm.com` mantiene la API móvil activa y push apagado. No está publicada en App Store.
 
 - Proyecto: `ios/Flowing.xcodeproj`; scheme compartido `Flowing`; iPhone, iOS 17 o posterior.
 - API: `/api/mobile/`, desactivada por defecto en código; activada expresamente en el CRM real. Datos existentes, sin seeds reales ni escrituras financieras nuevas.
@@ -15,7 +15,7 @@ Complemento SwiftUI del CRM Flask existente. La preview anterior está instalada
 3. Comprueba el nombre de la empresa e introduce el código del iPhone. La aprobación usa la sesión del propietario y CSRF.
 4. Vuelve a Flowing y compara una ficha y un importe conocidos con la web. Cierra y vuelve a abrir la app para comprobar que conserva la sesión.
 
-La sesión actual ya está conectada según la confirmación del propietario; no hace falta repetir estos pasos. Render confirmó `FLOW_MOBILE_ENABLED=1` y `FLOW_MOBILE_PUSH_ENABLED=0`. El despliegue anterior `dep-db5guj740ujc73cfnij0`, revisión `67acfaa` del PR #17, está Live. Los probes independientes dieron `/login` 200 y `/api/mobile/overview` 401 «Conecta tu cuenta de Flowing.»; acreditan disponibilidad y rechazo sin bearer. Esa evidencia corresponde a la versión anterior. Estado de este incremento: [Calendario y bandeja](../docs/mobile/07-calendario-y-bandeja.md). Historial de conexión: [Conexión al CRM real](../docs/mobile/06-conexion-crm-real.md).
+La sesión actual ya está conectada; no hace falta repetir estos pasos. Render mantiene `FLOW_MOBILE_ENABLED=1` y `FLOW_MOBILE_PUSH_ENABLED=0`. El despliegue `dep-db5i7un40ujc73cgkdog`, revisión `ce937a8` del PR #19, está Live. Los probes independientes dieron `/login` 200 y `/api/mobile/calendar?month=2026-10` 401 «Conecta tu cuenta de Flowing.»; acreditan disponibilidad y rechazo sin bearer. El propietario confirmó reserva y avisos desde el iPhone actualizado. Estado de este incremento: [Calendario y bandeja](../docs/mobile/07-calendario-y-bandeja.md). Historial de conexión: [Conexión al CRM real](../docs/mobile/06-conexion-crm-real.md).
 
 Con el nuevo servidor, `GET /api/mobile/notifications` refleja leads, actividad de correo y respuestas de Teams históricos y actuales. Conserva la lectura móvil al actualizar cada aviso; el estado leído de la web solo se usa al insertarlo por primera vez. La consulta no modifica archivos JSON del CRM ni crea entregas push. El worker es necesario únicamente para la reconciliación de eventos destinada a envíos APNs futuros, no para consultar esta bandeja.
 
@@ -38,7 +38,7 @@ El proyecto original conserva APNs: Debug usa sandbox y entitlement development;
 
 ## Reinstalar la preview si hace falta
 
-La instalación y apertura de la versión anterior ya están confirmadas; la actualización de calendario y bandeja aún está pendiente. La build actual para iOS está firmada con Personal Team y bundle de preview, en la copia aislada. El perfil expira el **18 de octubre de 2026 a las 03:10:20 UTC** (17 de octubre, 21:10:20 en Guatemala); después hará falta firmarla e instalarla de nuevo.
+La actualización de calendario y bandeja ya está instalada; CoreDevice confirmó instalación y apertura, y el propietario confirmó reserva y avisos con su cuenta real. La build actual para iOS está firmada con Personal Team y bundle de preview, en la copia aislada. El perfil expira el **18 de octubre de 2026 a las 03:10:20 UTC** (17 de octubre, 21:10:20 en Guatemala); después hará falta firmarla e instalarla de nuevo.
 
 1. Conecta el iPhone al Mac, desbloquéalo y acepta «Confiar» en el teléfono si aparece. Activa Developer Mode si Xcode lo requiere.
 2. En Xcode, abre Settings → Accounts y añade tu Apple Account directamente. No compartas contraseña ni códigos por chat.

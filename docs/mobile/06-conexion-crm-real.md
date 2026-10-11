@@ -1,18 +1,19 @@
 # Conectar el iPhone al CRM real
 
-El CRM real en `https://flowingcrm.com` tiene la API móvil activa y push apagado. La preview física está firmada e instalada. Tras el despliegue del PR #17, el propietario confirmó **«veo todo»** (Inicio con sus datos y Teams) y **«Sí, conserva la cuenta»** al volver a abrirla. La conexión, las consultas y la persistencia quedan confirmadas por el propietario; la comparación con la web y la observación independiente de esas vistas siguen pendientes. No se ha publicado la app en App Store ni comprado una membresía de Apple.
+El CRM real en `https://flowingcrm.com` tiene la API móvil activa y push apagado. La preview física está firmada e instalada. Tras el PR #17, el propietario confirmó **«veo todo»** (Inicio con sus datos y Teams) y **«Sí, conserva la cuenta»**. Tras publicar el PR #19 e instalar la actualización, confirmó **«Veo la reserva y los avisos»** al comparar una fecha apartada de la web y consultar la campana. La conexión, persistencia y esa comparación física quedan confirmadas por él; faltan la comparación exhaustiva y la observación independiente de los datos reales. No se ha publicado la app en App Store ni comprado una membresía de Apple.
 
 ## Estado confirmado — 10 de octubre de 2026
 
 | Comprobación | Evidencia |
 | --- | --- |
 | Servicio Render | `crm-norkevin`, ID `srv-d9b6aauq1p3s73espps0` |
-| Revisión publicada | `67acfaa0e47a9869aaacd0f1e5128dc2aeabf8b7`, fusionada mediante [PR #17](https://github.com/Norkevin/crm-norkevin/pull/17) |
+| Revisión publicada | `ce937a8badd486bd5173068497944cf874ea3c09`, fusionada mediante [PR #19](https://github.com/Norkevin/crm-norkevin/pull/19) |
 | Configuración guardada | El panel confirmó `FLOW_MOBILE_ENABLED=1` y `FLOW_MOBILE_PUSH_ENABLED=0` |
-| Despliegue | `dep-db5guj740ujc73cfnij0`, fuente `67acfaa`, iniciado el 10 de octubre a las 22:23:40 Guatemala (UTC−06:00); completado en 58.6 segundos, estado **Live** |
-| Probes independientes sin credenciales | `/login`: 200; `/api/mobile/overview`: 401 con el mensaje exacto «Conecta tu cuenta de Flowing.» |
+| Despliegue | `dep-db5i7un40ujc73cgkdog`, fuente `ce937a8`, iniciado el 10 de octubre a las 23:51:55 Guatemala (UTC−06:00); completado en 44.0 segundos, estado **Live** |
+| Probes independientes sin credenciales | `/login`: 200; `/api/mobile/calendar?month=2026-10`: 401 con el mensaje exacto «Conecta tu cuenta de Flowing.» |
 | Consulta física | El propietario confirmó «veo todo» al preguntarle por Inicio con sus datos y Teams; todavía sin observación independiente de esas vistas |
 | Reapertura física | El propietario confirmó «Sí, conserva la cuenta» sin generar otro código |
+| Actualización física calendario y bandeja | CoreDevice instaló y abrió la preview actualizada con exit 0; el propietario confirmó «Veo la reserva y los avisos» |
 
 Se cambiaron solo los dos flags móviles en el panel. La evidencia privada de los valores guardados está en `.local/render-mobile-enabled.jpg` y permanece local, fuera del repositorio. Los probes acreditan disponibilidad del servidor y rechazo sin bearer; no consultaron clientes ni importes. La confirmación de conexión física procede del propietario, no de esos probes.
 
@@ -24,7 +25,7 @@ La preview permite consultas por empresa a los datos existentes de Inicio, Leads
 
 La API crea únicamente su journal `mobile.sqlite3` en el mismo disco persistente, con permisos 0600. Sesiones, preferencias y lecturas de avisos se guardan allí; no modifica trabajos, clientes, importes ni asignaciones del CRM. La primera conexión debe aprobarla el propietario desde la sesión Google de la empresa correcta. El bearer de la app no autentica rutas web y vuelve a comprobar que el propietario y la empresa sigan activos.
 
-No se inició el worker móvil ni se activó push para esta primera conexión. La bandeja móvil necesitará una reconciliación posterior para recibir eventos; un inbox vacío no prueba que no existan actividades en la web.
+No se inició el worker móvil ni se activó push. Desde el PR #19, cada consulta de la bandeja refleja la actividad web histórica y actual, conservando lecturas móviles y sin modificar JSON del CRM ni crear entregas APNs. El calendario comparte la fuente web y muestra rangos, bloqueos y tentativas. Evidencia, pruebas y límites: [Calendario y bandeja](07-calendario-y-bandeja.md).
 
 ## Confirmación física y comprobaciones pendientes
 
