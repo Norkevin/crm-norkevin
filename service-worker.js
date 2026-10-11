@@ -10,7 +10,7 @@
  * demas pasa directo a la red, sin caches.put() de ningun tipo.
  */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2-web-push';
 const CACHE_NAME = 'flowcrm-static-' + CACHE_VERSION;
 const OFFLINE_URL = '/offline.html';
 
@@ -40,7 +40,7 @@ self.addEventListener('activate', function (event) {
     caches.keys().then(function (names) {
       return Promise.all(
         names
-          .filter(function (name) { return name !== CACHE_NAME; })
+          .filter(function (name) { return name.startsWith('flowcrm-static-') && name !== CACHE_NAME; })
           .map(function (name) { return caches.delete(name); })
       );
     }).then(function () {
@@ -53,6 +53,53 @@ self.addEventListener('message', function (event) {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+function safeNotificationURL(value) {
+  try {
+    if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')
+        || /[\\\u0000-\u001f\u007f?#]/.test(value) || /%2f|%5c/i.test(value)) return '/notifications';
+    const path = decodeURIComponent(value);
+    if (/[\\\u0000-\u001f\u007f?#]/.test(path) || /\/(\.|\.\.)(\/|$)/.test(path)) return '/notifications';
+    if (!/^\/(notifications\/?|(leads|jobs)\/[-a-zA-Z0-9_:]+\/?|teams\/jobs\/[-a-zA-Z0-9_:]+\/?)$/.test(path)) return '/notifications';
+    const url = new URL(value, self.location.origin);
+    if (url.origin !== self.location.origin || url.username || url.password || url.search || url.hash) return '/notifications';
+    return url.pathname;
+  } catch (error) { return '/notifications'; }
+}
+
+self.addEventListener('push', function (event) {
+  let payload = {};
+  try {
+    const value = event.data && event.data.json();
+    if (value && typeof value === 'object' && !Array.isArray(value)) payload = value;
+  } catch (error) { /* Malformed payload still produces a visible generic alert. */ }
+  const hidden = payload.hide_details !== false;
+  const body = !hidden && typeof payload.body === 'string'
+    ? payload.body.replace(/[\u0000-\u001f]/g, ' ').slice(0, 240)
+    : 'Tienes actividad nueva. Abre Flowing para verla.';
+  const identifier = typeof payload.notification_id === 'string' && /^[a-f0-9]{64}$/.test(payload.notification_id)
+    ? payload.notification_id : '';
+  event.waitUntil(self.registration.showNotification('Flowing', {
+    body: body,
+    icon: '/static/icons/icon-192.png',
+    badge: '/static/icons/icon-192.png',
+    tag: identifier ? 'flowing-' + identifier.slice(0, 32) : 'flowing-activity',
+    data: {url: hidden ? '/notifications' : safeNotificationURL(payload.url)}
+  }).catch(function () { /* Browser permission or shutdown can prevent delivery; never log private payloads. */ }));
+});
+
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  const path = safeNotificationURL(event.notification.data && event.notification.data.url);
+  const target = new URL(path, self.location.origin).href;
+  event.waitUntil(self.clients.matchAll({type: 'window', includeUncontrolled: true}).then(function (clients) {
+    const current = clients.find(function (client) {
+      try { return new URL(client.url).origin === self.location.origin; } catch (error) { return false; }
+    });
+    if (current) return current.navigate(target).then(function (client) { return (client || current).focus(); });
+    return self.clients.openWindow(target);
+  }).catch(function () { /* Opening the inbox remains available from the app icon. */ }));
 });
 
 self.addEventListener('fetch', function (event) {

@@ -1931,11 +1931,12 @@ def _teams_response_notifications(tenant_id):
     return notifications
 
 
-def _build_recent_notifications(tenant_id, limit=5):
+def _build_recent_notifications(tenant_id, limit=5, *, strict=False):
     """Leads, correos y respuestas de Teams para la campana de notificaciones. Se usa
     tanto en el render inicial de la pagina como en /api/notifications/recent
     (que el JS del bell consulta cada rato) para que quede reflejado un lead
-    nuevo sin tener que recargar la pagina entera."""
+    nuevo sin tener que recargar la pagina entera. El worker exige un snapshot
+    completo: un error de lectura no equivale a borrar los eventos."""
     recent_notifications = []
     try:
         arrivals = {}
@@ -1987,10 +1988,14 @@ def _build_recent_notifications(tenant_id, limit=5):
                 'url': mail['notification_url'],
             })
     except Exception:
+        if strict:
+            raise
         recent_notifications = []
     try:
         recent_notifications.extend(_teams_response_notifications(tenant_id))
     except Exception:
+        if strict:
+            raise
         logger.warning('Teams response notifications unavailable; will retry')
     read_ids = {row.get('notification_id') for row in store.list('notification_reads')}
     recent_notifications.sort(key=lambda n: n['timestamp'], reverse=True)
@@ -3148,6 +3153,8 @@ def auth_google_login_callback():
 
 @app.route('/logout')
 def logout():
+    from src.web_push import revoke_browser
+    revoke_browser(app, store)
     session.clear()
     return redirect(url_for('login_page'))
 
@@ -15026,6 +15033,10 @@ from src.mobile import register_mobile
 register_mobile(app, store, _open_leads, _canonical_jobs, _job_is_active,
                 _visible_billable_payments, _payment_financial_summary, coerce_amount, _payment_reporting_day,
                 calendar_events=_calendar_events, recent_notifications=_build_recent_notifications)
+
+# Web Push is independent of native APNs and requires a browser opt-in.
+from src.web_push import register_web_push
+register_web_push(app, store, _build_recent_notifications)
 
 
 # ============================================================

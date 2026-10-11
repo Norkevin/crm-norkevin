@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{% block title %}{{ current_tenant.name }} · Flow CRM{% endblock %}</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#142536">
+<meta name="theme-color" content="#2563EB">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Flow CRM">
+<meta name="apple-mobile-web-app-title" content="Flowing">
 <script>
 (function() {
   try {
@@ -687,7 +687,18 @@ body:not(.is-native-app) [data-install-banner] {
 .sn-account-menu.open { display: block; }
 .sn-notifications-menu {
   width: min(420px, calc(100vw - 30px));
-  overflow: hidden;
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+@media (max-width: 760px) {
+  .sn-notifications-menu {
+    position: fixed;
+    inset-inline: 16px;
+    top: 62px;
+    width: auto;
+    max-width: none;
+  }
 }
 .sn-popover-head {
   display: flex;
@@ -720,7 +731,7 @@ body:not(.is-native-app) [data-install-banner] {
   font-weight: 600;
   color: var(--sn-ink);
 }
-.sn-notification-tab { cursor: pointer; border: 0; background: transparent; min-height: 36px; }
+.sn-notification-tab { cursor: pointer; border: 0; background: transparent; min-height: 44px; }
 .sn-notification-tab.active { background: var(--sn-surface-hover); }
 .sn-count-pill {
   display: inline-grid;
@@ -736,17 +747,30 @@ body:not(.is-native-app) [data-install-banner] {
   font-weight: 700;
 }
 .sn-notification-permission {
-  padding: 9px 16px;
-  background: var(--sn-mint-soft);
-  border-top: 1px solid var(--sn-mint);
-  border-bottom: 1px solid var(--sn-mint);
+  padding: 12px 16px;
+  background: var(--sn-surface-2);
+  border-block: 1px solid var(--sn-line);
   color: var(--sn-ink);
-  font-size: 12px;
+  font-size: 14px;
 }
+.sn-notification-permission p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.sn-web-push-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sn-notifications-menu .sn-popover-link { min-height: 44px; }
 .sn-notification-permission button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--sn-line-dark);
+  border-radius: 8px;
   color: var(--sn-accent-text);
   font-weight: 600;
+  text-align: left;
 }
+.sn-notification-permission button:focus-visible { outline: 2px solid var(--sn-accent-text); outline-offset: 2px; }
+.sn-notification-permission button:disabled { color: var(--sn-muted); cursor: default; }
+#web-push-enable:not(:disabled) { color: #fff; background: var(--sn-green); border-color: var(--sn-green); }
+.sn-notification-permission [hidden] { display: none; }
+.sn-web-push-privacy { color: var(--sn-muted); }
+#web-push-feedback:empty { display: none; }
 .sn-notification-list {
   max-height: 368px;
   overflow: auto;
@@ -3246,7 +3270,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
       </div>
     </div>
     <div class="header-popover-wrap">
-      <button class="sn-icon-button sn-notification-trigger" type="button" title="Notificaciones" aria-label="Notificaciones" onclick="toggleNotifications(event)">
+      <button class="sn-icon-button sn-notification-trigger" type="button" title="Notificaciones" aria-label="Notificaciones" aria-controls="notifications-menu" aria-expanded="false" onclick="toggleNotifications(event)">
         <span id="notif-bell-badge">
         {% if unread_notifications_count|default(0) > 0 %}
         <span class="sn-bubble">{{ unread_notifications_count }}</span>
@@ -3265,7 +3289,14 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
           <button type="button" class="sn-notification-tab" data-notif-filter="alerts" aria-pressed="false" onclick="setNotificationFilter('alerts')">Alertas</button>
         </div>
         <div class="sn-notification-permission" id="notification-permission">
-          <button type="button" onclick="requestBrowserNotifications()">Activar notificaciones del navegador</button>
+          <p id="web-push-status" role="status" aria-live="polite">Comprobando las alertas de este navegador…</p>
+          <div class="sn-web-push-actions">
+            <button id="web-push-enable" type="button" disabled>Activar en este navegador</button>
+            <button id="web-push-test" type="button" hidden>Enviar una prueba aquí</button>
+            <button id="web-push-disable" type="button" hidden>Desactivar este navegador</button>
+          </div>
+          <p class="sn-web-push-privacy">Al activar, las alertas ocultan nombres y detalles. La bandeja conserva tus avisos.</p>
+          <p id="web-push-feedback" role="status" aria-live="polite"></p>
         </div>
         <div class="sn-notification-list" id="notif-list">
           {% for n in recent_notifications %}
@@ -3462,6 +3493,8 @@ function closeHeaderPopovers() {
     var menu = document.getElementById(id);
     if (menu) menu.classList.remove('open');
   });
+  var notificationsTrigger = document.querySelector('.sn-notification-trigger');
+  if (notificationsTrigger) notificationsTrigger.setAttribute('aria-expanded', 'false');
 }
 
 function toggleTenantMenu(e) {
@@ -3477,7 +3510,13 @@ function toggleNotifications(e) {
   var menu = document.getElementById('notifications-menu');
   var wasOpen = menu && menu.classList.contains('open');
   closeHeaderPopovers();
-  if (menu && !wasOpen) { menu.classList.add('open'); refreshNotifications(); }
+  if (menu && !wasOpen) {
+    menu.classList.add('open');
+    var trigger = document.querySelector('.sn-notification-trigger');
+    if (trigger) trigger.setAttribute('aria-expanded', 'true');
+    refreshNotifications();
+    if (window.FlowWebPush) window.FlowWebPush.refresh();
+  }
 }
 
 var MAIL_ICON_SVG = '<svg class="sn-notification-icon mail" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>';
@@ -3491,7 +3530,6 @@ function escapeHtml(str) {
 
 var notificationItems = [];
 var notificationFilter = 'all';
-var notificationsLoaded = false;
 
 function setNotificationFilter(filter) {
   notificationFilter = filter;
@@ -3562,17 +3600,7 @@ async function refreshNotifications() {
     var response = await fetch('/api/notifications/recent');
     var data = await response.json();
     if (!response.ok || !data.ok) throw new Error('No se pudieron cargar las notificaciones');
-    if (notificationsLoaded && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
-      var previousIds = new Set(notificationItems.map(function(n) { return n.id; }));
-      data.notifications.filter(function(n) { return !n.read && !previousIds.has(n.id); }).forEach(function(n) {
-        try {
-          var notice = new Notification('Flow CRM', {body: n.title, tag: n.id});
-          notice.onclick = function() { window.focus(); if (n.url) window.location.href = n.url; notice.close(); };
-        } catch (error) { /* La campana sigue disponible si el navegador impide avisos del sistema. */ }
-      });
-    }
     notificationItems = data.notifications;
-    notificationsLoaded = true;
     renderNotifications();
   } catch (error) {
     ['notif-list', 'notif-history-list'].forEach(function(id) {
@@ -3582,17 +3610,8 @@ async function refreshNotifications() {
   }
 }
 
-function updateNotificationPermission() {
-  var box = document.getElementById('notification-permission');
-  if (!box) return;
-  if (!('Notification' in window)) box.textContent = 'Este navegador no admite notificaciones.';
-  else if (Notification.permission === 'granted') box.textContent = 'Notificaciones del navegador activadas.';
-  else if (Notification.permission === 'denied') box.textContent = 'Notificaciones bloqueadas. Puedes permitirlas desde la configuración de este sitio en el navegador.';
-}
-
 document.addEventListener('DOMContentLoaded', function() {
   refreshNotifications();
-  updateNotificationPermission();
   setInterval(refreshNotifications, 45000);
 });
 
@@ -3602,18 +3621,6 @@ function toggleAccountMenu(e) {
   var wasOpen = menu && menu.classList.contains('open');
   closeHeaderPopovers();
   if (menu && !wasOpen) menu.classList.add('open');
-}
-
-async function requestBrowserNotifications() {
-  if (!('Notification' in window) || Notification.permission !== 'default') {
-    updateNotificationPermission();
-    return;
-  }
-  try {
-    var permission = await Notification.requestPermission();
-    updateNotificationPermission();
-    flashToast(permission === 'granted' ? 'Notificaciones activadas' : 'No se activaron las notificaciones', permission === 'granted' ? 'success' : 'error');
-  } catch (error) { flashToast('No se pudieron activar las notificaciones', 'error'); }
 }
 
 function openUpgradeModal(e) {
@@ -3761,49 +3768,15 @@ function closeDrawer(id) {
   if (el) el.classList.remove('open');
 }
 
-/* ============================================================
-   PWA/web shell
-
-   Decision de producto: en navegador normal queremos una version
-   web limpia, sin comportamiento de app instalada ni service workers
-   persistentes que dejen shells viejos pegados (especialmente en Mac,
-   donde Kevin seguia viendo fallos fuera de incognito). Por eso:
-
-   1. limpiamos registros/caches viejos automaticamente;
-   2. desactivamos el registro del service worker en la web;
-   3. dejamos el resto del CRM funcionando como sitio normal.
-   ============================================================ */
+/* PWA: only public static assets are cached. Keep registrations and subscriptions;
+   permission for alerts is requested separately, only after an explicit click. */
 (function() {
   var waitingWorker = null;
   var reloaded = false;
-  var ENABLE_PWA_SHELL = false;
+  var ENABLE_PWA_SHELL = true;
 
   function isStandalone() {
     return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  }
-
-  function purgeLegacyPwaState() {
-    if (!('serviceWorker' in navigator)) return Promise.resolve();
-    return navigator.serviceWorker.getRegistrations()
-      .then(function(registrations) {
-        return Promise.all((registrations || []).map(function(reg) {
-          return reg.unregister();
-        }));
-      })
-      .catch(function() { return []; })
-      .then(function() {
-        if (!('caches' in window) || !window.caches.keys) return [];
-        return window.caches.keys().then(function(keys) {
-          return Promise.all(
-            (keys || [])
-              .filter(function(key) {
-                return key.indexOf('flowcrm-') === 0 || key.indexOf('workbox-') === 0;
-              })
-              .map(function(key) { return window.caches.delete(key); })
-          );
-        });
-      })
-      .catch(function() { return []; });
   }
 
   function showUpdateBanner(worker) {
@@ -3839,10 +3812,6 @@ function closeDrawer(id) {
           });
         });
       }).catch(function() { /* SW opcional -- si falla, el CRM sigue funcionando igual */ });
-    });
-  } else if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-      purgeLegacyPwaState();
     });
   }
 
@@ -4062,6 +4031,7 @@ document.addEventListener('keydown', function(e) {
 <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css', v='20261005-fluid') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='flow-design.css', v='20261005-modern') }}">
 <script src="{{ url_for('static', filename='date-range.js') }}?v=20261008-weekdays"></script>
+<script src="{{ url_for('static', filename='flow-web-push.js', v='20261011') }}" defer></script>
 <script src="{{ url_for('static', filename='mobile.js') }}" defer></script>
 <script src="{{ url_for('static', filename='mobile-navigation.js', v='20261005') }}" defer></script>
 <script>
