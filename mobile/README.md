@@ -1,6 +1,6 @@
 # Flowing para iPhone
 
-Complemento SwiftUI del CRM Flask existente. Primer incremento local; compila y conecta en Simulator con firma local; la build para destino iOS físico compila sin firma. La versión de prueba sin push está instalada en el iPhone del propietario; falta autorizar la firma, confirmar apertura y conectar un servidor HTTPS accesible. No está publicada.
+Complemento SwiftUI del CRM Flask existente. Compila y conecta en Simulator con firma local. La versión de prueba sin push está firmada e instalada en el iPhone del propietario, quien confirmó que abre. Falta conectar un servidor HTTPS accesible desde el teléfono. No está publicada.
 
 - Proyecto: `ios/Flowing.xcodeproj`; scheme compartido `Flowing`; iPhone, iOS 17 o posterior.
 - API: `/api/mobile/`, desactivada por defecto. Datos existentes, sin seeds reales ni escrituras financieras nuevas.

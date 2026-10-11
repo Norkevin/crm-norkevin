@@ -117,3 +117,9 @@ Apple Account conectada; Personal Team identificado desde Xcode. Modo de desarro
 El destino generico no registro el dispositivo; el destino fisico con allowProvisioningUpdates y allowProvisioningDeviceRegistration genero certificado y perfil. Build firmada exit 0, 10.46 s; log command-20261011T031015.824001Z-531473d6bdc7.log. codesign --verify --strict aprobado; perfil contiene el iPhone destinatario y no contiene aps-environment. Vence 18 de octubre 03:10:20 UTC (17 de octubre 21:10:20 Guatemala).
 
 CoreDevice instalo Flowing.app: exit 0, bundle com.flowingcrm.mobile.preview. El intento de abrirla devolvio Security: perfil no confiado explicitamente por el usuario (firma local valida). Se pidio al propietario confiar/verificar su desarrollador desde Ajustes > General > VPN y gestion de dispositivos y abrir Flowing. No se autorizo ese paso por el propietario ni se declaro apertura acreditada. Pendiente confirmar apertura y conectar servidor HTTPS apropiado; el fixture del Mac sigue siendo loopback y no sirve desde localhost del telefono. Push fisico no probado y no incluido en esta build Personal Team.
+
+### Apertura confirmada por el propietario
+
+El propietario respondió «sí abre» tras completar la autorización en el iPhone. Instalación y apertura confirmadas por él; no se acredita todavía sesión conectada, consulta de datos ni push físico. Una comprobación posterior por CoreDevice agotó 15 segundos; no invalida el reporte del propietario ni acredita una captura propia.
+
+No hay servidor staging autorizado documentado: Render define un único servicio del CRM real. La siguiente decisión pendiente es probar una demostración con datos ficticios accesible por HTTPS o preparar y revisar el cambio de servidor para conectar el CRM real. No se expuso el fixture de loopback, no se publicó un cambio ni se activó la API en producción.
