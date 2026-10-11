@@ -218,7 +218,9 @@ def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billa
     @bp.after_request
     def private_response(response):
         response.headers['Cache-Control'] = 'no-store'
-        response.headers['Referrer-Policy'] = 'no-referrer'
+        # HTML form POSTs need their origin; inherit the web policy there.
+        if request.path.startswith('/api/mobile/'):
+            response.headers['Referrer-Policy'] = 'no-referrer'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         return response
 

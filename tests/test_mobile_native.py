@@ -63,15 +63,22 @@ def test_bearer_overrides_foreign_cookie_and_revalidates_targets(mobile):
 
 def test_pairing_requires_explicit_browser_owner_and_csrf(mobile):
     crm, client, db, headers, tenant, owner = mobile
-    pair = client.post('/api/mobile/pair/start', json={}).json
+    started = client.post('/api/mobile/pair/start', json={})
+    assert started.headers['Referrer-Policy'] == 'no-referrer'
+    pair = started.json
     assert client.post('/api/mobile/pair/poll', json={'device_secret': pair['code']}).status_code == 401
     login_as_tenant(client, tenant, email=owner)
-    assert client.get('/mobile/connect').status_code == 200
+    page = client.get('/mobile/connect')
+    assert page.status_code == 200
+    # Browser form POSTs under no-referrer serialize Origin as null.
+    assert page.headers['Referrer-Policy'] == 'strict-origin-when-cross-origin'
     assert client.post('/mobile/connect', data={'code': pair['code']}).status_code == 403
     with client.session_transaction() as sess:
         csrf = sess['mobile_csrf']
+    assert client.post('/mobile/connect', data={'code': pair['code'], 'csrf': 'wrong'}, headers={'Origin': 'https://localhost'}).status_code == 403
+    assert client.post('/mobile/connect', data={'code': pair['code'], 'csrf': csrf}, headers={'Origin': 'null'}).status_code == 403
     assert client.post('/mobile/connect', data={'code': pair['code'], 'csrf': csrf}, headers={'Origin': 'https://evil.invalid'}).status_code == 403
-    assert client.post('/mobile/connect', data={'code': pair['code'], 'csrf': csrf}).status_code == 200
+    assert client.post('/mobile/connect', data={'code': pair['code'], 'csrf': csrf}, headers={'Origin': 'https://localhost'}).status_code == 200
     result = client.post('/api/mobile/pair/poll', json={'device_secret': pair['device_secret']})
     assert result.status_code == 200 and len(result.json['token']) == 43
     with db.transaction() as conn:
