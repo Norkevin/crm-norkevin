@@ -1901,7 +1901,12 @@ def _notification_moment(value, time=''):
 def _teams_response_notifications(tenant_id):
     database = app.extensions.get('teams')
     owner = store.get('tenants', tenant_id)
-    if not database or not owner or not session.get('logged_in') or session.get('user_email') != owner.get('login_email'):
+    mobile_owner = getattr(g, 'mobile_identity', None)
+    owner_access = bool(owner and (
+        (mobile_owner and mobile_owner['tenant_id'] == tenant_id
+         and mobile_owner['recipient'] == (owner.get('login_email') or '').strip().lower())
+        or (session.get('logged_in') and session.get('user_email') == owner.get('login_email'))))
+    if not database or not owner_access:
         return []
     from src.linked_coverages import linked_coverages
     jobs = [j for j in store.list('jobs') if _same_tenant_or_legacy(j, tenant_id)]
@@ -7361,12 +7366,36 @@ def _calendar_non_job_events():
     for lead in _open_leads():
         if lead.get('fecha_tentativa'):
             events.append({
+                'status': lead.get('status', ''),
+                'email': lead.get('email', ''),
+                'phone': lead.get('phone') or lead.get('telefono') or '',
+                'location': lead.get('lugar') or lead.get('location') or lead.get('locacion') or '',
                 'id': 'lead-' + lead.get('id', ''),
                 'date': lead.get('fecha_tentativa'),
+                'end_date': lead.get('fecha_tentativa'),
                 'type': 'lead',
                 'title': lead.get('nombre', 'Lead'),
                 'lead_id': lead.get('id'),
                 'url': f"/leads/{lead.get('id')}",
+            })
+    return events
+
+
+def _calendar_events():
+    """Committed calendar sources shared by the web and native app."""
+    events = _calendar_non_job_events()
+    for job in _canonical_jobs():
+        if job.get('boda_date'):
+            events.append({
+                'status': job.get('status', ''),
+                'location': job.get('lugar') or job.get('location') or job.get('locacion') or '',
+                'id': 'job-' + job.get('id', ''),
+                'date': job.get('boda_date'),
+                'end_date': job.get('end_date') or job.get('boda_date'),
+                'type': 'job',
+                'title': job.get('nombre', 'Job'),
+                'job_id': job.get('id'),
+                'url': f"/jobs/{job.get('id')}",
             })
     return events
 
@@ -7377,18 +7406,7 @@ def calendar_view():
     from datetime import datetime
     import calendar as _cal
 
-    events = _calendar_non_job_events()
-    for job in _canonical_jobs():
-        if job.get('boda_date'):
-            events.append({
-                'id': 'job-' + job.get('id', ''),
-                'date': job.get('boda_date'),
-                'end_date': job.get('end_date') or job.get('boda_date'),
-                'type': 'job',
-                'title': job.get('nombre', 'Job'),
-                'job_id': job.get('id'),
-                'url': f"/jobs/{job.get('id')}",
-            })
+    events = _calendar_events()
     today = datetime.now().date()
 
     mes_param = request.args.get('month', '')
@@ -15006,7 +15024,8 @@ start_reminder_scheduler()
 # Native mobile routes remain unavailable until explicitly enabled in staging.
 from src.mobile import register_mobile
 register_mobile(app, store, _open_leads, _canonical_jobs, _job_is_active,
-                _visible_billable_payments, _payment_financial_summary, coerce_amount, _payment_reporting_day)
+                _visible_billable_payments, _payment_financial_summary, coerce_amount, _payment_reporting_day,
+                calendar_events=_calendar_events, recent_notifications=_build_recent_notifications)
 
 
 # ============================================================

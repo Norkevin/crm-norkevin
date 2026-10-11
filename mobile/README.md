@@ -1,25 +1,28 @@
 # Flowing para iPhone
 
-Complemento SwiftUI del CRM Flask existente. La preview sin push está firmada e instalada en el iPhone del propietario, quien confirmó que abre. El CRM real en `https://flowingcrm.com` tiene la API móvil activa y push apagado desde el despliegue del 10 de octubre de 2026. Falta aprobar el código con la cuenta Google correcta y comprobar una sesión física con datos reales. No está publicada en App Store.
+Complemento SwiftUI del CRM Flask existente. La preview anterior está instalada en el iPhone y el propietario confirmó sus datos, Teams y la persistencia de cuenta. Este incremento corrige el calendario y la bandeja: está compilado y probado en Simulator; **su publicación en el servidor y su instalación actualizada en el iPhone siguen pendientes**. El CRM real en `https://flowingcrm.com` mantiene la API móvil activa y push apagado. No está publicada en App Store.
 
 - Proyecto: `ios/Flowing.xcodeproj`; scheme compartido `Flowing`; iPhone, iOS 17 o posterior.
 - API: `/api/mobile/`, desactivada por defecto en código; activada expresamente en el CRM real. Datos existentes, sin seeds reales ni escrituras financieras nuevas.
-- Notificaciones: journal persistente, APNs opcional, preferencias y privacidad. Worker manual, separado de correo/workflow.
+- Calendario: misma fuente de la web, reservas, eventos, bloqueos por rango y fechas tentativas; consulta el mes completo sin límite de 50.
+- Notificaciones: cada consulta sincroniza la actividad web existente y nueva en el journal móvil; no necesita worker. APNs permanece opcional y separado.
 - Diagnóstico, arquitectura y pruebas: `../docs/mobile/`.
 
-## Conectar la preview instalada al CRM real
+## Conectar al CRM real para una nueva sesión
 
 1. Abre Flowing en el iPhone. Usa `https://flowingcrm.com` y pulsa **Conectar mi cuenta** para generar el código.
 2. Abre [Conectar iPhone](https://flowingcrm.com/mobile/connect) en el navegador e inicia sesión con la cuenta Google de la empresa correcta.
 3. Comprueba el nombre de la empresa e introduce el código del iPhone. La aprobación usa la sesión del propietario y CSRF.
 4. Vuelve a Flowing y compara una ficha y un importe conocidos con la web. Cierra y vuelve a abrir la app para comprobar que conserva la sesión.
 
-Render confirmó `FLOW_MOBILE_ENABLED=1` y `FLOW_MOBILE_PUSH_ENABLED=0`; el despliegue está Live. Los probes independientes dieron `/login` 200 y `/api/mobile/overview` 401 «Conecta tu cuenta de Flowing.». Esto acredita disponibilidad y rechazo sin bearer, no una sesión física conectada. No se inició el worker móvil: la bandeja requiere reconciliación posterior. Detalles y evidencia: [Conexión al CRM real](../docs/mobile/06-conexion-crm-real.md).
+La sesión actual ya está conectada según la confirmación del propietario; no hace falta repetir estos pasos. Render confirmó `FLOW_MOBILE_ENABLED=1` y `FLOW_MOBILE_PUSH_ENABLED=0`. El despliegue anterior `dep-db5guj740ujc73cfnij0`, revisión `67acfaa` del PR #17, está Live. Los probes independientes dieron `/login` 200 y `/api/mobile/overview` 401 «Conecta tu cuenta de Flowing.»; acreditan disponibilidad y rechazo sin bearer. Esa evidencia corresponde a la versión anterior. Estado de este incremento: [Calendario y bandeja](../docs/mobile/07-calendario-y-bandeja.md). Historial de conexión: [Conexión al CRM real](../docs/mobile/06-conexion-crm-real.md).
+
+Con el nuevo servidor, `GET /api/mobile/notifications` refleja leads, actividad de correo y respuestas de Teams históricos y actuales. Conserva la lectura móvil al actualizar cada aviso; el estado leído de la web solo se usa al insertarlo por primera vez. La consulta no modifica archivos JSON del CRM ni crea entregas push. El worker es necesario únicamente para la reconciliación de eventos destinada a envíos APNs futuros, no para consultar esta bandeja.
 
 ## Comprobar localmente
 
 ```sh
-.venv/bin/python -m pytest -q tests/test_mobile_native.py
+.venv/bin/python -m pytest -q tests/test_mobile_native.py tests/test_mobile_calendar.py tests/test_mobile_inbox_sync.py
 swift run --package-path mobile/ios FlowingContractChecks
 ```
 
@@ -27,21 +30,21 @@ swift run --package-path mobile/ios FlowingContractChecks
 
 1. Revisar `docs/mobile/02-hitos-y-pruebas.md`, usar datos sintéticos y HTTPS. Configurar las variables de `mobile/.env.example` para ese entorno; activar `FLOW_MOBILE_ENABLED=1` y mantener `FLOW_MOBILE_PUSH_ENABLED=0` inicialmente.
 2. Abrir el proyecto en Xcode completo, configurar equipo/firma y confirmar Bundle ID. La app solicita la URL HTTPS del CRM; la conexión usa un código autorizado en `/mobile/connect` con login Google vigente.
-3. Inicializar la reconciliación en el mismo disco persistente: `python tools/run_mobile_worker.py --once`. La primera lectura es baseline y no envía historial.
-4. Para push, instalar `pip install -r mobile/requirements.txt`, guardar claves APNs y Fernet en servidor y habilitar `FLOW_MOBILE_PUSH_ENABLED=1` solo en staging autorizado. Supervisar `python tools/run_mobile_worker.py`.
+3. Conectar y consultar calendario y bandeja sin iniciar el worker. Comparar reservas, bloqueos, tentativas y actividad existente con la web de la misma empresa.
+4. Para una prueba push futura y autorizada, instalar `pip install -r mobile/requirements.txt`, guardar claves APNs y Fernet y preparar el worker en el mismo disco persistente. Su primera lectura establece baseline sin enviar historial. Habilitar `FLOW_MOBILE_PUSH_ENABLED=1` únicamente en ese staging autorizado y supervisar `python tools/run_mobile_worker.py`.
 5. Activar avisos desde el iPhone, enviar prueba propia, cerrar app y registrar evidencia física antes de declarar recepción funcional.
 
 El proyecto original conserva APNs: Debug usa sandbox y entitlement development; Release usa production. La preview instalada usa `com.flowingcrm.mobile.preview`, Personal Team y una copia aislada sin APNs. No acredita recepción push.
 
 ## Reinstalar la preview si hace falta
 
-La instalación y apertura ya están confirmadas. El perfil de la preview expira el **18 de octubre de 2026 a las 03:10:20 UTC** (17 de octubre, 21:10:20 en Guatemala); después hará falta firmarla e instalarla de nuevo.
+La instalación y apertura de la versión anterior ya están confirmadas; la actualización de calendario y bandeja aún está pendiente. La build actual para iOS está firmada con Personal Team y bundle de preview, en la copia aislada. El perfil expira el **18 de octubre de 2026 a las 03:10:20 UTC** (17 de octubre, 21:10:20 en Guatemala); después hará falta firmarla e instalarla de nuevo.
 
 1. Conecta el iPhone al Mac, desbloquéalo y acepta «Confiar» en el teléfono si aparece. Activa Developer Mode si Xcode lo requiere.
 2. En Xcode, abre Settings → Accounts y añade tu Apple Account directamente. No compartas contraseña ni códigos por chat.
 3. Para Personal Team, usa la copia aislada del proyecto y fuentes en `.local/iphone-personal-build`, con `Flowing.entitlements` vacío y bundle `com.flowingcrm.mobile.preview`. Selecciona el equipo en Signing & Capabilities y usa Automatically manage signing. Conserva el proyecto original con APNs.
 4. Selecciona tu iPhone como destino del scheme Flowing y pulsa Run. Completa personalmente las confirmaciones de confianza que solicite iOS.
-5. Abre la preview y sigue **Conectar la preview instalada al CRM real**. El fixture QA en `127.0.0.1:5443` sirve al Simulator del Mac; `localhost` en el teléfono apunta al teléfono y no permite consultarlo.
+5. Abre la preview y sigue **Conectar al CRM real para una nueva sesión** si no conserva la conexión. El fixture QA en `127.0.0.1:5443` sirve al Simulator del Mac; `localhost` en el teléfono apunta al teléfono y no permite consultarlo.
 
 Personal Team rechazó Push Notifications. El override `CODE_SIGN_ENTITLEMENTS=""` no bastó: Xcode seguía leyendo la capacidad del archivo. La instalación aprobada se obtuvo con la copia aislada sin APNs. La capacidad, claves APNs y recepción con app cerrada requieren configuración y prueba independientes. No se ha comprado membresía ni publicado la app.
 
@@ -59,12 +62,12 @@ El icono deriva del asset existente `static/icons/icon-512.png` (F azul sobre bl
 
 `python tools/check_mobile_qa.py <ruta/control.json> --approve-code <código>` autoriza solo el código de la app de prueba con la cuenta ficticia, sin imprimir secretos. El modo normal verifica TLS y recorre conexión por código, aprobación con sesión/CSRF, consultas, gráfica financiera, aislamiento, destino/lectura de avisos y logout. Nunca imprime cookie ni bearer. El certificado debe confiarse solo en un Simulator de prueba creado para este proyecto; no se instaló en el Mac ni en un iPhone real.
 
-Xcode 27 instalado y licencia aceptada por el propietario. Builds aprobadas; estado de pruebas: ver `docs/mobile/05-compilacion-y-qa.md`.
+Xcode 27 instalado y licencia aceptada por el propietario. La build actual de Simulator usa firma local; la build actual iOS usa Personal Team en la preview aislada. Suite completa: 1572 aprobadas y 1 omitida; tras la guardia final del cursor, 36 pruebas específicas aprobadas. Contratos Swift/Foundation: 28 verificaciones. Checker HTTPS sintético aprobado. Alcance y logs en [Calendario y bandeja](../docs/mobile/07-calendario-y-bandeja.md); historial en `docs/mobile/05-compilacion-y-qa.md`.
 
-La prueba nativa usa firma local de Simulator (`CODE_SIGN_IDENTITY=-`). No usar `CODE_SIGNING_ALLOWED=NO` para validar el llavero: abrir la app sin firma no acredita guardar la sesión. Las capturas reales y los límites de la revisión están en `docs/mobile/05-compilacion-y-qa.md`.
+La prueba nativa usa firma local de Simulator (`CODE_SIGN_IDENTITY=-`). No usar `CODE_SIGNING_ALLOWED=NO` para validar el llavero: abrir la app sin firma no acredita guardar la sesión. Las capturas de calendario actualizado son UI nativa ejecutada en claro, oscuro y texto grande; la captura con texto grande acredita solo la agenda visible. Ver [Capturas](../docs/mobile/screenshots/README.md).
 
 ## Teams en la app
 
 Pestaña Teams: coberturas, equipo, horarios, respuestas, conflictos e importes de la misma empresa. Trabajos queda en Inicio y Más. La consulta usa el snapshot y cálculos de Teams existentes, con autorización nativa por bearer; asignaciones, invitaciones y pagos se gestionan en la ficha web. El servidor debe registrar Teams (entrada `wsgi.py`) y habilitarlo; no basta activar la API móvil en un proceso que no registra Teams.
 
-La preview física ya abre y el servidor real está disponible. Sigue pendiente comprobar Teams desde una sesión física autorizada de la empresa correcta; las pruebas sintéticas de Simulator no sustituyen esa comprobación.
+El propietario confirmó que ve Teams y sus datos en la preview física y que conserva la cuenta al reabrir. La comparación de una ficha y un importe con la web, la observación independiente de las vistas y la revisión completa de VoiceOver siguen pendientes. Esta preview permite consultas; las acciones complejas continúan en web y push permanece apagado.

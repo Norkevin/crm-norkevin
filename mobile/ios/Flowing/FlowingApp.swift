@@ -51,12 +51,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                     guard !id.isEmpty, flow.connected else { return }
                     Task { await flow.openNotice(id); bridge.notice = "" }
                 }
-                .onChange(of: phase) { _, state in
-                    if state == .active {
-                        Task {
-                            await flow.refresh()
-                            if flow.connected && !bridge.notice.isEmpty { await flow.openNotice(bridge.notice); bridge.notice = "" }
-                        }
+                .task(id: phase) {
+                    while phase == .active && !Task.isCancelled {
+                        await flow.refresh()
+                        if flow.connected && !bridge.notice.isEmpty { await flow.openNotice(bridge.notice); bridge.notice = "" }
+                        do { try await Task.sleep(for: .seconds(30)) }
+                        catch { break }
                     }
                 }
                 .onChange(of: flow.connected) { _, connected in

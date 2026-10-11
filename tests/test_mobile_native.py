@@ -232,7 +232,8 @@ def test_privacy_persists_and_never_exposes_device_credential(mobile):
     client.post('/api/mobile/device', json={'token': 'c' * 64, 'environment': 'sandbox', 'revision': 0}, headers=headers)
     assert client.post('/api/mobile/device/privacy', json={'hide_details': False}, headers=headers).status_code == 200
     response = client.get('/api/mobile/device', headers=headers)
-    assert response.json == {'push_enabled': True, 'hide_details': False, 'revision': 2}
+    assert response.json == {'push_enabled': True, 'hide_details': False, 'revision': 2,
+                             'server_push_available': False}
     assert 'c' * 64 not in response.get_data(as_text=True)
     assert client.post('/api/mobile/device/privacy', json={'hide_details': 'false'}, headers=headers).status_code == 400
 

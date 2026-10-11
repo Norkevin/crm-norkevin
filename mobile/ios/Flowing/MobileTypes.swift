@@ -9,6 +9,26 @@ public struct CRMRecord: Codable, Identifiable, Hashable {
     public let email: String
     public let phone: String
     public let location: String
+    public let end_date: String?
+    public let event_type: String?
+
+    public var isTentative: Bool { event_type == "lead" || kind == "leads" }
+    public var calendarTypeLabel: String? {
+        switch event_type {
+        case "job": return "Reserva"
+        case "lead": return "Fecha tentativa"
+        case "event": return "Evento"
+        case "block": return "Bloqueo de fechas"
+        default: return nil
+        }
+    }
+
+    public func includes(day: Date) -> Bool {
+        guard let start = MobileURL.weddingDate(date) else { return false }
+        let end = max(start, MobileURL.weddingDate(end_date ?? "") ?? start)
+        let day = MobileCalendar.calendar.startOfDay(for: day)
+        return start <= day && day <= end
+    }
 }
 
 public struct Overview: Decodable {
@@ -42,6 +62,39 @@ public struct Inbox: Decodable {
 public struct RecordPage: Decodable {
     public let records: [CRMRecord]
     public let next_offset: Int?
+}
+
+public struct CalendarPage: Decodable {
+    public let records: [CRMRecord]
+    public let month: String
+}
+
+public enum MobileCalendar {
+    public static var calendar: Calendar {
+        var value = Calendar(identifier: .gregorian)
+        value.locale = Locale(identifier: "es_GT")
+        value.timeZone = TimeZone(identifier: "America/Guatemala")!
+        value.firstWeekday = 2
+        return value
+    }
+
+    public static func monthKey(_ date: Date) -> String {
+        let parts = calendar.dateComponents([.year, .month], from: date)
+        return String(format: "%04d-%02d", parts.year!, parts.month!)
+    }
+
+    public static func days(in month: Date) -> [Date] {
+        guard let start = calendar.dateInterval(of: .month, for: month)?.start,
+              let range = calendar.range(of: .day, in: .month, for: month) else { return [] }
+        return range.compactMap { calendar.date(byAdding: .day, value: $0 - 1, to: start) }
+    }
+
+    public static func rangeLabel(_ record: CRMRecord) -> String? {
+        guard let start = MobileURL.weddingDate(record.date) else { return nil }
+        let label = start.formatted(MobileURL.dayStyle)
+        guard let end = MobileURL.weddingDate(record.end_date ?? ""), end > start else { return label }
+        return label + " al " + end.formatted(MobileURL.dayStyle)
+    }
 }
 
 public struct Payment: Decodable, Identifiable {

@@ -189,8 +189,11 @@ struct RecordRow: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(record.name).font(.body.weight(.medium))
-                if let date = MobileURL.weddingDate(record.date) {
-                    Text(date, format: MobileURL.dayStyle).font(.footnote).foregroundStyle(.secondary)
+                if let date = MobileCalendar.rangeLabel(record) {
+                    Text(date).font(.footnote).foregroundStyle(.primary)
+                }
+                if let type = record.calendarTypeLabel {
+                    Text(type).font(.footnote.weight(.semibold))
                 }
                 if !record.status.isEmpty { Text(record.status).font(.footnote).foregroundStyle(.secondary) }
             }
@@ -257,9 +260,8 @@ struct RecordDetail: View {
             Section {
                 Text(record.name).font(.title2.weight(.semibold))
                 if !record.status.isEmpty { Label(record.status, systemImage: "checkmark.circle") }
-                if let date = MobileURL.weddingDate(record.date) {
-                    Label(date.formatted(MobileURL.dayStyle), systemImage: "calendar")
-                }
+                if let type = record.calendarTypeLabel { Label(type, systemImage: record.isTentative ? "clock" : "calendar.badge.checkmark") }
+                if let date = MobileCalendar.rangeLabel(record) { Label(date, systemImage: "calendar") }
                 if !record.location.isEmpty { Label(record.location, systemImage: "mappin.and.ellipse") }
             }
             if !record.email.isEmpty || !record.phone.isEmpty {
@@ -286,44 +288,150 @@ struct RecordDetail: View {
 
 struct CalendarView: View {
     @EnvironmentObject var flow: FlowSession
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var textSize
     @State private var selected = Date()
     @State private var records: [CRMRecord] = []
     @State private var loading = false
     @State private var loadError: String?
-    private var calendar: Calendar {
-        var value = Calendar(identifier: .gregorian)
-        value.timeZone = TimeZone(identifier: "America/Guatemala")!
-        return value
+    @State private var loadedMonth = ""
+    @State private var latestRequest = UUID()
+    private var calendar: Calendar { MobileCalendar.calendar }
+    private var month: String { MobileCalendar.monthKey(selected) }
+    private var days: [Date] { MobileCalendar.days(in: selected) }
+    private var monthStyle: Date.FormatStyle {
+        Date.FormatStyle(locale: Locale(identifier: "es_GT"), calendar: calendar, timeZone: calendar.timeZone)
+            .month(.wide).year()
     }
     var body: some View {
-        List {
-            DatePicker("Fecha", selection: $selected, displayedComponents: .date)
-                .datePickerStyle(.graphical)
-                .environment(\.timeZone, calendar.timeZone)
-            Section(selected.formatted(MobileURL.dayStyle)) {
-                let events = records.filter { MobileURL.weddingDate($0.date).map { calendar.isDate($0, inSameDayAs: selected) } ?? false }
-                ForEach(events) { record in NavigationLink { RecordDetail(record: record) } label: { RecordRow(record: record) } }
-                if loading { ProgressView("Cargando calendario…") }
-                else if let loadError { Text(loadError); Button("Reintentar") { Task { await load() } } }
-                else if events.isEmpty { Text("No hay eventos para esta fecha.").foregroundStyle(.secondary) }
-            }
-        }.navigationTitle("Calendario").toolbar { InboxButton() }
-            .refreshable { await load() }.task { await load() }
-    }
-    private func load() async {
-        loading = true; loadError = nil
-        defer { loading = false }
-        do {
-            var all: [CRMRecord] = []
-            for kind in ["jobs", "calendar"] {
-                var offset: Int? = 0
-                while let current = offset {
-                    let page: RecordPage = try await flow.call("/api/mobile/records/\(kind)?offset=\(current)")
-                    all.append(contentsOf: page.records); offset = page.next_offset
+        ScrollViewReader { proxy in
+            List {
+                if textSize.isAccessibilitySize { selectedEvents }
+                Section {
+                    VStack(spacing: 16) {
+                        Text(selected.formatted(monthStyle)).font(.title3.weight(.semibold))
+                            .accessibilityAddTraits(.isHeader)
+                        HStack {
+                            Button { changeMonth(-1) } label: { Image(systemName: "chevron.left").frame(minWidth: 44, minHeight: 44) }
+                                .accessibilityLabel("Mes anterior")
+                            Spacer()
+                            Button { selected = Date() } label: { Text("Hoy").frame(minWidth: 44, minHeight: 44) }
+                            Spacer()
+                            Button { changeMonth(1) } label: { Image(systemName: "chevron.right").frame(minWidth: 44, minHeight: 44) }
+                                .accessibilityLabel("Mes siguiente")
+                        }
+                        if textSize.isAccessibilitySize {
+                            VStack(spacing: 4) { ForEach(days, id: \.self) { day in dayButton(day) } }
+                        } else {
+                            ScrollView(.horizontal) {
+                                LazyVGrid(columns: Array(repeating: GridItem(.fixed(44)), count: 7), spacing: 4) {
+                                    ForEach(Array(["L", "M", "M", "J", "V", "S", "D"].enumerated()), id: \.offset) { _, label in
+                                        Text(label).font(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
+                                    }
+                                    if let first = days.first {
+                                        ForEach(0..<((calendar.component(.weekday, from: first) + 5) % 7), id: \.self) { _ in
+                                            Color.clear.frame(width: 44, height: 48).accessibilityHidden(true)
+                                        }
+                                    }
+                                    ForEach(days, id: \.self) { day in dayButton(day) }
+                                }.frame(width: 332)
+                            }.scrollIndicators(.hidden)
+                        }
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 16) { legend }
+                            VStack(alignment: .leading, spacing: 8) { legend }
+                        }.font(.footnote)
+                    }.padding(.vertical, 4)
+                }.listRowInsets(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
+                if !textSize.isAccessibilitySize { selectedEvents }
+            }.navigationTitle("Calendario").toolbar { InboxButton() }
+                .refreshable { await load(month: month) }
+                .task(id: month) { await load(month: month) }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { Task { await load(month: month) } }
                 }
-            }
-            records = all
-        } catch { loadError = error.localizedDescription }
+                .onChange(of: selected) { _, _ in
+                    if textSize.isAccessibilitySize { proxy.scrollTo("calendar-events", anchor: .top) }
+                }
+        }
+    }
+
+    private var selectedEvents: some View {
+        Section(selected.formatted(MobileURL.dayStyle)) {
+            let events = records.filter { $0.includes(day: selected) }
+            ForEach(events, id: \.self) { record in NavigationLink { RecordDetail(record: record) } label: { RecordRow(record: record) } }
+            if loading { ProgressView("Cargando calendario…") }
+            else if let loadError { Text(loadError); Button("Reintentar") { Task { await load(month: month) } } }
+            else if events.isEmpty { Text("No hay reservas, eventos, bloqueos ni fechas tentativas para este día.").foregroundStyle(.secondary) }
+        }.id("calendar-events")
+    }
+
+    @ViewBuilder private var legend: some View {
+        HStack(spacing: 6) { Circle().fill(Color.accentColor).frame(width: 7, height: 7); Text("Fecha ocupada") }
+        HStack(spacing: 6) { Circle().stroke(Color.accentColor, lineWidth: 1.5).frame(width: 7, height: 7); Text("Fecha tentativa") }
+    }
+
+    private func dayButton(_ day: Date) -> some View {
+        let chosen = calendar.isDate(day, inSameDayAs: selected)
+        let events = records.filter { $0.includes(day: day) }
+        let occupied = events.filter { !$0.isTentative }.count
+        let tentative = events.filter(\.isTentative).count
+        let ink = chosen ? Color.white : Color.accentColor
+        return Button { selected = day } label: {
+            Group {
+                if textSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(day, format: MobileURL.dayStyle).font(.body.weight(.semibold))
+                        Text(availability(occupied: occupied, tentative: tentative)).font(.subheadline)
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                } else {
+                    VStack(spacing: 5) {
+                        Text(String(calendar.component(.day, from: day))).font(.body)
+                            .fontWeight(calendar.isDate(day, inSameDayAs: Date()) ? .bold : .regular)
+                        HStack(spacing: 4) {
+                            if occupied > 0 { Circle().fill(ink).frame(width: 6, height: 6) }
+                            if tentative > 0 { Circle().stroke(ink, lineWidth: 1.5).frame(width: 6, height: 6) }
+                        }.frame(height: 8)
+                    }.frame(minWidth: 44, minHeight: 48)
+                }
+            }.foregroundStyle(chosen ? Color.white : Color.primary)
+                .background(chosen ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 10))
+        }.buttonStyle(.plain)
+            .accessibilityLabel(day.formatted(MobileURL.dayStyle) + ", " + availability(occupied: occupied, tentative: tentative))
+            .accessibilityHint("Muestra los eventos de esta fecha.")
+            .accessibilityAddTraits(chosen ? .isSelected : [])
+    }
+
+    private func availability(occupied: Int, tentative: Int) -> String {
+        if loadError != nil { return "Disponibilidad sin cargar" }
+        if loading || loadedMonth != month { return "Cargando disponibilidad" }
+        var parts: [String] = []
+        if occupied > 0 { parts.append("Ocupado: \(occupied) \(occupied == 1 ? "evento o bloqueo" : "eventos o bloqueos")") }
+        if tentative > 0 { parts.append("\(tentative) \(tentative == 1 ? "fecha tentativa" : "fechas tentativas")") }
+        return parts.isEmpty ? "Sin fechas apartadas" : parts.joined(separator: ", ")
+    }
+
+    private func changeMonth(_ offset: Int) {
+        if let start = calendar.dateInterval(of: .month, for: selected)?.start,
+           let next = calendar.date(byAdding: .month, value: offset, to: start) { selected = next }
+    }
+
+    private func load(month requestedMonth: String) async {
+        let request = UUID()
+        latestRequest = request
+        if loadedMonth != requestedMonth { records = [] }
+        loading = true; loadError = nil
+        defer { if latestRequest == request { loading = false } }
+        do {
+            let page: CalendarPage = try await flow.call("/api/mobile/calendar?month=\(requestedMonth)")
+            guard latestRequest == request, !Task.isCancelled, month == requestedMonth else { return }
+            guard page.month == requestedMonth else { throw FlowError.message("El servidor devolvió otro mes. Vuelve a cargar el calendario.") }
+            records = page.records; loadedMonth = requestedMonth
+        } catch is CancellationError { }
+        catch {
+            guard latestRequest == request, month == requestedMonth else { return }
+            records = []; loadError = error.localizedDescription
+        }
     }
 }
 
@@ -429,12 +537,24 @@ struct NotificationSettings: View {
     let kinds = [("lead", "Leads nuevos"), ("payment", "Pagos registrados"), ("wedding", "Bodas próximas"), ("teams", "Respuestas de Teams"), ("mail", "Correos no entregados")]
     var body: some View {
         Form {
+            Section("Bandeja de Flowing") {
+                Text("Los avisos de tu empresa se sincronizan al abrir la app y al actualizar la bandeja.")
+                NavigationLink("Ver mis notificaciones") { NoticeView() }
+            }
             Section {
+                LabeledContent("Avisos con la app cerrada", value: flow.pushAvailable ? (flow.pushActive ? "Activados" : "Desactivados") : "Sin habilitar")
                 Toggle("Ocultar detalles en pantalla bloqueada", isOn: Binding(get: { flow.hideDetails }, set: { value in Task { await flow.privacy(value) } }))
                 Button(flow.pushActive ? "Actualizar permiso y privacidad" : "Activar notificaciones") { Task { await flow.enablePush() } }
+                    .disabled(!flow.pushAvailable)
                 Button("Enviar prueba a este iPhone") { Task { await flow.pushTest() } }
+                    .disabled(!flow.pushAvailable || !flow.pushActive)
                 Button("Desactivar avisos en este iPhone", role: .destructive) { Task { await flow.disablePush() } }
-            } header: { Text("Este iPhone") } footer: { Text("Activa los avisos y prueba la recepción con la aplicación cerrada. Los avisos se conservan en la bandeja aunque desactives push.") }
+                    .disabled(!flow.pushActive)
+            } header: { Text("Este iPhone") } footer: {
+                Text(flow.pushAvailable
+                    ? "Activa los avisos y prueba la recepción con la aplicación cerrada. La bandeja conserva tus avisos aunque desactives push."
+                    : "La bandeja funciona. Los avisos en pantalla bloqueada requieren habilitar push en el servidor y una versión del iPhone firmada para recibirlos.")
+            }
             Section("Tipos de aviso") {
                 ForEach(kinds, id: \.0) { kind, label in
                     Toggle(label, isOn: Binding(get: { flow.preferences[kind] ?? true }, set: { value in Task { await flow.preference(kind, enabled: value) } }))

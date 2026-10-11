@@ -3,6 +3,8 @@ import argparse
 import json
 import re
 import ssl
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
@@ -50,6 +52,12 @@ def main():
     assert len(overview['monthly_paid']) == 12 and sum(overview['monthly_paid']) == overview['paid']
     for kind in ('clients', 'jobs', 'calendar'):
         assert json.loads(send('/api/mobile/records/' + kind, token=token)[0])['records']
+    month = (datetime.now(ZoneInfo('America/Guatemala')) + timedelta(days=3)).strftime('%Y-%m')
+    calendar = json.loads(send('/api/mobile/calendar?month=' + month, token=token)[0])
+    assert calendar['month'] == month
+    block = next(record for record in calendar['records'] if record['id'] == 'qa-block')
+    assert block['event_type'] == 'block' and block['date'] < block['end_date']
+    assert all(record['id'] != 'qa-released' for record in calendar['records'])
     assert json.loads(send('/api/mobile/payments', token=token)[0])['summary']['paid'] == overview['paid']
     teams = json.loads(send('/api/mobile/teams', token=token)[0])
     assert teams['enabled'] and len(teams['members']) == 2
