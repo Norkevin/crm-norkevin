@@ -42,7 +42,7 @@ Después se añadió únicamente `FLOW_WEB_PUSH_ENABLED=1` en el panel. `FLOW_MO
 
 Probes sin credenciales después de publicar: `/login` HTTP 200 y `/api/web-push/status` HTTP 401 «Sesion expirada, inicia sesion de nuevo». Son comprobaciones de disponibilidad y protección. La campana real de la sesión autenticada mostró el estado disponible y el botón Activar habilitado; no se solicitaron permisos ni se suscribió ese navegador de revisión.
 
-El propietario ya confirmó que la web instalada abre con sus datos reales. Se le dieron los pasos de cerrar/reabrir desde el icono, activar en la campana, Permitir en iPhone y enviar una prueba propia antes de cerrar la web. **Recepción física todavía pendiente de su respuesta.** Los tests con proveedor ficticio y un HTTP 2xx de un proveedor no sustituyen esa comprobación.
+El propietario confirmó que la web instalada abre con sus datos reales. El 11 de octubre de 2026, después de indicarle que activara el permiso, enviara una prueba propia y cerrara Flowing Web, respondió «si notifica». **Recepción de la prueba en su iPhone confirmada por el propietario.** Esta evidencia completa la comprobación de entrega de esa prueba; no acredita cada tipo de evento del CRM ni APNs de la app nativa. Los tests con proveedor ficticio y un HTTP 2xx de un proveedor no sustituyen la confirmación física.
 
 El fixture ficticio se cerró al finalizar la revisión. La preparación pagada de App Store continúa aplazada; este incremento no requiere esa membresía ni cambia el vencimiento de la preview nativa.
 
