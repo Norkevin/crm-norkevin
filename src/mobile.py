@@ -63,6 +63,9 @@ class MobileJournal:
                     next_attempt REAL NOT NULL DEFAULT 0, error TEXT,
                     PRIMARY KEY(notification_id, session_hash));
             ''')
+            notice_columns = {r['name'] for r in db.execute('PRAGMA table_info(notifications)')}
+            if 'hidden' not in notice_columns:
+                db.execute('ALTER TABLE notifications ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0')
             columns = {r['name'] for r in db.execute('PRAGMA table_info(sessions)')}
             if 'device_revision' not in columns:
                 db.execute('ALTER TABLE sessions ADD COLUMN device_revision INTEGER NOT NULL DEFAULT 0')
@@ -86,6 +89,11 @@ class MobileJournal:
     def observe(self, tenant_id, recipient, events):
         """First scan is a baseline. Repeated source events cannot duplicate an alert."""
         with self.transaction() as db:
+            # Reconcile legacy activity even while the phone is closed, before computing push badges.
+            db.execute("UPDATE notifications SET hidden=1 WHERE tenant_id=? AND recipient=? AND kind='mail'",
+                       (tenant_id, recipient))
+            db.executemany("UPDATE notifications SET hidden=0 WHERE tenant_id=? AND recipient=? AND event_key=?",
+                           [(tenant_id, recipient, event['key']) for event in events if event['kind'] == 'mail'])
             initialized = db.execute('SELECT 1 FROM baselines WHERE tenant_id=?', (tenant_id,)).fetchone()
             for event in events:
                 added = db.execute('INSERT OR IGNORE INTO observed VALUES (?,?)',
@@ -96,7 +104,7 @@ class MobileJournal:
                                   (tenant_id, recipient, event['kind'])).fetchone()
                 # Preferences control pushes; the persistent inbox remains complete.
                 nid = digest(tenant_id + ':' + recipient + ':' + event['key'])
-                db.execute('INSERT OR IGNORE INTO notifications VALUES (?,?,?,?,?,?,?,?,?,NULL)',
+                db.execute('INSERT OR IGNORE INTO notifications (id,tenant_id,recipient,event_key,kind,title,target_table,target_id,created,read_at) VALUES (?,?,?,?,?,?,?,?,?,NULL)',
                            (nid, tenant_id, recipient, event['key'], event['kind'], event['title'],
                             event['table'], event['id'], time.time()))
                 if not pref or pref['enabled']:
@@ -109,12 +117,16 @@ class MobileJournal:
     def sync_inbox(self, tenant_id, recipient, events):
         """Mirror the web inbox without enrolling historical activity for push."""
         with self.transaction() as db:
+            # Retain old inbox records for audit, but only actionable mail belongs in the inbox.
+            db.execute("UPDATE notifications SET hidden=1 WHERE tenant_id=? AND recipient=? AND kind='mail'",
+                       (tenant_id, recipient))
             for event in sorted(events, key=lambda item: item['created']):
                 nid = digest(tenant_id + ':' + recipient + ':' + event['key'])
-                db.execute('''INSERT INTO notifications VALUES (?,?,?,?,?,?,?,?,?,?)
+                db.execute('''INSERT INTO notifications (id,tenant_id,recipient,event_key,kind,title,target_table,target_id,created,read_at) VALUES (?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(tenant_id,recipient,event_key) DO UPDATE SET
                     title=excluded.title,target_table=excluded.target_table,
-                    target_id=excluded.target_id,created=excluded.created''',
+                    target_id=excluded.target_id,created=excluded.created,hidden=0,
+                    read_at=COALESCE(notifications.read_at,excluded.read_at)''',
                            (nid, tenant_id, recipient, event['key'], event['kind'], event['title'][:240],
                             event['table'], event['id'], event['created'],
                             event['created'] if event['read'] else None))
@@ -412,19 +424,12 @@ def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billa
         if recent_notifications:
             me = identity()
             events = []
-            for item in recent_notifications(me['tenant_id'], limit=None):
+            for item in recent_notifications(me['tenant_id'], limit=None, strict=True):
                 match = re.fullmatch(r'/(leads|jobs|teams/jobs)/([^/?#]+)', item.get('url', ''))
                 if not match or item.get('type') not in ('lead', 'mail', 'teams'):
                     continue
                 kind = 'leads' if match[1] == 'leads' else 'jobs'
                 identifier = match[2]
-                if kind == 'jobs':
-                    from src.linked_coverages import resolve_job
-                    target = resolve_job(store, identifier)
-                else:
-                    target = store.get(kind, identifier)
-                if not target:
-                    continue
                 prefix = {'lead': 'lead-', 'mail': 'mail-', 'teams': 'teams-response-'}[item['type']]
                 if not item['id'].startswith(prefix):
                     continue
@@ -437,14 +442,14 @@ def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billa
             tenant, recipient = scoped(db)
             # The row cursor also anchors the source time, so updated mail rises
             # to the top without skipping pages with identical timestamps.
-            cursor = db.execute('SELECT created FROM notifications WHERE tenant_id=? AND recipient=? AND rowid=?',
+            cursor = db.execute('SELECT created FROM notifications WHERE tenant_id=? AND recipient=? AND hidden=0 AND rowid=?',
                                 (tenant, recipient, before)).fetchone()
             cutoff = cursor['created'] if cursor else float('-inf') if 'before' in request.args else float('inf')
-            rows = db.execute('''SELECT rowid AS cursor,* FROM notifications WHERE tenant_id=? AND recipient=?
+            rows = db.execute('''SELECT rowid AS cursor,* FROM notifications WHERE tenant_id=? AND recipient=? AND hidden=0
                 AND (created<? OR (created=? AND rowid<?)) AND (?=0 OR read_at IS NULL)
                 ORDER BY created DESC,rowid DESC LIMIT 51''',
                               (tenant, recipient, cutoff, cutoff, before, unread)).fetchall()
-            count = db.execute('SELECT COUNT(*) FROM notifications WHERE tenant_id=? AND recipient=? AND read_at IS NULL',
+            count = db.execute('SELECT COUNT(*) FROM notifications WHERE tenant_id=? AND recipient=? AND hidden=0 AND read_at IS NULL',
                                (tenant, recipient)).fetchone()[0]
         notices = [dict(id=r['id'], kind=r['kind'], title=r['title'], created=r['created'],
                         read=r['read_at'] is not None, target_kind=r['target_table'], target_id=r['target_id']) for r in rows[:50]]
@@ -523,12 +528,23 @@ def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billa
         ids = data().get('ids')
         if not isinstance(ids, list) or len(ids) > 100 or not all(isinstance(i, str) for i in ids):
             abort(400)
+        web_ids = []
         with journal(app, store).transaction() as db:
             tenant, recipient = scoped(db)
-            for nid in ids:
-                if not db.execute('SELECT 1 FROM notifications WHERE id=? AND tenant_id=? AND recipient=?', (nid, tenant, recipient)).fetchone():
+            for nid in set(ids):
+                row = db.execute('SELECT event_key FROM notifications WHERE id=? AND tenant_id=? AND recipient=? AND hidden=0',
+                                 (nid, tenant, recipient)).fetchone()
+                if not row:
                     abort(404)
+                prefix, _, identifier = row['event_key'].partition(':')
+                web_prefix = {'lead': 'lead-', 'mail-alert': 'mail-', 'teams': 'teams-response-'}.get(prefix)
+                if web_prefix:
+                    web_ids.append(web_prefix + identifier)
                 db.execute('UPDATE notifications SET read_at=COALESCE(read_at,?) WHERE id=?', (time.time(), nid))
+        # Monotonic, idempotent read markers shared with the web; bearer determines the tenant.
+        for notification_id in web_ids:
+            store.upsert('notification_reads', dict(id=f'{tenant}:{notification_id}', tenant_id=tenant,
+                         notification_id=notification_id, read_at=datetime.now().isoformat()))
         return jsonify(ok=True)
 
     @bp.route('/api/mobile/preferences', methods=['GET', 'POST'])
@@ -607,7 +623,7 @@ def register_mobile(app, store, open_leads, canonical_jobs, job_is_active, billa
                 return jsonify(error='Espera un minuto antes de otra prueba.'), 429
             nid = secrets.token_hex(16)
             db.execute('UPDATE sessions SET last_test=? WHERE token_hash=?', (time.time(), me['token_hash']))
-            db.execute('INSERT INTO notifications VALUES (?,?,?,?,?,?,?,?,?,NULL)',
+            db.execute('INSERT INTO notifications (id,tenant_id,recipient,event_key,kind,title,target_table,target_id,created,read_at) VALUES (?,?,?,?,?,?,?,?,?,NULL)',
                        (nid, me['tenant_id'], me['recipient'], 'test:' + nid, 'test', 'Tu prueba de Flowing', None, None, time.time()))
             db.execute('INSERT INTO deliveries(notification_id,session_hash) VALUES (?,?)', (nid, me['token_hash']))
         return jsonify(ok=True, status='queued')

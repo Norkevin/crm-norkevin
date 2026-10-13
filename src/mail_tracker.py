@@ -543,7 +543,7 @@ class MailTracker:
             attachments=pendiente.get('attachments') or [],
             tenant_id=actual,
             idempotency_key=pendiente.get('idempotency_key'),
-            html_body=pendiente.get('html_body'),
+            html_body=pendiente.get('html_body'), source=pendiente.get('source'),
         )
         ok = enviado.get('status') == MailStatus.SENT.value
         # Si el correo no salio, distinguir POR QUE: si mail_tracker lo
@@ -640,7 +640,7 @@ class MailTracker:
 
     def log_email(self, to_email, subject, body='', template_id=None,
                   lead_id=None, job_id=None, attachments=None, tenant_id=None,
-                  idempotency_key=None, html_body=None):
+                  idempotency_key=None, html_body=None, source=None):
         """Entrega y registra un email.
 
         tenant_id explicito: mail_log es tenant-scoped, y store.upsert()
@@ -688,6 +688,7 @@ class MailTracker:
                 'job_id': job_id,
                 'attachments': attachments or [],
                 'idempotency_key': idempotency_key,
+                'source': source or 'desconocido',
                 'status': MailStatus.BLOCKED.value,
                 'blocked_reason': motivo,
                 'sent_at': datetime.now().isoformat(),
@@ -728,6 +729,7 @@ class MailTracker:
             'job_id': job_id,
             'attachments': attachments or [],
             'idempotency_key': idempotency_key,
+            'source': source or 'desconocido',
             'status': MailStatus.SENT.value if delivery.ok else MailStatus.FAILED.value,
             'attempted_at': datetime.now().isoformat(),
             'sent_at': datetime.now().isoformat() if delivery.ok else '',

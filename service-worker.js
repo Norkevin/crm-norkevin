@@ -86,6 +86,10 @@ self.addEventListener('push', function (event) {
     badge: '/static/icons/icon-192.png',
     tag: identifier ? 'flowing-' + identifier.slice(0, 32) : 'flowing-activity',
     data: {url: hidden ? '/notifications' : safeNotificationURL(payload.url)}
+  }).then(function () {
+    return self.clients.matchAll({type: 'window', includeUncontrolled: true}).then(function (clients) {
+      clients.forEach(function (client) { client.postMessage({type: 'FLOW_NOTIFICATIONS_CHANGED'}); });
+    });
   }).catch(function () { /* Browser permission or shutdown can prevent delivery; never log private payloads. */ }));
 });
 

@@ -939,11 +939,17 @@ def _date_conflict_detail(record, kind):
 
 def _lead_date_conflicts(lead, jobs=None):
     """Active jobs and unreleased blocks reserve dates only in this account."""
+    if not lead.get('tenant_id') or not _parse_iso_day(lead.get('fecha_tentativa') or lead.get('fecha_evento')):
+        return []
+    return _lead_date_conflicts_in(lead, _canonical_jobs(jobs), list_calendar())
+
+
+def _lead_date_conflicts_in(lead, jobs, blocks):
     event_date = _parse_iso_day(lead.get('fecha_tentativa') or lead.get('fecha_evento'))
     if not event_date or not lead.get('tenant_id'):
         return []
     conflicts = []
-    for job in _canonical_jobs(jobs):
+    for job in jobs:
         if (job.get('tenant_id') != lead['tenant_id'] or job.get('lead_id') == lead.get('id')
                 or job.get('id') in (lead.get('lead_id_job'), lead.get('job_id'))
                 or str(job.get('status') or '').strip().lower() in
@@ -953,7 +959,7 @@ def _lead_date_conflicts(lead, jobs=None):
         end = _parse_iso_day(job.get('end_date')) or start
         if start and start <= event_date <= end:
             conflicts.append(job)
-    for block in list_calendar():
+    for block in blocks:
         if (block.get('tenant_id') != lead['tenant_id'] or block.get('type') != 'block'
                 or block.get('released_at')):
             continue
@@ -1342,15 +1348,16 @@ def _lead_is_converted(lead, jobs_cache=None):
     return bool(_converted_job_for_lead(lead, jobs_cache))
 
 
-def _lead_is_open(lead):
+def _lead_is_open(lead, jobs_cache=None):
     status = str(lead.get('status') or lead.get('estado') or '').strip().lower()
     if status in {'convertido', 'converted', 'perdido', 'lost', 'archivado', 'archived'}:
         return False
-    return not _lead_is_converted(lead)
+    return not _lead_is_converted(lead, jobs_cache)
 
 
 def _open_leads(tenant_id=None):
-    return [lead for lead in list_leads(tenant_id) if _lead_is_open(lead)]
+    jobs = list_jobs(tenant_id)
+    return [lead for lead in list_leads(tenant_id) if _lead_is_open(lead, jobs)]
 
 
 def _job_canonical_score(job, lead=None):
@@ -1375,9 +1382,9 @@ def _job_canonical_score(job, lead=None):
     return (score, str(job.get('created') or ''), str(job.get('id') or ''))
 
 
-def _canonical_jobs(jobs=None):
+def _canonical_jobs(jobs=None, *, leads=None):
     jobs = list(jobs) if jobs is not None else list_jobs()
-    leads_by_id = {lead.get('id'): lead for lead in list_leads()}
+    leads_by_id = {lead.get('id'): lead for lead in (list_leads() if leads is None else leads)}
     by_lead = {}
     without_lead = []
     for job in jobs:
@@ -1939,6 +1946,11 @@ def _build_recent_notifications(tenant_id, limit=5, *, strict=False):
     completo: un error de lectura no equivale a borrar los eventos."""
     recent_notifications = []
     try:
+        leads = {row['id']: row for row in store.list('leads') if _same_tenant_or_legacy(row, tenant_id)}
+        jobs = {row['id']: row for row in store.list('jobs') if _same_tenant_or_legacy(row, tenant_id)}
+        jobs_list = list(jobs.values())
+        canonical_jobs = _canonical_jobs(jobs_list, leads=leads.values())
+        blocks = store.list('calendar')
         arrivals = {}
         for notice in store.list('pending_emails'):
             if notice.get('source') == 'auto:new-lead-notify' and notice.get('created_at') and notice.get('tenant_id') == tenant_id:
@@ -1947,7 +1959,7 @@ def _build_recent_notifications(tenant_id, limit=5, *, strict=False):
                 if lead_id not in arrivals or moment['timestamp'] < arrivals[lead_id]['timestamp']:
                     arrivals[lead_id] = moment
         latest_leads = sorted(
-            _open_leads(tenant_id),
+            [lead for lead in leads.values() if _lead_is_open(lead, jobs_list) and not lead.get('studio_ninja_source_id')],
             key=lambda lead: str(lead.get('created') or lead.get('updated') or ''),
             reverse=True
         )
@@ -1956,36 +1968,31 @@ def _build_recent_notifications(tenant_id, limit=5, *, strict=False):
             recent_notifications.append({
                 'id': f"lead-{lead.get('id')}",
                 'type': 'lead',
-                'title': f'Nuevo lead: {name}' + (' · Fecha ocupada: ' + _format_date_es(lead.get('fecha_tentativa') or lead.get('fecha_evento')) if _lead_date_conflicts(lead) else ''),
+                'title': f'Nuevo lead: {name}' + (' · Fecha ocupada: ' + _format_date_es(lead.get('fecha_tentativa') or lead.get('fecha_evento')) if _lead_date_conflicts_in(lead, canonical_jobs, blocks) else ''),
                 **(_notification_moment(lead.get('created'), lead.get('created_time')) if lead.get('created_time') or len(str(lead.get('created') or '')) > 10 else arrivals.get(lead.get('id'), _notification_moment(lead.get('created')))),
                 'age': lead.get('age') or '',
                 'url': f"/leads/{lead.get('id')}",
             })
 
-        mail_candidates = []
-        for m in store.list('mail_log'):
-            lead = get_lead(m.get('lead_id', '')) if m.get('lead_id') else None
-            job = get_job(m.get('job_id', '')) if m.get('job_id') else None
-            if not lead and not job:
-                continue  # el lead/job fue borrado -- no mostrar un link muerto
-            if not _same_tenant_or_legacy(lead or job, tenant_id):
+        # Successful outgoing mail (including internal backup) is activity, not an alert.
+        # There is no incoming-reply source here; opens/clicks are not replies.
+        for mail in store.list('mail_log'):
+            if not _same_tenant_or_legacy(mail, tenant_id):
                 continue
-            mail_url = f"/leads/{lead['id']}" if lead else f"/jobs/{job['id']}"
-            mail_candidates.append(dict(m, notification_url=mail_url))
-        latest_mail = sorted(
-            mail_candidates,
-            key=lambda mail: str(mail.get('sent_at') or mail.get('opened_at') or ''),
-            reverse=True
-        )
-        for mail in latest_mail:
+            if mail.get('status') not in ('failed', 'blocked') and not mail.get('bounced_at'):
+                continue
+            lead = leads.get(mail.get('lead_id'))
+            job = jobs.get(mail.get('job_id'))
+            if not lead and not job:
+                continue
             recent_notifications.append({
                 'id': f"mail-{mail.get('id')}",
                 'type': 'mail',
-                'title': f"Actividad de correo: {mail.get('subject') or 'Correo'}",
-                'alert': mail.get('status') in ('failed', 'blocked') or bool(mail.get('bounced_at')),
-                **_notification_moment(max((str(mail.get(key)) for key in ('sent_at', 'opened_at', 'clicked_at', 'bounced_at', 'attempted_at', 'created_at') if mail.get(key)), key=lambda value: _notification_moment(value)['timestamp'], default='')),
+                'title': f"Correo no entregado: {mail.get('subject') or 'Correo'}",
+                'alert': True,
+                **_notification_moment(mail.get('bounced_at') or mail.get('attempted_at') or mail.get('sent_at') or mail.get('created_at')),
                 'age': '',
-                'url': mail['notification_url'],
+                'url': f"/leads/{lead['id']}" if lead else f"/jobs/{job['id']}",
             })
     except Exception:
         if strict:
@@ -2015,7 +2022,8 @@ def inject_tenant():
     current = next((t for t in tenants if t['id'] == tenant_id), None) or {
         'id': None, 'name': 'Flow CRM', 'color': '#2F7D73', 'logo_letter': 'F',
     }
-    recent_notifications = _build_recent_notifications(tenant_id) if tenant_id else []
+    notifications = _build_recent_notifications(tenant_id, limit=None) if tenant_id else []
+    recent_notifications = notifications if request.path == '/notifications' else notifications[:5]
 
     from src import gmail_delivery
     try:
@@ -2031,7 +2039,7 @@ def inject_tenant():
         # otras 2 cuentas.
         'all_tenants': [current] if current.get('id') else [],
         'recent_notifications': recent_notifications,
-        'unread_notifications_count': sum(not n['read'] for n in recent_notifications),
+        'unread_notifications_count': sum(not n['read'] for n in notifications),
         'gmail_connected': gmail_connected,
     }
 
@@ -2042,8 +2050,23 @@ def api_notifications_recent():
     y al abrirla, para que un lead nuevo se vea reflejado sin recargar."""
     tenant_id = get_current_tenant_id()
     notifications = _build_recent_notifications(tenant_id, limit=None) if tenant_id else []
-    return jsonify({'ok': True, 'notifications': notifications,
-                    'count': sum(not n['read'] for n in notifications)})
+    count = sum(not n['read'] for n in notifications)
+    filter_by = request.args.get('filter', 'all')
+    if filter_by == 'unread':
+        notifications = [n for n in notifications if not n['read']]
+    elif filter_by == 'alerts':
+        notifications = [n for n in notifications if n.get('alert')]
+    if 'limit' in request.args:
+        try:
+            limit = int(request.args['limit'])
+        except ValueError:
+            return jsonify(ok=False), 400
+        if not 1 <= limit <= 100:
+            return jsonify(ok=False), 400
+        notifications = notifications[:limit]
+    response = jsonify(ok=True, notifications=notifications, count=count)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @app.route('/notifications')
@@ -2056,9 +2079,12 @@ def api_notifications_read():
     tenant_id = get_current_tenant_id()
     data = request.get_json(silent=True) or {}
     ids = data.get('ids') if isinstance(data, dict) else None
+    notifications = _build_recent_notifications(tenant_id, limit=None)
+    if isinstance(data, dict) and data.get('all') is True:
+        ids = [n['id'] for n in notifications if not n['read']]
     if not isinstance(ids, list) or not all(isinstance(n, str) for n in ids):
         return jsonify({'ok': False, 'error': 'Notificaciones inválidas'}), 400
-    available = {n['id'] for n in _build_recent_notifications(tenant_id, limit=None)}
+    available = {n['id'] for n in notifications}
     if any(n not in available for n in ids):
         return jsonify({'ok': False, 'error': 'Notificación no disponible'}), 404
     for notification_id in set(ids):
