@@ -15,7 +15,7 @@
   <p>{{ travel.reason }}</p>
   {% if lead.date_conflict_details %}<p>La respuesta de fecha no disponible conserva la prioridad. Esta clasificación no agrega viáticos a la recomendación de Astral.</p>
   {% elif travel_settings is defined and not travel_settings.enabled %}<p>La incorporación de viáticos al correo está desactivada para esta marca.</p>
-  {% elif travel.requires_review %}<p>El correo de paquetes se conserva como borrador. Resuelve la ubicación y vuelve a prepararlo antes de enviarlo.</p>{% endif %}
+  {% elif travel.requires_review %}<p>La ubicación puede revisarse después. El correo de paquetes se envía normal, sin importes de viáticos y con la nota de posibles cargos adicionales.</p>{% endif %}
   <div class="lead-travel-actions"><a class="sn-btn sn-btn-sm" href="/settings/travel{{ '#travel-reviews' if travel.requires_review else '#travel-catalog' }}">{{ 'Revisar ubicación' if travel.requires_review else 'Ver catálogo' }}</a>{% if travel.requires_review %}<button type="button" class="sn-btn sn-btn-sm" onclick="researchLeadTravel(this)">Buscar coincidencias</button>{% endif %}</div>
   {% if travel.requires_review %}<p>La búsqueda geográfica utiliza datos de <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors (ODbL)</a>. Las coincidencias externas requieren verificación.</p>{% endif %}
   <p id="lead-travel-status" role="status" aria-live="polite"></p>
