@@ -1,8 +1,10 @@
 """Private collaborator portal with independent, scoped member authentication."""
 import base64
+import calendar
 import hashlib
 import json
-from datetime import datetime, timedelta, timezone
+import re
+from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 import secrets
 
@@ -10,9 +12,60 @@ from itsdangerous import URLSafeSerializer, BadData
 
 from flask import Blueprint, abort, g, jsonify, redirect, render_template, request, send_file, session, url_for
 
-from src.teams import LOCAL_ZONE, TeamsError, now, text, teams_zone, payment_deadline, assignment_trip, teams_date
+from src.teams import LOCAL_ZONE, MONTHS_ES, TeamsError, now, text, teams_zone, payment_deadline, assignment_trip, teams_date
 from src.teams_features import VISIBLE_ASSIGNMENTS, advance_balance, cost_amount, document_visible, file_fields, MAX_FILE_BYTES
 from src.teams_shared import peers, shared_brands
+
+
+def wedding_name(name):
+    """Remove intake-source labels only in the portal's presentation."""
+    return re.sub(r'\s*\(FORMULARIO DE CONTACTO[^)]*\)', '', name or '', flags=re.IGNORECASE).strip() or 'Boda sin nombre'
+
+
+def wedding_agenda(weddings, today, args):
+    view = args.get('view', 'list')
+    period = args.get('period', 'all')
+    query = args.get('q', '').strip()[:200]
+    if view not in ('list', 'calendar') or period not in ('all', 'upcoming', 'past'):
+        abort(400)
+    month = args.get('month') or today[:7]
+    try:
+        first = date.fromisoformat(month + '-01')
+        if not re.fullmatch(r'\d{4}-\d{2}', month) or not 1901 <= first.year <= 9998:
+            raise ValueError
+        selected = date.fromisoformat(args['day']) if args.get('day') else None
+        if selected and selected.isoformat()[:7] != month:
+            raise ValueError
+    except (ValueError, TypeError):
+        abort(400)
+    upcoming = [j for j in weddings if j['reserved'] and j['last_day'] >= today]
+    past = [j for j in weddings if j['day'] and j['last_day'] < today]
+    filtered = upcoming if period == 'upcoming' else past if period == 'past' else weddings
+    filtered = [j for j in filtered if query.casefold() in ' '.join([j['display_name'], j['location'], *j['roles']]).casefold()]
+    # Calendar dates include the member's required travel, separately labeled below.
+    weeks = []
+    for week in calendar.Calendar(firstweekday=0).monthdatescalendar(first.year, first.month):
+        cells = []
+        for day in week:
+            iso = day.isoformat()
+            events = [dict(j, travel=not (j['day'] <= iso <= j['event_end'])) for j in filtered
+                      if j['reserved'] and any(start <= iso <= end for start, end in j['reserved_ranges'])]
+            cells.append(dict(day=iso, number=day.day, in_month=day.month == first.month, events=events))
+        weeks.append(cells)
+    month_events = [cell for week in weeks for cell in week if cell['in_month'] and cell['events']]
+    if selected is None:
+        selected_day = next((cell['day'] for cell in month_events if cell['day'] >= today),
+                            month_events[0]['day'] if month_events else first.isoformat())
+    else:
+        selected_day = selected.isoformat()
+    selected_events = next(cell['events'] for week in weeks for cell in week if cell['day'] == selected_day)
+    return dict(view=view, period=period, query=query, weddings=filtered, upcoming_count=len(upcoming),
+                month=month, month_label=f'{MONTHS_ES[first.month - 1].capitalize()} {first.year}',
+                previous_month=(first - timedelta(days=1)).isoformat()[:7],
+                next_month=(first + timedelta(days=32)).replace(day=1).isoformat()[:7],
+                today=today, today_month=today[:7], weeks=weeks, selected_day=selected_day,
+                selected_events=selected_events, month_count=len({j['id'] for cell in month_events for j in cell['events']}),
+                next_wedding=upcoming[0] if upcoming else None)
 
 
 def calendar_text(assignments, jobs):
@@ -60,6 +113,7 @@ def calendar_text(assignments, jobs):
 
 
 def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
+    app.jinja_env.filters['teams_wedding_name'] = wedding_name
     portal = Blueprint('teams_portal', __name__, url_prefix='/teams-portal')
     entry = Blueprint('teams_entry', __name__)
     original_resolver = crm_store.tenant_resolver
@@ -334,7 +388,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             raise TeamsError('Cobertura no disponible.', 404)
         return job
 
-    def state(by_wedding=False):
+    def state():
         tenant, member = g.teams_portal_tenant, g.teams_member
         with store.transaction() as db:
             assignments = [a for a in store.records(db, tenant, 'assignment') if a['member_id'] == member['id'] and a['status'] in VISIBLE_ASSIGNMENTS]
@@ -350,17 +404,34 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                          and (not c.get('assignment_id') or c['assignment_id'] in published)]
             all_advances = [a for a in store.records(db, tenant, 'advance') if a['member_id'] == member['id']]
             accessible_ids = job_ids | {c['job_id'] for c in cost_rows} | {a['job_id'] for a in all_advances}
+            today = datetime.now(teams_zone(crm_store, tenant)).date().isoformat()
+            travel_plans = store.records(db, tenant, 'travel')
             wedding_options = []
             for identifier in accessible_ids:
                 job = read_job(identifier)
-                wedding_options.append(dict(id=identifier, name=job.get('nombre'), day=job.get('boda_date') or ''))
-            today = datetime.now(teams_zone(crm_store, tenant)).date().isoformat()
+                own = [a for a in assignments if a['job_id'] == identifier]
+                day = job.get('boda_date') or ''
+                event_end = max(day, job.get('end_date') or day)
+                ranges = [(day, event_end)] if day else []
+                trips = [assignment_trip(a, travel_plans) for a in own]
+                ranges.extend((trip['departure'], trip['return_date']) for trip in trips if trip and trip['response'] != 'wedding_only')
+                canceled = job.get('status') in ('Cancelado', 'Archivado')
+                changed = any(a['job_day'] != day for a in own)
+                status = ('inactive' if canceled else 'review' if changed or any(a['status'] == 'reconfirmar' for a in own)
+                          else 'pending' if any(a['status'] == 'pendiente' for a in own)
+                          else 'completed' if own and all(a['status'] == 'realizada' for a in own)
+                          else 'confirmed' if own else 'history')
+                wedding_options.append(dict(id=identifier, name=job.get('nombre'), display_name=wedding_name(job.get('nombre')),
+                    day=day, event_end=event_end, last_day=max((end for _, end in ranges), default=day),
+                    location=job.get('location') or 'Lugar por confirmar', roles=list(dict.fromkeys(a['role'] for a in own)),
+                    status=status, status_label={'inactive':'Evento inactivo', 'review':'Por reconfirmar', 'pending':'Por responder',
+                        'confirmed':'Confirmada', 'completed':'Realizada', 'history':'Solo historial'}[status],
+                    schedule_pending=any(a.get('schedule_pending') for a in own),
+                    reserved=bool(day and own and not canceled), reserved_ranges=ranges))
             wedding_options.sort(key=lambda j: (0 if j['day'] >= today else 1, j['day'], j['name'] or ''))
             selected_job_id = request.args.get('job_id', '')
             if selected_job_id and selected_job_id not in accessible_ids:
                 abort(404)
-            if by_wedding and not selected_job_id and wedding_options:
-                selected_job_id = wedding_options[0]['id']
             selected_wedding = next((j for j in wedding_options if j['id'] == selected_job_id), None)
             if selected_job_id:
                 assignments = [a for a in assignments if a['job_id'] == selected_job_id]
@@ -371,7 +442,6 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                 costs.append(dict(id=c['id'], job_id=c['job_id'], category=c['category'], description=c['description'],
                                   amount=cost_amount(c), paid=paid, pending=cost_amount(c)-paid if c['status'] in ('aprobado','incurrido') else 0,
                                   status=c['status'], honorarium=bool(c.get('assignment_id')), assignment_id=c.get('assignment_id'), schedule_id=c.get('schedule_id')))
-            travel_plans = store.records(db, tenant, 'travel')
             coverage = []
             for a in assignments:
                 c = next((c for c in cost_rows if c.get('assignment_id') == a['id']), None)
@@ -492,7 +562,10 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
     @portal.route('')
     @portal.route('/')
     def page():
-        return render_template('teams_portal.html', login=False, csrf=session['teams_portal_csrf'], **state(by_wedding=True))
+        data = state()
+        today = datetime.now(teams_zone(crm_store, g.teams_portal_tenant)).date().isoformat()
+        agenda = wedding_agenda(data['wedding_options'], today, request.args)
+        return render_template('teams_portal.html', login=False, csrf=session['teams_portal_csrf'], agenda=agenda, **data)
 
     @portal.route('/summary')
     def summary():

@@ -1610,6 +1610,63 @@ def test_portal_wedding_scope_filters_documents_payments_tasks_and_summary(web):
     assert first['id'] in calendar and second['id'] not in calendar
 
 
+def test_portal_agenda_lists_all_authorized_weddings_and_navigates_reserved_dates(web):
+    from src.teams_portal import wedding_agenda
+    application, owner, storage = web
+    store = application.extensions['teams']
+    person = member(store)
+    publish(store, assignment(store, person))
+    publish(store, assignment(store, person, job='job-2', start='2026-12-01T13:00', end='2026-12-01T22:00'))
+    secret = run(store, 'member', name='Otro trabajador', email='other-worker@example.invalid', role='Video')
+    with application.test_request_context('/'):
+        from flask import session
+        session['tenant_id'] = 'brand-a'
+        job = storage.get('jobs', 'job-1')
+        job['nombre'] = 'Ana y Luis (FORMULARIO DE CONTACTO NORKEVIN)'
+        storage.upsert('jobs', job)
+        storage.upsert('jobs', dict(id='private-job', tenant_id='brand-a', nombre='Boda privada ajena',
+                                   boda_date='2026-11-14', status='En curso'))
+    publish(store, assignment(store, secret, job='private-job'))
+    run(store, 'travel', job_id='job-1', version=0, enabled=True, departure='2026-11-13', return_date='2026-11-15')
+    worker = member_client(application, owner, person)
+    data = worker.get('/teams-portal/summary?year=all').get_json()
+    assert data['selected_wedding'] is None and len(data['assignments']) == 2
+    assert data['fee_summary']['amount'] == 300000
+    assert data['wedding_options'][0]['display_name'] == 'Ana y Luis'
+    assert data['wedding_options'][0]['name'].endswith('(FORMULARIO DE CONTACTO NORKEVIN)')
+    html = worker.get('/teams-portal/').get_data(as_text=True)
+    assert 'Todas las bodas' in html and 'Calendario' in html and 'Ana y Luis' in html
+    assert 'ft-wedding-selector' not in html and 'FORMULARIO DE CONTACTO' not in html
+    assert 'Boda privada ajena' not in html
+    agenda = wedding_agenda(data['wedding_options'], '2026-10-13', {'view':'calendar', 'month':'2026-11', 'day':'2026-11-13'})
+    assert agenda['selected_events'][0]['travel'] is True
+    assert agenda['previous_month'] == '2026-10' and agenda['next_month'] == '2026-12'
+    wedding_day = wedding_agenda(data['wedding_options'], '2026-10-13', {'month':'2026-11', 'day':'2026-11-14'})
+    assert wedding_day['selected_events'][0]['travel'] is False
+    same_day = dict(data['wedding_options'][1], day='2026-11-14', event_end='2026-11-14',
+                    reserved_ranges=[('2026-11-14', '2026-11-14')])
+    assert len(wedding_agenda([data['wedding_options'][0], same_day], '2026-10-13',
+               {'month':'2026-11', 'day':'2026-11-14'})['selected_events']) == 2
+    february = wedding_agenda([], '2028-02-01', {'month':'2028-02'})
+    assert any(cell['day'] == '2028-02-29' for week in february['weeks'] for cell in week)
+    assert len(wedding_agenda(data['wedding_options'], '2026-10-13', {'q':'antigua'})['weddings']) == 2
+    assert wedding_agenda(data['wedding_options'], '2026-12-02', {'period':'upcoming'})['weddings'] == []
+    assert len(wedding_agenda(data['wedding_options'], '2026-12-02', {'period':'past'})['weddings']) == 2
+    december = worker.get('/teams-portal/?view=calendar&month=2026-12&day=2026-12-01').get_data(as_text=True)
+    assert 'Diciembre 2026' in december and '2027-01' in december
+    assert 'Boda privada ajena' not in december
+    assert worker.get('/teams-portal/?q=no-existe').status_code == 200
+    for query in ('month=2026-13', 'month=0001-01', 'day=2026-02-30', 'month=2026-11&day=2026-12-01', 'view=invalid', 'period=invalid'):
+        assert worker.get('/teams-portal/?' + query).status_code == 400
+    with application.test_request_context('/'):
+        session['tenant_id'] = 'brand-a'
+        job['status'] = 'Cancelado'
+        storage.upsert('jobs', job)
+    canceled = worker.get('/teams-portal/summary').get_json()['wedding_options']
+    agenda = wedding_agenda(canceled, '2026-10-13', {'month':'2026-11', 'day':'2026-11-14'})
+    assert agenda['selected_events'] == [] and agenda['upcoming_count'] == 1
+
+
 def test_honorarium_deadline_is_thirty_days_and_applies_to_existing_records(web):
     from src.teams import payment_deadline
     assert payment_deadline({'boda_date':'2026-12-20'})=='2027-01-19'
