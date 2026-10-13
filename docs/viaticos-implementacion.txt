@@ -1,0 +1,235 @@
+FLOWING CRM — IMPLEMENTACIÓN DE VENUES Y VIÁTICOS
+13 de octubre de 2026
+
+VALIDACIÓN DE PUBLICACIÓN
+
+El usuario autorizó publicar en Flowing y activar únicamente Norkevin el
+13 de octubre de 2026. Se integró el cambio sobre origin/main 70261ce,
+conservando el iniciador de Web Push, las mejoras de notificaciones y el
+campo source de la entrega de correo. La suite de esta integración pasó
+con 1,741 pruebas aprobadas y una omitida por falta de pdftotext.
+Log: .context-shears/artifacts/command-20261013T104014.812160Z-92d4915b2cb2.log
+La activación se realiza después de comprobar el despliegue, mediante el
+control de Norkevin. Los 118 candidatos y las 13 tarifas provisionales no se
+aprueban al activarlo. Los correos de paquetes conservan su aprobación manual.
+
+ESTADO AL CIERRE DE LA IMPLEMENTACIÓN LOCAL, ANTES DEL DESPLIEGUE
+
+La funcionalidad está implementada en el proyecto local. Está desactivada por
+defecto y preparada para revisión y activación controlada. No se ha desplegado
+este cambio en flowingcrm.com, no se han modificado sus plantillas guardadas ni
+se han enviado correos reales durante las pruebas.
+
+1. COMPORTAMIENTO IMPLEMENTADO
+
+El catálogo interno tiene prioridad para reconocer nombres y alias. Se normalizan
+acentos, mayúsculas y abreviaturas habituales. Las coincidencias aproximadas se
+presentan como propuestas. Los municipios, departamentos, direcciones y países
+contradictorios requieren revisión. Una mención expresa de otro país impide
+aplicar automáticamente tarifas nacionales.
+
+Las únicas tarifas de Norkevin, fotografía / fotografía y video, son:
+  Nivel 0: Q0 / Q0.
+  Nivel 1: Q1,500 / Q2,500.
+  Nivel 2: Q2,000 / Q3,500.
+  Nivel 3: Q2,500 / Q4,500.
+
+Se respetan la exención específica de Finca San Cayetano, las reglas de Ciudad
+de Guatemala, Antigua Guatemala, San Lucas Sacatepéquez y Tecpán, y los destinos
+Atitlán, Retalhuleu y Petén. No se extienden exenciones a departamentos completos.
+Petén con vuelos, hospedaje extraordinario o logística especial exige revisión.
+
+Los datos, las revisiones y las configuraciones pertenecen a cada empresa.
+Astral no recibe automáticamente tarifas ni la activación comercial de Norkevin.
+La identificación usa el mapeo real de marcas del proyecto: los identificadores
+históricos de tenant no se interpretan por contener la palabra «norkevin».
+
+2. CATÁLOGO Y LISTADO DEL USUARIO
+
+La investigación inicial documentó 55 candidatos mediante fuentes web. Se
+corroboró la ubicación de 48 venues, en 23 municipios y 14 departamentos.
+
+El archivo lugares_bodas_guatemala.xlsx aporta 141 registros de 19 departamentos.
+Se leyeron Lugares, Fuentes y Alcance sin modificar el archivo. Sus 141 fuentes
+se alinean con los 141 lugares. Incluye 50 referencias a un directorio histórico
+de 2020 y no contiene municipios ni coordenadas como campos del listado.
+
+El cruce identifica 23 establecimientos ya presentes y 118 candidatos nuevos.
+El catálogo combinado contiene 166 lugares en 20 departamentos: 48 ubicaciones
+verificadas y 118 pendientes. Los nuevos registros conservan nombre, departamento declarado, URL,
+tipo de fuente, observaciones y fila de procedencia. No se inventan municipio,
+dirección, coordenadas ni nivel. Los 118 quedan pending/proposed, con nivel nulo.
+
+Las 48 ubicaciones verificadas conservan su política comercial:
+  35 aprobadas para Norkevin: 23 nivel 0, 8 nivel 1, 1 nivel 2 y 3 nivel 3.
+  13 provisionales: 5 propuestas de nivel 1, 6 de nivel 2 y 2 de nivel 3.
+
+Solo La Casa del Mundo tiene coordenadas corroboradas en la investigación
+inicial. Las coordenadas ausentes permanecen nulas. Jaibalito se conserva como
+localidad de Santa Cruz La Laguna. Los Hostales del IRTRA se distinguen de otros
+centros de la institución. «Casa Tecpán La Colina», en el listado del usuario,
+no se declara exenta por contener Tecpán en el nombre.
+
+«Verificado» describe la evidencia de identidad y ubicación. No confirma
+disponibilidad para una fecha, permisos o condiciones actuales del establecimiento.
+
+La semilla se carga automáticamente en el almacenamiento JSON existente. Las
+pruebas y vistas previas la cargan en bases aisladas; no se ha importado al
+servidor de producción. Las semillas nuevas se incorporan también a catálogos
+inicializados, conservando registros ya editados. No hay migración destructiva.
+
+Detalle de fuentes: docs/viaticos-venue-research.md.
+Cruce del Excel: docs/viaticos-listado-cruce.json.
+Semilla: data/seeds/venues_guatemala.default.json.
+SHA-256 del Excel original:
+54f265197d4040d2df7d934259c7a2560c810f2e1f7d16d2c32069e9e610cbca
+
+3. PROPUESTAS QUE SIGUEN PENDIENTES
+
+Las nueve propuestas de destino se mantienen sin autorización automática:
+  Nivel 1: Salamá, Zacapa, Teculután y Escuintla.
+  Nivel 2: Cobán, Quetzaltenango y Chiquimula.
+  Nivel 3: Huehuetenango e Izabal.
+
+El alcance exacto y la logística están documentados en el informe de fuentes.
+No son una fórmula por kilómetros ni una aprobación de todo el departamento.
+También siguen pendientes las 13 clasificaciones de venues verificados y la
+ubicación/clasificación de los 118 candidatos nuevos del Excel.
+
+4. CORREO EXISTENTE Y AUTOMATIZACIONES
+
+Se inspeccionaron las plantillas reales de Norkevin mediante lectura del CRM.
+No se creó una plantilla comercial independiente. El bloque condicional usa el
+mismo correo y diseño, después del enlace de paquetes, mostrando ambas tarifas.
+No modifica precios de paquetes ni calcula totales. Los exentos reciben el
+correo habitual sin bloque. El borrador de un destino incierto queda bloqueado
+hasta resolver la información. Regenerar no duplica el bloque.
+
+La disponibilidad se evalúa primero y conserva la recomendación de Astral.
+Se mantiene la selección anual, incluidos los enlaces reales de 2027 y 2028.
+El envío conserva la aprobación existente. La validación se ejecuta tanto al
+preparar como al aprobar/enviar, incluidas las rutas de envío directo. Si cambia
+el lugar, la fecha, la tarifa o el contenido aprobado, el correo debe regenerarse.
+
+Conflictos detectados y corregidos:
+  - Una plantilla antigua incluía viáticos fijos Q2,500/Q4,000. Se retira únicamente
+    ese párrafo exacto al generar el nuevo correo; no se altera la plantilla
+    almacenada. Otros textos fijos desconocidos se detienen para revisión.
+  - El compositor manual podía elegir paquetes de otro año. La selección anual
+    se aplica también al envío manual de correos reconocidos como paquetes.
+  - Copiar un enlace de Drive o cambiar sus parámetros podía omitir controles.
+    Se reconoce la identidad del archivo, incluso con distintos parámetros.
+  - Dos identificadores de plantilla vacíos podían reconocer correos ajenos como
+    paquetes. Ahora se exige un identificador válido para esa comparación.
+  - Un fallo del resolutor podía impedir abrir correos pendientes. El control
+    bloquea el envío con motivo visible y conserva disponible la interfaz.
+  - Una coincidencia pendiente ya catalogada necesitaba poder investigarse.
+    La búsqueda conserva la propuesta y su procedencia, sin aprobar tarifas.
+  - Los nombres con comas o paréntesis podían perder la coincidencia al añadir
+    una dirección. Se conserva el nombre completo y se valida por separado el
+    sufijo geográfico. Un municipio todavía desconocido no se trata como una
+    contradicción demostrada; un departamento incompatible sí exige revisión.
+  - Una base creada con las primeras 48 semillas no recibía nuevos alias y
+    fuentes de registros existentes. La ampliación los incorpora una vez por
+    revisión, de forma aditiva, sin cambiar ubicación ni aprobación comercial.
+
+5. ADMINISTRACIÓN Y APRENDIZAJE
+
+Configuración > Destinos y viáticos permite buscar lugares, consultar fuentes,
+editar ubicación y alias, crear excepciones, revisar propuestas y aprobar
+clasificaciones. Muestra por separado verificación geográfica y aprobación
+comercial. Las notas del Excel permiten identificar referencias históricas.
+
+Cada lead muestra el texto original, venue reconocido, ubicación normalizada,
+nivel, ambas tarifas, confianza y motivo. Las ubicaciones revisadas se reutilizan
+sin recrear registros por diferencias de acentos o mayúsculas.
+
+Para nombres desconocidos o pendientes se utiliza investigación geográfica
+restringida a Guatemala. Los resultados extranjeros se descartan. Un resultado
+externo sigue siendo una propuesta hasta su revisión. Los fallos de búsqueda
+conservan el borrador sin inventar ubicación ni tarifa.
+
+Se utiliza Nominatim con HTTPS, identificación de aplicación, atribución,
+timeout de 4 segundos, máximo de 5 resultados, caché de 30 días y caché de error
+de 60 segundos. El límite compartido de una consulta cada 15 segundos se ajusta
+al servidor actual de un proceso. Antes de escalar a múltiples procesos debe
+usarse un limitador compartido o un proveedor apropiado. El proveedor puede
+cambiarse con FLOW_GEOCODER_URL y FLOW_GEOCODER_USER_AGENT; los valores actuales
+funcionan sin crear variables manualmente. No se envían notas, nombres de
+clientes, teléfonos ni correos al proveedor. No se integró Minimax ni otra API
+de IA de pago porque el reconocimiento determinista cubre este alcance.
+Política del proveedor: https://operations.osmfoundation.org/policies/nominatim/
+
+6. ARCHIVOS Y COMPONENTES
+
+Motor y persistencia:
+  src/travel.py, src/storage.py,
+  data/seeds/venues_guatemala.default.json.
+Correo e integración:
+  src/travel_mail.py, src/mail_tracker.py, app.py.
+Administración y lead:
+  src/travel_routes.py, templates/settings_travel.html,
+  templates/_lead_travel.html, templates/lead_detail.html, templates/settings.html.
+Verificación y ejemplos:
+  tests/test_travel.py, tests/test_travel_integration.py,
+  tests/test_travel_routes.py, tests/test_travel_catalog_import.py,
+  tests/fixtures/travel_email_templates.json,
+  tools/preview_travel.py.
+
+Se conservaron los cambios previos de galerías en app.py y
+tests/test_gallery_integration.py, junto con los archivos personales existentes.
+No se creó commit, pull request ni despliegue.
+
+7. PRUEBAS Y VISTAS PREVIAS
+
+La suite completa final, con el catálogo ampliado y los ajustes de revisión,
+pasó con 1,697 pruebas aprobadas y una omitida en 56.22 segundos. La omitida es
+una comprobación previa de paginación PDF que necesita pdftotext, no disponible
+en este entorno (tests/test_documento_web_pdf_paridad.py:263).
+
+Comando: .venv/bin/python -m pytest -q -rs
+Log completo:
+.context-shears/artifacts/command-20261013T102852.336023Z-da2e9a101412.log
+
+Los archivos específicos de viáticos suman 119 casos: 83 del motor, 25 de
+integración de correo, 9 de rutas/interfaz y 2 de trazabilidad/importación.
+También pasaron la compilación Python y la comprobación de espacios del diff
+respetando los finales de línea CRLF existentes.
+
+Las pruebas cubren niveles/exenciones, nombres ambiguos, países extranjeros,
+fallos del proveedor, marcas, permisos, caché, concurrencia, cambios posteriores
+a la preparación del correo, disponibilidad, enlaces y selección por año.
+Se bloquearon los proveedores de correo y se usaron bases temporales.
+Una prueba recorre los 118 candidatos importados y comprueba que cada nombre se
+reconoce sin generar tarifas. La revisión independiente también ejecutó 354
+escenarios con departamento propio, departamento contradictorio y Argentina;
+ninguno convirtió un candidato pendiente en una clasificación definitiva.
+La revisión independiente volvió a reproducir y confirmó el cierre de los tres
+hallazgos del listado: municipio faltante, actualización de metadatos y nombres
+con comas.
+
+Se generaron correos completos con datos sintéticos y los enlaces reales:
+  2027: https://drive.google.com/file/d/1BQFU3oq_3WImnKose6L8rFTPE5Mh-kXf/view?usp=sharing
+  2028: https://drive.google.com/file/d/18TR7KhEcRDpGOKsUnJNOaRvTna5l9edS/view?usp=sharing
+
+Índice de ejemplos: artifacts/viaticos/previews/index.html.
+Casos: San Cayetano 2027, Atitlán 2028, Casa del Mundo 2027, IRTRA 2028,
+Antigua 2027, Petén 2028, desconocido 2028, internacional 2028, fecha ocupada
+2028 y Casa Tecpán La Colina del listado pendiente, 2028.
+Cada ejemplo incluye HTML y texto. Ninguno se envió a un cliente.
+
+La interfaz se revisó en escritorio y móvil, incluyendo teclado, foco al
+cancelar formularios, fechas legibles y ausencia de desbordamiento horizontal.
+Capturas de comprobación: artifacts/viaticos/ui-*.jpg.
+
+8. ACTIVACIÓN CONTROLADA
+
+El siguiente paso operativo es desplegar la versión revisada. Después puede
+activarse únicamente Norkevin desde Configuración > Destinos y viáticos.
+La activación no aprueba los destinos provisionales ni habilita Astral.
+No hay que crear tablas, plantillas ni catálogos manualmente.
+
+Para revertir la incorporación en correos se desactiva el control comercial;
+los registros y la trazabilidad permanecen. Los borradores preparados con un
+estado anterior requieren regeneración. El cambio de código también puede
+revertirse conservando los datos de los nuevos catálogos.

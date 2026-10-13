@@ -101,6 +101,8 @@ TENANT_SCOPED_TABLES = {
     # Norkevin jamas debe poder aparecer en una cotizacion de Astral ni
     # viceversa. Van scoped exactamente igual que 'packages'.
     'portfolio_items', 'quote_terms_templates', 'quote_templates',
+    # Public geography plus private commercial decisions, always owned by one brand.
+    'travel_venues', 'travel_rules', 'travel_reviews', 'travel_audit', 'travel_cache',
 }
 
 # 'sequence_counters' (numeracion NORK-2026-0001) NO esta en

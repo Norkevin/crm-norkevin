@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Destinos y viáticos · {{ current_tenant.name }}{% endblock %}
+{% block topbar_title %}Configuración{% endblock %}
+{% block content %}
+<style>
+.travel-page{max-width:1240px}.travel-page h2{font-size:20px;margin:0 0 8px}.travel-page h3{font-size:16px;margin:0 0 8px}.travel-page p{line-height:1.6}.travel-section{margin-top:32px;scroll-margin-top:90px}.travel-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:18px 0}.travel-toolbar .form-input{max-width:480px}.travel-nav{display:flex;gap:22px;flex-wrap:wrap;margin:24px 0;border-bottom:1px solid var(--sn-line);padding-bottom:14px}.travel-nav a{text-decoration:underline;text-underline-offset:5px;color:var(--sn-accent-text)}.travel-summary{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:22px;border:1px solid var(--sn-line);border-radius:12px;background:var(--sn-white)}.travel-summary p{margin:4px 0;max-width:75ch}.travel-summary .sn-btn{flex-shrink:0}.travel-page .sn-table td{vertical-align:top}.travel-page .sn-table small{display:block;color:var(--sn-muted);font-size:12px;margin-top:4px;line-height:1.5}.travel-page .sn-table strong{font-weight:650}.travel-form{border:1px solid var(--sn-line);background:var(--sn-white);border-radius:12px;padding:24px;margin:20px 0}.travel-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.travel-form-grid .wide{grid-column:1/-1}.travel-form .form-group{margin:0}.travel-form label{display:block;margin-bottom:6px}.travel-form .sn-actions{margin-top:20px;gap:10px;flex-wrap:wrap}.travel-form .form-input{width:100%;min-width:0}.travel-form textarea{min-height:80px;resize:vertical}.travel-error{color:var(--sn-danger,#b42318);margin:12px 0}.travel-note{color:var(--sn-muted);font-size:13px}.travel-page [hidden]{display:none!important}.travel-page td{overflow-wrap:anywhere}.travel-rate{font-variant-numeric:tabular-nums;white-space:nowrap}.travel-review{padding:16px 0;border-bottom:1px solid var(--sn-line);display:flex;justify-content:space-between;gap:16px}.travel-review p{margin:4px 0}.travel-review-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.travel-page :focus-visible{outline:2px solid var(--sn-accent-text);outline-offset:3px}
+@media(max-width:700px){.travel-summary,.travel-review{flex-direction:column}.travel-summary{padding:18px}.travel-form{padding:18px}.travel-form-grid{grid-template-columns:1fr}.travel-form-grid .wide{grid-column:auto}.travel-page .sn-btn{min-height:44px}.travel-nav{gap:18px}.travel-toolbar .form-input{max-width:none}.travel-toolbar{align-items:stretch}.travel-toolbar>:not(.sr-only){width:100%}}
+</style>
+<section class="sn-page travel-page">
+  <div class="sn-page-head"><div><a class="sn-muted" href="/settings">Configuración</a><h1 class="sn-page-title" style="margin-top:8px">Destinos y viáticos</h1><p class="sn-muted">Catálogo de ubicaciones y tarifas de {{ current_tenant.name }}.</p></div></div>
+  <div class="travel-summary">
+    <div><h2>{{ 'Activo en correos de paquetes' if travel_settings.enabled else 'Preparado para revisión' }}</h2>
+      {% if travel_settings.policy_confirmed %}<p>Al activarlo, los correos de paquetes usarán únicamente destinos verificados con tarifas aprobadas. Las ubicaciones pendientes deberán resolverse antes del envío.</p>
+      {% else %}<p>La política de esta marca está pendiente de confirmación. El catálogo se puede consultar y revisar; las tarifas no se aplican automáticamente.</p>{% endif %}
+      <p class="travel-note">Los correos conservan su aprobación habitual. No se modifican los precios de los paquetes.</p><p id="travel-settings-feedback" role="status" class="travel-note"></p>
+    </div>
+    {% if travel_settings.policy_confirmed %}<button type="button" class="sn-btn {{ '' if travel_settings.enabled else 'sn-btn-primary' }}" id="travel-activate" onclick="saveTravelSettings(this)">{{ 'Desactivar en correos' if travel_settings.enabled else 'Activar en correos' }}</button>{% endif %}
+  </div>
+  <nav class="travel-nav" aria-label="Destinos y viáticos"><a href="#travel-catalog">Catálogo</a><a href="#travel-reviews">Pendientes ({{ reviews|length }})</a><a href="#travel-rates">Niveles y destinos</a></nav>
+
+  <section id="travel-catalog" class="travel-section" aria-labelledby="travel-catalog-title">
+    <h2 id="travel-catalog-title">Catálogo de lugares</h2><p class="sn-muted">Una excepción aprobada para un lugar tiene prioridad sobre las reglas generales.</p>
+    {% set verified_count = venues|selectattr('verification_status', 'equalto', 'verified')|list|length %}
+    <p class="travel-note" id="travel-catalog-summary">{{ venues|length }} lugares · {{ verified_count }} ubicaciones verificadas · {{ venues|length - verified_count }} pendientes de verificar</p>
+    <div class="travel-toolbar"><label for="travel-search" class="sr-only">Buscar por nombre, alias o ubicación</label><input type="search" id="travel-search" class="form-input" placeholder="Buscar nombre, alias o ubicación" oninput="filterTravelVenues()"><button type="button" class="sn-btn sn-btn-primary" onclick="editTravelVenue()">Agregar lugar</button></div>
+    <form id="travel-venue-form" class="travel-form" hidden onsubmit="saveTravelVenue(event)">
+      <h3 id="travel-venue-title">Agregar lugar</h3><p class="travel-note">Verifica la ubicación y aprueba la clasificación por separado. Un lugar provisional no genera una tarifa definitiva.</p>
+      <input type="hidden" name="id"><input type="hidden" name="review_id">
+      <div class="travel-form-grid">
+        <div class="form-group wide"><label for="venue-name">Nombre oficial</label><input id="venue-name" name="name" class="form-input" required maxlength="200"></div>
+        <div class="form-group wide"><label for="venue-aliases">Otros nombres o alias</label><textarea id="venue-aliases" name="aliases" class="form-input" placeholder="Un nombre por línea" maxlength="3000"></textarea></div>
+        <div class="form-group"><label for="venue-municipality">Municipio</label><input id="venue-municipality" name="municipality" class="form-input" maxlength="160"></div>
+        <div class="form-group"><label for="venue-department">Departamento</label><input id="venue-department" name="department" class="form-input" maxlength="160"></div>
+        <div class="form-group"><label for="venue-country">País (código)</label><input id="venue-country" name="country" class="form-input" maxlength="2" pattern="[A-Za-z]{2}" value="GT" required aria-describedby="venue-country-help"><small id="venue-country-help" class="travel-note">GT: Guatemala. Los destinos internacionales requieren revisión.</small></div>
+        <div class="form-group"><label for="venue-source">Fuente de verificación</label><input id="venue-source" name="source_url" type="url" class="form-input" placeholder="https://…" maxlength="2000"></div>
+        <div class="form-group wide" id="venue-verification-notes-group" hidden><label for="venue-verification-notes">Notas de verificación y procedencia</label><textarea id="venue-verification-notes" name="verification_notes" class="form-input" rows="4" readonly aria-describedby="venue-verification-notes-help"></textarea><small id="venue-verification-notes-help" class="travel-note">Conserva la referencia original. Si la fuente es histórica, confirma la ubicación y su vigencia antes de marcarla como verificada.</small></div>
+        <div class="form-group wide" id="venue-additional-sources-group" hidden><h4 class="form-label">Fuentes adicionales</h4><ul id="venue-additional-sources" class="travel-note"></ul></div>
+        <div class="form-group wide"><label for="venue-address">Dirección</label><input id="venue-address" name="address" class="form-input" maxlength="500"></div>
+        <div class="form-group"><label for="venue-latitude">Latitud verificada (opcional)</label><input id="venue-latitude" name="latitude" type="number" step="any" min="-90" max="90" class="form-input"></div>
+        <div class="form-group"><label for="venue-longitude">Longitud verificada (opcional)</label><input id="venue-longitude" name="longitude" type="number" step="any" min="-180" max="180" class="form-input"></div>
+        <div class="form-group"><label for="venue-verification">Verificación de ubicación</label><select id="venue-verification" name="verification_status" class="form-input"><option value="pending">Pendiente</option><option value="verified">Verificada con la fuente indicada</option></select></div>
+        <div class="form-group"><label for="venue-level">Nivel específico del lugar</label><select id="venue-level" name="travel_level" class="form-input"><option value="">Sin excepción; usar regla del destino</option>{% for level, rate in travel_levels.items() %}<option value="{{ level }}">{{ rate.name }} · Q{{ '{:,}'.format(rate.photo_amount) }} / Q{{ '{:,}'.format(rate.photo_video_amount) }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label for="venue-approval">Aprobación comercial</label><select id="venue-approval" name="approval_status" class="form-input"><option value="proposed">Provisional</option><option value="approved">Aprobada</option><option value="rejected">Rechazada</option></select></div>
+        <div class="form-group"><label for="venue-reason">Motivo de clasificación</label><input id="venue-reason" name="classification_reason" class="form-input" maxlength="1000"></div>
+      </div><p id="travel-venue-error" class="travel-error" role="alert"></p>
+      <div class="sn-actions"><button type="submit" class="sn-btn sn-btn-primary">Guardar lugar</button><button type="button" class="sn-btn" onclick="closeTravelForm('travel-venue-form')">Cancelar</button></div>
+    </form>
+    <div class="sn-table-shell stack-mobile"><table class="sn-table"><thead><tr><th>Lugar</th><th>Ubicación</th><th>Clasificación</th><th>Verificación</th><th><span class="sr-only">Acciones</span></th></tr></thead><tbody id="travel-venues">
+      {% for venue in venues %}<tr data-search="{{ (venue.name ~ ' ' ~ (venue.aliases|default([])|join(' ')) ~ ' ' ~ venue.municipality ~ ' ' ~ venue.department)|lower }}">
+        <td data-label="Lugar"><strong>{{ venue.name }}</strong>{% if venue.aliases %}<small>{{ venue.aliases|join(', ') }}</small>{% endif %}</td>
+        <td data-label="Ubicación">{{ venue.municipality or 'Por verificar' }}<small>{{ venue.department or 'Departamento por verificar' }} · {{ venue.country }}</small></td>
+        <td data-label="Clasificación">{% if venue.travel_level is not none and venue.travel_level in travel_levels %}{{ travel_levels[venue.travel_level].name }}{% elif venue.verification_status != 'verified' %}Por definir{% else %}Regla del destino{% endif %}<small>{{ {'approved':'Aprobada','proposed':'Provisional','rejected':'Rechazada'}.get(venue.approval_status, 'Provisional') }}</small></td>
+        <td data-label="Verificación"><span class="sn-chip {{ 'green' if venue.verification_status == 'verified' else 'gray' }}">{{ 'Verificada' if venue.verification_status == 'verified' else 'Pendiente' }}</span>{% if venue.source_url and (venue.source_url.startswith('https://') or venue.source_url.startswith('http://')) %}<small><a href="{{ venue.source_url }}" target="_blank" rel="noopener noreferrer">Consultar fuente</a></small>{% endif %}{% if venue.verified_at %}<small><time datetime="{{ venue.verified_at[:10] }}">{{ venue.verified_at|fecha_legible(weekday=false) }}</time></small>{% endif %}</td>
+        <td class="stack-actions"><button type="button" class="sn-btn sn-btn-sm" onclick='editTravelVenue({{ venue|tojson }})'>Editar</button></td>
+      </tr>{% endfor %}
+      <tr id="travel-no-results" {% if venues %}hidden{% endif %}><td colspan="5" class="sn-muted">No hay lugares que coincidan. Puedes agregar un lugar verificado.</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section id="travel-reviews" class="travel-section" aria-labelledby="travel-reviews-title"><h2 id="travel-reviews-title">Ubicaciones pendientes</h2><p class="sn-muted">Resuelve el lugar, verifica la fuente y aprueba su clasificación para reutilizarlo en futuros leads.</p>
+    {% for review in reviews %}<article class="travel-review"><div><h3>{{ review.original_location or review.name or 'Ubicación sin especificar' }}</h3><p class="travel-note">{{ review.reason or 'Hace falta confirmar la ubicación.' }}</p>{% if review.candidate_venues %}<p class="travel-note">Coincidencias sugeridas; confirma cuál corresponde:</p><div class="travel-review-actions">{% for candidate in review.candidate_venues %}<button type="button" class="sn-btn sn-btn-sm" onclick='reviewTravelLocation({{ review|tojson }}, {{ candidate|tojson }})'>{{ candidate.name }} · {{ candidate.municipality }}</button>{% endfor %}</div>{% endif %}</div><div class="travel-review-actions">{% if review.lead_ids %}<a href="{{ url_for('lead_detail', lead_id=review.lead_ids[0]) }}" class="sn-btn sn-btn-sm">Ver lead</a>{% endif %}<button type="button" class="sn-btn sn-btn-sm" onclick='reviewTravelLocation({{ review|tojson }})'>Agregar lugar verificado</button></div></article>
+    {% else %}<p class="travel-note">No hay ubicaciones pendientes de revisión.</p>{% endfor %}
+    <p class="travel-note">Datos de búsqueda geográfica: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors (ODbL)</a>. Verifica cada sugerencia antes de aprobarla.</p>
+  </section>
+
+  <section id="travel-rates" class="travel-section" aria-labelledby="travel-rates-title"><h2 id="travel-rates-title" tabindex="-1">Niveles y destinos</h2><p class="sn-muted">{{ 'Tarifas confirmadas para esta marca.' if travel_settings.policy_confirmed else 'Tarifas de referencia de Norkevin; no activas para esta marca.' }} Fotografía y fotografía con video se muestran por separado.</p>
+    <div class="sn-table-shell stack-mobile"><table class="sn-table"><thead><tr><th>Nivel</th><th>Fotografía</th><th>Fotografía + video</th></tr></thead><tbody>{% for level, rate in travel_levels.items() %}<tr><td data-label="Nivel">{{ rate.name }}</td><td data-label="Fotografía" class="travel-rate">Q{{ '{:,}'.format(rate.photo_amount) }}</td><td data-label="Fotografía + video" class="travel-rate">Q{{ '{:,}'.format(rate.photo_video_amount) }}</td></tr>{% endfor %}</tbody></table></div>
+    <div class="travel-toolbar"><h3>Reglas por destino</h3><button type="button" class="sn-btn" onclick="editTravelRule()">Agregar regla</button></div>
+    <form id="travel-rule-form" class="travel-form" hidden onsubmit="saveTravelRule(event)"><h3 id="travel-rule-title">Regla del destino</h3><input type="hidden" name="id"><div class="travel-form-grid">
+      <div class="form-group"><label for="rule-name">Nombre</label><input id="rule-name" name="name" class="form-input" required maxlength="200"></div>
+      <div class="form-group"><label for="rule-scope">Alcance</label><select id="rule-scope" name="scope" class="form-input"><option value="municipality">Municipio</option><option value="region">Región</option></select></div>
+      <div class="form-group"><label for="rule-value">Municipio o región</label><input id="rule-value" name="value" class="form-input" required maxlength="160"></div>
+      <div class="form-group"><label for="rule-department">Departamento (si corresponde)</label><input id="rule-department" name="department" class="form-input" maxlength="160"></div>
+      <div class="form-group wide"><label for="rule-aliases">Variaciones del nombre</label><textarea id="rule-aliases" name="aliases" class="form-input" placeholder="Una por línea" maxlength="3000"></textarea></div>
+      <div class="form-group"><label for="rule-level">Nivel</label><select id="rule-level" name="level" class="form-input">{% for level, rate in travel_levels.items() %}<option value="{{ level }}">{{ rate.name }}</option>{% endfor %}</select></div>
+      <div class="form-group"><label for="rule-approval">Aprobación comercial</label><select id="rule-approval" name="approval_status" class="form-input"><option value="proposed">Provisional</option><option value="approved">Aprobada</option><option value="rejected">Rechazada</option></select></div>
+    </div><p id="travel-rule-error" class="travel-error" role="alert"></p><div class="sn-actions"><button type="submit" class="sn-btn sn-btn-primary">Guardar regla</button><button type="button" class="sn-btn" onclick="closeTravelForm('travel-rule-form')">Cancelar</button></div></form>
+    <div class="sn-table-shell stack-mobile"><table class="sn-table"><thead><tr><th>Destino</th><th>Alcance</th><th>Nivel</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr></thead><tbody>{% for rule in travel_rules %}<tr><td data-label="Destino">{{ rule.name }}<small>{{ rule.value }}{% if rule.department %}, {{ rule.department }}{% endif %}</small></td><td data-label="Alcance">{{ 'Municipio' if rule.scope == 'municipality' else 'Región' }}</td><td data-label="Nivel">{{ travel_levels[rule.level].name if rule.level in travel_levels else 'Por definir' }}</td><td data-label="Estado">{{ {'approved':'Aprobada','proposed':'Provisional','rejected':'Rechazada'}.get(rule.approval_status, 'Provisional') }}</td><td class="stack-actions"><button type="button" class="sn-btn sn-btn-sm" onclick='editTravelRule({{ rule|tojson }})'>Editar</button></td></tr>{% else %}<tr><td colspan="5" class="sn-muted">Esta marca todavía no tiene reglas comerciales.</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+</section>
+<script>
+const travelEnabled = {{ travel_settings.enabled|tojson }};
+function travelFormData(form) { const data = Object.fromEntries(new FormData(form)); data.aliases = (data.aliases || '').split('\n').map(x => x.trim()).filter(Boolean); return data; }
+function showTravelForm(id, data) {
+  const form = document.getElementById(id); form.reset();
+  Array.from(form.elements).forEach(field => { if (!field.name) return; const value = (data || {})[field.name]; field.value = Array.isArray(value) ? value.join('\n') : value == null ? (field.name === 'country' ? 'GT' : field.name === 'verification_status' ? 'pending' : field.name === 'approval_status' ? 'proposed' : field.name === 'scope' ? 'municipality' : field.name === 'level' ? '0' : '') : value; });
+  if (id === 'travel-venue-form') {
+    document.getElementById('venue-verification-notes-group').hidden = !(data || {}).verification_notes;
+    const sourceList = document.getElementById('venue-additional-sources'); sourceList.replaceChildren();
+    Array.from(new Set((data || {}).source_urls || [])).filter(url => /^https?:\/\//i.test(url) && url !== (data || {}).source_url).forEach(url => {
+      const item = document.createElement('li'), link = document.createElement('a');
+      link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Consultar fuente adicional ' + (sourceList.children.length + 1); link.title = url; item.append(link); sourceList.append(item);
+    });
+    document.getElementById('venue-additional-sources-group').hidden = !sourceList.children.length;
+  }
+  form.querySelector('[role="alert"]').textContent = ''; form.hidden = false; form.scrollIntoView({block:'start'}); form.querySelector('[name="name"]').focus({preventScroll:true});
+}
+function closeTravelForm(id) { document.getElementById(id).hidden = true; document.getElementById(id === 'travel-venue-form' ? 'travel-search' : 'travel-rates-title').focus(); }
+function editTravelVenue(venue) { document.getElementById('travel-venue-title').textContent = venue && venue.id ? 'Editar lugar' : 'Agregar lugar'; showTravelForm('travel-venue-form', venue); }
+function editTravelRule(rule) { showTravelForm('travel-rule-form', rule); }
+function reviewTravelLocation(review, venue) { editTravelVenue(Object.assign({}, venue || {}, {review_id:review.id, name:(venue || {}).name || review.original_location || review.name || '', aliases:Array.from(new Set([...(venue || {}).aliases || [], review.original_location || review.name || ''])).filter(Boolean)})); }
+async function saveTravelForm(event, endpoint, kind) {
+  event.preventDefault(); const form = event.currentTarget, button = form.querySelector('[type="submit"]'), data = travelFormData(form); button.disabled = true; const original = button.textContent; button.textContent = 'Guardando…';
+  if (kind === 'venue') { data.travel_level = data.travel_level === '' ? null : Number(data.travel_level); ['latitude','longitude'].forEach(k => { data[k] = data[k] === '' ? null : Number(data[k]); }); } else { data.level = Number(data.level); }
+  try { await apiPost(endpoint, data); window.location.reload(); } catch (error) { form.querySelector('[role="alert"]').textContent = error.message; button.disabled = false; button.textContent = original; }
+}
+function saveTravelVenue(event) { return saveTravelForm(event, '/api/travel/venues', 'venue'); }
+function saveTravelRule(event) { return saveTravelForm(event, '/api/travel/rules', 'rule'); }
+async function saveTravelSettings(button) { button.disabled = true; try { await apiPost('/api/travel/settings', {enabled:!travelEnabled}); window.location.reload(); } catch(error) { document.getElementById('travel-settings-feedback').textContent = error.message; button.disabled = false; } }
+function filterTravelVenues() { const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); const query = normalize(document.getElementById('travel-search').value); let count = 0; document.querySelectorAll('#travel-venues tr[data-search]').forEach(row => { row.hidden = !normalize(row.dataset.search).includes(query); if (!row.hidden) count++; }); document.getElementById('travel-no-results').hidden = count !== 0; }
+</script>
+{% endblock %}

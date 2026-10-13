@@ -28,7 +28,11 @@ from src.workflow import WorkflowEngine, LEAD_WORKFLOW, PRODUCTION_WORKFLOW
 from src.workflow.models import StepStatus, WorkflowStatus, TriggerType
 from src.storage import store, log_security_event, TenantMismatchError
 from src import public_links, public_tokens, quote_numbering
+from src.travel import TravelService
+from src.travel_mail import compose_travel, content_digest, legacy_travel_conflict, package_link_keys
 from src.tenant_brand_map import display_name_for_tenant as _brand_display_name_for_tenant
+
+travel_service = TravelService(store)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1091,6 +1095,115 @@ def _lead_step_email_template(lead, step_id, template_id, jobs=None):
                  if item.get('tenant_id') == lead.get('tenant_id') and item.get('activo', True)
                  and 'fecha no disponible' in ' '.join((item.get('name') or '').lower().split())
                  and (item.get('cuerpo') or '').strip()), None)
+
+
+def _travel_package_context(entry):
+    """Recognize package mail in both manual and workflow paths, per brand."""
+    tenant_id = entry.get('tenant_id')
+    if not tenant_id or not entry.get('lead_id'):
+        return None
+    lead = get_lead(entry['lead_id'])
+    if not lead or lead.get('tenant_id') != tenant_id:
+        return None
+    template = _get_email_template(entry.get('template_id')) or {}
+    name = (template.get('name') or '').casefold()
+    if 'fecha no disponible' in name and not entry.get('travel_snapshot'):
+        return None
+    workflow = LEAD_WORKFLOW(tenant_id)
+    step = next((s for s in workflow.steps if s.id == 'envio_paquetes'), None)
+    is_packages = (entry.get('source') == 'workflow:lead-step:envio_paquetes'
+                   or entry.get('workflow_step_id') == 'envio_paquetes'
+                   or bool(step and step.email_template_id and step.email_template_id == entry.get('template_id'))
+                   or 'paquete' in name or bool(entry.get('travel_snapshot')))
+    if not is_packages:
+        # Copying a package email into the free composer must not bypass review.
+        body_links = package_link_keys(entry.get('body'))
+        for candidate in store.list('email_templates'):
+            candidate_name = (candidate.get('name') or '').casefold()
+            if (candidate.get('tenant_id') != tenant_id or not candidate.get('activo', True)
+                    or 'paquete' not in candidate_name or 'fecha no disponible' in candidate_name):
+                continue
+            if body_links.intersection(package_link_keys(candidate.get('cuerpo'))):
+                template, is_packages = candidate, True
+                break
+    return (lead, template) if is_packages else None
+
+
+def _travel_package_year_error(lead, template, body):
+    if _lead_packages_from_2028(lead, 'envio_paquetes'):
+        expected = _lead_step_email_template(lead, 'envio_paquetes', template.get('id'))
+        if not expected:
+            return 'Activa la plantilla Paquetes de boda Norkevin 2028 para esta fecha.'
+        if template.get('id') != expected.get('id'):
+            return 'El correo no usa los paquetes de 2028. Vuelve a prepararlo con la plantilla del año correcto.'
+        expected_links = package_link_keys(expected.get('cuerpo'))
+        if expected_links and not expected_links.intersection(package_link_keys(body)):
+            return 'El correo no contiene el enlace de paquetes de 2028. Regenera el borrador.'
+    elif '2028' in (template.get('name') or ''):
+        return 'La plantilla 2028 no corresponde al año de esta boda. Revisa el correo de paquetes.'
+    return None
+
+
+def _prepare_travel_email(entry, *, research=True):
+    context = _travel_package_context(entry)
+    if not context:
+        return {}
+    lead, template = context
+    settings = travel_service.settings(lead['tenant_id'])
+    if not settings.get('enabled'):
+        return {}
+    result = travel_service.resolve(lead, research=research)
+    if not result.get('applicable'):
+        return {}
+    body = compose_travel(entry.get('body'), result)
+    reason = None
+    if _lead_packages_unavailable(lead, 'envio_paquetes'):
+        reason = 'La fecha está ocupada. Regenera el correo de indisponibilidad antes de aprobar.'
+    elif _travel_package_year_error(lead, template, body):
+        reason = _travel_package_year_error(lead, template, body)
+    elif not result.get('definitive'):
+        reason = 'Ubicación y viáticos pendientes de revisión: ' + result.get('reason', '')
+    elif legacy_travel_conflict(body):
+        reason = 'El mensaje contiene otros viáticos fijos. Revisa el texto antes de aprobar.'
+    snapshot = dict(result, template_id=entry.get('template_id'),
+                    event_date=lead.get('fecha_tentativa') or lead.get('fecha_evento') or '',
+                    content_digest=content_digest(entry.get('subject'), body))
+    return {'body': body, 'travel_snapshot': snapshot, 'blocked_reason': reason}
+
+
+def _validate_travel_email(entry):
+    """Never rewrite an approved snapshot at send time; require fresh review."""
+    context = _travel_package_context(entry)
+    if not context:
+        return None
+    lead, template = context
+    snapshot = entry.get('travel_snapshot')
+    enabled = travel_service.settings(lead['tenant_id']).get('enabled')
+    if not enabled:
+        return 'La configuración de viáticos cambió. Regenera el borrador.' if snapshot else None
+    result = travel_service.resolve(lead)
+    if not result.get('applicable'):
+        return None
+    if _lead_packages_unavailable(lead, 'envio_paquetes'):
+        return 'La fecha está ocupada. Regenera el correo de indisponibilidad antes de aprobar.'
+    year_error = _travel_package_year_error(lead, template, entry.get('body'))
+    if year_error:
+        return year_error
+    if not result.get('definitive'):
+        return 'Ubicación y viáticos pendientes de revisión: ' + result.get('reason', '')
+    if (not snapshot or result.get('fingerprint') != snapshot.get('fingerprint')
+            or (lead.get('fecha_tentativa') or lead.get('fecha_evento') or '') != snapshot.get('event_date')
+            or entry.get('template_id') != snapshot.get('template_id')):
+        return 'La ubicación, fecha o tarifa cambió. Descarta este borrador y vuelve a generarlo para revisar los viáticos.'
+    if content_digest(entry.get('subject'), entry.get('body')) != snapshot.get('content_digest'):
+        return 'El contenido del correo cambió. Regenera el borrador para revisar los viáticos.'
+    if entry.get('html_body') or legacy_travel_conflict(entry.get('body')):
+        return 'Revisa el formato o los viáticos fijos del mensaje antes de enviarlo.'
+    return None
+
+
+_mail_tracker_module.commercial_prepare = _prepare_travel_email
+_mail_tracker_module.commercial_validate = _validate_travel_email
 
 
 def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_email=True,
@@ -4030,6 +4143,10 @@ def lead_detail(lead_id):
     email_templates = [dict(tpl, asunto=_render_message_template(tpl.get('asunto'), client=client, lead=lead),
                             cuerpo=_render_message_template(tpl.get('cuerpo'), client=client, lead=lead))
                        for tpl in email_templates]
+    for tpl in email_templates:
+        prepared = _prepare_travel_email(dict(tenant_id=lead.get('tenant_id'), lead_id=lead_id,
+            template_id=tpl['id'], subject=tpl.get('asunto'), body=tpl.get('cuerpo')), research=False)
+        tpl['cuerpo'] = prepared.get('body', tpl.get('cuerpo'))
 
     return render_template('lead_detail.html',
                           lead=lead,
@@ -4048,6 +4165,8 @@ def lead_detail(lead_id):
                           job_vinculado=job_vinculado,
                           mail_log=mail_log,
                           email_templates=email_templates,
+                          travel=travel_service.resolve(lead),
+                          travel_settings=travel_service.settings(lead['tenant_id']),
                           packages=packages)
 
 
@@ -4333,7 +4452,9 @@ def api_lead_send_email(lead_id):
 
     data = request.get_json() or {}
     template = _get_email_template(data.get('template_id'))
-    if data.get('complete_step') and (_lead_packages_unavailable(lead, data.get('step_id')) or _lead_packages_from_2028(lead, data.get('step_id'))):
+    packages_step = ('envio_paquetes' if _travel_package_context(dict(tenant_id=lead.get('tenant_id'),
+        lead_id=lead_id, template_id=data.get('template_id'), body=data.get('body'))) else data.get('step_id'))
+    if (data.get('complete_step') or packages_step == 'envio_paquetes') and (_lead_packages_unavailable(lead, packages_step) or _lead_packages_from_2028(lead, packages_step)):
         step = next((item for item in LEAD_WORKFLOW(lead.get('tenant_id')).steps if item.id == 'envio_paquetes'), None)
         template = _lead_step_email_template(lead, 'envio_paquetes', step.email_template_id if step else None)
         if not template:
@@ -8520,7 +8641,7 @@ def _pending_email_view(p):
         'origen': p.get('source') or 'desconocido',
         'creado': p.get('created_at'),
         'estado': p.get('status'),
-        'motivo_bloqueo': p.get('blocked_reason'),
+        'motivo_bloqueo': p.get('blocked_reason') or _mail_tracker_module._commercial_check(p),
         # No bloquea, pero hay que verlo antes de aprobar (direccion que no
         # es la del cliente, o que existe tambien en la otra empresa).
         'aviso_identidad': warning,
@@ -8592,6 +8713,8 @@ def api_pending_email_detail(pending_id):
             actual, p.get('to'), p.get('client_id'),
             source=p.get('source'), lead_id=p.get('lead_id'))
     unresolved = unresolved_email_fields(p.get('subject'), p.get('body'))
+    if not motivo:
+        motivo = _mail_tracker_module._commercial_check(p)
     if unresolved and not motivo:
         motivo = 'Completa antes de enviar: ' + ', '.join(unresolved)
     gmail_ok = gmail_delivery.is_connected(tenant_id=actual)
@@ -11355,6 +11478,9 @@ def api_lead_update(lead_id):
             local_lead['next_task'] = local_lead.get('next_task') or 'Seguimiento Cliente'
         local_lead['updated'] = datetime.now().isoformat()[:10]
         upsert_lead(local_lead)
+        if any(key in fields for key in ('ubicacion', 'notas', 'fecha_evento')):
+            local_lead['travel_resolution'] = travel_service.resolve(local_lead)
+            upsert_lead(local_lead)
         return jsonify({'ok': True, 'lead': local_lead})
 
     res = ns.update_lead(lead_id, **fields)
@@ -15078,6 +15204,9 @@ def start_reminder_scheduler():
     _reminder_thread_started = True
     threading.Thread(target=_reminder_scheduler_loop, daemon=True).start()
 
+
+from src.travel_routes import register_travel_routes
+register_travel_routes(app, store, travel_service, get_lead)
 
 start_reminder_scheduler()
 
