@@ -389,3 +389,63 @@ def test_norkevin_automatic_policy_never_rewrites_or_blocks_astral_packages(trav
         assert not crm._should_auto_send_package_email(entry)
     finally:
         crm._workflow_tenant.reset(token)
+
+
+@pytest.mark.parametrize('delivered_status', ['sent', 'opened', 'clicked'])
+def test_discarding_old_package_duplicates_preserves_delivered_step(travel_flow, monkeypatch, delivered_status):
+    crm, client, make = travel_flow
+    from src.email_delivery import DeliveryResult
+    from src.mail_tracker import get_tracker
+    sent = []
+    monkeypatch.setattr('src.mail_tracker.send_email', lambda *a, **k:
+                        sent.append(a) or DeliveryResult(ok=True, provider='test', mode='test'))
+    lead = make('Lugar incierto', '2027')
+    old = queue(crm, lead)
+    old['status'] = 'blocked'
+    old['blocked_reason'] = 'Ubicación sin verificar (regla antigua)'
+    legacy = [dict(old, id=old['id']), dict(old, id='pend-legacy-duplicate')]
+    for draft in legacy:
+        crm.store.upsert('pending_emails', draft)
+    instance = crm._workflow_instance_for('lead', lead['id'], tenant_id=TID)
+    crm._apply_workflow_delivery(instance, 'envio_paquetes', old)
+    assert instance.step_states['envio_paquetes'] == crm.StepStatus.FAILED
+
+    crm.travel_service.save_settings(TID, {'auto_send_packages': True})
+    current = queue(crm, lead)
+    assert current['status'] == 'sent' and len(sent) == 1
+    assert current['id'] not in [draft['id'] for draft in legacy]
+    assert FIXTURE['links']['2027'] in sent[0][2]
+    for table in ('mail_log', 'pending_emails'):
+        for entry in crm.store.list(table):
+            if entry.get('idempotency_key') == current['idempotency_key'] and entry.get('status') == 'sent':
+                entry['status'] = delivered_status
+                crm.store.upsert(table, entry)
+    for status in ('pending', 'blocked', 'failed'):
+        crm._apply_workflow_delivery(instance, 'envio_paquetes', dict(old, status=status))
+        assert instance.step_states['envio_paquetes'] == crm.StepStatus.DONE
+    for draft in legacy:
+        assert get_tracker().discard_pending(draft['id'], actor='owner-test')['ok']
+        assert crm.store.get('pending_emails', draft['id'])['status'] == 'discarded'
+        assert instance.step_states['envio_paquetes'] == crm.StepStatus.DONE
+    steps, _, _ = crm.compute_workflow_steps_for_lead(lead)
+    assert next(step for step in steps if step['id'] == 'envio_paquetes')['status'] == 'done'
+    assert crm._complete_lead_workflow_step(lead, 'envio_paquetes')['already_done']
+    assert len(sent) == 1
+
+
+@pytest.mark.parametrize('status,expected', [('pending', 'queued'), ('blocked', 'failed'),
+                                             ('failed', 'failed'), ('discarded', 'failed')])
+def test_other_tenant_delivery_does_not_hide_legitimate_package_failure(travel_flow, status, expected):
+    crm, client, make = travel_flow
+    lead = make('Lugar incierto')
+    mail = queue(crm, lead)
+    other_tenant = 'tenant-norkevin'
+    token = crm._workflow_tenant.set(other_tenant)
+    try:
+        crm.store.upsert('mail_log', dict(id='other-tenant-sent', tenant_id=other_tenant,
+            idempotency_key=mail['idempotency_key'], status='sent'))
+    finally:
+        crm._workflow_tenant.reset(token)
+    instance = crm._workflow_instance_for('lead', lead['id'], tenant_id=TID)
+    crm._apply_workflow_delivery(instance, 'envio_paquetes', dict(mail, status=status))
+    assert instance.step_states['envio_paquetes'].value == expected

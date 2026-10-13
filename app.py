@@ -716,6 +716,18 @@ def _apply_workflow_delivery(instance, step_id, mail):
     if instance.status in (WorkflowStatus.COMPLETED, WorkflowStatus.CANCELLED):
         return
     state = mail.get('status')
+    key = mail.get('idempotency_key')
+    # Discarding an older duplicate must not undo a confirmed delivery.
+    if key and instance.tenant_id and mail.get('tenant_id') == instance.tenant_id and state not in ('sent', 'opened', 'clicked'):
+        delivered = _mail_tracker_module._find_already_sent_by_idempotency_key(key, instance.tenant_id)
+        if not delivered or delivered.get('tenant_id') != instance.tenant_id:
+            delivered = next((entry for table in ('mail_log', 'pending_emails')
+                              for entry in store.list(table)
+                              if entry.get('idempotency_key') == key
+                              and entry.get('tenant_id') == instance.tenant_id
+                              and entry.get('status') in ('sent', 'opened', 'clicked')), None)
+        if delivered:
+            state = delivered['status']
     instance.step_states[step_id] = (StepStatus.DONE if state in ('sent', 'opened', 'clicked')
                                     else StepStatus.QUEUED if state in ('pending', 'sending')
                                     else StepStatus.FAILED)
