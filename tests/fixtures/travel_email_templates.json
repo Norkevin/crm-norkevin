@@ -1,0 +1,12 @@
+{
+  "verified_at": "2026-10-13",
+  "source": "Plantillas actuales leídas en https://flowingcrm.com/settings/email-templates; solo fixtures de prueba, no se cargan en producción.",
+  "subject": "Conoce las opciones que tengo para tu boda %client_name%",
+  "body": "¡Hola %client_name%, mucho gusto!\n\nAgradezco sinceramente que me consideres como tu fotógrafo de bodas.\n\nMe complace contarte que la fecha %job_date% está disponible hasta el momento.\n\nHe diseñado paquetes específicos para ofrecerte una experiencia personalizada que refleje la autenticidad y belleza de tu boda.\n\nExplora estos paquetes para encontrar el que mejor se adapte a tus preferencias.\n\nEstoy aquí para responder a tus preguntas y brindarte apoyo durante todo el proceso.\n\nEspero con entusiasmo la oportunidad de trabajar juntos para capturar recuerdos inolvidables de tu día especial\n\nPaquete de bodas\nPACKAGE_LINK\n\nSi tienes alguna duda o necesitas algo más, no dudes en preguntar. ¡Espero tener la oportunidad de ser parte de tu boda!\n\n¡Saludos!",
+  "links": {
+    "2027": "https://drive.google.com/file/d/1BQFU3oq_3WImnKose6L8rFTPE5Mh-kXf/view?usp=sharing",
+    "2028": "https://drive.google.com/file/d/18TR7KhEcRDpGOKsUnJNOaRvTna5l9edS/view?usp=sharing"
+  },
+  "unavailable_subject": "La fecha no esta disponible, pero ¡hay buenas noticias! %client_name%",
+  "unavailable_body": "¡Hola %client_name%!\n\nLamento informarte que ya tengo una reserva para la fecha de tu boda el %job_date%, por lo que no podré cubrirla personalmente. Sin embargo, he creado una empresa llamada Astral Weddings, que se especializa en capturar los momentos más importantes de bodas, y está completamente respaldada por mí.\n\nAunque no estaré físicamente en el evento, mi equipo de confianza, bajo mi dirección, se encargará de documentar tu gran día. Puedes estar seguro(a) de que la calidad del trabajo se mantendrá en los mismos altos estándares que ofrezco, ya que superviso todo el proceso para garantizar que tus recuerdos sean perfectos.\n\nTe comparto los enlaces con los paquetes de bodas:\n\n📎 Paquetes de Astral Weddings\nhttps://drive.google.com/file/d/1irm5P-Oru9fUo55B58y4XBuUrMj76y3H/view?usp=sharing\n\n📎 Paquetes oficiales de Norkevin Photography\nhttps://drive.google.com/file/d/1BQFU3oq_3WImnKose6L8rFTPE5Mh-kXf/view?usp=sharing\n\nSi tienes alguna pregunta o deseas más detalles, con gusto te ayudo.\n\n¡Saludos!\n\nKevin Lemus"
+}

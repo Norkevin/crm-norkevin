@@ -9,6 +9,7 @@ Estilo Studio Ninja:
     siempre el mismo estado que lo que este modulo acaba de escribir)
 """
 import uuid
+import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from enum import Enum
@@ -279,6 +280,19 @@ def _anotar(pendiente, nuevo_estado, *, actor=None, motivo=None):
 
 
 delivery_observer = None
+# Shared commercial policy hooks; app.py supplies the existing lead context.
+commercial_prepare = None
+commercial_validate = None
+
+
+def _commercial_check(entry):
+    if not commercial_validate:
+        return None
+    try:
+        return commercial_validate(entry)
+    except Exception:
+        logging.getLogger(__name__).exception('No se pudo validar la ubicación del correo')
+        return 'No se pudo validar la ubicación. Revisa el borrador antes de enviarlo.'
 
 
 class MailTracker:
@@ -323,6 +337,20 @@ class MailTracker:
         distintos que legitimamente coinciden en destinatario y asunto.
         """
         tenant_id = tenant_id or store.current_tenant_id()
+
+        commercial = {}
+        if commercial_prepare:
+            try:
+                commercial = commercial_prepare(dict(tenant_id=tenant_id, lead_id=lead_id,
+                    job_id=job_id, template_id=template_id, source=source,
+                    subject=subject, body=body, html_body=html_body)) or {}
+                body = commercial.get('body', body)
+                if commercial.get('travel_snapshot'):
+                    # The same escaped renderer must show exactly the approved text.
+                    html_body = None
+            except Exception:
+                logging.getLogger(__name__).exception('No se pudo preparar la clasificación de viáticos')
+                commercial = {'blocked_reason': 'No se pudo validar la ubicación. Revisa el borrador.'}
 
         if idempotency_key:
             ya_enviado = _find_already_sent_by_idempotency_key(idempotency_key, tenant_id)
@@ -413,6 +441,8 @@ class MailTracker:
         # contra nada: se bloquea antes de encolarlo.
         if not motivo and requires_job_relation(subject, template_id, source)                 and not job_id and not lead_id:
             motivo = 'un correo de este tipo debe estar ligado a una boda'
+        if not motivo:
+            motivo = commercial.get('blocked_reason')
         entry = {
             'id': 'pend-' + uuid.uuid4().hex[:10],
             'tenant_id': tenant_id,
@@ -435,6 +465,8 @@ class MailTracker:
             # Lo que no bloquea pero hay que mirar antes de aprobar.
             'aviso_identidad': aviso,
         }
+        if commercial.get('travel_snapshot'):
+            entry['travel_snapshot'] = commercial['travel_snapshot']
         try:
             store.upsert('pending_emails', entry)
         except Exception:
@@ -521,6 +553,8 @@ class MailTracker:
         # empresa despues de generarse el pendiente.
         if not motivo:
             motivo = check_attachments_same_tenant(actual, pendiente.get('attachments'))
+        if not motivo:
+            motivo = _commercial_check(pendiente)
         if motivo:
             _anotar(pendiente, BLOQUEADO, actor=actor, motivo=motivo)
             store.upsert('pending_emails', pendiente)
@@ -544,6 +578,7 @@ class MailTracker:
             tenant_id=actual,
             idempotency_key=pendiente.get('idempotency_key'),
             html_body=pendiente.get('html_body'), source=pendiente.get('source'),
+            travel_snapshot=pendiente.get('travel_snapshot'),
         )
         ok = enviado.get('status') == MailStatus.SENT.value
         # Si el correo no salio, distinguir POR QUE: si mail_tracker lo
@@ -640,7 +675,7 @@ class MailTracker:
 
     def log_email(self, to_email, subject, body='', template_id=None,
                   lead_id=None, job_id=None, attachments=None, tenant_id=None,
-                  idempotency_key=None, html_body=None, source=None):
+                  idempotency_key=None, html_body=None, source=None, travel_snapshot=None):
         """Entrega y registra un email.
 
         tenant_id explicito: mail_log es tenant-scoped, y store.upsert()
@@ -675,6 +710,10 @@ class MailTracker:
         # legitimo, no solo los cruzados.
         motivo = check_same_tenant(tenant_id, lead_id=lead_id, job_id=job_id,
                                    template_id=template_id)
+        if not motivo:
+            motivo = _commercial_check(dict(tenant_id=tenant_id, lead_id=lead_id,
+                job_id=job_id, template_id=template_id, source=source, subject=subject, body=body,
+                travel_snapshot=travel_snapshot, html_body=html_body))
         if motivo:
             entry = {
                 'id': 'mail-' + uuid.uuid4().hex[:8],
@@ -743,6 +782,8 @@ class MailTracker:
         }
         if tenant_id:
             entry['tenant_id'] = tenant_id
+        if travel_snapshot:
+            entry['travel_snapshot'] = travel_snapshot
         store.upsert('mail_log', entry)
         return entry
 
