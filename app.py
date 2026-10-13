@@ -1545,6 +1545,12 @@ def _open_leads(tenant_id=None):
     return [lead for lead in list_leads(tenant_id) if _lead_is_open(lead, jobs)]
 
 
+def _leads_newest_first(leads):
+    # Older date-only records use insertion order to break ties, newest first.
+    return sorted(reversed(leads), key=lambda lead: _notification_moment(
+        lead.get('created'), lead.get('created_time'))['timestamp'], reverse=True)
+
+
 def _job_canonical_score(job, lead=None):
     status = str(job.get('status') or '').strip().lower()
     explicit_ids = {
@@ -3654,7 +3660,7 @@ def dashboard():
             j['event_month_abbr'] = None
 
     # Recent leads (ultimos 5)
-    recent_leads = sorted(_open_leads(), key=lambda l: l.get('created', ''), reverse=True)[:5]
+    recent_leads = _leads_newest_first(_open_leads())[:5]
 
     # Workflow events -- solo los de esta cuenta. Sin el filtro, el
     # dashboard de Astral mostraba movimientos de bodas de Norkevin.
@@ -4007,7 +4013,7 @@ def leads_list():
             else:
                 lead['last_mail_chip'] = ('gray', {'pending': 'Pendiente de aprobación', 'sending': 'Enviando', 'failed': 'Falló el envío', 'blocked': 'Bloqueado', 'discarded': 'Descartado', 'bounced': 'Rebotó'}.get(last.get('status'), 'Registrado'))
 
-    leads.sort(key=lambda l: l.get('created') or '', reverse=True)
+    leads = _leads_newest_first(leads)
     email_templates = [tpl for tpl in store.list('email_templates') if tpl.get('activo', True)]
     return render_template('leads.html', leads=leads, email_templates=email_templates,
                           lead_sources=_configured_lead_sources())
@@ -4023,7 +4029,7 @@ def api_leads_export_csv():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(['Lead Created', 'Lead Name', 'Email', 'Phone', 'Type', 'Boda Date', 'Mail Status', 'Next Task', 'Status', 'Source'])
-    for lead in sorted(_open_leads(), key=lambda l: l.get('created', ''), reverse=True):
+    for lead in _leads_newest_first(_open_leads()):
         writer.writerow([
             lead.get('created', ''),
             lead.get('nombre', ''),
