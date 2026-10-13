@@ -7663,17 +7663,25 @@ def calendar_view():
     today = datetime.now().date()
 
     mes_param = request.args.get('month', '')
-    if mes_param and re.match(r'\d{4}-\d{2}', mes_param):
-        year, month = map(int, mes_param.split('-'))
-    elif request.args.get('year') and request.args.get('month'):
-        year = request.args.get('year', type=int) or today.year
-        month = request.args.get('month', type=int) or today.month
-    else:
-        year, month = today.year, today.month
+    try:
+        if re.fullmatch(r'\d{4}-\d{2}', mes_param):
+            year, month = map(int, mes_param.split('-'))
+        elif mes_param and request.args.get('year'):
+            year, month = int(request.args['year']), int(mes_param)
+        elif not mes_param:
+            year, month = today.year, today.month
+        else:
+            raise ValueError
+        if not (1901 <= year <= 9998 and 1 <= month <= 12):
+            raise ValueError
+    except (ValueError, TypeError):
+        abort(400)
 
     cal = _cal.Calendar(firstweekday=6)
     calendar_grid = []
-    for week in cal.monthdayscalendar(year, month):
+    month_weeks = cal.monthdayscalendar(year, month)
+    month_weeks += [[0] * 7 for _ in range(6 - len(month_weeks))]
+    for week in month_weeks:
         cells = []
         for day_num in week:
             in_month = day_num != 0
@@ -7718,15 +7726,15 @@ def calendar_view():
             e['month_short'] = ''
             e['days_away'] = None
 
+    month_context = dict(calendar_grid=calendar_grid, year=year, month=month,
+                         month_name=month_names[month], prev_year=prev_year, prev_month=prev_month,
+                         next_year=next_year, next_month=next_month,
+                         day_names=['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'])
+    if request.headers.get('X-Calendar-Fragment') == '1':
+        return render_template('_calendar_month.html', **month_context)
     return render_template('calendar.html',
                           all_clients=sorted(_canonical_clients(), key=lambda c: (c.get('first_name') or '').lower()),
-                          calendar_grid=calendar_grid,
-                          year=year, month=month,
-                          month_name=month_names[month],
-                          prev_year=prev_year, prev_month=prev_month,
-                          next_year=next_year, next_month=next_month,
-                          day_names=['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'],
-                          upcoming_events=upcoming_events)
+                          upcoming_events=upcoming_events, **month_context)
 
 
 

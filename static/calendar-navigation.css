@@ -1,0 +1,19 @@
+/* Six stable weeks; the toolbar stays in place while only dates are refreshed. */
+[data-calendar-root] [data-calendar-content]{overflow-anchor:none}
+.calendar-navigation-status{min-height:20px;margin:6px 0 12px;font-size:12px;line-height:20px;color:var(--sn-muted)}
+.calendar-navigation-status:empty{visibility:hidden}
+.calendar-navigation-error{color:var(--flow-danger);min-height:20px}
+[data-calendar-root="owner"] .calendar-month-label{flex:0 0 190px;width:190px;min-width:190px;white-space:nowrap;font-variant-numeric:tabular-nums}
+[data-calendar-root="owner"] .calendar-grid{grid-auto-rows:126px}
+[data-calendar-root="owner"] .calendar-cell{height:126px;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--sn-line-dark) transparent}
+[data-calendar-root="portal"] .ft-calendar-month-nav h3{width:190px;min-width:190px;white-space:nowrap;font-variant-numeric:tabular-nums}
+[data-calendar-root="portal"] .ft-month-grid{grid-template-rows:42px repeat(6,112px)}
+[data-calendar-root="portal"] .ft-month-day{height:112px;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--sn-line-dark) transparent}
+@media(max-width:760px){
+  [data-calendar-root="owner"] .calendar-month-label{flex:initial;width:100%;min-width:0}
+  [data-calendar-root="portal"] .ft-calendar-month-nav h3{width:190px;min-width:0;font-size:18px}
+}
+@media(max-width:700px){
+  [data-calendar-root="portal"] .ft-month-grid{grid-template-rows:40px repeat(6,64px)}
+  [data-calendar-root="portal"] .ft-month-day{height:64px}
+}
