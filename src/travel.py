@@ -137,13 +137,19 @@ class TravelService:
         self._tenant(tenant_id)
         saved = self.store.get_tenant_dict('travel_settings', tenant_id=tenant_id)
         confirmed = self._norkevin(tenant_id)
-        return {**saved, 'enabled': bool(saved.get('enabled')) and confirmed, 'policy_confirmed': confirmed}
+        return {**saved, 'enabled': bool(saved.get('enabled')) and confirmed,
+                'auto_send_packages': bool(saved.get('auto_send_packages')) and confirmed,
+                'policy_confirmed': confirmed}
 
     def save_settings(self, tenant_id, data, actor=''):
         self._tenant(tenant_id)
-        if not isinstance(data.get('enabled'), bool):
-            raise ValueError('enabled debe ser verdadero o falso.')
-        if data['enabled'] and not self._norkevin(tenant_id):
+        fields = ('enabled', 'auto_send_packages')
+        if not any(field in data for field in fields):
+            raise ValueError('Indica enabled o auto_send_packages.')
+        for field in fields:
+            if field in data and not isinstance(data[field], bool):
+                raise ValueError(field + ' debe ser verdadero o falso.')
+        if any(data.get(field) for field in fields) and not self._norkevin(tenant_id):
             raise ValueError('Esta marca todavía no tiene una política de viáticos confirmada.')
         table = f'travel_settings_{tenant_id}'
         # The settings document uses the existing tenant-specific dictionary storage.
@@ -151,7 +157,8 @@ class TravelService:
         from src.storage import _lock_for_path
         with _lock_for_path(self.store._path(table)):
             before = self.settings(tenant_id)
-            after = {'enabled': data['enabled'], 'updated_at': _now(), 'updated_by': str(actor)[:200]}
+            after = {**{field: data.get(field, before[field]) for field in fields},
+                     'updated_at': _now(), 'updated_by': str(actor)[:200]}
             self.store.save_tenant_dict('travel_settings', after, tenant_id=tenant_id)
             self._audit(tenant_id, 'settings', before, after, actor)
         return self.settings(tenant_id)
@@ -392,7 +399,14 @@ class TravelService:
     def _segments(context):
         # Only explicit address components are geographical evidence. A hotel
         # containing "Antigua" in its name is not evidence of its municipality.
-        segments = [normalize(part) for part in re.split(r'[,;/()\n]+', context['location']) if normalize(part)]
+        segments = []
+        for part in re.split(r'[,;/()\n]+', context['location']):
+            name = normalize(part)
+            department = re.sub(r'^(?:boda en )?(?:(?:departamento|depto) de )?', '', name)
+            if department in _DEPARTMENTS:
+                name = department
+            if name:
+                segments.append(name)
         return segments
 
     def _match_venues(self, venues, context):
@@ -452,7 +466,11 @@ class TravelService:
             if matched:
                 candidates.append(rule)
         municipal = [rule for rule in candidates if rule['scope'] == 'municipality']
-        return municipal or candidates
+        regional = [rule for rule in candidates if rule['scope'] == 'region']
+        approved_regions = {normalize(rule['value']) for rule in regional if rule['approval_status'] == 'approved'}
+        municipal = [rule for rule in municipal if rule['approval_status'] == 'approved'
+                     or normalize(rule['value']) not in approved_regions]
+        return municipal or regional
 
     def _venue_conflict(self, venue, context, venues, rules):
         if normalize(context['location']) in self._names(venue):
@@ -551,7 +569,18 @@ class TravelService:
                               candidates=[{'id': venue['id'], 'name': venue['name'], 'municipality': venue['municipality'], 'source_url': venue.get('source_url')}])
                 if venue['verification_status'] != 'verified':
                     result.update(confidence='probable', reason='Venue identificado, ubicación todavía pendiente de verificar.')
-                    if research:
+                    # A department written by the client can use its approved
+                    # regional policy without trusting a pending venue's metadata.
+                    segments = self._segments(context)
+                    if len(segments) > 1 and segments[-1] in ('guatemala', 'gt'):
+                        segments.pop()
+                    departments = ({normalize(context['department'])} if context['department'] else
+                                   {part for part in segments if part in _DEPARTMENTS})
+                    if len(departments) == 1:
+                        regional = [rule for rule in rules if rule['scope'] == 'region' and rule['approval_status'] == 'approved']
+                        explicit = {'location': '', 'municipality': '', 'department': next(iter(departments))}
+                        self._resolve_rules(result, self._match_rules(regional, explicit))
+                    if research and not result['definitive']:
                         search_context = {**context, 'department': context['department'] or venue.get('department', '')}
                         suggestions, error = self._research(tenant_id, search_context, pending_venue_id=venue['id'])
                         candidates = {item['id']: item for item in result['candidates'] + suggestions}

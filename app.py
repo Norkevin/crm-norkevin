@@ -29,7 +29,7 @@ from src.workflow.models import StepStatus, WorkflowStatus, TriggerType
 from src.storage import store, log_security_event, TenantMismatchError
 from src import public_links, public_tokens, quote_numbering
 from src.travel import TravelService
-from src.travel_mail import compose_travel, content_digest, legacy_travel_conflict, package_link_keys
+from src.travel_mail import compose_travel, content_digest, legacy_travel_conflict, package_link_keys, strip_travel_block
 from src.tenant_brand_map import display_name_for_tenant as _brand_display_name_for_tenant
 
 travel_service = TravelService(store)
@@ -1144,15 +1144,71 @@ def _travel_package_year_error(lead, template, body):
     return None
 
 
+def _resolve_travel_for_email(lead, *, research=False):
+    """Only uncertain geography falls back; date/brand/content checks remain."""
+    try:
+        return travel_service.resolve(lead, research=research)
+    except Exception:
+        logger.exception('No se pudo resolver el destino; paquetes sin viáticos')
+        import json
+        context = travel_service._context(lead)
+        return dict(original_location=context['location'], level=None,
+                    photo_amount=None, photo_video_amount=None, definitive=False,
+                    requires_review=True, confidence='unknown', applicable=True,
+                    reason='Ubicación sin confirmar; correo normal sin viáticos.',
+                    fingerprint=content_digest('geography-unavailable', json.dumps(context, sort_keys=True)))
+
+
+def _should_auto_send_package_email(entry):
+    # Explicit owner authorization applies exclusively to Norkevin package templates.
+    from src.tenant_brand_map import resolve_brand, UnresolvedBrandError
+    try:
+        if resolve_brand(entry.get('tenant_id')).brand_key != 'norkevin':
+            return False
+    except UnresolvedBrandError:
+        return False
+    if not travel_service.settings(entry['tenant_id']).get('auto_send_packages'):
+        return False
+    context = _travel_package_context(entry)
+    if not context:
+        return False
+    lead, template = context
+    if (entry.get('html_body') or entry.get('template_id') != template.get('id') or not template.get('activo', True)
+            or not (template.get('cuerpo') or '').strip()
+            or lead.get('source_id') or lead.get('studio_ninja_workflow') is not None
+            or lead.get('studio_ninja_source_id') or lead.get('job_id')
+            or lead.get('status') in ('Convertido', 'Archivado', 'Cancelado', 'Listo', 'Perdido')):
+        return False
+    event_date = lead.get('fecha_tentativa') or lead.get('fecha_evento')
+    try:
+        if event_date and date.fromisoformat(str(event_date)[:10]) < date.today():
+            return False
+    except ValueError:
+        pass
+    # An old or manually modified draft is not permission to send obsolete copy.
+    client = get_client(lead.get('client_id')) if lead.get('client_id') else None
+    current_subject = _render_message_template(template.get('asunto') or 'Paquetes', lead=lead, client=client)
+    current_body = _render_message_template(template['cuerpo'], lead=lead, client=client)
+    return (entry.get('subject') == current_subject
+            and strip_travel_block(entry.get('body')) == strip_travel_block(current_body))
+
+
 def _prepare_travel_email(entry, *, research=True):
     context = _travel_package_context(entry)
     if not context:
         return {}
     lead, template = context
     settings = travel_service.settings(lead['tenant_id'])
-    if not settings.get('enabled'):
+    if not settings.get('policy_confirmed'):
         return {}
-    result = travel_service.resolve(lead, research=research)
+    if not settings.get('enabled'):
+        body = compose_travel(entry.get('body'), {'definitive': False})
+        reason = ('La fecha está ocupada. Regenera el correo de indisponibilidad antes de aprobar.'
+                  if _lead_packages_unavailable(lead, 'envio_paquetes') else _travel_package_year_error(lead, template, body))
+        if not reason and legacy_travel_conflict(body):
+            reason = 'El mensaje contiene otros viáticos fijos. Revisa el texto antes de aprobar.'
+        return {'body': body, 'blocked_reason': reason}
+    result = _resolve_travel_for_email(lead, research=research)
     if not result.get('applicable'):
         return {}
     body = compose_travel(entry.get('body'), result)
@@ -1161,8 +1217,6 @@ def _prepare_travel_email(entry, *, research=True):
         reason = 'La fecha está ocupada. Regenera el correo de indisponibilidad antes de aprobar.'
     elif _travel_package_year_error(lead, template, body):
         reason = _travel_package_year_error(lead, template, body)
-    elif not result.get('definitive'):
-        reason = 'Ubicación y viáticos pendientes de revisión: ' + result.get('reason', '')
     elif legacy_travel_conflict(body):
         reason = 'El mensaje contiene otros viáticos fijos. Revisa el texto antes de aprobar.'
     snapshot = dict(result, template_id=entry.get('template_id'),
@@ -1178,20 +1232,25 @@ def _validate_travel_email(entry):
         return None
     lead, template = context
     snapshot = entry.get('travel_snapshot')
-    enabled = travel_service.settings(lead['tenant_id']).get('enabled')
-    if not enabled:
-        return 'La configuración de viáticos cambió. Regenera el borrador.' if snapshot else None
-    result = travel_service.resolve(lead)
-    if not result.get('applicable'):
+    settings = travel_service.settings(lead['tenant_id'])
+    if not settings.get('policy_confirmed'):
         return None
     if _lead_packages_unavailable(lead, 'envio_paquetes'):
         return 'La fecha está ocupada. Regenera el correo de indisponibilidad antes de aprobar.'
     year_error = _travel_package_year_error(lead, template, entry.get('body'))
     if year_error:
         return year_error
-    if not result.get('definitive'):
-        return 'Ubicación y viáticos pendientes de revisión: ' + result.get('reason', '')
-    if (not snapshot or result.get('fingerprint') != snapshot.get('fingerprint')
+    enabled = settings.get('enabled')
+    if not enabled:
+        if snapshot:
+            return 'La configuración de viáticos cambió. Regenera el borrador.'
+        return 'Revisa los viáticos fijos del mensaje antes de enviarlo.' if legacy_travel_conflict(entry.get('body')) else None
+    result = _resolve_travel_for_email(lead)
+    if not result.get('applicable'):
+        return None
+    fees_changed = (result.get('fingerprint') != (snapshot or {}).get('fingerprint')
+                    and (result.get('level') not in (None, 0) or (snapshot or {}).get('level') not in (None, 0)))
+    if (not snapshot or fees_changed
             or (lead.get('fecha_tentativa') or lead.get('fecha_evento') or '') != snapshot.get('event_date')
             or entry.get('template_id') != snapshot.get('template_id')):
         return 'La ubicación, fecha o tarifa cambió. Descarta este borrador y vuelve a generarlo para revisar los viáticos.'
@@ -1204,6 +1263,7 @@ def _validate_travel_email(entry):
 
 _mail_tracker_module.commercial_prepare = _prepare_travel_email
 _mail_tracker_module.commercial_validate = _validate_travel_email
+_mail_tracker_module.package_auto_delivery = _should_auto_send_package_email
 
 
 def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_email=True,
@@ -8671,6 +8731,7 @@ def pending_emails_page():
     return render_template(
         'pending_emails.html',
         emails=vistas,
+        auto_packages=travel_service.settings(tenant_id).get('auto_send_packages') if tenant_id else False,
         conteos={
             'pendiente': sum(1 for v in vistas if v['estado'] == 'pending'),
             'enviando': sum(1 for v in vistas if v['estado'] == 'sending'),
@@ -15094,7 +15155,7 @@ def _prepare_job_workflow_email(job, step):
 
 
 def _prepare_due_workflow_emails(tenant_id=None, now=None, subject_type=None):
-    """Prepare only newly enrolled workflows. Never deliver or revive legacy mail."""
+    """Process newly enrolled workflows; only authorized Norkevin packages auto-deliver."""
     now = now or datetime.now()
     prepared = []
     # ponytail: one Render worker; use a database claim before adding workers.
@@ -15148,7 +15209,7 @@ def _workflow_queue_loop():
             _prepare_due_workflow_emails()
 
 
-# Separate from payment reminders: this runner only prepares approval drafts.
+# Separate from payment reminders: authorized Norkevin package mail auto-delivers.
 if os.environ.get('ENABLE_WORKFLOW_QUEUE', '1') == '1':
     threading.Thread(target=_workflow_queue_loop, daemon=True).start()
 

@@ -1,3 +1,34 @@
+POLÍTICA ACTUALIZADA — 13 DE OCTUBRE DE 2026
+
+El usuario autorizó envío automático de paquetes exclusivamente para Norkevin.
+La ubicación incierta, ambigua, internacional o con tarifa aún propuesta permite
+el correo habitual sin importes de viáticos. Ese correo incluye la nota:
+«Si su boda se realiza fuera de Ciudad de Guatemala, Antigua Guatemala, Tecpán
+o sus alrededores, podrían aplicarse cargos adicionales de viáticos.
+Consúltenos para confirmarlo.»
+
+Los destinos con política aprobada incluyen el bloque con sus dos tarifas.
+Los departamentos explícitos pueden resolver una regla regional aprobada sin
+necesitar venue concreto. No se amplían las exenciones municipales a departamentos.
+El usuario confirmó aprobar las 92 tarifas propuestas de ubicaciones verificadas;
+las 26 ubicaciones sin confirmar permanecen sin tarifa. Petén conserva nivel 3;
+Chiquimula recibe regla departamental nivel 2 por la nueva instrucción.
+
+El ajuste auto_send_packages inicia apagado, es independiente por cuenta y
+rechaza la activación para Astral. Una vez activado, el tracker entrega paquetes
+con la plantilla actual, valida marca, destinatario, adjuntos, disponibilidad,
+año y contenido, y conserva su clave de idempotencia. Los mensajes modificados,
+plantillas obsoletas, registros históricos importados y fallos no se reenvían
+automáticamente. Los demás correos mantienen su aprobación habitual.
+
+La recuperación indiscriminada de borradores antiguos fue rechazada por revisión
+automática y se excluyó. Cualquier recuperación usa la plantilla actual y los
+controles de entrega existentes; nunca habilita envíos generales de otras marcas.
+Validación de esta versión: 1792 pruebas aprobadas, 1 omitida por pdftotext.
+Todas las pruebas usan persistencia temporal y transportes de correo falsos.
+
+HISTORIAL DE LA IMPLEMENTACIÓN INICIAL
+
 FLOWING CRM — IMPLEMENTACIÓN DE VENUES Y VIÁTICOS
 13 de octubre de 2026
 

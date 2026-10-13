@@ -97,18 +97,19 @@ def test_approved_package_delivery_preserves_notification_source_and_travel_snap
 
 
 @pytest.mark.parametrize('place', ['Venue desconocido 938472', 'Finca San Cayetano, Argentina', 'Salamá'])
-def test_unresolved_keeps_draft_and_never_delivers(travel_flow, monkeypatch, place):
+def test_unresolved_uses_normal_packages_and_can_deliver(travel_flow, monkeypatch, place):
     crm, client, make = travel_flow
     from src.mail_tracker import get_tracker
     mail = queue(crm, make(place))
-    assert mail['status'] == 'blocked'
+    assert mail['status'] == 'pending'
     assert 'Q1,500' not in mail['body'] and 'Q0' not in mail['body']
     called = []
-    monkeypatch.setattr('src.mail_tracker.send_email', lambda *a, **k: called.append(a))
+    from src.email_delivery import DeliveryResult
+    monkeypatch.setattr('src.mail_tracker.send_email', lambda *a, **k: called.append(a) or DeliveryResult(ok=True, provider='test', mode='test'))
+    assert client.get('/api/pending-emails/' + mail['id']).json['motivo'] is None
     result = get_tracker().approve_and_send(mail['id'], sender_tenant_id=TID, actor='test')
-    assert not result['ok'] and not called
+    assert result['ok'] and len(called) == 1
     assert FIXTURE['links']['2028'] in mail['body']
-    assert not client.get('/api/pending-emails/' + mail['id']).json['enviable']
 
 
 def test_venue_change_recalculates_and_blocks_old_snapshot(travel_flow):
@@ -200,12 +201,13 @@ def test_known_legacy_fees_are_replaced_without_touching_saved_template(travel_f
     assert legacy_travel_conflict('Viáticos de traslado: Q1,700')
 
 
-def test_failure_is_closed_and_saved_for_review(travel_flow, monkeypatch):
+def test_geography_failure_uses_normal_package_email(travel_flow, monkeypatch):
     crm, client, make = travel_flow
     lead = make()
     monkeypatch.setattr(crm.travel_service, 'resolve', lambda *a, **k: (_ for _ in ()).throw(RuntimeError('failed')))
     mail = queue(crm, lead)
-    assert mail['status'] == 'blocked' and 'No se pudo validar' in mail['blocked_reason']
+    assert mail['status'] == 'pending' and not mail['blocked_reason']
+    assert crm._validate_travel_email(mail) is None
     assert 'Q1,500' not in mail['body']
 
 
@@ -220,7 +222,7 @@ def test_new_unknown_is_researched_once_and_remains_a_proposal(travel_flow, monk
     monkeypatch.setattr(crm.travel_service, '_geocode', provider)
     lead = make('Finca Nueva de Prueba')
     mail = queue(crm, lead)
-    assert mail['status'] == 'blocked' and len(calls) == 1
+    assert mail['status'] == 'pending' and len(calls) == 1
     assert crm.travel_service.resolve(lead, research=True)['requires_review']
     assert len(calls) == 1
     venues = crm.travel_service.catalog(TID)
@@ -231,16 +233,16 @@ def test_new_unknown_is_researched_once_and_remains_a_proposal(travel_flow, monk
 @pytest.mark.parametrize('link', [FIXTURE['links']['2027'],
     FIXTURE['links']['2027'].replace('?usp=sharing', '?usp=drive_link#preview'),
     'https://drive.google.com/open?id=1BQFU3oq_3WImnKose6L8rFTPE5Mh-kXf'])
-def test_copy_pasted_packages_cannot_bypass_location_review(travel_flow, monkeypatch, link):
+def test_copy_pasted_packages_with_unknown_venue_use_normal_email(travel_flow, monkeypatch, link):
     crm, client, make = travel_flow
     lead = make('Venue desconocido sin verificar', '2027')
     response = client.post('/api/leads/' + lead['id'] + '/send-email', json={
         'subject': 'Mis paquetes de boda', 'body': FIXTURE['body'].replace('PACKAGE_LINK', link)})
     assert response.status_code == 200
     mail = crm.store.get('pending_emails', response.json['mail_id'])
-    assert mail['status'] == 'blocked' and mail.get('travel_snapshot')
-    from src.mail_tracker import get_tracker
-    assert not get_tracker().approve_and_send(mail['id'], sender_tenant_id=TID)['ok']
+    assert mail['status'] == 'pending' and mail.get('travel_snapshot')
+    assert crm._validate_travel_email(mail) is None
+    assert 'se aplicarían los siguientes viáticos:' not in mail['body']
 
 
 def test_manual_wrong_year_without_complete_step_uses_correct_link(travel_flow):
@@ -272,5 +274,118 @@ def test_resolver_failure_keeps_pending_review_screen_available(travel_flow, mon
     monkeypatch.setattr(crm.travel_service, 'resolve', lambda *a, **k: (_ for _ in ()).throw(RuntimeError('failed')))
     response = client.get('/api/pending-emails/' + mail['id'])
     assert response.status_code == 200
-    assert not response.json['enviable'] and 'No se pudo validar' in response.json['motivo']
+    assert not response.json['enviable'] and 'cambió' in response.json['motivo']
     assert client.get('/emails').status_code == 200
+
+
+@pytest.mark.parametrize('location,amount', [('Hotel Atitlán', 'Q1,500'), ('Departamento de Petén', 'Q2,500'), ('Lugar no confirmado 314159', None), ('Sacatepéquez', None), ('Boda en Argentina', None)])
+def test_authorized_norkevin_packages_auto_deliver_normal_or_with_approved_fees(travel_flow, monkeypatch, location, amount):
+    crm, client, make = travel_flow
+    from src.email_delivery import DeliveryResult
+    sent = []
+    monkeypatch.setattr('src.mail_tracker.send_email', lambda *a, **k:
+                        sent.append((a, k)) or DeliveryResult(ok=True, provider='test', mode='test'))
+    lead = make(location)
+    crm.travel_service.save_settings(TID, {'auto_send_packages': True}, actor='owner-test')
+    mail = queue(crm, lead)
+    assert mail['status'] == 'sent' and len(sent) == 1
+    assert mail['historial'][-1]['actor'] == 'sistema:paquetes-automaticos'
+    assert FIXTURE['links']['2028'] in sent[0][0][2]
+    if amount:
+        assert amount in sent[0][0][2]
+    else:
+        assert 'se aplicarían los siguientes viáticos:' not in sent[0][0][2]
+    assert crm._complete_lead_workflow_step(lead, 'envio_paquetes').get('already_done')
+    assert len(sent) == 1
+
+
+def test_auto_packages_geography_error_sends_normal_without_leaving_pending(travel_flow, monkeypatch):
+    crm, client, make = travel_flow
+    from src.email_delivery import DeliveryResult
+    sent = []
+    lead = make('Hotel Atitlán')
+    crm.travel_service.save_settings(TID, {'auto_send_packages': True})
+    monkeypatch.setattr(crm.travel_service, 'resolve', lambda *a, **k: (_ for _ in ()).throw(RuntimeError('provider unavailable')))
+    monkeypatch.setattr('src.mail_tracker.send_email', lambda *a, **k:
+                        sent.append(a) or DeliveryResult(ok=True, provider='test', mode='test'))
+    mail = queue(crm, lead)
+    assert mail['status'] == 'sent' and len(sent) == 1
+    assert 'se aplicarían los siguientes viáticos:' not in sent[0][2]
+
+
+def test_auto_packages_does_not_send_modified_or_obsolete_draft(travel_flow, monkeypatch):
+    crm, client, make = travel_flow
+    lead = make('Lugar incierto')
+    crm.travel_service.save_settings(TID, {'auto_send_packages': True})
+    from src.mail_tracker import get_tracker
+    sent = []
+    monkeypatch.setattr('src.mail_tracker.send_email', lambda *a, **k: sent.append(a))
+    old_copy = crm._render_message_template(FIXTURE['body'].replace('PACKAGE_LINK', FIXTURE['links']['2028']), lead=lead) + '\nTexto antiguo editado'
+    mail = get_tracker().queue_email(lead['email'], FIXTURE['subject'], old_copy,
+        template_id='test-travel-2028', lead_id=lead['id'], tenant_id=TID,
+        source='workflow:lead-step:envio_paquetes', idempotency_key='obsolete-package-copy')
+    assert mail['status'] == 'pending' and not sent
+
+
+def test_department_chiquimula_approved_region_adds_level_two_fees(travel_flow):
+    crm, client, make = travel_flow
+    crm.travel_service.save_rule(TID, {'name':'Chiquimula', 'value':'Chiquimula', 'scope':'region',
+        'level':2, 'approval_status':'approved', 'reason':'Política de departamento confirmada por el usuario.'})
+    mail = queue(crm, make('Boda en Chiquimula'))
+    assert mail['status'] == 'pending' and mail['travel_snapshot']['level'] == 2
+    assert 'Q2,000' in mail['body'] and 'Q3,500' in mail['body']
+
+
+@pytest.mark.parametrize('location', ['Lugar sin confirmar', 'Boda en Argentina'])
+def test_normal_package_notice_is_conditional_and_not_duplicated(travel_flow, location):
+    crm, client, make = travel_flow
+    mail = queue(crm, make(location))
+    notice = 'Si su boda se realiza fuera de Ciudad de Guatemala, Antigua Guatemala, Tecpán o sus alrededores'
+    assert notice in mail['body'] and mail['body'].count(notice) == 1
+    assert 'Consúltenos para confirmarlo.' in mail['body']
+    assert compose_travel(mail['body'], mail['travel_snapshot']) == mail['body']
+    assert notice not in strip_travel_block(mail['body'])
+
+
+def test_known_exempt_and_known_charged_destinations_do_not_get_uncertain_notice(travel_flow):
+    crm, client, make = travel_flow
+    for index, place in enumerate(('Finca San Cayetano', 'Hotel Atitlán')):
+        mail = queue(crm, make(place, suffix='notice-' + str(index)))
+        assert 'podrían aplicarse cargos adicionales' not in mail['body']
+
+
+@pytest.mark.parametrize('violation', ['unavailable', 'wrong_year'])
+def test_auto_package_guards_still_apply_when_travel_fees_disabled(travel_flow, monkeypatch, violation):
+    crm, client, make = travel_flow
+    from src.mail_tracker import get_tracker
+    lead = make('Lugar incierto')
+    crm.travel_service.save_settings(TID, {'enabled':False, 'auto_send_packages':True})
+    if violation == 'unavailable':
+        crm.store.upsert('jobs', dict(id='occupied-auto-date',tenant_id=TID,status='Confirmado',boda_date=lead['fecha_tentativa']))
+    year = '2027' if violation == 'wrong_year' else '2028'
+    template = crm.store.get('email_templates','test-travel-' + year)
+    body = crm._render_message_template(template['cuerpo'],lead=lead)
+    sent = []
+    monkeypatch.setattr('src.mail_tracker.send_email', lambda *a, **k: sent.append(a))
+    entry = get_tracker().queue_email(lead['email'],FIXTURE['subject'],body,template_id=template['id'],
+        lead_id=lead['id'],tenant_id=TID,source='workflow:lead-step:envio_paquetes')
+    assert entry['status']=='blocked' and not sent
+    assert crm._validate_travel_email(entry)
+
+
+
+def test_norkevin_automatic_policy_never_rewrites_or_blocks_astral_packages(travel_flow):
+    crm, client, make = travel_flow
+    from src.tenant_brand_map import resolve_brand
+    astral=resolve_brand('tenant-norkevin').internal_tenant_id
+    lead=dict(id='astral-package-isolation',tenant_id=astral,nombre='Pareja Astral',email='astral-package@example.invalid',fecha_tentativa='2028-05-12',locacion='Lugar incierto')
+    template=dict(id='astral-packages-2028',tenant_id=astral,name='Paquetes Astral 2028',activo=True,cuerpo='Texto propio de Astral: viáticos Q4,500')
+    token=crm._workflow_tenant.set(astral)
+    try:
+        crm.store.upsert('leads',lead);crm.store.upsert('email_templates',template)
+        entry=dict(tenant_id=astral,lead_id=lead['id'],template_id=template['id'],body=template['cuerpo'],subject='Astral',source='workflow:lead-step:envio_paquetes')
+        assert crm._prepare_travel_email(entry)=={}
+        assert crm._validate_travel_email(entry) is None
+        assert not crm._should_auto_send_package_email(entry)
+    finally:
+        crm._workflow_tenant.reset(token)

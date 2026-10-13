@@ -283,6 +283,17 @@ delivery_observer = None
 # Shared commercial policy hooks; app.py supplies the existing lead context.
 commercial_prepare = None
 commercial_validate = None
+package_auto_delivery = None
+
+
+def _package_auto_delivery_enabled(entry):
+    if not package_auto_delivery:
+        return False
+    try:
+        return bool(package_auto_delivery(entry))
+    except Exception:
+        logging.getLogger(__name__).exception('No se pudo confirmar el envío automático de paquetes')
+        return False
 
 
 def _commercial_check(entry):
@@ -310,16 +321,40 @@ class MailTracker:
     def queue_email(self, *args, **kwargs):
         # Serialize scheduler and manual requests around idempotency lookup + write.
         with store.locked_tables('pending_emails', 'mail_log'):
-            return self._queue_email(*args, **kwargs)
+            entry = self._queue_email(*args, **kwargs)
+            if (entry.get('status') != PENDIENTE or entry.get('package_auto_attempted_at')
+                    or entry.get('package_auto_requires_review')
+                    or 'el contenido pedido para este correo cambio' in (entry.get('aviso_identidad') or '')
+                    or not _package_auto_delivery_enabled(entry)):
+                return entry
+            actor = 'sistema:paquetes-automaticos'
+            entry['package_auto_attempted_at'] = datetime.now().isoformat()
+            store.upsert('pending_emails', entry)
+            try:
+                result = self.approve_and_send(entry['id'], sender_tenant_id=entry['tenant_id'], actor=actor)
+                return result.get('pendiente') or store.get('pending_emails', entry['id']) or entry
+            except Exception as exc:
+                logging.getLogger(__name__).exception('Resultado incierto del envío automático de paquetes')
+                entry = store.get('pending_emails', entry['id']) or entry
+                if entry.get('status') not in (ENVIADO, BLOQUEADO, FALLO, CANCELADO):
+                    _anotar(entry, FALLO, actor=actor,
+                            motivo=f'Resultado del envío automático no confirmado: {exc}')
+                    entry['attempted_at'] = datetime.now().isoformat()
+                    store.upsert('pending_emails', entry)
+                    if delivery_observer:
+                        try:
+                            delivery_observer(entry)
+                        except Exception:
+                            logging.getLogger(__name__).exception('No se pudo sincronizar el fallo de paquetes')
+                return entry
 
     def _queue_email(self, to_email, subject, body='', template_id=None,
                     lead_id=None, job_id=None, client_id=None, attachments=None,
                     tenant_id=None, source=None, idempotency_key=None, html_body=None):
-        """Genera un correo y lo deja ESPERANDO aprobacion. No envia nada.
+        """Genera el borrador; queue_email entrega los paquetes automáticos autorizados.
 
-        Kevin, despues del incidente: "ningun email generado por el CRM debe
-        poder salir sin una accion consciente de mi parte". Todo lo que antes
-        se mandaba solo pasa por aca.
+        Los demás correos siguen esperando aprobación manual. La excepción
+        comercial se decide por empresa y tipo de mensaje en el callback.
 
         Se guarda una copia completa (asunto, cuerpo ya renderizado,
         adjuntos, cuenta, destinatario, job, plantilla) a proposito: si
@@ -390,7 +425,10 @@ class MailTracker:
                 (e for e in store.list('pending_emails')
                  if e.get('idempotency_key') == idempotency_key
                  and e.get('tenant_id') == tenant_id
-                 and e.get('status') in (PENDIENTE, ENVIANDO)),
+                 and (e.get('status') in (PENDIENTE, ENVIANDO)
+                      or (e.get('status') in (FALLO, CANCELADO)
+                          and (e.get('package_auto_attempted_at')
+                               or _package_auto_delivery_enabled(e))))),
                 None,
             )
             if ya_en_cola:
@@ -419,6 +457,7 @@ class MailTracker:
                                    'pendiente y volve a generarlo')
                     existente = ya_en_cola.get('aviso_identidad') or ''
                     if aviso_extra not in existente:
+                        ya_en_cola['package_auto_requires_review'] = True
                         ya_en_cola['aviso_identidad'] = (
                             f'{existente} | {aviso_extra}' if existente else aviso_extra)
                         try:

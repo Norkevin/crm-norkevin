@@ -4,6 +4,11 @@ import re
 from urllib.parse import parse_qs, unquote, urlsplit
 
 
+_NOTICE = ('(Si su boda se realiza fuera de Ciudad de Guatemala, Antigua Guatemala, '
+           'Tecpán o sus alrededores, podrían aplicarse cargos adicionales de viáticos. '
+           'Consúltenos para confirmarlo.)')
+
+
 _END = ('Estos montos se agregan al precio del paquete que elijan y corresponden '
         'a los gastos de traslado y logística de nuestro equipo.')
 _BLOCK = re.compile(r'Como su boda se realizará en [^\n]+, se aplicarían los siguientes viáticos:\n'
@@ -17,7 +22,7 @@ _LEGACY = re.compile(
 
 def strip_travel_block(body):
     body = _BLOCK.sub('', (body or '').replace('\r\n', '\n'))
-    body = _LEGACY.sub('', body)
+    body = _LEGACY.sub('', body).replace(_NOTICE, '')
     return re.sub(r'\n{3,}', '\n\n', body).strip()
 
 
@@ -34,7 +39,7 @@ def travel_block(result):
 def compose_travel(body, result):
     """Regeneration is idempotent. Everything outside the conditional block stays intact."""
     base = strip_travel_block(body)
-    block = travel_block(result)
+    block = travel_block(result) if result.get('definitive') else _NOTICE
     if not block:
         return base
     # Existing package templates put the real package URL on its own line.

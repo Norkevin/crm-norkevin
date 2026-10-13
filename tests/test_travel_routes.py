@@ -34,10 +34,29 @@ def test_admin_renders_catalog_rates_and_controlled_activation(travel_ui):
     html = response.get_data(as_text=True)
     for text in ('Finca San Cayetano', 'Hotel Atitlán', 'Q1,500', 'Q3,500', 'Q4,500',
                  'Verificación de ubicación', 'Aprobación comercial', 'Activar en correos',
+                 'Activar envío automático de paquetes', 'paquetes normales sin viáticos',
                  'https://www.openstreetmap.org/copyright', 'OpenStreetMap contributors (ODbL)',
                  '13 de octubre de 2026', 'id="travel-rates-title" tabindex="-1"'):
         assert text in html
     assert crm.travel_service.settings(tenant)['enabled'] is False
+    assert crm.travel_service.settings(tenant)['auto_send_packages'] is False
+    assert not crm.store.list('pending_emails')
+
+
+def test_owner_can_toggle_package_auto_send_without_resetting_travel_activation(travel_ui):
+    crm, client, tenant = travel_ui
+    assert client.post('/api/travel/settings', json={'enabled': True}).status_code == 200
+    response = client.post('/api/travel/settings', json={'auto_send_packages': True})
+    assert response.status_code == 200
+    settings = crm.travel_service.settings(tenant)
+    assert settings['enabled'] is True and settings['auto_send_packages'] is True
+    html = client.get('/settings/travel').get_data(as_text=True)
+    assert 'Desactivar envío automático de paquetes' in html
+    assert 'Los correos de paquetes se envían automáticamente.' in html
+    assert 'Los correos de paquetes requieren aprobación' not in html
+    assert client.post('/api/travel/settings', json={'enabled': False}).status_code == 200
+    assert crm.travel_service.settings(tenant)['auto_send_packages'] is True
+    assert client.post('/api/travel/settings', json={'auto_send_packages': 'true'}).status_code == 400
     assert not crm.store.list('pending_emails')
 
 
@@ -138,7 +157,9 @@ def test_settings_and_records_are_isolated_from_astral(travel_ui):
     try:
         html = client.get('/settings/travel').get_data(as_text=True)
         assert 'Activar en correos' not in html and 'pendiente de confirmación' in html
+        assert 'Activar envío automático de paquetes' not in html
         assert client.post('/api/travel/settings', json={'enabled':True}).status_code == 400
+        assert client.post('/api/travel/settings', json={'auto_send_packages':True}).status_code == 400
         assert client.post('/api/travel/venues', json=venue).status_code == 404
         assert client.post('/api/leads/nork-travel-only/travel/research', json={}).status_code == 404
     finally:
