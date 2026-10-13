@@ -1,0 +1,97 @@
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const script = fs.readFileSync(path.join(__dirname, '../static/calendar-navigation.js'), 'utf8');
+const url = month => `https://example.test/calendar?year=2026&month=${month}`;
+const flush = () => new Promise(resolve => setImmediate(resolve));
+
+function calendar(month) {
+  const links = ['previous','next','today'].map((key,i) => ({
+    href:url(i === 0 ? month-1 : i === 1 ? month+1 : 10), dataset:{calendarControl:key},
+    getAttribute() {return this.href;}, closest() {return this;}
+  }));
+  const label = {textContent:`Month ${month}`};
+  const content = {innerHTML:`dates-${month}`, style:{}, contains:()=>false,
+    getBoundingClientRect:()=>({height:500}), animate() {}};
+  const status = {textContent:'', classList:{add(){},remove(){}}};
+  return {dataset:{calendarRoot:'owner'}, isConnected:true, links, label, content, status,
+    parentElement:{scrollTop:240,scrollLeft:0,parentElement:null}, attributes:{},
+    setAttribute(name,value) {this.attributes[name]=value;},
+    cloneNode() {return calendar(month);}, contains:node=>links.includes(node),
+    querySelector(selector) {
+      if (selector.includes('data-calendar-content')) return content;
+      if (selector.includes('data-calendar-status')) return status;
+      if (selector.includes('data-calendar-label')) return label;
+      return links.find(link=>selector.includes(`"${link.dataset.calendarControl}"`)) || null;
+    },
+    querySelectorAll:()=>links
+  };
+}
+
+function setup() {
+  const root=calendar(10), events={}, windowEvents={}, requests=[], pushes=[], assigned=[];
+  const location={href:url(10),origin:'https://example.test',pathname:'/calendar',assign:value=>assigned.push(value)};
+  const history={state:{},replaceState(state){this.state=state;},pushState(state,unused,value){this.state=state;location.href=value;pushes.push(value);}};
+  const context={URL,URLSearchParams,AbortController,Date,location,history,
+    setTimeout:()=>1,clearTimeout(){},matchMedia:()=>({matches:false}),filterCalendar(){},
+    document:{querySelector:()=>root,activeElement:root.links[1],addEventListener:(key,fn)=>events[key]=fn},
+    addEventListener:(key,fn)=>windowEvents[key]=fn,
+    fetch:(value,options)=>new Promise(resolve=>requests.push({value,options,resolve})),
+    DOMParser:class {parseFromString(value){return {querySelector:()=>calendar(Number(value))};}}
+  };
+  context.window=context;
+  vm.runInNewContext(script,context);
+  const click=index=>events.click({target:root.links[index],button:0,preventDefault(){}});
+  const respond=(index,month,status=200,redirect='')=>requests[index].resolve({ok:status===200,status,redirected:Boolean(redirect),
+    url:redirect||requests[index].value,text:async()=>String(month)});
+  return {root,context,requests,pushes,assigned,location,history,windowEvents,click,respond};
+}
+
+test('month navigation preserves toolbar identity, focus and scroll; returning uses the memory cache',async()=>{
+  const s=setup(), next=s.root.links[1];
+  s.click(1);
+  assert.equal(s.requests[0].options.headers['X-Calendar-Fragment'],'1');
+  assert.equal(s.requests[0].options.cache,'no-store');
+  s.respond(0,11); await flush();
+  assert.equal(s.root.label.textContent,'Month 11');
+  assert.equal(s.root.links[1],next);
+  assert.equal(s.context.document.activeElement,next);
+  assert.equal(s.root.parentElement.scrollTop,240);
+  assert.equal(s.root.content.style.minHeight,'500px');
+  s.click(0); await flush();
+  assert.equal(s.root.label.textContent,'Month 10');
+  assert.equal(s.requests.length,1);
+  assert.equal(s.pushes.length,2);
+});
+
+test('an older slow response cannot overwrite the last requested month',async()=>{
+  const s=setup(); s.click(1); s.click(0);
+  s.respond(1,9); await flush(); s.respond(0,11); await flush();
+  assert.equal(s.root.content.innerHTML,'dates-9');
+  assert.equal(s.root.attributes['aria-busy'],'false');
+  assert.deepEqual(s.pushes,[url(9)]);
+});
+
+test('a failure keeps the calendar visible and allows a fresh retry',async()=>{
+  const s=setup(); s.click(1); s.respond(0,11,500); await flush();
+  assert.equal(s.root.content.innerHTML,'dates-10');
+  assert.match(s.root.status.textContent,/No se pudo cargar/);
+  assert.equal(s.pushes.length,0);
+  s.click(1); assert.equal(s.requests.length,2);
+  s.respond(1,11); await flush(); assert.equal(s.root.status.textContent,'');
+});
+
+test('browser Back updates the month without adding another history entry',async()=>{
+  const s=setup(); s.click(1); s.respond(0,11); await flush();
+  s.location.href=url(10); s.windowEvents.popstate(); await flush();
+  assert.equal(s.root.label.textContent,'Month 10');
+  assert.equal(s.pushes.length,1);
+});
+
+test('expired authentication follows the login redirect without displaying a fragment',async()=>{
+  const s=setup(); s.click(1); s.respond(0,11,200,'https://example.test/login'); await flush();
+  assert.equal(s.root.content.innerHTML,'dates-10');
+  assert.deepEqual(s.assigned,['https://example.test/login']);
+});

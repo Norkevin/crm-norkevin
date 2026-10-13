@@ -44,7 +44,10 @@ def wedding_agenda(weddings, today, args):
     filtered = [j for j in filtered if query.casefold() in ' '.join([j['display_name'], j['location'], *j['roles']]).casefold()]
     # Calendar dates include the member's required travel, separately labeled below.
     weeks = []
-    for week in calendar.Calendar(firstweekday=0).monthdatescalendar(first.year, first.month):
+    month_weeks = calendar.Calendar(firstweekday=0).monthdatescalendar(first.year, first.month)
+    while len(month_weeks) < 6:
+        month_weeks.append([month_weeks[-1][-1] + timedelta(days=i) for i in range(1, 8)])
+    for week in month_weeks:
         cells = []
         for day in week:
             iso = day.isoformat()
@@ -388,7 +391,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             raise TeamsError('Cobertura no disponible.', 404)
         return job
 
-    def state():
+    def state(calendar_only=False):
         tenant, member = g.teams_portal_tenant, g.teams_member
         with store.transaction() as db:
             assignments = [a for a in store.records(db, tenant, 'assignment') if a['member_id'] == member['id'] and a['status'] in VISIBLE_ASSIGNMENTS]
@@ -432,6 +435,8 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
             selected_job_id = request.args.get('job_id', '')
             if selected_job_id and selected_job_id not in accessible_ids:
                 abort(404)
+            if calendar_only:
+                return dict(wedding_options=wedding_options, brand=g.teams_portal_brand)
             selected_wedding = next((j for j in wedding_options if j['id'] == selected_job_id), None)
             if selected_job_id:
                 assignments = [a for a in assignments if a['job_id'] == selected_job_id]
@@ -562,9 +567,14 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
     @portal.route('')
     @portal.route('/')
     def page():
-        data = state()
+        fragment = request.headers.get('X-Calendar-Fragment') == '1'
+        data = state(calendar_only=fragment)
         today = datetime.now(teams_zone(crm_store, g.teams_portal_tenant)).date().isoformat()
         agenda = wedding_agenda(data['wedding_options'], today, request.args)
+        if fragment:
+            if agenda['view'] != 'calendar':
+                abort(400)
+            return render_template('_teams_portal_agenda.html', fragment=True, agenda=agenda, **data)
         return render_template('teams_portal.html', login=False, csrf=session['teams_portal_csrf'], agenda=agenda, **data)
 
     @portal.route('/summary')
