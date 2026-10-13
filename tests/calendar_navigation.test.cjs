@@ -10,7 +10,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 function calendar(month) {
   const links = ['previous','next','today'].map((key,i) => ({
     href:url(i === 0 ? month-1 : i === 1 ? month+1 : 10), dataset:{calendarControl:key},
-    getAttribute() {return this.href;}, closest() {return this;}
+    getAttribute() {return this.href;}, closest() {return this;}, hasAttribute:()=>false, removeAttribute() {}
   }));
   const label = {textContent:`Month ${month}`};
   const content = {innerHTML:`dates-${month}`, style:{}, contains:()=>false,
@@ -30,16 +30,38 @@ function calendar(month) {
   };
 }
 
-function setup() {
-  const root=calendar(10), events={}, windowEvents={}, requests=[], pushes=[], assigned=[];
-  const location={href:url(10),origin:'https://example.test',pathname:'/calendar',assign:value=>assigned.push(value)};
+const portalURL = view => `https://example.test/teams-portal/?view=${view}&month=2026-11&q=Ana&period=upcoming`;
+function portal(view) {
+  const root=calendar(11), originalSelector=root.querySelector;
+  root.dataset={calendarRoot:'portal',calendarView:view};
+  root.toolbar={innerHTML:`toolbar-${view}`,contains:()=>false};
+  root.content.innerHTML=`weddings-${view}`;
+  root.content.getBoundingClientRect=()=>({height:1400,top:400});
+  root.links=['list','calendar'].map(key=>({href:portalURL(key),dataset:{calendarControl:key},attributes:key===view?{'aria-current':'page'}:{},
+    closest(){return this;},getAttribute(name){return name==='href'?this.href:this.attributes[name];},
+    hasAttribute(name){return name in this.attributes;},setAttribute(name,value){this.attributes[name]=value;},removeAttribute(name){delete this.attributes[name];}}));
+  root.contains=node=>root.links.includes(node);
+  root.querySelector=selector=>{
+    if(selector.includes('data-calendar-toolbar'))return root.toolbar;
+    if(selector.includes('data-calendar-label'))return root.dataset.calendarView==='calendar'?root.label:null;
+    if(selector.includes('data-calendar-control'))return root.links.find(link=>selector.includes(`"${link.dataset.calendarControl}"`));
+    return originalSelector(selector);
+  };
+  root.querySelectorAll=selector=>selector==='[data-calendar-control]'?root.links:[];
+  root.cloneNode=()=>portal(view);
+  return root;
+}
+
+function setup(portalView=false) {
+  const root=portalView?portal('list'):calendar(10), events={}, windowEvents={}, requests=[], pushes=[], assigned=[];
+  const location={href:portalView?portalURL('list'):url(10),origin:'https://example.test',pathname:portalView?'/teams-portal/':'/calendar',assign:value=>assigned.push(value)};
   const history={state:{},replaceState(state){this.state=state;},pushState(state,unused,value){this.state=state;location.href=value;pushes.push(value);}};
   const context={URL,URLSearchParams,AbortController,Date,location,history,
     setTimeout:()=>1,clearTimeout(){},matchMedia:()=>({matches:false}),filterCalendar(){},
-    document:{querySelector:()=>root,activeElement:root.links[1],addEventListener:(key,fn)=>events[key]=fn},
+    document:{querySelector:()=>root,activeElement:root.links[1],documentElement:{clientHeight:900},addEventListener:(key,fn)=>events[key]=fn},
     addEventListener:(key,fn)=>windowEvents[key]=fn,
     fetch:(value,options)=>new Promise(resolve=>requests.push({value,options,resolve})),
-    DOMParser:class {parseFromString(value){return {querySelector:()=>calendar(Number(value))};}}
+    DOMParser:class {parseFromString(value){return {querySelector:()=>portalView?portal(value):calendar(Number(value))};}}
   };
   context.window=context;
   vm.runInNewContext(script,context);
@@ -94,4 +116,44 @@ test('expired authentication follows the login redirect without displaying a fra
   const s=setup(); s.click(1); s.respond(0,11,200,'https://example.test/login'); await flush();
   assert.equal(s.root.content.innerHTML,'dates-10');
   assert.deepEqual(s.assigned,['https://example.test/login']);
+});
+
+test('switching List and Calendar preserves the view buttons, selected state, focus and scroll',async()=>{
+  const s=setup(true), buttons=[...s.root.links];
+  s.click(1); s.respond(0,'calendar'); await flush();
+  assert.equal(s.root.dataset.calendarView,'calendar');
+  assert.equal(s.root.content.innerHTML,'weddings-calendar');
+  assert.equal(s.root.toolbar.innerHTML,'toolbar-calendar');
+  assert.equal(s.root.links[1].getAttribute('aria-current'),'page');
+  assert.equal(s.root.links[0].hasAttribute('aria-current'),false);
+  assert.equal(s.root.content.style.minHeight,'500px');
+  assert.equal(s.root.parentElement.scrollTop,240);
+  assert.equal(s.context.document.activeElement,buttons[1]);
+  s.click(0); await flush();
+  assert.deepEqual(s.root.links,buttons);
+  assert.equal(s.root.dataset.calendarView,'list');
+  assert.equal(s.root.toolbar.innerHTML,'toolbar-list');
+  assert.equal(s.root.links[0].getAttribute('aria-current'),'page');
+  assert.equal(s.requests.length,1);
+  assert.equal(s.assigned.length,0);
+  assert.deepEqual(s.pushes,[portalURL('calendar'),portalURL('list')]);
+});
+
+test('Back restores the list view and a delayed view response cannot replace it',async()=>{
+  const s=setup(true); s.click(1); s.respond(0,'calendar'); await flush();
+  s.location.href=portalURL('list'); s.windowEvents.popstate(); await flush();
+  assert.equal(s.root.dataset.calendarView,'list');
+  assert.equal(s.pushes.length,1);
+  const slow=setup(true); slow.click(1); slow.click(0); await flush();
+  slow.respond(0,'calendar'); await flush();
+  assert.equal(slow.root.dataset.calendarView,'list');
+  assert.equal(slow.root.content.innerHTML,'weddings-list');
+});
+
+test('a failed view change retains the list and its selected button',async()=>{
+  const s=setup(true); s.click(1); s.respond(0,'calendar',500); await flush();
+  assert.equal(s.root.content.innerHTML,'weddings-list');
+  assert.equal(s.root.toolbar.innerHTML,'toolbar-list');
+  assert.equal(s.root.links[0].getAttribute('aria-current'),'page');
+  assert.equal(s.pushes.length,0);
 });

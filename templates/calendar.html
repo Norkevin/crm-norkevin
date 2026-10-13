@@ -5,7 +5,7 @@
 {% block topbar_title %}Calendario{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='calendar-navigation.css',v='20261013-fluid') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='calendar-navigation.css',v='20261013-views') }}">
 <section class="sn-page-wide">
 {% include "_calendar_connection.html" %}
   <div class="sn-page-head">
@@ -545,5 +545,5 @@ document.addEventListener('keydown', function(event) {
   }
 });
 </script>
-<script src="{{ url_for('static',filename='calendar-navigation.js',v='20261013-fluid') }}" defer></script>
+<script src="{{ url_for('static',filename='calendar-navigation.js',v='20261013-views') }}" defer></script>
 {% endblock %}

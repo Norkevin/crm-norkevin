@@ -1,4 +1,4 @@
-/* Update calendar fragments while retaining the toolbar, focus and scroll position. */
+/* Update agenda fragments while retaining the controls, focus and scroll position. */
 (() => {
   const root = document.querySelector('[data-calendar-root]');
   if (!root || !window.fetch) return;
@@ -39,7 +39,7 @@
 
   const warm = () => {
     clearTimeout(warmTimer);
-    warmTimer = setTimeout(() => root.querySelectorAll('[data-calendar-control="previous"], [data-calendar-control="next"]')
+    warmTimer = setTimeout(() => root.querySelectorAll('[data-calendar-control="previous"], [data-calendar-control="next"], [data-calendar-view-link]:not([aria-current])')
       .forEach(link => load(link.href).catch(() => {})), 150);
   };
 
@@ -48,7 +48,7 @@
     if (url.origin !== location.origin || url.pathname !== location.pathname) return;
     const current = ++revision;
     root.setAttribute('aria-busy', 'true');
-    status.textContent = 'Cargando calendario…';
+    status.textContent = 'Cargando agenda…';
     status.classList.remove('calendar-navigation-error');
     try {
       const incoming = await load(url.href);
@@ -56,19 +56,38 @@
       const scroll = [];
       for (let node = root.parentElement; node; node = node.parentElement) scroll.push([node, node.scrollTop, node.scrollLeft]);
       const focusInContent = content.contains(document.activeElement);
-      content.style.minHeight = `${content.getBoundingClientRect().height}px`;
+      const toolbar = root.querySelector('[data-calendar-toolbar]');
+      const focusInToolbar = toolbar?.contains(document.activeElement);
+      const focusedName = document.activeElement?.name;
+      const bounds = content.getBoundingClientRect();
+      // Reserve the visible space without leaving a long list's full height behind.
+      if (toolbar && (incoming.dataset.calendarView !== root.dataset.calendarView || incoming.dataset.calendarView === 'list'))
+        toolbar.innerHTML = incoming.querySelector('[data-calendar-toolbar]').innerHTML;
+      if (incoming.dataset.calendarView) root.dataset.calendarView = incoming.dataset.calendarView;
       root.querySelectorAll('[data-calendar-control]').forEach(control => {
         const next = incoming.querySelector(`[data-calendar-control="${control.dataset.calendarControl}"]`);
-        if (next) control.href = new URL(next.getAttribute('href'), location.href).href;
+        if (next) {
+          control.href = new URL(next.getAttribute('href'), location.href).href;
+          if (next.hasAttribute('aria-current')) control.setAttribute('aria-current', next.getAttribute('aria-current'));
+          else control.removeAttribute('aria-current');
+        }
       });
-      root.querySelector('[data-calendar-label]').textContent = incoming.querySelector('[data-calendar-label]').textContent;
-      const month = root.querySelector('input[name="month"]');
-      if (month) month.value = incoming.querySelector('input[name="month"]').value;
+      const label = root.querySelector('[data-calendar-label]');
+      if (label) label.textContent = incoming.querySelector('[data-calendar-label]').textContent;
+      root.querySelectorAll('[data-calendar-form] input').forEach(input => {
+        const next = incoming.querySelector(`[data-calendar-form] input[name="${input.name}"]`);
+        if (next) input.value = next.value;
+      });
+      content.style.minHeight = `${root.dataset.calendarRoot === 'portal'
+        ? Math.min(bounds.height, Math.max(0, document.documentElement.clientHeight - content.getBoundingClientRect().top)) : bounds.height}px`;
       content.innerHTML = incoming.querySelector('[data-calendar-content]').innerHTML;
       if (root.dataset.calendarRoot === 'owner') window.filterCalendar?.();
       if (push) history.pushState({...history.state, flowCalendar:true}, '', url.href);
       scroll.forEach(([node, top, left]) => { node.scrollTop = top; node.scrollLeft = left; });
-      if (focusInContent) (content.querySelector('[data-calendar-selection]') || root.querySelector('[data-calendar-label]')).focus({preventScroll:true});
+      if (focusInContent || focusInToolbar) {
+        const focus = focusInToolbar && ['q','period','month'].includes(focusedName) && toolbar.querySelector(`[name="${focusedName}"]`);
+        (focus || content.querySelector('[data-calendar-selection]') || label || root.querySelector('#weddings-title')).focus({preventScroll:true});
+      }
       if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
         content.animate?.([{opacity:0.65}, {opacity:1}], {duration:140, easing:'ease-out'});
       status.textContent = '';
@@ -78,7 +97,7 @@
       if (error.loginURL && new URL(error.loginURL, location.href).origin === location.origin) {
         location.assign(error.loginURL); return;
       }
-      status.textContent = 'No se pudo cargar el mes. Vuelve a pulsar la flecha o «Ir» para reintentar.';
+      status.textContent = 'No se pudo cargar la agenda. Vuelve a pulsar la vista o el control que elegiste para reintentar.';
       status.classList.add('calendar-navigation-error');
     } finally {
       if (current === revision) root.setAttribute('aria-busy', 'false');

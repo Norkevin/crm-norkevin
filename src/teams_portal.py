@@ -572,8 +572,6 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
         today = datetime.now(teams_zone(crm_store, g.teams_portal_tenant)).date().isoformat()
         agenda = wedding_agenda(data['wedding_options'], today, request.args)
         if fragment:
-            if agenda['view'] != 'calendar':
-                abort(400)
             return render_template('_teams_portal_agenda.html', fragment=True, agenda=agenda, **data)
         return render_template('teams_portal.html', login=False, csrf=session['teams_portal_csrf'], agenda=agenda, **data)
 
