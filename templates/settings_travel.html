@@ -10,11 +10,11 @@
   <div class="sn-page-head"><div><a class="sn-muted" href="/settings">Configuración</a><h1 class="sn-page-title" style="margin-top:8px">Destinos y viáticos</h1><p class="sn-muted">Catálogo de ubicaciones y tarifas de {{ current_tenant.name }}.</p></div></div>
   <div class="travel-summary">
     <div><h2>{{ 'Activo en correos de paquetes' if travel_settings.enabled else 'Preparado para revisión' }}</h2>
-      {% if travel_settings.policy_confirmed %}<p>Al activarlo, los correos de paquetes usarán únicamente destinos verificados con tarifas aprobadas. Las ubicaciones pendientes deberán resolverse antes del envío.</p>
+      {% if travel_settings.policy_confirmed %}<p>Los destinos con tarifas aprobadas incluyen viáticos. Si la ubicación es incierta o no tiene una tarifa aprobada, se envían los paquetes normales sin viáticos.</p>
       {% else %}<p>La política de esta marca está pendiente de confirmación. El catálogo se puede consultar y revisar; las tarifas no se aplican automáticamente.</p>{% endif %}
-      <p class="travel-note">Los correos conservan su aprobación habitual. No se modifican los precios de los paquetes.</p><p id="travel-settings-feedback" role="status" class="travel-note"></p>
+      <p class="travel-note">{{ 'Los correos de paquetes se envían automáticamente.' if travel_settings.auto_send_packages else 'Los correos de paquetes requieren aprobación antes de enviarse.' }} No se modifican los precios de los paquetes.</p><p id="travel-settings-feedback" role="status" class="travel-note"></p>
     </div>
-    {% if travel_settings.policy_confirmed %}<button type="button" class="sn-btn {{ '' if travel_settings.enabled else 'sn-btn-primary' }}" id="travel-activate" onclick="saveTravelSettings(this)">{{ 'Desactivar en correos' if travel_settings.enabled else 'Activar en correos' }}</button>{% endif %}
+    {% if travel_settings.policy_confirmed %}<div class="travel-review-actions"><button type="button" class="sn-btn {{ '' if travel_settings.enabled else 'sn-btn-primary' }}" id="travel-activate" onclick="saveTravelSettings(this)">{{ 'Desactivar en correos' if travel_settings.enabled else 'Activar en correos' }}</button><button type="button" class="sn-btn" id="travel-auto-send" onclick="saveTravelSettings(this, 'auto_send_packages')">{{ 'Desactivar envío automático de paquetes' if travel_settings.auto_send_packages else 'Activar envío automático de paquetes' }}</button></div>{% endif %}
   </div>
   <nav class="travel-nav" aria-label="Destinos y viáticos"><a href="#travel-catalog">Catálogo</a><a href="#travel-reviews">Pendientes ({{ reviews|length }})</a><a href="#travel-rates">Niveles y destinos</a></nav>
 
@@ -80,6 +80,7 @@
 </section>
 <script>
 const travelEnabled = {{ travel_settings.enabled|tojson }};
+const travelAutoSend = {{ travel_settings.auto_send_packages|tojson }};
 function travelFormData(form) { const data = Object.fromEntries(new FormData(form)); data.aliases = (data.aliases || '').split('\n').map(x => x.trim()).filter(Boolean); return data; }
 function showTravelForm(id, data) {
   const form = document.getElementById(id); form.reset();
@@ -106,7 +107,7 @@ async function saveTravelForm(event, endpoint, kind) {
 }
 function saveTravelVenue(event) { return saveTravelForm(event, '/api/travel/venues', 'venue'); }
 function saveTravelRule(event) { return saveTravelForm(event, '/api/travel/rules', 'rule'); }
-async function saveTravelSettings(button) { button.disabled = true; try { await apiPost('/api/travel/settings', {enabled:!travelEnabled}); window.location.reload(); } catch(error) { document.getElementById('travel-settings-feedback').textContent = error.message; button.disabled = false; } }
+async function saveTravelSettings(button, field = 'enabled') { button.disabled = true; try { await apiPost('/api/travel/settings', {[field]:field === 'auto_send_packages' ? !travelAutoSend : !travelEnabled}); window.location.reload(); } catch(error) { document.getElementById('travel-settings-feedback').textContent = error.message; button.disabled = false; } }
 function filterTravelVenues() { const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); const query = normalize(document.getElementById('travel-search').value); let count = 0; document.querySelectorAll('#travel-venues tr[data-search]').forEach(row => { row.hidden = !normalize(row.dataset.search).includes(query); if (!row.hidden) count++; }); document.getElementById('travel-no-results').hidden = count !== 0; }
 </script>
 {% endblock %}

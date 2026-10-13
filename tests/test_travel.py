@@ -63,6 +63,48 @@ def test_confirmed_policy(service, location, level, photo, video):
     assert result['enabled'] is False  # Simulation before controlled activation.
 
 
+@pytest.mark.parametrize('location', ['Petén', 'Departamento de Petén', 'Depto. de Petén', 'Boda en Petén',
+                                      'Boda en departamento de Petén', 'Finca nueva, Departamento de Petén',
+                                      'Departamento de Retalhuleu'])
+def test_explicit_department_prefix_uses_only_approved_regional_policy(service, location):
+    result = service.resolve(lead(location))
+    assert result['definitive'] and result['level'] == (2 if 'Retalhuleu' in location else 3)
+
+
+@pytest.mark.parametrize('location', ['Hotel Petén', 'Finca Retalhuleu', 'Boda en Hotel Petén',
+                                      'Departamento de Sacatepéquez', 'Boda en Chimaltenango', 'Depto. de Guatemala'])
+def test_department_prefix_does_not_guess_hotel_geography_or_expand_exempt_municipalities(service, location):
+    result = service.resolve(lead(location))
+    assert result['level'] is None and not result['definitive']
+
+
+def test_approved_department_rule_is_not_hidden_by_homonymous_proposed_municipality(service):
+    municipality = service.save_rule(NORKEVIN, dict(value='Chiquimula', department='Chiquimula', scope='municipality',
+                                                  level=1, approval_status='proposed'))
+    service.save_rule(NORKEVIN, dict(value='Chiquimula', scope='region', level=2, approval_status='approved'))
+    assert service.resolve(lead('Chiquimula'))['level'] == 2
+    assert service.resolve(lead('Departamento de Chiquimula'))['level'] == 2
+    service.save_rule(NORKEVIN, {'id': municipality['id'], 'approval_status': 'approved'})
+    assert service.resolve(lead('Chiquimula', municipality='Chiquimula'))['level'] == 1
+
+
+def test_pending_venue_uses_only_client_explicit_department_for_approved_region(service):
+    pending = service.save_venue(NORKEVIN, venue('Hotel Sin Confirmar', '', 'Petén', None,
+                                               verification_status='pending', approval_status='proposed'))
+    assert service.resolve(lead(pending['name']))['level'] is None
+    assert service.resolve(lead(pending['name'] + ', Departamento de Petén'))['level'] == 3
+    assert service.resolve(lead(pending['name'], department='Petén'))['level'] == 3
+    conflict = service.resolve(lead(pending['name'], department='Retalhuleu'))
+    assert conflict['confidence'] == 'ambiguous' and conflict['level'] is None
+    assert service.resolve(lead(pending['name'] + ', Petén, Argentina'))['confidence'] == 'international'
+    assert service.resolve(lead('Finca San Cayetano, Departamento de Petén'))['level'] is None
+
+
+def test_approved_venue_exception_precedes_explicit_department_rule(service):
+    service.save_venue(NORKEVIN, venue('Finca Exenta', 'Flores', 'Petén', 0))
+    assert service.resolve(lead('Finca Exenta, Departamento de Petén'))['level'] == 0
+
+
 def test_verified_local_catalog_never_queries_foreign_provider(service, monkeypatch):
     def forbidden(_query):
         raise AssertionError('A verified local venue must not call the provider')
@@ -236,6 +278,31 @@ def test_astral_policy_is_never_inherited_from_misleading_tenant_id(service):
     assert service.rules(ASTRAL) == []
     with pytest.raises(ValueError):
         service.save_settings(ASTRAL, {'enabled': True})
+
+
+def test_package_auto_send_settings_default_preserve_other_field_and_are_audited(service):
+    assert service.settings(NORKEVIN)['auto_send_packages'] is False
+    automatic = service.save_settings(NORKEVIN, {'auto_send_packages': True}, actor='test-owner')
+    assert automatic['auto_send_packages'] is True and automatic['enabled'] is False
+    assert service.save_settings(NORKEVIN, {'enabled': True})['auto_send_packages'] is True
+    assert service.save_settings(NORKEVIN, {'auto_send_packages': False})['enabled'] is True
+    assert service.save_settings(NORKEVIN, {'enabled': False})['auto_send_packages'] is False
+    audits = [row for row in service.store.list('travel_audit') if row['action'] == 'settings']
+    assert len(audits) == 4 and audits[0]['after']['auto_send_packages'] is True
+    assert audits[0]['actor'] == 'test-owner'
+    assert service.settings(ASTRAL)['auto_send_packages'] is False
+    with pytest.raises(ValueError):
+        service.save_settings(ASTRAL, {'auto_send_packages': True})
+    service.store.save_tenant_dict('travel_settings', {'enabled': True, 'auto_send_packages': True}, ASTRAL)
+    assert service.settings(ASTRAL)['enabled'] is False and service.settings(ASTRAL)['auto_send_packages'] is False
+
+
+@pytest.mark.parametrize('field,value', [('enabled', 1), ('enabled', 'true'), ('auto_send_packages', 1),
+                                       ('auto_send_packages', 'false'), ('auto_send_packages', None)])
+def test_settings_require_real_booleans_without_writing(service, field, value):
+    with pytest.raises(ValueError):
+        service.save_settings(NORKEVIN, {field: value})
+    assert service.store.get_tenant_dict('travel_settings', tenant_id=NORKEVIN) == {}
 
 
 def test_catalog_and_admin_are_tenant_isolated(service):
