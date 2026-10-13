@@ -96,7 +96,7 @@ def drain(journal, store, current_keys, sender=send_apns, limit=30):
                 continue
             db.execute('UPDATE deliveries SET status=\'sending\',attempts=attempts+1,next_attempt=? WHERE notification_id=? AND session_hash=?',
                        (time.time() + 120, row['notification_id'], row['session_hash']))
-            badge = db.execute('SELECT COUNT(*) FROM notifications WHERE tenant_id=? AND recipient=? AND read_at IS NULL',
+            badge = db.execute('SELECT COUNT(*) FROM notifications WHERE tenant_id=? AND recipient=? AND hidden=0 AND read_at IS NULL',
                                (row['tenant_id'], row['recipient'])).fetchone()[0]
         try:
             status = sender(decrypt_device(notice['device']), notice['apns_environment'], notice, bool(notice['hide_details']), badge)

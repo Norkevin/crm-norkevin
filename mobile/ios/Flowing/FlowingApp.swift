@@ -6,6 +6,7 @@ import UserNotifications
     @Published var token = ""
     @Published var notice = ""
     @Published var failure = ""
+    @Published var refreshRequested = 0
 }
 
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -22,6 +23,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        Task { @MainActor in PushBridge.shared.refreshRequested += 1 }
         completionHandler([.banner, .sound, .badge])
     }
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
@@ -45,6 +47,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 .environment(\.timeZone, TimeZone(identifier: "America/Guatemala")!)
                 .onReceive(bridge.$token) { token in
                     if !token.isEmpty { Task { await flow.registerDevice(token) } }
+                }
+                .onChange(of: bridge.refreshRequested) { _, _ in
+                    Task { await flow.refresh(force: true) }
                 }
                 .onChange(of: bridge.failure) { _, error in flow.error = error }
                 .onChange(of: bridge.notice) { _, id in

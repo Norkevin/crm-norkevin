@@ -3528,16 +3528,20 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-var notificationItems = [];
+var notificationItems = {{ recent_notifications | tojson }};
+var notificationUnreadCount = {{ unread_notifications_count | default(0) }};
+var notificationRequest = null;
+var notificationVersion = 0;
 var notificationFilter = 'all';
 
 function setNotificationFilter(filter) {
   notificationFilter = filter;
-  renderNotifications();
+  if (notificationRequest) notificationRequest.finally(refreshNotifications);
+  else refreshNotifications();
 }
 
 function renderNotifications() {
-  var unread = notificationItems.filter(function(n) { return !n.read; }).length;
+  var unread = notificationUnreadCount;
   document.querySelectorAll('[data-notif-filter]').forEach(function(button) {
     var active = button.dataset.notifFilter === notificationFilter;
     button.classList.toggle('active', active);
@@ -3567,13 +3571,16 @@ function renderNotifications() {
   if (pill) pill.textContent = unread;
 }
 
-async function markNotificationIds(ids) {
+async function markNotificationIds(ids, all) {
   var response = await fetch('/api/notifications/read', {
-    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: ids})
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(all ? {all: true} : {ids: ids})
   });
   var data = await response.json();
   if (!response.ok || !data.ok) throw new Error(data.error || 'No se pudo guardar la lectura');
-  notificationItems.forEach(function(n) { if (ids.indexOf(n.id) !== -1) n.read = true; });
+  notificationVersion++;
+  var newlyRead = notificationItems.filter(function(n) { return !n.read && ids.indexOf(n.id) !== -1; }).length;
+  notificationUnreadCount = all ? 0 : Math.max(0, notificationUnreadCount - newlyRead);
+  notificationItems.forEach(function(n) { if (all || ids.indexOf(n.id) !== -1) n.read = true; });
   renderNotifications();
 }
 
@@ -3590,29 +3597,60 @@ async function openNotification(event, id) {
 
 async function markNotificationsRead() {
   try {
-    await markNotificationIds(notificationItems.filter(function(n) { return !n.read; }).map(function(n) { return n.id; }));
+    await markNotificationIds([], true);
     flashToast('Notificaciones marcadas como leídas', 'success');
   } catch (error) { flashToast(error.message, 'error'); }
 }
 
-async function refreshNotifications() {
-  try {
-    var response = await fetch('/api/notifications/recent');
-    var data = await response.json();
-    if (!response.ok || !data.ok) throw new Error('No se pudieron cargar las notificaciones');
-    notificationItems = data.notifications;
-    renderNotifications();
-  } catch (error) {
-    ['notif-list', 'notif-history-list'].forEach(function(id) {
-      var list = document.getElementById(id);
-      if (list && !notificationItems.length) list.textContent = 'No se pudieron cargar las notificaciones. Cierra y vuelve a abrir la campana para reintentar.';
-    });
-  }
+function refreshNotifications() {
+  if (notificationRequest) return notificationRequest;
+  var filter = notificationFilter;
+  var version = notificationVersion;
+  var query = '?filter=' + encodeURIComponent(filter);
+  if (!document.getElementById('notif-history-list')) query += '&limit=5';
+  notificationRequest = (async function() {
+    var controller = new AbortController();
+    var timeout = setTimeout(function() { controller.abort(); }, 15000);
+    try {
+      var response = await fetch('/api/notifications/recent' + query, {cache: 'no-store', signal: controller.signal});
+      var data = await response.json();
+      if (!response.ok || !data.ok) throw new Error('No se pudieron cargar las notificaciones');
+      if (filter !== notificationFilter || version !== notificationVersion) return;
+      notificationItems = data.notifications;
+      notificationUnreadCount = data.count;
+      renderNotifications();
+    } catch (error) {
+      ['notif-list', 'notif-history-list'].forEach(function(id) {
+        var list = document.getElementById(id);
+        if (list && !notificationItems.length) list.textContent = 'No se pudieron cargar las notificaciones. Cierra y vuelve a abrir la campana para reintentar.';
+      });
+    } finally {
+      clearTimeout(timeout);
+      notificationRequest = null;
+    }
+  })();
+  return notificationRequest;
+}
+
+function refreshVisibleNotifications() {
+  if (!document.hidden) refreshNotifications();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  refreshNotifications();
-  setInterval(refreshNotifications, 45000);
+  renderNotifications(); // Reuse the server snapshot instead of rebuilding it immediately.
+  setInterval(refreshVisibleNotifications, 45000);
+});
+document.addEventListener('visibilitychange', refreshVisibleNotifications);
+window.addEventListener('focus', refreshVisibleNotifications);
+window.addEventListener('online', refreshVisibleNotifications);
+window.addEventListener('pageshow', function(event) {
+  if (event.persisted) refreshVisibleNotifications();
+});
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'FLOW_NOTIFICATIONS_CHANGED') {
+    if (notificationRequest) notificationRequest.finally(refreshVisibleNotifications);
+    else refreshVisibleNotifications();
+  }
 });
 
 function toggleAccountMenu(e) {

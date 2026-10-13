@@ -510,3 +510,11 @@ test('only static assets and manifest are cached; offline navigation uses the pu
   assert.equal(sw.cacheCalls[0].request, '/offline.html');
   assert.equal(sw.cacheCalls.some(call => call.action === 'put'), false);
 });
+
+test('push refreshes existing windows without leaking private payloads', async () => {
+  const messages = [];
+  const sw = worker({ clients: [{postMessage: message => messages.push(message)}] });
+  await sw.push({hide_details: true, body: 'Private client', notification_id: 'a'.repeat(64)});
+  assert.equal(sw.notices.length, 1);
+  assert.equal(JSON.stringify(messages), JSON.stringify([{type:'FLOW_NOTIFICATIONS_CHANGED'}]));
+});

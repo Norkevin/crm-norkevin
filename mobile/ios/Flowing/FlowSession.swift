@@ -68,6 +68,7 @@ final class NoRedirect: NSObject, URLSessionTaskDelegate {
     private var token: String?
     private var generation = 0
     private var disconnecting = false
+    private var refreshAfterCurrent = false
     private var registrationGeneration: Int?
     private var registeredGeneration: Int?
     private var registrationInteractive = false
@@ -151,20 +152,34 @@ final class NoRedirect: NSObject, URLSessionTaskDelegate {
 
     func cancelPairing() { pairingTask?.cancel(); pairingTask = nil; connecting = false; pairingCode = "" }
 
-    func refresh() async {
-        guard connected && !disconnecting && !busy else { return }
+    func refresh(force: Bool = false) async {
+        guard connected && !disconnecting else { return }
+        if busy {
+            if force { refreshAfterCurrent = true }
+            return
+        }
         let currentGeneration = generation
         let currentDeviceGeneration = deviceGeneration
         error = nil
         busy = true
-        defer { busy = false }
+        defer {
+            busy = false
+            if refreshAfterCurrent {
+                refreshAfterCurrent = false
+                Task { await refresh() }
+            }
+        }
         do {
-            overview = try await call("/api/mobile/overview")
-            let inbox: Inbox = try await call("/api/mobile/notifications")
+            async let summary: Overview = call("/api/mobile/overview")
+            async let inboxRequest: Inbox = call("/api/mobile/notifications")
+            async let preferenceRequest: PreferenceResult = call("/api/mobile/preferences")
+            async let deviceRequest: DeviceStatus = call("/api/mobile/device")
+            let inbox = try await inboxRequest
             notices = inbox.notifications; unread = inbox.count; nextNotice = inbox.next_before
-            let pref: PreferenceResult = try await call("/api/mobile/preferences")
+            overview = try await summary
+            let pref = try await preferenceRequest
             preferences = pref.preferences
-            let device: DeviceStatus = try await call("/api/mobile/device")
+            let device = try await deviceRequest
             guard currentDeviceGeneration == deviceGeneration else { return }
             pushActive = device.push_enabled; hideDetails = device.hide_details
             pushAvailable = device.server_push_available ?? false
@@ -193,8 +208,8 @@ final class NoRedirect: NSObject, URLSessionTaskDelegate {
     func openNotice(_ id: String) async {
         do {
             let target: Target = try await call("/api/mobile/notifications/\(MobileURL.segment(id))/target")
-            let _: EmptyResponse = try await call("/api/mobile/notifications/read", method: "POST", body: ["ids": [id]])
             selectedRecord = target.record
+            let _: EmptyResponse = try await call("/api/mobile/notifications/read", method: "POST", body: ["ids": [id]])
             if target.record == nil { message = "Prueba recibida en Flowing." }
             await refresh()
         } catch { report(error) }

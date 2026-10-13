@@ -376,3 +376,27 @@ def test_incomplete_source_snapshot_keeps_retry_observation_and_heartbeat(push, 
         tick(crm.app, crm.store, sender=lambda *args: pytest.fail('Incomplete snapshot must not drain'))
     assert snapshot() == before
     assert storage.worker_ready() is False
+
+
+def test_real_source_sends_one_lead_push_despite_backup_automation_and_opens(push):
+    crm, client, storage, headers, tenant, owner, now = push
+    subscribe(push)
+    storage.observe([(tenant, owner, [])], sending=True)
+    crm.store.upsert('leads', dict(id='one', tenant_id=tenant, status='Nuevo',
+        created='1970-01-01T00:16:41Z'))
+    for identifier in ('backup', 'auto', 'manual'):
+        crm.store.upsert('mail_log', dict(id=identifier, tenant_id=tenant, lead_id='one',
+            status='sent', sent_at='1970-01-01T00:16:42Z'))
+    reports = sources(crm.app, crm.store)
+    own = next(events for company, _, events in reports if company == tenant)
+    assert [n['id'] for n in own] == ['lead-one']
+    now[0] = 1003
+    storage.observe(reports, sending=True)
+    sent = []
+    assert web_push.drain(crm.app, crm.store, reports, sender=lambda *args: sent.append(args) or 201) == 1
+    for mail in crm.store.list('mail_log'):
+        crm.store.upsert('mail_log', dict(mail, opened_at='1970-01-01T00:16:44Z', clicked_at='1970-01-01T00:16:45Z'))
+    reports = sources(crm.app, crm.store)
+    storage.observe(reports, sending=True)
+    assert web_push.drain(crm.app, crm.store, reports, sender=lambda *args: sent.append(args) or 201) == 0
+    assert len(sent) == 1 and len(crm.store.list('mail_log')) == 3

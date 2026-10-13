@@ -37,7 +37,7 @@ def test_existing_and_new_web_activity_is_visible_without_worker_or_push(mobile,
     crm, client, db, headers, tenant, owner = mobile
     seed_lead(crm, tenant)
     crm.store.upsert('mail_log', dict(id='inbox-mail', tenant_id=tenant,
-        lead_id='inbox-lead', subject='Respuesta de prueba', status='sent',
+        lead_id='inbox-lead', subject='Fallo de prueba', status='failed',
         sent_at='2020-01-02T12:00:00Z'))
 
     def forbidden(*args, **kwargs):
@@ -73,7 +73,7 @@ def test_inbox_rejects_out_of_range_sqlite_cursors(mobile):
         assert client.get('/api/mobile/notifications', query_string={'before': value}, headers=headers).status_code == 400
 
 
-def test_mobile_read_state_persists_without_changing_web_reads_or_crm(mobile):
+def test_mobile_read_state_is_shared_without_changing_business_records(mobile):
     crm, client, db, headers, tenant, owner = mobile
     for identifier in ('web-read', 'mobile-read'):
         seed_lead(crm, tenant, identifier)
@@ -91,7 +91,9 @@ def test_mobile_read_state_persists_without_changing_web_reads_or_crm(mobile):
     for _ in range(3):
         refreshed = inbox(client, headers)
         assert refreshed['count'] == 0 and all(n['read'] for n in refreshed['notifications'])
-    assert json_snapshot(crm) == before
+    after = json_snapshot(crm)
+    assert {k: v for k, v in after.items() if k != 'notification_reads.json'} == {k: v for k, v in before.items() if k != 'notification_reads.json'}
+    assert any(r['notification_id'] == 'lead-mobile-read' for r in crm.store.list('notification_reads'))
     assert_no_delivery_state(db)
 
 
@@ -123,7 +125,7 @@ def test_mail_activity_targets_the_existing_job_when_its_lead_was_deleted(mobile
         status='Confirmado', boda_date='2099-01-01'))
     crm.store.upsert('mail_log', dict(id='fallback-mail', tenant_id=tenant,
         lead_id='removed-lead', job_id='mail-job', subject='Correo conservado',
-        status='sent', sent_at='2020-01-02T12:00:00Z'))
+        status='failed', sent_at='2020-01-02T12:00:00Z'))
     page = inbox(client, headers)
     notice, = page['notifications']
     assert notice['id'] == notice_id(tenant, owner, 'mail-alert:fallback-mail')
@@ -207,11 +209,11 @@ def test_shared_inbox_paginates_over_fifty_equal_timestamps(mobile):
     assert_no_delivery_state(db)
 
 
-def test_new_activity_on_an_old_mail_rises_without_resetting_its_mobile_read_state(mobile):
+def test_opens_do_not_renew_a_mail_alert_or_reset_its_read_state(mobile):
     crm, client, db, headers, tenant, owner = mobile
     seed_lead(crm, tenant, 'mail-contact', '2020-01-02T12:00:00Z')
     crm.store.upsert('mail_log', dict(id='old-mail', tenant_id=tenant,
-        lead_id='mail-contact', subject='Correo anterior', status='sent',
+        lead_id='mail-contact', subject='Correo anterior', status='failed',
         sent_at='2020-01-01T12:00:00Z'))
     page = inbox(client, headers)
     mail_id = notice_id(tenant, owner, 'mail-alert:old-mail')
@@ -220,12 +222,12 @@ def test_new_activity_on_an_old_mail_rises_without_resetting_its_mobile_read_sta
         headers=headers).status_code == 200
 
     crm.store.upsert('mail_log', dict(id='old-mail', tenant_id=tenant,
-        lead_id='mail-contact', subject='Correo anterior', status='sent',
+        lead_id='mail-contact', subject='Correo anterior', status='failed',
         sent_at='2020-01-01T12:00:00Z', opened_at='2099-01-01T12:00:00Z'))
     before = json_snapshot(crm)
     updated = inbox(client, headers)['notifications']
-    assert updated[0]['id'] == mail_id and updated[0]['read']
-    assert updated[0]['created'] > updated[1]['created']
+    assert updated[-1]['id'] == mail_id and updated[-1]['read']
+    assert updated[-1]['created'] == page['notifications'][-1]['created']
     assert len(updated) == 2
     assert json_snapshot(crm) == before
     assert_no_delivery_state(db)
@@ -265,7 +267,7 @@ def test_another_companys_recipients_or_missing_cursor_cannot_anchor_the_inbox(m
             ('foreign-recipient', tenant, 'another-owner@example.invalid'),
             ('foreign-company', 'another-company', owner),
         ):
-            conn.execute('INSERT INTO notifications VALUES (?,?,?,?,?,?,?,?,?,NULL)',
+            conn.execute('INSERT INTO notifications (id,tenant_id,recipient,event_key,kind,title,target_table,target_id,created,read_at) VALUES (?,?,?,?,?,?,?,?,?,NULL)',
                 (identifier, company, recipient, 'foreign:event',
                  'lead', 'Otro destinatario', 'leads', 'inbox-lead', 1))
             cursors.append(conn.execute('SELECT rowid FROM notifications WHERE id=?',
@@ -275,3 +277,53 @@ def test_another_companys_recipients_or_missing_cursor_cannot_anchor_the_inbox(m
         assert page['notifications'] == [] and page['next_before'] is None
         assert page['count'] == 1
     assert_no_delivery_state(db)
+
+
+def test_old_redundant_mail_is_hidden_without_erasing_history_and_reads_sync(mobile):
+    crm, client, db, headers, tenant, owner = mobile
+    seed_lead(crm, tenant, 'current')
+    crm.store.upsert('mail_log', dict(id='backup', tenant_id=tenant, lead_id='current', status='sent'))
+    db.sync_inbox(tenant, owner, [dict(key='mail-alert:backup', kind='mail', title='Old redundant notice',
+        table='leads', id='current', created=1, read=False)])
+    page = inbox(client, headers)
+    assert len(page['notifications']) == page['count'] == 1
+    with db.transaction() as conn:
+        assert conn.execute("SELECT hidden FROM notifications WHERE event_key='mail-alert:backup'").fetchone()[0] == 1
+    assert crm.store.get('mail_log', 'backup')['status'] == 'sent'
+    login_as_tenant(client, tenant, email=owner)
+    assert client.post('/api/notifications/read', json={'ids': ['lead-current']}).status_code == 200
+    assert inbox(client, headers)['notifications'][0]['read']
+    seed_lead(crm, tenant, 'second')
+    second = next(n for n in inbox(client, headers)['notifications'] if n['target_id'] == 'second')
+    assert client.post('/api/mobile/notifications/read', json={'ids': [second['id']]}, headers=headers).status_code == 200
+    assert client.get('/api/notifications/recent').json['count'] == 0
+
+
+def test_worker_hides_old_mail_before_push_badge_without_deleting_records(mobile):
+    crm, client, db, headers, tenant, owner = mobile
+    db.sync_inbox(tenant, owner, [dict(key='mail-alert:normal', kind='mail', title='Activity',
+        table='leads', id='any', created=1, read=False)])
+    db.observe(tenant, owner, [])
+    with db.transaction() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM notifications').fetchone()[0] == 1
+        assert conn.execute('SELECT COUNT(*) FROM notifications WHERE hidden=0').fetchone()[0] == 0
+    db.observe(tenant, owner, [dict(key='mail-alert:normal', kind='mail', title='Delivery failed',table='leads',id='any')])
+    with db.transaction() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM notifications WHERE hidden=0').fetchone()[0] == 1
+
+
+def test_legacy_journal_schema_upgrade_preserves_read_history(tmp_path):
+    import sqlite3
+    from src.mobile import MobileJournal
+    path = tmp_path / 'legacy.sqlite3'
+    with sqlite3.connect(path) as conn:
+        conn.execute('''CREATE TABLE notifications (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL,
+            recipient TEXT NOT NULL, event_key TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL,
+            target_table TEXT, target_id TEXT, created REAL NOT NULL, read_at REAL,
+            UNIQUE(tenant_id,recipient,event_key))''')
+        conn.execute("INSERT INTO notifications VALUES ('old','tenant','owner','mail-alert:old','mail','History','leads','lead',1,2)")
+    for _ in range(2):
+        journal = MobileJournal(path)
+        with journal.transaction() as conn:
+            row = conn.execute('SELECT * FROM notifications').fetchone()
+            assert row['read_at'] == 2 and row['hidden'] == 0 and row['title'] == 'History'

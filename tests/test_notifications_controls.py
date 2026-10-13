@@ -49,7 +49,7 @@ def test_mail_notification_uses_existing_job_when_lead_was_deleted(client):
     unique = uuid.uuid4().hex
     m.store.upsert('jobs', {'id': unique, 'tenant_id': tenant, 'nombre': 'Trabajo de prueba'})
     m.store.upsert('mail_log', {'id': unique, 'tenant_id': tenant, 'lead_id': 'deleted-' + unique,
-                              'job_id': unique, 'status': 'sent', 'sent_at': '2099-02-01'})
+                              'job_id': unique, 'status': 'failed', 'sent_at': '2099-02-01'})
     notification = next(n for n in client.get('/api/notifications/recent').get_json()['notifications']
                         if n['id'] == 'mail-' + unique)
     assert notification['url'] == '/jobs/' + unique
@@ -70,7 +70,7 @@ def test_notifications_sort_full_activity_time_across_types(client):
         m.store.upsert('mail_log', dict(id=prefix+'-'+name, tenant_id=tenant, lead_id=lead_id, **fields))
     data = client.get('/api/notifications/recent').get_json()['notifications']
     own = [n for n in data if prefix in n['id']]
-    assert [n['id'] for n in own] == ['mail-'+prefix+'-failed', 'mail-'+prefix+'-opened', 'mail-'+prefix+'-new', 'lead-'+lead_id, 'mail-'+prefix+'-old']
+    assert [n['id'] for n in own] == ['mail-'+prefix+'-failed', 'lead-'+lead_id]
     assert own[0]['time'] == '13:00'
     assert all(n['date'] == '2099-01-09' for n in own)
     assert m._build_recent_notifications(tenant, limit=5) == data[:5]
@@ -99,3 +99,43 @@ def test_legacy_lead_arrival_uses_original_internal_notice_time(client):
                                          source='auto:new-lead-notify', created_at='2099-01-09T01:03:00'))
     item = next(n for n in client.get('/api/notifications/recent').get_json()['notifications'] if n['id'] == 'lead-'+identifier)
     assert item['date'] == '2099-01-08' and item['time'] == '19:03'
+
+
+def test_successful_mail_is_history_failures_remain_alerts_and_opens_are_stable(client):
+    import app as m
+    from src.web_push import event_key
+    tenant = 'tenant-norkevin-photography'
+    login_as_tenant(client, tenant)
+    m.store.upsert('leads', dict(id='useful-lead', tenant_id=tenant, status='Nuevo', created='2026-01-01'))
+    for identifier, fields in [
+        ('internal', dict(status='sent', source='auto:new-lead-notify')),
+        ('automation', dict(status='sent', source='auto:job-template')),
+        ('legacy', dict(status='sent')),
+        ('failed', dict(status='failed')),
+        ('blocked', dict(status='blocked')),
+        ('bounced', dict(status='sent', bounced_at='2026-01-03T12:00:00Z')),
+    ]:
+        m.store.upsert('mail_log', dict(id=identifier, tenant_id=tenant, lead_id='useful-lead',
+            sent_at='2026-01-02T12:00:00Z', **fields))
+    first = client.get('/api/notifications/recent').json
+    assert {n['id'] for n in first['notifications']} == {'lead-useful-lead', 'mail-failed', 'mail-blocked', 'mail-bounced'}
+    for mail in m.store.list('mail_log'):
+        m.store.upsert('mail_log', dict(mail, opened_at='2026-01-04T12:00:00Z', clicked_at='2026-01-05T12:00:00Z'))
+    second = client.get('/api/notifications/recent').json
+    assert first == second
+    assert [event_key(n) for n in first['notifications']] == [event_key(n) for n in second['notifications']]
+    assert len(m.store.list('mail_log')) == 6
+    limited = client.get('/api/notifications/recent?limit=1&filter=alerts')
+    assert limited.headers['Cache-Control'] == 'no-store'
+    assert len(limited.json['notifications']) == 1 and limited.json['count'] == 4
+    assert client.post('/api/notifications/read', json={'all': True}).status_code == 200
+    assert client.get('/api/notifications/recent?limit=5&filter=unread').json == dict(ok=True, count=0, notifications=[])
+
+
+def test_foreign_mail_cannot_alert_on_an_owned_lead(client):
+    import app as m
+    tenant = 'tenant-norkevin-photography'
+    login_as_tenant(client, tenant)
+    m.store.upsert('leads', dict(id='own', tenant_id=tenant, status='Nuevo'))
+    m.store.upsert('mail_log', dict(id='foreign', tenant_id='tenant-astral', lead_id='own', status='failed'))
+    assert all(n['id'] != 'mail-foreign' for n in client.get('/api/notifications/recent').json['notifications'])

@@ -8,6 +8,37 @@ Complemento SwiftUI del CRM Flask existente. La preview anterior está instalada
 - Notificaciones: cada consulta sincroniza la actividad web existente y nueva en el journal móvil; no necesita worker. APNs permanece opcional y separado.
 - Diagnóstico, arquitectura y pruebas: `../docs/mobile/`.
 
+## Corrección local de avisos y actualización — 13 de octubre de 2026
+
+Estado: implementado y verificado localmente; publicación del servidor e instalación de la app nativa pendientes. Base: `6b86bd9`, que contiene Web Push y los cambios de `origin/main` conocidos al iniciar. Rama: `codex/flowing-useful-alerts`. No se han modificado datos de producción ni permisos push.
+
+- Un nuevo lead produce una alerta, aunque genere el correo interno de respaldo y correos automáticos. El envío de respaldo y el historial se conservan. Fallos, bloqueos, rebotes y respuestas de Teams siguen visibles. No se incorpora recepción de respuestas de clientes: esa integración no existe en este flujo.
+- La web reutiliza el snapshot inicial, consulta cinco avisos en la campana (con total sin leer y filtros completos), actualiza al recuperar foco/visibilidad/conexión y al recibir push. Mantiene polling de 45 segundos mientras está visible como alternativa sin push. Coalesce consultas simultáneas; un push durante una consulta fuerza otra al terminar. El historial completo y «marcar todas» incluyen las entradas fuera de las cinco visibles.
+- La app nativa inicia las cuatro consultas de actualización en paralelo, mantiene su refresco al primer plano y periódico, refresca tras un push en primer plano y muestra la ficha antes de esperar la confirmación de lectura.
+- El journal móvil incorpora una columna `hidden` de forma aditiva e idempotente. Los correos redundantes anteriores se ocultan al reconciliar, sin borrar filas, correos ni lecturas. La bandeja y el contador APNs excluyen esos registros. Al publicar, conservar una copia de `mobile.sqlite3`; un rollback al código anterior requiere adaptar sus INSERT posicionales a columnas explícitas o restaurar coordinadamente la copia, pues el esquema tendrá una columna adicional.
+
+Medición reproducible con 100 leads, 200 trabajos y 600 correos sintéticos (6 fallos), mismo Mac y test client Flask, sin red:
+
+| Medida | Antes | Después |
+| --- | ---: | ---: |
+| Consultas a `store.list` | 1.006 | 8 |
+| Respuesta completa | 196,4 ms | 10,5 ms |
+| JSON completo | 130.746 bytes | 17.454 bytes |
+| JSON de campana, cinco entradas | 130.746 bytes enviados anteriormente | 985 bytes |
+
+Los tiempos son muestras locales, no un SLA ni mediciones de Safari, Chrome móvil o iPhone real. El límite de trabajo y las cantidades de datos se comprueban en `tests/test_notification_efficiency.py`, sin umbral de tiempo frágil.
+
+Validación: suite Python completa, 1.620 aprobadas y 1 omitida; 36 pruebas JavaScript de actualización, navegación y Web Push; compilación iOS Simulator con Xcode 27 y firma local aprobada. No se ejecutó la nueva app en un teléfono ni se probó recepción real de push tras este cambio. Las pruebas JavaScript usan un entorno simulado; no equivalen a una ejecución en Safari o Chrome reales.
+
+Reproducción desde la raíz con el entorno Python del proyecto:
+
+```sh
+python -m pytest -q
+python -m pytest tests/test_notification_efficiency.py -q -s
+node --test tests/notifications_refresh.test.cjs tests/web_push.test.cjs tests/mobile_navigation.test.cjs
+xcodebuild -project mobile/ios/Flowing.xcodeproj -scheme Flowing -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath .local/notification-build CODE_SIGN_IDENTITY=- build
+```
+
 ## Conectar al CRM real para una nueva sesión
 
 1. Abre Flowing en el iPhone. Usa `https://flowingcrm.com` y pulsa **Conectar mi cuenta** para generar el código.
@@ -17,7 +48,7 @@ Complemento SwiftUI del CRM Flask existente. La preview anterior está instalada
 
 La sesión actual ya está conectada según la confirmación del propietario; no hace falta repetir estos pasos. Render confirmó `FLOW_MOBILE_ENABLED=1` y `FLOW_MOBILE_PUSH_ENABLED=0`. El despliegue anterior `dep-db5guj740ujc73cfnij0`, revisión `67acfaa` del PR #17, está Live. Los probes independientes dieron `/login` 200 y `/api/mobile/overview` 401 «Conecta tu cuenta de Flowing.»; acreditan disponibilidad y rechazo sin bearer. Esa evidencia corresponde a la versión anterior. Estado de este incremento: [Calendario y bandeja](../docs/mobile/07-calendario-y-bandeja.md). Historial de conexión: [Conexión al CRM real](../docs/mobile/06-conexion-crm-real.md).
 
-Con el nuevo servidor, `GET /api/mobile/notifications` refleja leads, actividad de correo y respuestas de Teams históricos y actuales. Conserva la lectura móvil al actualizar cada aviso; el estado leído de la web solo se usa al insertarlo por primera vez. La consulta no modifica archivos JSON del CRM ni crea entregas push. El worker es necesario únicamente para la reconciliación de eventos destinada a envíos APNs futuros, no para consultar esta bandeja.
+Con este cambio local, `GET /api/mobile/notifications` refleja leads y respuestas de Teams, y solo correos fallidos, bloqueados o rebotados. La actividad de correo normal permanece en el historial del CRM. Las lecturas web se incorporan también a avisos móviles existentes; marcar leído desde la app escribe el marcador de lectura compartido. Consultar la bandeja no envía correo ni crea entregas push. El worker sigue siendo necesario únicamente para envíos APNs.
 
 ## Comprobar localmente
 

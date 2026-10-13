@@ -126,6 +126,9 @@ def test_new_internal_notice_is_automatic_exactly_once_and_clients_stay_pending(
     assert calls[0][1]['metadata']['html_body'] == entry['html_body']
     logged = next(mail for mail in m.store.list('mail_log') if mail.get('lead_id') == lead['id'])
     assert logged['html_body'] == entry['html_body']
+    assert logged['source'] == NEW_LEAD_NOTIFICATION
+    notices = client.get('/api/notifications/recent').json['notifications']
+    assert [n['id'] for n in notices if n['url'] == '/leads/' + lead['id']] == ['lead-' + lead['id']]
     assert all(h['actor'] == 'sistema:aviso-interno' for h in entry['historial'])
     assert len(calls) == 1
     _notify_fresh(notice, lead)
