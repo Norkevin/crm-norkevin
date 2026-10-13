@@ -53,7 +53,9 @@ def test_one_portal_two_brands_independent_records_and_commands(shared):
     assert 'Norkevin Foto' in page and 'Astral Films' in page
     assert 'name="brand" value="astral"' in page
     assert '/teams-portal/command?brand=astral' in page
-    assert '/teams-portal/expenses/upload?brand=astral' in page
+    # All weddings open the agenda; reimbursement forms remain in each wedding's detail.
+    detail = visitor.get('/teams-portal/?brand=astral&job_id=astral-job').get_data(as_text=True)
+    assert '/teams-portal/expenses/upload?brand=astral' in detail
     assert 'brand=astral' in page.split('Descargar calendario')[0].rsplit('href=', 1)[-1]
     with visitor.session_transaction() as s:
         csrf = s['teams_portal_csrf']

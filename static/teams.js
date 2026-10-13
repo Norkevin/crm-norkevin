@@ -253,7 +253,7 @@
   const rememberedTab = sessionStorage.getItem(`flow-teams-tab:${location.pathname}`);
   const restoreTab = [...document.querySelectorAll('[data-job-tab]')]
     .find(button => button.dataset.jobTab === rememberedTab);
-  if (restoreTab) restoreTab.click();
+  if (restoreTab && !window.flowTeamsPortalOverview) restoreTab.click();
   const copyText = async text => {
     try { await navigator.clipboard.writeText(text); }
     catch (_) { throw new Error('No se pudo copiar. Selecciona el enlace o mensaje y cópialo manualmente.'); }
