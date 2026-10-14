@@ -12,7 +12,7 @@ import threading
 import logging
 from zoneinfo import ZoneInfo
 from contextvars import ContextVar
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from flask import (Flask, render_template, request, redirect, url_for, jsonify, flash, abort,
                    session, make_response, g, has_request_context)
 from dotenv import load_dotenv
@@ -561,6 +561,9 @@ def _mail_delivery_warning(entry):
         return None
     estado = entry.get('status')
     if estado == 'pending':
+        if _workflow_mail_auto_enabled(entry.get('tenant_id')) and (
+                _workflow_mail_is_bound(entry) or str(entry.get('source') or '').startswith(('workflow:', 'auto:job-template'))):
+            return 'El correo está en la cola del workflow y se enviará automáticamente cuando corresponda.'
         return ('El correo quedo en la cola de aprobacion (STAGE 2): no sale '
                 'hasta que alguien lo apruebe en /emails.')
     if estado == 'blocked':
@@ -732,7 +735,7 @@ def _apply_workflow_delivery(instance, step_id, mail):
                                     else StepStatus.QUEUED if state in ('pending', 'sending')
                                     else StepStatus.FAILED)
     instance.step_results[step_id] = {
-        'sent': 'Correo enviado', 'pending': 'Pendiente de aprobación',
+        'sent': 'Correo enviado', 'pending': ('En cola del workflow' if _workflow_mail_auto_enabled(mail.get('tenant_id')) else 'Pendiente de aprobación'),
         'sending': 'Enviando correo', 'failed': 'Falló el envío',
         'blocked': 'Envío bloqueado', 'discarded': 'Correo descartado',
     }.get(state, state or 'Sin envío')
@@ -1172,7 +1175,9 @@ def _resolve_travel_for_email(lead, *, research=False):
 
 
 def _should_auto_send_package_email(entry):
-    # Explicit owner authorization applies exclusively to Norkevin package templates.
+    # Workflow messages use the due queue; the existing direct package policy remains available.
+    if _workflow_mail_auto_enabled(entry.get('tenant_id')) and str(entry.get('source') or '').startswith('workflow:lead-step:'):
+        return False
     from src.tenant_brand_map import resolve_brand, UnresolvedBrandError
     try:
         if resolve_brand(entry.get('tenant_id')).brand_key != 'norkevin':
@@ -1378,7 +1383,7 @@ def _complete_lead_workflow_step_locked(lead, step_id, result_message=None, *, s
     lead['next_task'] = next_pending.get('name') if next_pending else ('Recomendado a Astral' if _is_astral_referral(lead) else 'Trabajo aceptado')
     upsert_lead(lead)
 
-    action_label = 'preparado para aprobación' if mail_entry else 'completado manualmente'
+    action_label = ('encolado para envío automático' if _workflow_mail_auto_enabled(lead.get('tenant_id')) else 'preparado para aprobación') if mail_entry else 'completado manualmente'
     workflow_engine._log(instance, 'step.manual', f'{step.name}: {action_label}')
     workflow_engine._save_to_storage()
     return {
@@ -2511,6 +2516,7 @@ def compute_workflow_steps_for_lead(lead, jobs_cache=None, job_ids_cache=None, l
             'delay_display': step.delay_display,
             'action_type': step.action_type.value if hasattr(step.action_type, 'value') else str(step.action_type),
             'scheduled': scheduled.isoformat() if scheduled else None,
+            'schedule_basis': 'calendar' if step.due_date.mode == 'after_event' else 'server',
             'executed_at': executed_at,
             'status': status,
             'result': result_map.get(step.id),
@@ -2549,7 +2555,7 @@ def _step_scheduled_for_job(step, trigger_at, boda_date):
 def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None, tenant_id=None):
     from datetime import datetime, timedelta
     if job.get("studio_ninja_workflow") is not None:
-        steps = [dict(_imported_job_step_config(job, step), display_name="Boda" if "\nBoda\n" in (step.get("source_details") or "") else step["name"]) for step in job["studio_ninja_workflow"]]
+        steps = [dict(_imported_job_step_config(job, step), schedule_basis='calendar', display_name="Boda" if "\nBoda\n" in (step.get("source_details") or "") else step["name"]) for step in job["studio_ninja_workflow"]]
         progress = round(sum(s["status"] in ("done", "skipped") for s in steps) * 100 / len(steps)) if steps else 0
         return steps, progress, job.get("studio_ninja_workflow_name") or "Studio Ninja"
     tmpl = PRODUCTION_WORKFLOW(tenant_id or job.get("tenant_id"))
@@ -2583,6 +2589,7 @@ def compute_workflow_steps_for_job(job, job_ids_cache=None, lead_ids_cache=None,
             'delay_display': step.delay_display,
             'action_type': step.action_type.value if hasattr(step.action_type, 'value') else str(step.action_type),
             'scheduled': scheduled.isoformat() if scheduled else None,
+            'schedule_basis': 'calendar' if step.due_date.mode == 'after_event' else 'server',
             'executed_at': executed_at,
             'status': status,
             'result': result_map.get(step.id),
@@ -4011,7 +4018,7 @@ def leads_list():
                 lead['last_mail_chip'] = ('green', 'Correo enviado')
                 lead['last_mail_date'] = when
             else:
-                lead['last_mail_chip'] = ('gray', {'pending': 'Pendiente de aprobación', 'sending': 'Enviando', 'failed': 'Falló el envío', 'blocked': 'Bloqueado', 'discarded': 'Descartado', 'bounced': 'Rebotó'}.get(last.get('status'), 'Registrado'))
+                lead['last_mail_chip'] = ('gray', {'pending': ('En cola' if _workflow_mail_auto_enabled(last.get('tenant_id')) else 'Pendiente de aprobación'), 'sending': 'Enviando', 'failed': 'Falló el envío', 'blocked': 'Bloqueado', 'discarded': 'Descartado', 'bounced': 'Rebotó'}.get(last.get('status'), 'Registrado'))
 
     leads = _leads_newest_first(leads)
     email_templates = [tpl for tpl in store.list('email_templates') if tpl.get('activo', True)]
@@ -8716,6 +8723,7 @@ def _pending_email_view(p):
     return {
         'id': p.get('id'),
         'aviso_interno': internal_verified,
+        'workflow_automatico': _workflow_mail_auto_enabled(p.get('tenant_id')) and _workflow_mail_is_bound(p),
         'empresa': tenant.get('name') or p.get('tenant_id'),
         'tenant_id': p.get('tenant_id'),
         'para': p.get('to'),
@@ -8756,6 +8764,7 @@ def pending_emails_page():
     vistas = [_pending_email_view(p) for p in pendientes]
     return render_template(
         'pending_emails.html',
+        auto_workflow=_workflow_mail_auto_enabled(_active_tenant_id()),
         emails=vistas,
         auto_packages=travel_service.settings(tenant_id).get('auto_send_packages') if tenant_id else False,
         conteos={
@@ -15180,14 +15189,150 @@ def _prepare_job_workflow_email(job, step):
     return result
 
 
+def _workflow_mail_auto_enabled(tenant_id):
+    from src.tenant_brand_map import resolve_brand, UnresolvedBrandError
+    allowed = {brand.strip().casefold() for brand in os.environ.get(
+        'WORKFLOW_AUTO_SEND_BRANDS', 'astral,norkevin').split(',') if brand.strip()}
+    try:
+        return resolve_brand(tenant_id).brand_key in allowed
+    except UnresolvedBrandError:
+        return False
+
+
+@app.context_processor
+def _workflow_delivery_view_mode():
+    return {'workflow_auto_mail': _workflow_mail_auto_enabled(_active_tenant_id())}
+
+
+def _workflow_mail_is_bound(mail):
+    return bool(mail.get('workflow_step_id') and
+                (mail.get('workflow_instance_id') or mail.get('imported_workflow_step_id')))
+
+
+def _workflow_step_is_due(step, now=None):
+    scheduled = step.get('scheduled')
+    if not scheduled:
+        return True
+    due = datetime.fromisoformat(scheduled)
+    if due.tzinfo:
+        reference = now or datetime.now(timezone.utc)
+        if not reference.tzinfo:
+            reference = reference.replace(tzinfo=ZoneInfo('America/Guatemala')) if step.get('schedule_basis') == 'calendar' else reference.astimezone()
+    else:
+        reference = now or (datetime.now(ZoneInfo('America/Guatemala')).replace(tzinfo=None)
+                           if step.get('schedule_basis') == 'calendar' else datetime.now())
+        if reference.tzinfo:
+            reference = (reference.astimezone(ZoneInfo('America/Guatemala')) if step.get('schedule_basis') == 'calendar' else reference.astimezone()).replace(tzinfo=None)
+    return due <= reference
+
+
+def _send_due_workflow_emails(tenant_id=None, now=None, limit=5):
+    """Deliver due, bound workflow mail through the existing identity and deduplication guards."""
+    schedule_now = now
+    now = now or datetime.now()
+    if tenant_id is None:
+        from src.tenant_brand_map import all_resolved_brands
+        delivered = []
+        for brand in all_resolved_brands():
+            owner = brand.internal_tenant_id
+            if not _workflow_mail_auto_enabled(owner):
+                continue
+            token = _workflow_tenant.set(owner)
+            try:
+                delivered.extend(_send_due_workflow_emails(owner, now=schedule_now, limit=limit))
+            finally:
+                _workflow_tenant.reset(token)
+        return delivered
+    delivered = []
+    with _workflow_queue_lock:
+        pending = sorted(store.list('pending_emails'), key=lambda mail: (
+            mail.get('created_at') or '', mail.get('id') or ''))
+        for mail in pending:
+            if len(delivered) >= limit:
+                break
+            owner = mail.get('tenant_id')
+            if (mail.get('status') != 'pending' or not _workflow_mail_is_bound(mail)
+                    or not _workflow_mail_auto_enabled(owner)
+                    or (tenant_id and owner != tenant_id)):
+                continue
+            token = _workflow_tenant.set(owner)
+            try:
+                instance = workflow_engine.get_instance(mail.get('workflow_instance_id'))
+                if not instance and not mail.get('imported_workflow_step_id'):
+                    continue
+                if instance and (instance.tenant_id != owner or instance.status != WorkflowStatus.ACTIVE):
+                    continue
+                kind = 'job' if mail.get('job_id') else 'lead'
+                record = store.get('jobs' if kind == 'job' else 'leads', mail.get('job_id') or mail.get('lead_id'))
+                if (not record or record.get('tenant_id') != owner
+                        or record.get('status') in ('Cancelado', 'Archivado', 'Perdido')
+                        or (kind == 'lead' and record.get('status') == 'Convertido')):
+                    continue
+                if instance and (instance.subject_id != record['id'] or instance.subject_type != kind):
+                    continue
+                if mail.get('imported_workflow_step_id') and mail['imported_workflow_step_id'] != mail['workflow_step_id']:
+                    continue
+                compute = compute_workflow_steps_for_job if kind == 'job' else compute_workflow_steps_for_lead
+                steps, _, _ = compute(record, tenant_id=owner)
+                step = next((step for step in steps if step['id'] == mail['workflow_step_id']), None)
+                if not step or step.get('status') != 'queued' or not str(step.get('action_type') or '').startswith('send_'):
+                    continue
+                if not _workflow_step_is_due(step, schedule_now):
+                    continue
+                result = _mail_tracker_module.get_tracker().approve_and_send(
+                    mail['id'], sender_tenant_id=owner, actor='sistema:workflow-automatico')
+                delivered.append({'mail_id': mail['id'], 'ok': result.get('ok', False)})
+            except Exception:
+                logger.exception('No se pudo procesar el correo del workflow %s', mail.get('id'))
+            finally:
+                _workflow_tenant.reset(token)
+    return delivered
+
+
+def _prepare_due_imported_workflow_emails(tenant_id, now):
+    """Enroll upcoming imported email steps without reviving historical campaigns."""
+    from src.tenant_brand_map import all_resolved_brands
+    prepared = []
+    for brand in all_resolved_brands():
+        owner = brand.internal_tenant_id
+        if not _workflow_mail_auto_enabled(owner) or (tenant_id and owner != tenant_id):
+            continue
+        token = _workflow_tenant.set(owner)
+        try:
+            for job in store.list('jobs'):
+                if (job.get('studio_ninja_workflow') is None
+                        or job.get('status') in ('Cancelado', 'Archivado', 'Perdido')):
+                    continue
+                steps, _, _ = compute_workflow_steps_for_job(job, tenant_id=owner)
+                for step in steps:
+                    scheduled = step.get('scheduled')
+                    if step.get('status') != 'pending' or not scheduled:
+                        continue
+                    due = datetime.fromisoformat(scheduled).replace(tzinfo=None)
+                    if due < datetime(2026, 10, 13) or not _workflow_step_is_due(step, now):
+                        continue
+                    if not str(step.get('action_type') or '').startswith('send_'):
+                        continue
+                    result = _prepare_job_workflow_email(job, step)
+                    if result.get('mail_id'):
+                        _complete_job_workflow_step(job, step['id'], mail_id=result['mail_id'])
+                        prepared.append({'subject_id': job['id'], 'step_id': step['id'], 'mail_id': result['mail_id']})
+        except Exception:
+            logger.exception('No se pudo preparar el workflow importado de %s', owner)
+        finally:
+            _workflow_tenant.reset(token)
+    return prepared
+
+
 def _prepare_due_workflow_emails(tenant_id=None, now=None, subject_type=None):
-    """Process newly enrolled workflows; only authorized Norkevin packages auto-deliver."""
+    """Prepare newly enrolled workflows; delivery is handled by the serial due queue."""
+    schedule_now = now
     now = now or datetime.now()
     prepared = []
     # ponytail: one Render worker; use a database claim before adding workers.
     with _workflow_queue_lock:
         for instance in list(workflow_engine.instances.values()):
-            if (not instance.auto_prepare or not instance.tenant_id
+            if ((not instance.auto_prepare and not _workflow_mail_auto_enabled(instance.tenant_id)) or not instance.tenant_id
                     or instance.status != WorkflowStatus.ACTIVE
                     or (tenant_id and instance.tenant_id != tenant_id)
                     or (subject_type and instance.subject_type != subject_type)):
@@ -15195,7 +15340,9 @@ def _prepare_due_workflow_emails(tenant_id=None, now=None, subject_type=None):
             token = _workflow_tenant.set(instance.tenant_id)
             try:
                 record = store.get('leads' if instance.subject_type == 'lead' else 'jobs', instance.subject_id)
-                if not record or record.get('studio_ninja_workflow') is not None or record.get('studio_ninja_source_id') or record.get('status') in ('Cancelado', 'Archivado', 'Listo', 'Perdido'):
+                if (not record or record.get('studio_ninja_workflow') is not None or record.get('studio_ninja_source_id')
+                        or record.get('status') in ('Cancelado', 'Archivado', 'Perdido')
+                        or (instance.subject_type == 'lead' and record.get('status') == 'Listo')):
                     continue
                 if instance.subject_type == 'lead':
                     _stop_astral_referral_followups(record)
@@ -15203,7 +15350,9 @@ def _prepare_due_workflow_emails(tenant_id=None, now=None, subject_type=None):
                 steps, _, _ = compute(record, tenant_id=instance.tenant_id)
                 for step in steps:
                     scheduled = step.get('scheduled')
-                    if step['status'] != 'pending' or not scheduled or datetime.fromisoformat(scheduled) > now:
+                    if step['status'] != 'pending' or not scheduled or not _workflow_step_is_due(step, schedule_now):
+                        continue
+                    if not instance.auto_prepare and datetime.fromisoformat(scheduled).replace(tzinfo=None) < datetime(2026, 10, 13):
                         continue
                     template = _get_email_template(step.get('email_template_id'))
                     if not template or not (template.get('cuerpo') or '').strip():
@@ -15222,6 +15371,8 @@ def _prepare_due_workflow_emails(tenant_id=None, now=None, subject_type=None):
                 logger.exception('No se pudo preparar el workflow %s', instance.id)
             finally:
                 _workflow_tenant.reset(token)
+        if subject_type in (None, 'job'):
+            prepared.extend(_prepare_due_imported_workflow_emails(tenant_id, schedule_now))
     return prepared
 
 
@@ -15231,11 +15382,15 @@ _workflow_queue_lock = threading.RLock()
 def _workflow_queue_loop():
     while True:
         time.sleep(60)
-        with app.app_context():
-            _prepare_due_workflow_emails()
+        try:
+            with app.app_context():
+                _prepare_due_workflow_emails()
+                _send_due_workflow_emails()
+        except Exception:
+            logger.exception('No se pudo procesar la cola automática del workflow')
 
 
-# Separate from payment reminders: authorized Norkevin package mail auto-delivers.
+# One queue prepares and delivers due workflow mail, independently of payment reminders.
 if os.environ.get('ENABLE_WORKFLOW_QUEUE', '1') == '1':
     threading.Thread(target=_workflow_queue_loop, daemon=True).start()
 

@@ -91,7 +91,7 @@
               {% if step.status == 'done' %}<svg fill="currentColor" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8-1.4-1.4L8 11.2 5.4 8.6Z"/></svg>{% endif %}
             </button>
             <div class="lead-step-content"><div class="workflow-step-name">{{ step.name }}</div><div class="workflow-timing" style="white-space:pre-line">{{ step.source_details }}</div>
-              <div class="sn-muted">{{ 'Correo enviado' if step.delivery_status in ['sent','opened','clicked'] else 'Pendiente de aprobación en Correos' if step.status == 'queued' else 'Envío por revisar en Correos' if step.status == 'failed' else 'Marcado como completado · sin envío registrado en Flow' if step.status == 'done' and step.action_type.startswith('send_') else 'Completado' if step.status == 'done' else 'Omitido' if step.status == 'skipped' else 'Correo por preparar' if step.action_type.startswith('send_') else 'Pendiente' }}</div>
+              <div class="sn-muted">{{ 'Correo enviado' if step.delivery_status in ['sent','opened','clicked'] else ('En cola del workflow' if workflow_auto_mail else 'Pendiente de aprobación en Correos') if step.status == 'queued' else 'Envío por revisar en Correos' if step.status == 'failed' else 'Marcado como completado · sin envío registrado en Flow' if step.status == 'done' and step.action_type.startswith('send_') else 'Completado' if step.status == 'done' else 'Omitido' if step.status == 'skipped' else 'Correo por preparar' if step.action_type.startswith('send_') else 'Pendiente' }}</div>
               {% if step.status in ['queued','failed'] %}<a class="sn-btn sn-btn-sm" href="/emails">Revisar correo pendiente</a>{% elif step.action_type.startswith('send_') and step.status != 'skipped' and not step.delivery_status %}<button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick='completeImportedStep({{ step.id|tojson }})'>Preparar correo</button>{% endif %}
               {% if step.status in ['pending', 'queued', 'failed'] %}<button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick='skipJobStep({{ step.id|tojson }}, {{ step.name|tojson }})'>Omitir paso</button>{% endif %}
             </div>
@@ -366,7 +366,7 @@
             <div class="sn-list-row">
               <div>
                 <div class="sn-list-title">{{ q.paquete_nombre or 'Quote' }}</div>
-                <div class="sn-list-meta">{{ {'pending':'Pendiente de aprobación', 'failed':'Falló el envío', 'blocked':'Envío bloqueado', 'discarded':'Correo descartado'}.get(q.delivery_status) or ('Enviado el ' ~ (q.sent_at|fecha_es) if q.sent_at else 'Preparado · sin envío confirmado') }}</div>
+                <div class="sn-list-meta">{{ {'pending':('Pendiente de envío' if workflow_auto_mail else 'Pendiente de aprobación'), 'failed':'Falló el envío', 'blocked':'Envío bloqueado', 'discarded':'Correo descartado'}.get(q.delivery_status) or ('Enviado el ' ~ (q.sent_at|fecha_es) if q.sent_at else 'Preparado · sin envío confirmado') }}</div>
                 <div class="sn-list-meta">{{ q.status or 'Draft' }}</div>
               </div>
               <div class="sn-money">Q{{ '{:,.2f}'.format(q.get('precio_total') or 0) }}</div>
@@ -405,7 +405,7 @@
             <div class="sn-list-row">
               <div>
                 <div class="sn-list-title">CONTRATO DE BODAS {{ (current_tenant.name or 'CRM')|upper }}</div>
-                <div class="sn-list-meta">{{ {'pending':'Pendiente de aprobación', 'failed':'Falló el envío', 'blocked':'Envío bloqueado', 'discarded':'Correo descartado'}.get(c.delivery_status) or ('Enviado el ' ~ c.sent_at if c.sent_at else 'Preparado · sin envío confirmado') }}</div>
+                <div class="sn-list-meta">{{ {'pending':('Pendiente de envío' if workflow_auto_mail else 'Pendiente de aprobación'), 'failed':'Falló el envío', 'blocked':'Envío bloqueado', 'discarded':'Correo descartado'}.get(c.delivery_status) or ('Enviado el ' ~ c.sent_at if c.sent_at else 'Preparado · sin envío confirmado') }}</div>
                 <div class="sn-list-meta">
                   {{ c.status or 'Borrador' }}
                   {% if c.signed %} &middot; Cliente firmo{% endif %}
@@ -588,7 +588,7 @@
                 <td class="sn-ellipsis" data-label="To">{{ mail.to or 'me' }}</td>
                 <td data-label="Subject">
                   <div class="sn-ellipsis">{{ mail.subject or 'Email' }}</div>
-                  {% if mail.status == 'opened' %}<span class="sn-chip cyan">EMAIL OPENED</span>{% elif mail.status %}<span class="sn-chip gray">{{ {'pending':'Pendiente de aprobación', 'sent':'Enviado', 'failed':'Falló el envío', 'blocked':'Bloqueado', 'discarded':'Descartado'}.get(mail.status, mail.status) }}</span>{% endif %}
+                  {% if mail.status == 'opened' %}<span class="sn-chip cyan">EMAIL OPENED</span>{% elif mail.status %}<span class="sn-chip gray">{{ {'pending':('Pendiente de envío' if workflow_auto_mail else 'Pendiente de aprobación'), 'sent':'Enviado', 'failed':'Falló el envío', 'blocked':'Bloqueado', 'discarded':'Descartado'}.get(mail.status, mail.status) }}</span>{% endif %}
                 </td>
                 <td class="stack-actions">
                   <button class="sn-btn sn-btn-sm" type="button"
