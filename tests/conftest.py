@@ -48,6 +48,8 @@ def pytest_configure(config):
         (Path(tmp_dir) / f'{table}.json').write_text(json.dumps(records))
 
     os.environ['ENABLE_WORKFLOW_QUEUE'] = '0'
+    # Legacy approval tests remain explicit; automatic delivery tests enable their brands.
+    os.environ['WORKFLOW_AUTO_SEND_BRANDS'] = ''
     os.environ['CRM_DATA_DIR'] = tmp_dir
     os.environ['RECURRENTE_SECRET_KEY'] = ''
     os.environ['RECURRENTE_SECRET_KEY_TEST'] = ''
