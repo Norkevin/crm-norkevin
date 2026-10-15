@@ -330,23 +330,23 @@ class MailTracker:
             actor = 'sistema:paquetes-automaticos'
             entry['package_auto_attempted_at'] = datetime.now().isoformat()
             store.upsert('pending_emails', entry)
-            try:
-                result = self.approve_and_send(entry['id'], sender_tenant_id=entry['tenant_id'], actor=actor)
-                return result.get('pendiente') or store.get('pending_emails', entry['id']) or entry
-            except Exception as exc:
-                logging.getLogger(__name__).exception('Resultado incierto del envío automático de paquetes')
-                entry = store.get('pending_emails', entry['id']) or entry
-                if entry.get('status') not in (ENVIADO, BLOQUEADO, FALLO, CANCELADO):
-                    _anotar(entry, FALLO, actor=actor,
-                            motivo=f'Resultado del envío automático no confirmado: {exc}')
-                    entry['attempted_at'] = datetime.now().isoformat()
-                    store.upsert('pending_emails', entry)
-                    if delivery_observer:
-                        try:
-                            delivery_observer(entry)
-                        except Exception:
-                            logging.getLogger(__name__).exception('No se pudo sincronizar el fallo de paquetes')
-                return entry
+        try:
+            result = self.approve_and_send(entry['id'], sender_tenant_id=entry['tenant_id'], actor=actor)
+            return result.get('pendiente') or store.get('pending_emails', entry['id']) or entry
+        except Exception as exc:
+            logging.getLogger(__name__).exception('Resultado incierto del envío automático de paquetes')
+            entry = store.get('pending_emails', entry['id']) or entry
+            if entry.get('status') not in (ENVIADO, BLOQUEADO, FALLO, CANCELADO):
+                _anotar(entry, FALLO, actor=actor,
+                        motivo=f'Resultado del envío automático no confirmado: {exc}')
+                entry['attempted_at'] = datetime.now().isoformat()
+                store.upsert('pending_emails', entry)
+                if delivery_observer:
+                    try:
+                        delivery_observer(entry)
+                    except Exception:
+                        logging.getLogger(__name__).exception('No se pudo sincronizar el fallo de paquetes')
+            return entry
 
     def _queue_email(self, to_email, subject, body='', template_id=None,
                     lead_id=None, job_id=None, client_id=None, attachments=None,
@@ -532,25 +532,28 @@ class MailTracker:
                 source=NEW_LEAD_NOTIFICATION, idempotency_key=key, html_body=html_body)
             if entry.get('status') != PENDIENTE:
                 return entry
-            try:
-                result = self.approve_and_send(
-                    entry['id'], sender_tenant_id=tenant_id,
-                    actor='sistema:aviso-interno')
-                return result.get('pendiente', entry)
-            except Exception as exc:
-                # Keep an uncertain delivery attempt for manual review. Never
-                # erase it and automatically send again on the next callback.
-                entry = store.get('pending_emails', entry['id']) or entry
-                _anotar(entry, FALLO, actor='sistema:aviso-interno', motivo=str(exc))
-                store.upsert('pending_emails', entry)
-                return entry
+        try:
+            result = self.approve_and_send(
+                entry['id'], sender_tenant_id=tenant_id,
+                actor='sistema:aviso-interno')
+            return result.get('pendiente', entry)
+        except Exception as exc:
+            # Keep an uncertain delivery attempt for manual review. Never
+            # erase it and automatically send again on the next callback.
+            entry = store.get('pending_emails', entry['id']) or entry
+            _anotar(entry, FALLO, actor='sistema:aviso-interno', motivo=str(exc))
+            store.upsert('pending_emails', entry)
+            return entry
 
     def approve_and_send(self, pending_id, sender_tenant_id=None, actor=None):
-        # ponytail: one worker; serialize approval/discard to avoid cancelling an in-flight send.
+        # Claim before network I/O: readers stay available; duplicate sends/discards see ENVIANDO.
         with store.locked_tables('pending_emails', 'mail_log'):
-            return self._approve_and_send(pending_id, sender_tenant_id, actor)
+            claim = self._claim_pending(pending_id, sender_tenant_id, actor)
+        if not claim['ok']:
+            return claim
+        return self._deliver_pending(claim['pendiente'], claim['tenant_id'], actor)
 
-    def _approve_and_send(self, pending_id, sender_tenant_id=None, actor=None):
+    def _claim_pending(self, pending_id, sender_tenant_id=None, actor=None):
         """Envia un correo que estaba esperando aprobacion.
 
         Vuelve a validar TODO aca, no solo al crearlo: entre que se genero el
@@ -608,7 +611,10 @@ class MailTracker:
         # completa en el historial aunque el envio se caiga a la mitad.
         _anotar(pendiente, ENVIANDO, actor=actor)
         store.upsert('pending_emails', pendiente)
+        return {'ok': True, 'pendiente': pendiente, 'tenant_id': actual}
 
+    def _deliver_pending(self, pendiente, actual, actor):
+        # An uncertain attempt remains ENVIANDO if delivery raises. Never roll it back to pending.
         enviado = self.log_email(
             pendiente['to'], pendiente['subject'], pendiente.get('body') or '',
             template_id=pendiente.get('template_id'),
@@ -648,7 +654,10 @@ class MailTracker:
 
     def retry_failed(self, pending_id, actor=None, sender_tenant_id=None):
         with store.locked_tables('pending_emails', 'mail_log'):
-            return self._retry_failed(pending_id, actor, sender_tenant_id)
+            ready = self._retry_failed(pending_id, actor, sender_tenant_id)
+        if not ready['ok']:
+            return ready
+        return self.approve_and_send(pending_id, sender_tenant_id=sender_tenant_id, actor=actor)
 
     def _retry_failed(self, pending_id, actor=None, sender_tenant_id=None):
         """Reintenta un correo que fallo. MANUAL a proposito.
@@ -684,11 +693,13 @@ class MailTracker:
             return {'ok': False, 'pendiente': pendiente,
                     'error': 'Solo se puede reintentar un correo que fallo por '
                              'un problema tecnico'}
+        actual = sender_tenant_id or store.current_tenant_id()
+        if not actual or pendiente.get('tenant_id') != actual:
+            return {'ok': False, 'error': 'No encontrado'}
         # Vuelve a pendiente y pasa otra vez por TODAS las validaciones.
         _anotar(pendiente, PENDIENTE, actor=actor, motivo='reintento manual')
         store.upsert('pending_emails', pendiente)
-        return self.approve_and_send(pending_id, sender_tenant_id=sender_tenant_id,
-                                     actor=actor)
+        return {'ok': True}
 
     def discard_pending(self, pending_id, actor=None):
         with store.locked_tables('pending_emails', 'mail_log'):
