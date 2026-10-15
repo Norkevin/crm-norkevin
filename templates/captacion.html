@@ -62,6 +62,9 @@
   .suggestions li:last-child { border-bottom: 0; }
   .suggestions li:hover, .suggestions li[aria-selected="true"] { background: #eeeee7; }
   .suggestions small { display: block; color: var(--muted); margin-top: 3px; }
+  .suggestions .location-provider { font: 400 12px/1.5 sans-serif; color: #1f1f1f; white-space: nowrap; letter-spacing: normal; }
+  .location-privacy { margin-top: 7px; font-size: 11px; color: var(--muted); }
+  .location-privacy summary { cursor: pointer; }
   .flatpickr-calendar { border-radius: 0; border: 1px solid var(--ink); box-shadow: 0 10px 30px #24282314; font-family: inherit; padding: 10px 0; }
   .flatpickr-calendar:before, .flatpickr-calendar:after { display: none; }
   .flatpickr-day { border-radius: 0; }
@@ -92,7 +95,7 @@
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/flatpickr.min.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/es.js') }}"></script>
 <script id="location-catalog" type="application/json">{{ venue_catalog | tojson }}</script>
-<script defer src="{{ url_for('static', filename='captacion.js', v='20261014-fast-places') }}"></script>
+<script defer src="{{ url_for('static', filename='captacion.js', v='20261014-google-places') }}"></script>
 <link rel="stylesheet" href="/static/flow-tokens.css?v=20261005-modern">
 <link rel="stylesheet" href="/static/client-design.css?v=20261005-modern">
 </head>
@@ -167,11 +170,18 @@
           <div>
             <label for="locacion">Ubicación tentativa</label>
             <div class="location-wrap">
-              <input id="locacion" name="locacion" class="field" maxlength="500" placeholder="Busca una finca, hotel o lugar…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="location-results" aria-describedby="location-status location-credit">
+              <input id="locacion" name="locacion" class="field" maxlength="500" placeholder="Busca una finca, hotel o lugar…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="location-results" aria-describedby="location-status location-credit" data-google-places="{{ 'true' if google_places_enabled else 'false' }}">
               <ul id="location-results" class="suggestions" role="listbox" aria-label="Lugares sugeridos" hidden></ul>
             </div>
             <p class="hint" id="location-status" role="status">Escribe al menos 3 letras o deja tu ubicación por definir.</p>
             <p class="hint" id="location-credit">Catálogo de lugares de Guatemala y búsqueda con <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a></p>
+            {% if google_places_enabled %}
+            <details class="location-privacy">
+              <summary>Privacidad y condiciones de la búsqueda</summary>
+              <p>El texto del campo ubicación se envía a Google Maps y Photon para encontrar lugares. Evita incluir nombres de personas, teléfonos o correos en tu búsqueda. Puedes escribir la ubicación sin elegir una sugerencia.</p>
+              <p>La búsqueda con Google Maps está sujeta a los <a href="https://maps.google.com/help/terms_maps/" target="_blank" rel="noopener noreferrer">Términos de Google Maps</a> y la <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Política de Privacidad de Google</a>.</p>
+            </details>
+            {% endif %}
           </div>
           <div>
             <label for="notas">Notas <span class="optional">/ opcional</span></label>

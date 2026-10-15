@@ -7,10 +7,10 @@ const seed = JSON.parse(fs.readFileSync('data/seeds/venues_guatemala.default.jso
 const catalog = seed.venues.map(place => ({ name: place.name, aliases: place.aliases || [],
   detail: [...new Set([place.municipality, place.department, 'Guatemala'].filter(Boolean))].join(', ') }));
 
-function setup(fetch = async () => ({ ok: true, json: async () => ({ features: [] }) })) {
+function setup(fetch = async () => ({ ok: true, json: async () => ({ features: [] }) }), { google = false } = {}) {
   const nodes = new Map();
   function element() {
-    return { hidden: false, value: '', textContent: '', children: [], attributes: {}, handlers: {},
+    return { hidden: false, value: '', textContent: '', children: [], attributes: {}, handlers: {}, dataset: {},
       addEventListener(name, fn) { this.handlers[name] = fn; },
       setAttribute(name, value) { this.attributes[name] = value; },
       removeAttribute(name) { delete this.attributes[name]; },
@@ -23,6 +23,8 @@ function setup(fetch = async () => ({ ok: true, json: async () => ({ features: [
     return nodes.get(id);
   };
   node('location-catalog').textContent = JSON.stringify(catalog);
+  node('locacion').dataset.googlePlaces = String(google);
+  node('form-captacion').elements = { tenant_slug: { value: 'norkevin-photography' } };
   node('form-captacion').querySelector = () => node('submit');
   const timers = new Map();
   let timerId = 0;
@@ -51,6 +53,14 @@ test('real catalog finds La Ruca immediately, including connectors and a small t
     search.input(query);
     assert.equal(search.names()[0], 'Finca La Ruca Jardín Boutique', query);
     assert.equal(search.node('locacion').value, query, 'typing never replaces free text');
+  }
+});
+
+test('reported Jardin Vilaflor is available locally without enabling paid requests', () => {
+  const search = setup();
+  for (const query of ['jardin vilaflor', 'Jardín Vilaflor', 'jardin villaflor']) {
+    search.input(query);
+    assert.equal(search.names()[0], 'Jardín Vilaflor');
   }
 });
 
@@ -164,4 +174,91 @@ test('missing event date blocks submission before any lead or conversion request
   assert.equal(form.node('form-error').hidden, false);
   assert.match(form.node('form-error').textContent, /Selecciona la fecha del evento/);
   assert.notEqual(form.node('submit').disabled, true);
+});
+
+test('Google results appear and are attributed without waiting for slow Photon', async () => {
+  let finishPhoton;
+  const search = setup(async (url, options) => {
+    if (url.startsWith('https://')) {
+      assert.equal(new URL(url).searchParams.get('countrycode'), 'GT');
+      return new Promise(resolve => { finishPhoton = resolve; });
+    }
+    assert.equal(url, '/api/captacion/places');
+    assert.equal(JSON.parse(options.body).tenant_slug, 'norkevin-photography');
+    return { ok: true, json: async () => ({ ok: true, items: [{
+      name: 'Jardín Vilaflor', detail: 'Sacatepéquez, Guatemala',
+      label: 'Jardín Vilaflor, Sacatepéquez, Guatemala', provider: 'google',
+    }] }) };
+  }, { google: true });
+  search.input('jardin vilaflor');
+  const pending = search.runSearch();
+  await new Promise(setImmediate);
+  assert.equal(search.names()[0], 'Jardín Vilaflor');
+  assert.equal(search.node('location-results').children[0].children[1].textContent, 'Google Maps');
+  finishPhoton({ ok: true, json: async () => ({ features: [] }) });
+  await pending;
+});
+
+test('Google failure keeps Photon and catalog usable; Google predictions never enter the reusable cache', async () => {
+  let googleCalls = 0, photonCalls = 0;
+  const search = setup(async url => {
+    if (url.startsWith('https://')) {
+      photonCalls++;
+      return { ok: true, json: async () => ({ features: [] }) };
+    }
+    googleCalls++;
+    return googleCalls === 1 ? { ok: true, json: async () => ({ ok: true, items: [{
+      name: 'Google-only location', detail: 'Guatemala', label: 'Google-only location, Guatemala', provider: 'google',
+    }] }) } : { ok: false };
+  }, { google: true });
+  search.input('jardin vilaflor');
+  await search.runSearch();
+  assert.equal(search.names()[0], 'Google-only location');
+  search.input('jardin vilaflor');
+  assert.ok(!search.names().includes('Google-only location'));
+  await search.runSearch();
+  assert.equal(search.names()[0], 'Jardín Vilaflor');
+  assert.equal(googleCalls, 2);
+  assert.equal(photonCalls, 1);
+});
+
+test('late Google results cannot reopen a chosen location', async () => {
+  let finishGoogle;
+  const search = setup(async url => url.startsWith('https://')
+    ? { ok: true, json: async () => ({ features: [] }) }
+    : new Promise(resolve => { finishGoogle = resolve; }), { google: true });
+  search.input('jardin vilaflor');
+  const pending = search.runSearch();
+  search.input('Finca La Ruca');
+  search.key('ArrowDown');
+  search.key('Enter');
+  finishGoogle({ ok: true, json: async () => ({ ok: true, items: [{
+    name: 'Stale Google place', label: 'Stale Google place', provider: 'google',
+  }] }) });
+  await pending;
+  assert.match(search.node('locacion').value, /^Finca La Ruca/);
+  assert.equal(search.node('location-results').hidden, true);
+});
+
+test('new Google results never discard the active keyboard option', async () => {
+  const search = setup(async url => url.startsWith('https://')
+    ? { ok: true, json: async () => ({ features: [] }) }
+    : { ok: true, json: async () => ({ ok: true, items: Array.from({ length: 5 }, (_, index) => ({
+      name: `Google venue ${index}`, label: `Google venue ${index}`, provider: 'google',
+    })) }) }, { google: true });
+  search.input('Finca');
+  search.key('ArrowUp');
+  const selected = search.names().at(-1);
+  await search.runSearch();
+  search.key('Enter');
+  assert.ok(search.node('locacion').value.startsWith(selected));
+});
+
+test('personal contact details and very long manual addresses are not sent to either search provider', () => {
+  const search = setup(() => assert.fail('No provider should be called'), { google: true });
+  for (const value of ['cliente@example.com', '+502 1234 5678', 'x'.repeat(161)]) {
+    search.input(value);
+    assert.equal(search.scheduledSearches(), 0);
+    assert.equal(search.node('locacion').value, value);
+  }
 });

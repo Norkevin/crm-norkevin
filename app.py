@@ -29,6 +29,7 @@ from src.workflow.models import StepStatus, WorkflowStatus, TriggerType
 from src.storage import store, log_security_event, TenantMismatchError
 from src import public_links, public_tokens, quote_numbering
 from src.travel import TravelService, public_venue_catalog
+from src.place_search import google_places_enabled, google_place_suggestions, valid_place_query, SearchLimitReached, SearchUnavailable
 from src.travel_mail import compose_travel, content_digest, legacy_travel_conflict, package_link_keys, strip_travel_block
 from src.tenant_brand_map import display_name_for_tenant as _brand_display_name_for_tenant
 
@@ -2917,6 +2918,7 @@ import re as _re_auth
 
 PUBLIC_EXACT_PATHS = {
     '/login', '/logout', '/dev/login', '/teams-portal/login', '/contacto', '/api/leads/nuevo', '/captacion', '/api/captacion',
+    '/api/captacion/places',
     '/api/integrations/gallery/jobs',
     '/manifest.webmanifest', '/service-worker.js', '/offline.html',
 }
@@ -7323,7 +7325,28 @@ def captacion_form(tenant_slug=None):
         contact_email=contact_email,
         contact_phone=contact_phone,
         venue_catalog=public_venue_catalog(),
+        google_places_enabled=google_places_enabled(),
     )
+
+
+@app.route('/api/captacion/places', methods=['POST'])
+def public_place_search():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not valid_place_query(data.get('query')):
+        return jsonify({'ok': False, 'error': 'Escribe el nombre de un lugar o su dirección.'}), 400
+    slug = data.get('tenant_slug')
+    if not isinstance(slug, str) or not _tenant_by_slug(slug):
+        abort(404)
+    try:
+        response = jsonify({'ok': True, 'items': google_place_suggestions(data['query'])})
+    except SearchLimitReached:
+        response = jsonify({'ok': False, 'error': 'Búsqueda temporalmente no disponible.'})
+        response.status_code = 429
+    except SearchUnavailable:
+        response = jsonify({'ok': False, 'error': 'Búsqueda temporalmente no disponible.'})
+        response.status_code = 503
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @app.route('/api/captacion', methods=['POST'])
