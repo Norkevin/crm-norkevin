@@ -689,9 +689,10 @@
 
   <div class="dashboard-panel" data-mobile-order="11">
     <div class="dashboard-controls">
-      <select id="dashboard-job-type" class="sn-select" style="width:220px;" onchange="updateDashboard()">
-        {% for label in job_type_labels %}
-        <option value="{{ label }}">{{ 'Todos los tipos' if label == 'All Job Types' else label }}</option>
+      <select id="dashboard-job-type" class="sn-select" style="width:220px;" aria-label="Tipo de evento" onchange="updateDashboard()">
+        <option value="All Job Types" selected>Todos los tipos</option>
+        {% for label in job_type_labels if label != 'All Job Types' %}
+        <option value="{{ label }}">{{ label }}</option>
         {% endfor %}
       </select>
       <div class="dashboard-control-right">
