@@ -33,12 +33,12 @@
 {% if c.status in ('estimado','aprobado') %}<details><summary>Editar gasto</summary><form data-command="cost_edit" class="ft-form">{{ fields('cost_edit',c.id,c.version) }}{{ input('description','Concepto',value=c.description) }}{{ input('amount','Importe (Q)','number',c.total / 100) }}{{ input('due_date','Fecha de pago prevista','date',c.due_date,required=false) }}<button class="sn-btn">Guardar cambios</button></form></details>
 {% if not c.paid %}<button class="sn-btn" data-action="cost_status" data-id="{{ c.id }}" data-version="{{ c.version }}" data-status="anulado" data-confirm="¿Quitar este gasto? Quedará en el historial como anulado.">Quitar gasto</button>{% endif %}{% endif %}{% endif %}</article>
 {% endmacro %}
-<div class="ft-section-title"><a href="/teams/jobs">Volver a bodas</a><div class="ft-actions"><span class="ft-pill">{{ selected.teams_label }}</span>{% with job=selected %}{% include 'teams_job_actions.html' %}{% endwith %}</div></div>
+<div class="ft-section-title ft-detail-toolbar"><a href="/teams/jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>Volver a bodas</a><div class="ft-actions"><span class="ft-pill">{{ selected.teams_label }}</span>{% with job=selected %}{% include 'teams_job_actions.html' %}{% endwith %}</div></div>
 {% if selected.teams_state != 'included' %}<p class="ft-muted">Esta boda está apartada de la lista habitual. Sus coberturas, invitaciones y pagos se conservan.</p>{% endif %}
 {% if selected.secondary %}<p class="ft-warning"><strong>Trabajo secundario · {{ selected.nombre }}</strong><br>Ligado a <a href="{{ url_for('teams.page',job_id=selected.parent_job_id) }}">{{ selected.parent_name }}</a>. Los honorarios y gastos de esta cobertura se descuentan del trabajo principal. <a href="/jobs/{{ selected.parent_job_id }}">Abrir trabajo principal ↗</a></p>{% endif %}
 {% if selected.secondary_jobs %}<section class="ft-panel"><h2>Trabajos secundarios de esta boda</h2><p class="ft-muted">Los costos de estas coberturas ya están incluidos en el resumen del trabajo principal.</p>{% for child in selected.secondary_jobs %}<p><a href="{{ url_for('teams.page',job_id=child.id) }}">{{ child.nombre }}</a> · {{ child.boda_date|teams_date }}{% if child.start_time %} · {{ child.start_time }}–{{ child.end_time or 'Por definir' }}{% endif %}</p>{% endfor %}</section>{% endif %}
 {% set op = operations|selectattr('job_id','equalto',selected.id)|first %}
-<div class="ft-quick-summary">
+<div class="ft-quick-summary" aria-label="Resumen económico de la boda">
   <div><small>Equipo y gastos</small><strong>{{ selected.cost_total|teams_money if selected.configured else 'Por definir' }}</strong></div>
   <div><small>{{ 'Ingreso' if selected.secondary else 'Margen al cierre' if selected.closed else 'Margen estimado' }}</small><strong>{{ 'Incluido en el principal' if selected.secondary else selected.margin|teams_money if selected.configured else 'Por revisar' }}</strong></div>
   <div><small>Pendiente aprobado</small><strong>{{ selected.pending|teams_money }}</strong></div>
@@ -48,37 +48,9 @@
   {% for key,label in [('team','Equipo'),('expenses','Otros gastos'),('documents','Documentos'),('activity','Seguimiento')] %}<button type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" data-job-tab="{{ key }}" aria-controls="ft-job-{{ key }}" id="ft-tab-{{ key }}">{{ label }}</button>{% endfor %}
 </div>
 <div id="ft-job-team" class="ft-job-pane" role="tabpanel" aria-labelledby="ft-tab-team">
+  <div class="ft-team-layout"><div class="ft-team-primary">
   <div class="ft-section-title"><div><h2>Quién va a esta boda</h2><p class="ft-muted">Cada persona tiene aquí su cobertura, honorario y saldo.</p></div><div class="ft-actions ft-wrap"><span class="ft-count">{{ selected.assignments|map(attribute='member_id')|unique|list|length }} personas</span><a class="ft-text-link" href="/teams/settings#ft-roles">Editar roles ↗</a></div></div>
-  {% set general = selected.coverage_schedule %}
-  <section class="ft-panel" aria-labelledby="ft-general-schedule-title">
-    <h3 id="ft-general-schedule-title">Horario general de la boda</h3>
-    <p>{% if general.schedule_pending %}<strong>Horario pendiente</strong><small>La hora de llegada y salida se confirmará más adelante.</small>{% else %}<strong>{{ schedule_caption(general) }}</strong>{% endif %}</p>
-    <p class="ft-muted">Se aplica al equipo que usa el horario general. Puedes personalizar el horario en la ficha de cada persona.</p>
-    {% if general.job_day != selected.boda_date %}<p class="ft-warning">La fecha de la boda cambió. Revisa el horario general antes de añadir personas.</p>{% endif %}
-    {% if not selected.closed %}<details><summary class="sn-btn">{{ 'Definir horario general' if general.schedule_pending else 'Editar horario general' }}</summary>
-      <form data-command="job_schedule" class="ft-form"><input type="hidden" name="job_id" value="{{ selected.id }}"><input type="hidden" name="version" value="{{ general.version }}">
-        <label class="ft-full">Horario general<select name="schedule_pending" data-schedule-toggle><option value="true" {{ 'selected' if general.schedule_pending else '' }}>Horario pendiente</option><option value="false" {{ 'selected' if not general.schedule_pending else '' }}>Horario definido</option></select></label>
-        <div class="ft-full ft-two" data-schedule-fields {{ 'hidden' if general.schedule_pending else '' }}>{{ input('start','Llegada del equipo','datetime-local','' if general.schedule_pending else general.start[:16],required=not general.schedule_pending) }}{{ input('end','Salida del equipo','datetime-local','' if general.schedule_pending else general.end[:16],required=not general.schedule_pending) }}</div>
-        {{ input('conflict_reason','Motivo de excepción si hay un cruce de horario',required=false) }}
-        <button class="sn-btn sn-btn-primary">Guardar horario general</button><small>Actualiza al equipo que usa este horario y solicita reconfirmar los cambios. Conserva los horarios personalizados.</small>
-      </form>
-    </details>{% endif %}
-  </section>
-  {% if selected.studio_ninja_service_documents %}{% set original_quote_numbers=selected.studio_ninja_service_documents|selectattr('kind','equalto','quote')|map(attribute='number')|list %}<details class="ft-panel" {{ 'open' if not selected.assignments else '' }}><summary>Servicios contratados · Cotización y facturas originales</summary><p class="ft-muted">Revisa las personas y horas incluidas antes de preparar las coberturas.</p>{% for document in selected.studio_ninja_service_documents if document.kind == 'quote' or document.number not in original_quote_numbers %}<div><strong>{{ 'Cotización' if document.kind == 'quote' else 'Factura' }} {{ document.number }} · {{ document['items']|map(attribute='name')|join(' · ') }}</strong><a class="sn-btn" href="{{ url_for('job_source_document',job_id=selected.id,document_id=document.id) }}">Ver servicios contratados</a></div>{% endfor %}</details>{% endif %}
-  <section class="ft-panel ft-travel" aria-labelledby="ft-travel-title">
-    <div class="ft-section-title"><div><h3 id="ft-travel-title">Viaje y disponibilidad</h3><p class="ft-muted">Actívalo cuando el equipo necesite salir antes o regresar después de la boda.</p></div><span class="ft-pill">{{ 'Viaje activo' if selected.travel.enabled else 'Sin viaje' }}</span></div>
-    {% if selected.travel.enabled %}<dl class="ft-travel-dates"><div><dt>Salida</dt><dd>{{ selected.travel.departure|teams_date }}</dd></div><div><dt>Boda</dt><dd>{{ selected.boda_date|teams_date }}</dd></div><div><dt>Regreso</dt><dd>{{ selected.travel.return_date|teams_date }}</dd></div></dl>{% if selected.travel.note %}<p class="ft-prewrap">{{ selected.travel.note }}</p>{% endif %}{% endif %}
-    {% if not selected.closed %}<details {{ 'open' if not selected.travel.enabled else '' }}><summary>{{ 'Editar viaje' if selected.travel.enabled else 'Configurar viaje para esta boda' }}</summary>
-      <form data-command="travel" class="ft-form"><input name="job_id" type="hidden" value="{{ selected.id }}"><input name="version" type="hidden" value="{{ selected.travel.version or 0 }}">
-        <label class="ft-full">¿Esta boda requiere viaje?<select name="enabled" data-travel-toggle><option value="false" {{ 'selected' if not selected.travel.enabled else '' }}>No, solo el día de la boda</option><option value="true" {{ 'selected' if selected.travel.enabled else '' }}>Sí, reservar salida y regreso</option></select></label>
-        <div class="ft-full ft-form" data-travel-fields {{ 'hidden' if not selected.travel.enabled else '' }}>
-          {{ input('departure','Fecha de salida','date',selected.travel.departure or selected.boda_date,required=false) }}{{ input('return_date','Fecha de regreso','date',selected.travel.return_date or selected.end_date or selected.boda_date,required=false) }}
-          <label class="ft-full">Punto de salida o instrucciones (opcional)<textarea name="note" maxlength="1000">{{ selected.travel.note or '' }}</textarea></label>
-          <small class="ft-full">Cada trabajador responde por el viaje en su portal, aunque viaje por su cuenta. Calendar reserva estos días y muestra el horario de cobertura.</small><small class="ft-full">El portal informa que viajar por cuenta propia incluye viáticos de gasolina o transporte, alimentación y hospedaje cuando sea necesario. Registra los importes en los gastos de cada trabajador.</small>
-        </div><button class="sn-btn sn-btn-primary">Guardar viaje</button>
-      </form>
-    </details>{% endif %}
-  </section>
+  {% if not selected.closed %}<details class="ft-panel ft-add-coverage"><summary class="ft-add-person"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Añadir una persona</summary><p class="ft-muted">Elige quién viene y qué hará en esta boda.</p><p class="ft-muted">El rol se elige por cobertura. Puedes asignar a la misma persona funciones diferentes en otras bodas.</p><form data-command="assignment" class="ft-form"><input type="hidden" name="job_id" value="{{ selected.id }}">{{ member_select() }}{{ role_select() }}<p class="ft-full ft-form-help">¿Falta un rol? <a href="/teams/settings#ft-roles">Editar el catálogo de esta marca ↗</a></p>{{ input('amount','Honorario (Q)','number') }}{{ input('slot','Nombre de cobertura (opcional)',value='',required=false) }}{{ person_schedule() }}<details class="ft-full"><summary>Más detalles</summary>{{ input('buffer','Margen libre antes y después (min)','number','30') }}<small>Evita coberturas muy próximas. No calcula el viaje; puedes usar 0, 30, 60 minutos u otro valor.</small>{{ input('due_date','Fecha prevista de pago','date',required=false) }}<label>Instrucciones<textarea name="instructions" maxlength="3000"></textarea></label></details><button class="sn-btn sn-btn-primary">Guardar cobertura</button></form></details>{% endif %}
   <div class="ft-crew-grid">
   {% for a in assignments if a.job_id == selected.id and a.status not in ('cancelada','rechazada') %}{% set c = a.cost %}
     {% set invitation=calendar_sync|selectattr('identity','equalto','assignment:' ~ a.id)|first|default(none) %}
@@ -96,6 +68,7 @@
     {% if a.status in ['borrador','pendiente','aceptada','reconfirmar','realizada'] %}
     <div class="ft-invitation">
       {% include 'teams_calendar_response.html' %}{% if invitation and invitation.event and invitation.response_status == 'declined' %}<p class="ft-warning" role="status">{{ a.member_name }} rechazó la invitación en Google Calendar. No está disponible para esta cobertura; revisa su reemplazo.</p>{% endif %}
+      <details class="ft-delivery-details" {{ 'open' if not a.can_invite or invitation.error or invitation.email_error or invitation.bulk_skip_reason or invitation.not_before else '' }}><summary>Envío y confirmación manual</summary>
       {% if not selected.closed and a.can_confirm_manually %}
       {% if a.manual_confirmed %}<button class="sn-btn" type="button" data-action="assignment_acknowledge" data-id="{{ a.id }}" data-version="{{ a.version }}" data-status="withdrawn">Quitar confirmación manual</button>
       {% else %}<button class="sn-btn" type="button" data-action="assignment_acknowledge" data-id="{{ a.id }}" data-version="{{ a.version }}" data-status="confirmed">Registrar confirmación manual</button><small>Deja constancia de que {{ a.member_name }} conoce esta cobertura. Las respuestas del portal y Google Calendar se muestran por separado.</small>{% endif %}
@@ -109,6 +82,7 @@
       {% if not a.can_invite %}<p class="ft-warning">{{ a.invite_problem }} <a href="/teams/members#member-{{ a.member_id }}">Editar miembro</a></p>{% elif not calendar_email %}<p class="ft-warning"><a href="/teams/settings">Conectar Google Calendar</a> para enviar desde esta marca.</p>{% endif %}
       {% if invitation.not_before %}<p>Envío programado: {{ invitation.not_before|teams_calendar_date }} · hora de esta empresa.</p>{% endif %}
       {% if invitation.error %}<p class="ft-warning" role="alert">{{ invitation.error }}</p>{% endif %}
+      </details>
       <form data-command="calendar_sync" data-endpoint="/api/teams/calendar/sync" class="ft-form ft-invitation-form">
         <input type="hidden" name="job_id" value="{{ selected.id }}"><input type="hidden" name="invite" value="individual"><input type="hidden" name="assignment_id" value="{{ a.id }}"><input type="hidden" name="publish" value="true"><input type="hidden" name="version" value="{{ a.version }}">
         <button type="submit" data-calendar-submit data-send-label="{{ 'Actualizar invitación y acceso' if invitation.status == 'synced' else 'Enviar invitación y acceso' }}" class="sn-btn sn-btn-primary" {{ 'disabled' if not calendar_email or not a.can_invite else '' }}>Enviar invitación y acceso</button>
@@ -140,9 +114,41 @@
   </div>
   {% include 'teams_calendar_invitations.html' %}
   <details class="ft-panel"><summary>Historial y ajustes del equipo</summary>{% for a in assignments if a.job_id == selected.id and a.status in ('cancelada','rechazada') %}<p><strong>{{ a.member_name }} · {{ a.status }}</strong><small>{{ a.role }} · pagado {{ a.cost.paid|teams_money }} · pendiente {{ a.cost.pending|teams_money }}</small></p>{% if a.cost.pending %}<a href="/teams/payments">Revisar obligación y pagos ↗</a>{% endif %}{% else %}<p>Sin coberturas retiradas.</p>{% endfor %}</details>
-  {% if not selected.closed %}<details class="ft-panel"><summary class="ft-add-person">＋ Añadir una persona <span>Elige quién viene y qué hará en esta boda</span></summary><p class="ft-muted">El rol se elige por cobertura. Puedes asignar a la misma persona funciones diferentes en otras bodas.</p><form data-command="assignment" class="ft-form"><input type="hidden" name="job_id" value="{{ selected.id }}">{{ member_select() }}{{ role_select() }}<p class="ft-full ft-form-help">¿Falta un rol? <a href="/teams/settings#ft-roles">Editar el catálogo de esta marca ↗</a></p>{{ input('amount','Honorario (Q)','number') }}{{ input('slot','Nombre de cobertura (opcional)',value='',required=false) }}{{ person_schedule() }}<details class="ft-full"><summary>Más detalles</summary>{{ input('buffer','Margen libre antes y después (min)','number','30') }}<small>Evita coberturas muy próximas. No calcula el viaje; puedes usar 0, 30, 60 minutos u otro valor.</small>{{ input('due_date','Fecha prevista de pago','date',required=false) }}<label>Instrucciones<textarea name="instructions" maxlength="3000"></textarea></label></details><button class="sn-btn sn-btn-primary">Guardar cobertura</button></form></details>{% endif %}
+
   {% if not selected.closed %}<details class="ft-panel"><summary>Crear trabajador nuevo</summary><p>Añádelo al directorio y después selecciónalo en «Añadir una persona».</p><form data-command="member" class="ft-form">{{ input('name','Nombre') }}{{ input('email','Correo','email',required=false) }}{{ input('phone','Teléfono',required=false) }}{{ input('role','Rol habitual') }}{{ input('rate','Tarifa sugerida (Q)','number','0') }}<button class="sn-btn sn-btn-primary">Crear trabajador</button></form></details>{% endif %}
   <p class="ft-muted">«Enviar invitación y acceso» confirma el honorario, publica la cobertura y envía Calendar con el enlace personal.</p>
+  </div><aside class="ft-team-settings" aria-label="Horario y viaje de la boda">
+  {% set general = selected.coverage_schedule %}
+  <section class="ft-panel ft-general-schedule" aria-labelledby="ft-general-schedule-title">
+    <h3 id="ft-general-schedule-title">Horario general de la boda</h3>
+    <p>{% if general.schedule_pending %}<strong>Horario pendiente</strong><small>La hora de llegada y salida se confirmará más adelante.</small>{% else %}<strong>{{ schedule_caption(general) }}</strong>{% endif %}</p>
+    <p class="ft-muted">Se aplica al equipo que usa el horario general. Puedes personalizar el horario en la ficha de cada persona.</p>
+    {% if general.job_day != selected.boda_date %}<p class="ft-warning">La fecha de la boda cambió. Revisa el horario general antes de añadir personas.</p>{% endif %}
+    {% if not selected.closed %}<details><summary class="sn-btn">{{ 'Definir horario general' if general.schedule_pending else 'Editar horario general' }}</summary>
+      <form data-command="job_schedule" class="ft-form"><input type="hidden" name="job_id" value="{{ selected.id }}"><input type="hidden" name="version" value="{{ general.version }}">
+        <label class="ft-full">Horario general<select name="schedule_pending" data-schedule-toggle><option value="true" {{ 'selected' if general.schedule_pending else '' }}>Horario pendiente</option><option value="false" {{ 'selected' if not general.schedule_pending else '' }}>Horario definido</option></select></label>
+        <div class="ft-full ft-two" data-schedule-fields {{ 'hidden' if general.schedule_pending else '' }}>{{ input('start','Llegada del equipo','datetime-local','' if general.schedule_pending else general.start[:16],required=not general.schedule_pending) }}{{ input('end','Salida del equipo','datetime-local','' if general.schedule_pending else general.end[:16],required=not general.schedule_pending) }}</div>
+        {{ input('conflict_reason','Motivo de excepción si hay un cruce de horario',required=false) }}
+        <button class="sn-btn sn-btn-primary">Guardar horario general</button><small>Actualiza al equipo que usa este horario y solicita reconfirmar los cambios. Conserva los horarios personalizados.</small>
+      </form>
+    </details>{% endif %}
+  </section>
+  {% if selected.studio_ninja_service_documents %}{% set original_quote_numbers=selected.studio_ninja_service_documents|selectattr('kind','equalto','quote')|map(attribute='number')|list %}<details class="ft-panel" {{ 'open' if not selected.assignments else '' }}><summary>Servicios contratados · Cotización y facturas originales</summary><p class="ft-muted">Revisa las personas y horas incluidas antes de preparar las coberturas.</p>{% for document in selected.studio_ninja_service_documents if document.kind == 'quote' or document.number not in original_quote_numbers %}<div><strong>{{ 'Cotización' if document.kind == 'quote' else 'Factura' }} {{ document.number }} · {{ document['items']|map(attribute='name')|join(' · ') }}</strong><a class="sn-btn" href="{{ url_for('job_source_document',job_id=selected.id,document_id=document.id) }}">Ver servicios contratados</a></div>{% endfor %}</details>{% endif %}
+  <section class="ft-panel ft-travel" aria-labelledby="ft-travel-title">
+    <div class="ft-section-title"><div><h3 id="ft-travel-title">Viaje y disponibilidad</h3><p class="ft-muted">Actívalo cuando el equipo necesite salir antes o regresar después de la boda.</p></div><span class="ft-pill">{{ 'Viaje activo' if selected.travel.enabled else 'Sin viaje' }}</span></div>
+    {% if selected.travel.enabled %}<dl class="ft-travel-dates"><div><dt>Salida</dt><dd>{{ selected.travel.departure|teams_date }}</dd></div><div><dt>Boda</dt><dd>{{ selected.boda_date|teams_date }}</dd></div><div><dt>Regreso</dt><dd>{{ selected.travel.return_date|teams_date }}</dd></div></dl>{% if selected.travel.note %}<p class="ft-prewrap">{{ selected.travel.note }}</p>{% endif %}{% endif %}
+    {% if not selected.closed %}<details><summary>{{ 'Editar viaje' if selected.travel.enabled else 'Configurar viaje para esta boda' }}</summary>
+      <form data-command="travel" class="ft-form"><input name="job_id" type="hidden" value="{{ selected.id }}"><input name="version" type="hidden" value="{{ selected.travel.version or 0 }}">
+        <label class="ft-full">¿Esta boda requiere viaje?<select name="enabled" data-travel-toggle><option value="false" {{ 'selected' if not selected.travel.enabled else '' }}>No, solo el día de la boda</option><option value="true" {{ 'selected' if selected.travel.enabled else '' }}>Sí, reservar salida y regreso</option></select></label>
+        <div class="ft-full ft-form" data-travel-fields {{ 'hidden' if not selected.travel.enabled else '' }}>
+          {{ input('departure','Fecha de salida','date',selected.travel.departure or selected.boda_date,required=false) }}{{ input('return_date','Fecha de regreso','date',selected.travel.return_date or selected.end_date or selected.boda_date,required=false) }}
+          <label class="ft-full">Punto de salida o instrucciones (opcional)<textarea name="note" maxlength="1000">{{ selected.travel.note or '' }}</textarea></label>
+          <small class="ft-full">Cada trabajador responde por el viaje en su portal, aunque viaje por su cuenta. Calendar reserva estos días y muestra el horario de cobertura.</small><small class="ft-full">El portal informa que viajar por cuenta propia incluye viáticos de gasolina o transporte, alimentación y hospedaje cuando sea necesario. Registra los importes en los gastos de cada trabajador.</small>
+        </div><button class="sn-btn sn-btn-primary">Guardar viaje</button>
+      </form>
+    </details>{% endif %}
+  </section>
+  </aside></div>
 </div>
 <div id="ft-job-expenses" class="ft-job-pane" role="tabpanel" aria-labelledby="ft-tab-expenses" hidden>
   <h2>Gastos de la boda</h2><p class="ft-muted">Los gastos generales son de toda la boda. Los individuales también aparecen en la ficha de cada trabajador.</p>

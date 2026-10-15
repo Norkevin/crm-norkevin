@@ -38,6 +38,12 @@
 .ft.ft-owner .ft-weddings-table td { padding: 24px 20px; vertical-align: top; border-bottom: 1px solid var(--sn-line); font-size: 14px; line-height: 1.55; }
 .ft.ft-owner .ft-weddings-table tr:last-child td { border-bottom: 0; }
 .ft.ft-owner .ft-wedding-row:hover { background: var(--sn-surface-hover); }
+.ft.ft-owner .ft-wedding-row { position: relative; isolation: isolate; cursor: pointer; }
+.ft.ft-owner .ft-wedding-name::after { content: ''; position: absolute; inset: 0; z-index: 1; }
+.ft.ft-owner .ft-wedding-actions { position: relative; z-index: 2; }
+.ft.ft-owner .ft-wedding-info small a { position: relative; z-index: 2; }
+.ft.ft-owner .ft-wedding-row:has(.ft-job-menu[open]) { z-index: 3; }
+.ft.ft-owner .ft-wedding-row:has(.ft-wedding-name:focus-visible) { outline: 2px solid var(--sn-accent-text); outline-offset: 2px; }
 .ft.ft-owner .ft-wedding-date time { display: flex; flex-direction: column; gap: 4px; font-variant-numeric: tabular-nums; }
 .ft.ft-owner .ft-date-day { font-size: 28px; line-height: 1; font-weight: 600; letter-spacing: -.5px; color: var(--sn-ink); }
 .ft.ft-owner .ft-date-month { font-size: 12px; color: var(--sn-muted); white-space: nowrap; }
@@ -111,4 +117,107 @@
 @media (max-width: 480px) {
   .ft.ft-owner #financial-report .ft-metrics { grid-template-columns: minmax(0,1fr); }
   .ft.ft-owner #financial-report .ft-metrics article { min-width: 0; }
+}
+
+/* Wedding details share the agenda's quiet hierarchy. */
+.ft.ft-owner-detail .ft-title-group { display: flex; align-items: flex-start; gap: 20px; min-width: 0; }
+.ft.ft-owner-detail .ft-title-copy { min-width: 0; }
+.ft.ft-owner-detail .ft-owner-hero { align-items: flex-start; }
+.ft.ft-owner-detail .ft-owner-hero h1 { font-size: 28px; overflow-wrap: anywhere; }
+.ft.ft-owner-detail .ft-detail-date { display: flex; flex-direction: column; gap: 6px; min-width: 72px; padding-top: 3px; font-variant-numeric: tabular-nums; }
+.ft.ft-owner-detail .ft-detail-date > span { font-size: 36px; line-height: 1; font-weight: 600; letter-spacing: -.7px; }
+.ft.ft-owner-detail .ft-detail-date small { font-size: 12px; color: var(--sn-muted); white-space: nowrap; }
+.ft.ft-owner-detail .ft-detail-location { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+.ft.ft-owner-detail .ft-owner-hero > .ft-actions { flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; max-width: 300px; }
+.ft.ft-owner-detail .ft-detail-toolbar { margin: 0 0 16px; }
+.ft.ft-owner-detail .ft-detail-toolbar > a { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; font-size: 13px; color: var(--sn-muted); text-decoration: none; }
+.ft.ft-owner-detail .ft-detail-toolbar > a:hover { color: var(--sn-accent-text); }
+.ft.ft-owner-detail .ft-detail-toolbar svg { width: 16px; height: 16px; }
+.ft.ft-owner-detail .ft-quick-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; padding: 20px 0; margin: 0 0 20px; background: transparent; border: 0; border-top: 1px solid var(--sn-line); border-bottom: 1px solid var(--sn-line); border-radius: 0; }
+.ft.ft-owner-detail .ft-quick-summary > div { min-width: 0; }
+.ft.ft-owner-detail .ft-quick-summary > div + div { padding-left: 24px; border-left: 1px solid var(--sn-line); }
+.ft.ft-owner-detail .ft-quick-summary small { color: var(--sn-muted); font-size: 12px; }
+.ft.ft-owner-detail .ft-quick-summary strong { display: block; font-size: 22px; font-weight: 600; letter-spacing: -.3px; overflow-wrap: anywhere; }
+.ft.ft-owner-detail .ft-job-tabs { max-width: none; margin: 0 0 28px; padding: 0; gap: 28px; background: transparent; border: 0; border-bottom: 1px solid var(--sn-line); border-radius: 0; }
+.ft.ft-owner-detail .ft-job-tabs button { flex: 0 1 auto; min-height: 44px; padding: 12px 0; font-size: 14px; border-radius: 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--sn-muted); }
+.ft.ft-owner-detail .ft-job-tabs button[aria-selected="true"] { background: transparent; border-bottom-color: currentColor; color: var(--sn-accent-text); }
+.ft.ft-owner-detail .ft-team-layout { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 32px; align-items: start; }
+.ft.ft-owner-detail :is(.ft-team-primary,.ft-team-settings) { min-width: 0; }
+.ft.ft-owner-detail .ft-team-primary > .ft-section-title { margin: 0 0 20px; }
+.ft.ft-owner-detail .ft-section-title h2 { font-size: 22px; margin: 0 0 6px; letter-spacing: -.4px; }
+.ft.ft-owner-detail .ft-section-title p { margin: 0; font-size: 13px; }
+.ft.ft-owner-detail .ft-team-primary > .ft-section-title .ft-actions { gap: 12px; }
+.ft.ft-owner-detail .ft-count { border: 0; padding: 0; font-size: 12px; }
+.ft.ft-owner-detail .ft-add-coverage { margin-bottom: 20px; padding: 0; background: transparent; border: 0; }
+.ft.ft-owner-detail .ft-add-coverage > summary { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 10px 14px; background: var(--sn-white); color: var(--sn-accent-text); border: 1px solid var(--sn-line-dark); border-radius: 8px; list-style: none; font-size: 13px; font-weight: 600; cursor: pointer; }
+.ft.ft-owner-detail .ft-add-coverage > summary::-webkit-details-marker { display: none; }
+.ft.ft-owner-detail .ft-add-coverage > summary svg { width: 16px; height: 16px; }
+.ft.ft-owner-detail .ft-add-coverage[open] { padding: 20px; background: var(--sn-white); border: 1px solid var(--sn-line); border-radius: 12px; }
+.ft.ft-owner-detail .ft-team-settings .ft-panel { padding: 20px; margin: 0 0 16px; }
+.ft.ft-owner-detail .ft-team-settings h3 { font-size: 15px; line-height: 1.5; margin: 0 0 12px; font-weight: 600; }
+.ft.ft-owner-detail .ft-team-settings p { font-size: 13px; line-height: 1.6; margin: 10px 0; }
+.ft.ft-owner-detail .ft-team-settings .ft-section-title { flex-wrap: wrap; gap: 8px; }
+.ft.ft-owner-detail .ft-team-settings .ft-form { grid-template-columns: minmax(0,1fr); }
+.ft.ft-owner-detail .ft-team-settings .ft-two { grid-template-columns: minmax(0,1fr); }
+.ft.ft-owner-detail .ft-team-settings .sn-btn { max-width: 100%; white-space: normal; text-align: left; }
+.ft.ft-owner-detail .ft-crew-grid { grid-template-columns: minmax(0,1fr); gap: 20px; margin: 0 0 24px; }
+.ft.ft-owner-detail .ft-crew-card { padding: 24px; overflow: visible; }
+.ft.ft-owner-detail .ft-crew-card > .ft-section-title { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.ft.ft-owner-detail .ft-person-heading { gap: 12px; }
+.ft.ft-owner-detail .ft-person-heading h3 { font-size: 18px; line-height: 1.4; overflow-wrap: anywhere; }
+.ft.ft-owner-detail .ft-avatar { background: var(--sn-surface-2); color: var(--sn-ink); border-radius: 8px; }
+.ft.ft-owner-detail .ft-crew-card .ft-pill { font-size: 11px; white-space: normal; line-height: 1.5; }
+.ft.ft-owner-detail .ft-coverage-role { margin: 16px 0 12px; font-size: 14px; }
+.ft.ft-owner-detail .ft-coverage-role small { font-size: 12px; font-weight: 400; line-height: 1.6; margin-top: 5px; }
+.ft.ft-owner-detail .ft-person-money { margin: 20px 0 12px; padding: 16px 0; gap: 20px; border: 0; border-top: 1px solid var(--sn-line); border-bottom: 1px solid var(--sn-line); border-radius: 0; background: transparent; }
+.ft.ft-owner-detail .ft-person-money > span { font-size: 12px; }
+.ft.ft-owner-detail .ft-person-money strong { font-size: 19px; margin-top: 6px; overflow-wrap: anywhere; }
+.ft.ft-owner-detail .ft-crew-card > .ft-muted { font-size: 12px; line-height: 1.6; }
+.ft.ft-owner-detail .ft-invitation { padding-top: 16px; margin-top: 16px; }
+.ft.ft-owner-detail .ft-invitation > small { display: block; font-size: 12px; margin: 5px 0 10px; }
+.ft.ft-owner-detail .ft-delivery-details { margin: 8px 0; border: 0; }
+.ft.ft-owner-detail .ft-delivery-details > summary { font-size: 12px; color: var(--sn-muted); cursor: pointer; }
+.ft.ft-owner-detail .ft-delivery-details > small { display: block; margin: 6px 0; font-size: 12px; line-height: 1.6; }
+.ft.ft-owner-detail .ft-delivery-details[open] { padding-bottom: 12px; }
+.ft.ft-owner-detail .ft-invitation-form > .sn-btn-primary { width: auto; justify-self: start; background: var(--sn-green); border-color: var(--sn-green); }
+.ft.ft-owner-detail .ft-invitation-form > .sn-btn-primary:hover { background: var(--sn-green-dark); }
+.ft.ft-owner-detail .ft-crew-controls { margin-top: 20px; }
+.ft.ft-owner-detail .ft-crew-controls > details > summary { font-size: 13px; line-height: 1.6; }
+.ft.ft-owner-detail .ft-worker-expenses > summary span { float: none; display: block; margin-top: 4px; }
+.ft.ft-owner-detail .ft-job-pane > h2 { font-size: 22px; margin: 0 0 8px; }
+.ft.ft-owner-detail .ft-job-pane > h3 { font-size: 17px; margin: 28px 0 16px; }
+.ft.ft-owner-detail .ft-job-pane > .ft-muted { font-size: 14px; line-height: 1.6; }
+.ft.ft-owner-detail .ft-person-expense { padding: 20px 0; border-bottom: 1px solid var(--sn-line); }
+.ft.ft-owner-detail .ft-finance-details { margin-top: 28px; }
+@container teams-owner (max-width: 900px) {
+  .ft.ft-owner-detail .ft-team-layout { grid-template-columns: minmax(0,1fr); gap: 28px; }
+  .ft.ft-owner-detail .ft-team-settings { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+  .ft.ft-owner-detail .ft-team-settings .ft-panel { margin: 0; }
+  .ft.ft-owner-detail .ft-owner-hero { flex-wrap: wrap; gap: 16px; }
+  .ft.ft-owner-detail .ft-owner-hero > .ft-actions { justify-content: flex-start; }
+}
+@container teams-owner (max-width: 600px) {
+  .ft.ft-owner-detail .ft-team-settings { grid-template-columns: minmax(0,1fr); }
+  .ft.ft-owner-detail .ft-quick-summary { grid-template-columns: minmax(0,1fr); gap: 12px; padding: 16px 0; }
+  .ft.ft-owner-detail .ft-quick-summary > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+  .ft.ft-owner-detail .ft-quick-summary > div + div { border: 0; padding: 0; }
+  .ft.ft-owner-detail .ft-quick-summary strong { font-size: 18px; margin: 0; text-align: right; max-width: 60%; }
+  .ft.ft-owner-detail .ft-job-tabs { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+  .ft.ft-owner-detail .ft-job-tabs button { padding: 10px 0; font-size: 12px; white-space: normal; }
+  .ft.ft-owner-detail .ft-crew-card { padding: 20px; }
+  .ft.ft-owner-detail .ft-crew-card > .ft-section-title { flex-direction: column; }
+  .ft.ft-owner-detail .ft-team-primary > .ft-section-title { align-items: start; flex-wrap: wrap; gap: 12px; }
+  .ft.ft-owner-detail .ft-person-money { gap: 12px; }
+  .ft.ft-owner-detail .ft-person-money strong { font-size: 17px; }
+  .ft.ft-owner-detail .ft-invitation-form > .sn-btn-primary { width: 100%; }
+  .ft.ft-owner-detail .ft-crew-card :is(input,select,textarea,.sn-btn) { max-width: 100%; min-width: 0; white-space: normal; }
+}
+@media (max-width: 600px) {
+  .ft.ft-owner-detail .ft-title-group { gap: 16px; }
+  .ft.ft-owner-detail .ft-detail-date { min-width: 54px; }
+  .ft.ft-owner-detail .ft-detail-date > span { font-size: 30px; }
+  .ft.ft-owner-detail .ft-detail-date small { font-size: 11px; }
+  .ft.ft-owner-detail .ft-owner-hero h1 { font-size: 24px; }
+  .ft.ft-owner-detail .ft-hero-meta { font-size: 13px; line-height: 1.6; }
+  .ft.ft-owner-detail .ft-owner-hero > .ft-actions { margin-top: 0; }
 }
