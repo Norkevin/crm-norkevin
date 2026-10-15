@@ -28,7 +28,8 @@ async function submit({ brand = 'norkevin-photography', ok = true, tag = 'workin
     'astral-weddings': { googleConversion: 'AW-18491511938/Y4ZBCNr-9Y4dEIKpuPFE', metaPixel: '28915845924706844' },
   };
   node('lead-ads-config').dataset = configs[brand];
-  const document = { getElementById: id => id === 'lead-ads-config' && !configs[brand] ? null : node(id) };
+  const document = { getElementById: id => id === 'lead-ads-config' && !configs[brand] ? null : node(id),
+    addEventListener() {} };
   if (tag !== 'blocked') window.gtag = (...args) => {
     if (tag === 'throws') throw new Error('Unavailable measurement');
     calls.push(args);
