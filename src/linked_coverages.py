@@ -32,7 +32,7 @@ def linked_coverages(jobs, calendar):
             if task.get('type') == 'extra-event':
                 add(parent, task, task.get('calendar_event_id') or task.get('id'), task.get('id'))
     for event in calendar:
-        if event.get('type') != 'event' or event.get('id') in mirrored:
+        if event.get('type') != 'event' or event.get('id') in mirrored or event.get('meeting_kind'):
             continue
         parent = parents.get(event.get('job_id')) or by_lead.get(event.get('lead_id'))
         coverage = ('extra-event' in (event.get('notes') or '') or
