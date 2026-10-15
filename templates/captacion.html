@@ -95,7 +95,7 @@
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/flatpickr.min.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/es.js') }}"></script>
 <script id="location-catalog" type="application/json">{{ venue_catalog | tojson }}</script>
-<script defer src="{{ url_for('static', filename='captacion.js', v='20261014-google-places') }}"></script>
+<script defer src="{{ url_for('static', filename='captacion.js', v='20261014-iphone-selection') }}"></script>
 <link rel="stylesheet" href="/static/flow-tokens.css?v=20261005-modern">
 <link rel="stylesheet" href="/static/client-design.css?v=20261005-modern">
 </head>
@@ -170,7 +170,7 @@
           <div>
             <label for="locacion">Ubicación tentativa</label>
             <div class="location-wrap">
-              <input id="locacion" name="locacion" class="field" maxlength="500" placeholder="Busca una finca, hotel o lugar…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="location-results" aria-describedby="location-status location-credit" data-google-places="{{ 'true' if google_places_enabled else 'false' }}">
+              <input id="locacion" name="locacion" class="field" maxlength="500" placeholder="Busca una finca, hotel o lugar…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="location-results" aria-describedby="location-status location-credit" data-google-places="{{ 'true' if google_places_enabled else 'false' }}">
               <ul id="location-results" class="suggestions" role="listbox" aria-label="Lugares sugeridos" hidden></ul>
             </div>
             <p class="hint" id="location-status" role="status">Escribe al menos 3 letras o deja tu ubicación por definir.</p>
