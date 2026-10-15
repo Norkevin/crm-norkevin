@@ -1,12 +1,13 @@
-<div class="workflow-timing" style="white-space:normal;font-size:12px;line-height:1.5;margin-top:5px;">
+<div class="workflow-timing" {% if workflow_auto_mail and step.status == 'queued' %}data-workflow-watch="1"{% endif %} style="white-space:normal;font-size:12px;line-height:1.5;margin-top:5px;">
   {% if step.scheduled_display %}
   <div><time>{{ step.scheduled_display }}</time> <span class="sn-muted">· Guatemala</span></div>
   {% endif %}
   {% if step.auto_prepare %}
-  <strong data-workflow-due="{{ step.scheduled_epoch }}">Preparación automática programada</strong>
-  <div class="sn-muted">Después, aprueba el envío en Emails.</div>
+  <strong data-workflow-due="{{ step.scheduled_epoch }}" data-workflow-auto="{{ '1' if workflow_auto_mail else '0' }}">{{ 'Envío automático programado' if workflow_auto_mail else 'Preparación automática programada' }}</strong>
+  <div class="sn-muted">{{ 'Se envía automáticamente; no necesitas aprobarlo.' if workflow_auto_mail else 'Después, aprueba el envío en Emails.' }}</div>
   {% elif step.status == 'queued' %}
-  <div>Correo preparado. <a href="/emails">Falta aprobar el envío.</a></div>
+  {% if workflow_auto_mail %}<div>Correo en cola. Se enviará automáticamente. <a href="/emails">Ver estado del envío.</a></div>
+  {% else %}<div>Correo preparado. <a href="/emails">Falta aprobar el envío.</a></div>{% endif %}
   {% elif step.status == 'done' %}
   <div class="sn-muted">Paso completado.</div>
   {% elif step.status == 'skipped' %}

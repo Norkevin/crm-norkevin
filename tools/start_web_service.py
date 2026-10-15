@@ -1,5 +1,6 @@
 """Run Web Push on the CRM's existing disk; keep worker failures visible."""
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -79,7 +80,11 @@ def supervise(commands):
 def main():
     root = Path(__file__).resolve().parents[1]
     os.chdir(root)
-    gunicorn = ['gunicorn', '--bind', '0.0.0.0:' + os.environ.get('PORT', '5000'), 'wsgi:app']
+    # Import inside the web worker: preloaded scheduler threads see only the
+    # master's startup snapshot, never the leads created by HTTP requests.
+    options = shlex.split(os.environ.get('GUNICORN_CMD_ARGS', ''))
+    os.environ['GUNICORN_CMD_ARGS'] = shlex.join(arg for arg in options if arg != '--preload')
+    gunicorn = ['gunicorn', '--workers', '1', '--bind', '0.0.0.0:' + os.environ.get('PORT', '5000'), 'wsgi:app']
     worker = [sys.executable, str(root / 'tools/run_web_push_worker.py')]
     if os.environ.get('FLOW_WEB_PUSH_ENABLED') != '1':
         # Run pause in a separate process so its scheduler flags cannot disable

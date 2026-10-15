@@ -1,5 +1,6 @@
 """Service supervision uses short local processes, not a server or push provider."""
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -9,6 +10,92 @@ import pytest
 
 from tools import start_web_service as service
 from tools import run_web_push_worker as worker
+
+
+@pytest.mark.parametrize('push_enabled', ['0', '1'])
+def test_render_preload_cannot_separate_the_mail_scheduler_from_new_http_leads(monkeypatch, push_enabled):
+    monkeypatch.setenv('FLOW_WEB_PUSH_ENABLED', push_enabled)
+    monkeypatch.delenv('CRM_DATA_DIR', raising=False)
+    monkeypatch.setenv('GUNICORN_CMD_ARGS', '--preload --access-logfile - --bind=0.0.0.0:10000')
+    monkeypatch.setenv('WEB_CONCURRENCY', '4')
+    launched = []
+
+    class Executed(Exception):
+        pass
+
+    def capture(command):
+        launched.append(command)
+        raise Executed()
+
+    monkeypatch.setattr(service.os, 'execvp', lambda _, command: capture(command))
+    monkeypatch.setattr(service, 'supervise', lambda commands: capture(commands[1][1]))
+    with pytest.raises(Executed):
+        service.main()
+    from gunicorn.config import Config
+    config = Config()
+    options = shlex.split(os.environ['GUNICORN_CMD_ARGS'])
+    parsed = config.parser().parse_args(options)
+    web = config.parser().parse_args(launched[0][1:])
+    assert parsed.preload_app is not True, 'Scheduler must import with the HTTP worker'
+    assert web.workers == 1, 'JSON workflows require one shared in-memory engine'
+    assert parsed.accesslog == '-' and parsed.bind == ['0.0.0.0:10000']
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='Gunicorn uses POSIX worker processes')
+def test_http_lead_created_after_boot_is_visible_to_the_worker_scheduler(tmp_path):
+    """Real fork regression, with an in-memory WSGI app and no mail provider."""
+    import socket
+    import time
+    from pathlib import Path
+    from urllib.error import URLError
+    from urllib.request import Request, urlopen
+
+    (tmp_path / 'wsgi.py').write_text('''
+import threading, time
+leads = {}
+def process():
+    while True:
+        for key in list(leads): leads[key] = 'processed'
+        time.sleep(0.02)
+threading.Thread(target=process, daemon=True).start()
+def app(environ, start_response):
+    if environ['REQUEST_METHOD'] == 'POST': leads['new'] = 'waiting'
+    start_response('200 OK', [('Content-Type', 'text/plain')])
+    return [leads.get('new', 'empty').encode()]
+''')
+    with socket.socket() as available:
+        available.bind(('127.0.0.1', 0))
+        port = available.getsockname()[1]
+    env = dict(os.environ, FLOW_WEB_PUSH_ENABLED='0', PORT=str(port),
+               GUNICORN_CMD_ARGS='--preload --access-logfile -',
+               PATH=str(Path(sys.executable).parent) + os.pathsep + os.environ['PATH'])
+    env.pop('CRM_DATA_DIR', None)
+    bootstrap = f'from tools import start_web_service as s;s.__file__={str(tmp_path / "tools/start_web_service.py")!r};s.main()'
+    url = f'http://127.0.0.1:{port}'
+    with (tmp_path / 'gunicorn.log').open('w') as log:
+        server = subprocess.Popen([sys.executable, '-c', bootstrap], env=env, stdout=log, stderr=log)
+        try:
+            deadline = time.monotonic() + 8
+            while True:
+                try:
+                    with urlopen(url, timeout=1) as response:
+                        assert response.read() == b'empty'
+                    break
+                except URLError:
+                    assert server.poll() is None and time.monotonic() < deadline, (tmp_path / 'gunicorn.log').read_text()
+                    time.sleep(0.05)
+            with urlopen(Request(url, data=b'', method='POST'), timeout=1):
+                pass
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                with urlopen(url, timeout=1) as response:
+                    if response.read() == b'processed': break
+                time.sleep(0.02)
+            else:
+                pytest.fail('Scheduler cannot see leads created by the HTTP worker after boot')
+        finally:
+            server.terminate()
+            server.wait(timeout=4)
 
 
 def test_worker_failure_keeps_web_alive_until_web_exits(capsys, tmp_path):
