@@ -3,11 +3,15 @@
 {% block header %}Teams{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='teams.css',v='20261014-teams-list') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='teams-owner.css',v='20261014-r3') }}">
-<section class="ft ft-owner sn-page-wide">
+<link rel="stylesheet" href="{{ url_for('static', filename='teams-owner.css',v='20261015-details-r2') }}">
+<section class="ft ft-owner{{ ' ft-owner-detail' if selected else '' }} sn-page-wide">
   <header class="ft-heading ft-owner-hero">
-    <div><h1>{{ selected.nombre|teams_wedding_name if selected else 'Teams' }}</h1>
-      <p class="ft-hero-meta">{{ selected.boda_date|teams_date if selected else 'Equipo y coberturas.' }}{% if selected %} · {{ selected.location }}{% endif %}</p></div>
+    <div class="ft-title-group">
+      {% if selected and selected.boda_date and selected.boda_date|length == 10 %}<time class="ft-detail-date" datetime="{{ selected.boda_date }}" aria-label="{{ selected.boda_date|teams_date }}"><span>{{ selected.boda_date[8:10]|int }}</span><small>{{ ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][(selected.boda_date[5:7]|int)-1] }} {{ selected.boda_date[:4] }}</small></time>{% endif %}
+      <div class="ft-title-copy"><h1>{{ selected.nombre|teams_wedding_name if selected else 'Teams' }}</h1>
+        <p class="ft-hero-meta">{{ selected.boda_date|teams_date if selected else 'Equipo y coberturas.' }}{% if selected %}<span class="ft-detail-location">{{ selected.location or 'Lugar por definir' }}</span>{% endif %}</p>
+      </div>
+    </div>
     <div class="ft-actions"><nav class="ft-workspace-switch" aria-label="Área de trabajo"><a href="{{ '/jobs/' ~ (selected.parent_job_id or selected.id) if selected else '/dashboard' }}">CRM</a><a href="/teams" aria-current="page">Teams</a></nav>
       {% if config.FLOW_TEAMS_LOCAL %}<details class="ft-brand"><summary class="sn-btn">{{ current_tenant.name }} ▾</summary>{% for b in switches %}<a href="{{ url_for('dev_login',tenant=b.internal_tenant_id,next='/teams') }}">{{ b.display_name }}</a>{% endfor %}</details>{% else %}<span class="ft-owner-brand">{{ current_tenant.name }}</span>{% endif %}</div>
   </header>
