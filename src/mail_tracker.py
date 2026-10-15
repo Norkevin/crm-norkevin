@@ -774,7 +774,7 @@ class MailTracker:
         if not motivo:
             motivo = _commercial_check(dict(tenant_id=tenant_id, lead_id=lead_id,
                 job_id=job_id, template_id=template_id, source=source, subject=subject, body=body,
-                travel_snapshot=travel_snapshot, html_body=html_body))
+                travel_snapshot=travel_snapshot, html_body=html_body, idempotency_key=idempotency_key))
         if motivo:
             entry = {
                 'id': 'mail-' + uuid.uuid4().hex[:8],

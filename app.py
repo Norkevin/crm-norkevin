@@ -1310,7 +1310,8 @@ def _validate_travel_email(entry):
 
 
 _mail_tracker_module.commercial_prepare = _prepare_travel_email
-_mail_tracker_module.commercial_validate = _validate_travel_email
+from src.lead_meetings import meeting_notice_error
+_mail_tracker_module.commercial_validate = lambda mail: meeting_notice_error(store, mail) or _validate_travel_email(mail)
 _mail_tracker_module.package_auto_delivery = _should_auto_send_package_email
 
 
@@ -12472,6 +12473,9 @@ def api_calendar_release_block(event_id):
 @app.route('/api/calendar/events/<event_id>', methods=['DELETE'])
 def api_calendar_delete_event(event_id):
     """Elimina un evento del calendario."""
+    event = store.get('calendar', event_id)
+    if event and event.get('meeting_kind'):
+        return jsonify(ok=False, error='Cancela esta reunión desde el lead para avisar al cliente y conservar su historial.'), 409
     if _secondary_coverage_has_history('secondary:' + event_id):
         return jsonify(ok=False, error='Este evento tiene equipo o movimientos en Teams. Conserva el evento para mantener su historial.'), 409
     store.delete('calendar', event_id)
