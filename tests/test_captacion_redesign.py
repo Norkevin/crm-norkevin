@@ -97,6 +97,10 @@ def test_brand_contact_details_and_widgets(client, monkeypatch):
         assert 'name="notas"' in html and 'maxlength="5000"' in html
         assert 'role="combobox"' in html and 'flatpickr.min.js' in html
         assert 'brand@example.com' in html
+        assert '>Fecha del evento</label>' in html
+        assert '>Fecha tentativa</label>' not in html
+        assert 'Finca La Ruca' in html
+        assert 'id="location-catalog" type="application/json"' in html
     legacy = client.get('/captacion/ramiro-cruz-photo').get_data(as_text=True)
     assert 'static/captacion.js' not in legacy
 
@@ -119,3 +123,12 @@ def test_fake_phone_is_not_shown_for_astral(client, monkeypatch):
     monkeypatch.setattr(module, 'get_settings', lambda **kwargs: {'company': {'phone': '+502 2222 3333'}})
     html = client.get('/captacion/astral-weddings').get_data(as_text=True)
     assert '2222 3333' not in html
+
+
+def test_public_location_catalog_exposes_only_public_names_and_areas():
+    from src.travel import public_venue_catalog
+    catalog = public_venue_catalog()
+    assert len(catalog) >= 160
+    ruca = next(place for place in catalog if place['name'] == 'Finca La Ruca Jardín Boutique')
+    assert ruca['detail'] == 'Sacatepéquez, Guatemala'
+    assert all(set(place) == {'name', 'aliases', 'detail'} for place in catalog)

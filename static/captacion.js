@@ -29,6 +29,49 @@
   const status = document.getElementById('location-status');
   let timer, controller, active = -1, suggestions = [], requestId = 0;
   const cache = new Map();
+  const normalize = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const words = text => normalize(text).split(' ').filter(word => word && !['de', 'del', 'la', 'las', 'el', 'los', 'y'].includes(word));
+  const catalog = JSON.parse(document.getElementById('location-catalog')?.textContent || '[]').map(place => ({
+    ...place, label: [place.name, place.detail].filter(Boolean).join(', '),
+    names: [place.name, ...place.aliases].map(words), area: words(place.detail),
+  }));
+  function similarWord(query, word) {
+    if (query === word) return 4;
+    if (word.startsWith(query)) return 3;
+    // ponytail: one-character mistakes cover venue names; no search dependency needed for 166 places.
+    if (query.length < 4 || Math.abs(query.length - word.length) > 1) return 0;
+    let row = Array.from({ length: word.length + 1 }, (_, index) => index);
+    for (let i = 0; i < query.length; i++) {
+      const next = [i + 1];
+      for (let j = 0; j < word.length; j++) {
+        next[j + 1] = Math.min(next[j] + 1, row[j + 1] + 1, row[j] + Number(query[i] !== word[j]));
+      }
+      row = next;
+    }
+    return row[word.length] <= 1 ? 1 : 0;
+  }
+  function localPlaces(query) {
+    const terms = words(query);
+    if (!terms.length) return [];
+    return catalog.map(place => {
+      const score = Math.max(...place.names.map(name => {
+        const matches = terms.map(term => Math.max(0, ...name.map(word => similarWord(term, word)),
+          ...place.area.map(word => similarWord(term, word) / 2)));
+        return matches.every(Boolean) ? matches.reduce((sum, match) => sum + match, 0) / (name.length + 1) : 0;
+      }));
+      return { place, score };
+    }).filter(result => result.score > 0).sort((a, b) => b.score - a.score || a.place.name.localeCompare(b.place.name, 'es'))
+      .slice(0, 8).map(result => result.place);
+  }
+  function combinePlaces(local, remote) {
+    const seen = new Set();
+    return [...local, ...remote].filter(place => {
+      const key = normalize(place.label);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 8);
+  }
   function closeResults() {
     results.hidden = true;
     location.setAttribute('aria-expanded', 'false');
@@ -47,14 +90,17 @@
     status.textContent = 'Ubicación seleccionada. Puedes editarla si lo necesitas.';
   }
   function showResults(items) {
+    const selected = suggestions[active]?.label;
     suggestions = items;
-    active = -1;
+    active = items.findIndex(place => place.label === selected);
+    location.removeAttribute('aria-activedescendant');
     results.replaceChildren();
     for (const [index, place] of items.entries()) {
       const item = document.createElement('li');
       item.id = `location-option-${index}`;
       item.setAttribute('role', 'option');
-      item.setAttribute('aria-selected', 'false');
+      item.setAttribute('aria-selected', String(index === active));
+      if (index === active) location.setAttribute('aria-activedescendant', item.id);
       item.textContent = place.name;
       const detail = document.createElement('small');
       detail.textContent = place.detail;
@@ -76,22 +122,24 @@
       return;
     }
     const currentRequest = requestId;
+    const local = localPlaces(query);
+    showResults(local);
+    status.textContent = local.length ? 'Selecciona un lugar o conserva lo que escribiste.' : 'Buscando lugares…';
     timer = setTimeout(async () => {
-      if (cache.has(query)) { showResults(cache.get(query)); return; }
+      if (cache.has(query)) { showResults(combinePlaces(local, cache.get(query))); return; }
       const searchController = new AbortController();
       controller = searchController;
       const timeout = setTimeout(() => searchController.abort(), 8000);
-      status.textContent = 'Buscando lugares…';
       try {
         // ponytail: public Photon suits low-volume forms; use a hosted provider if traffic grows.
-        const params = new URLSearchParams({ q: query, limit: '5', lat: '14.56', lon: '-90.73' });
+        const params = new URLSearchParams({ q: query, limit: '8', lat: '14.56', lon: '-90.73' });
         const response = await fetch(`https://photon.komoot.io/api/?${params}`, { signal: searchController.signal, referrerPolicy: 'no-referrer', credentials: 'omit' });
         if (!response.ok) throw new Error('Location search unavailable');
         const data = await response.json();
         if (currentRequest !== requestId) return;
         const seen = new Set();
         const items = (data.features || []).map(feature => {
-          const p = feature.properties;
+          const p = feature.properties || {};
           const name = p.name || p.street || p.city || p.county;
           const detail = [...new Set([p.street, p.housenumber, p.city, p.state, p.country].filter(value => value && value !== name))].join(', ');
           return { name, detail, label: [name, detail].filter(Boolean).join(', ') };
@@ -102,9 +150,11 @@
         });
         if (cache.size >= 30) cache.delete(cache.keys().next().value);
         cache.set(query, items);
-        showResults(items);
+        showResults(combinePlaces(local, items));
       } catch (_) {
-        if (currentRequest === requestId) status.textContent = 'La búsqueda no está disponible. Puedes escribir el lugar y enviar tu solicitud.';
+        if (currentRequest === requestId) status.textContent = local.length
+          ? 'Puedes elegir un lugar del catálogo o escribir otra ubicación.'
+          : 'La búsqueda no está disponible. Puedes escribir el lugar y enviar tu solicitud.';
       } finally { clearTimeout(timeout); }
     }, 450);
   });

@@ -28,7 +28,7 @@ from src.workflow import WorkflowEngine, LEAD_WORKFLOW, PRODUCTION_WORKFLOW
 from src.workflow.models import StepStatus, WorkflowStatus, TriggerType
 from src.storage import store, log_security_event, TenantMismatchError
 from src import public_links, public_tokens, quote_numbering
-from src.travel import TravelService
+from src.travel import TravelService, public_venue_catalog
 from src.travel_mail import compose_travel, content_digest, legacy_travel_conflict, package_link_keys, strip_travel_block
 from src.tenant_brand_map import display_name_for_tenant as _brand_display_name_for_tenant
 
@@ -7322,6 +7322,7 @@ def captacion_form(tenant_slug=None):
         tenant=tenant,
         contact_email=contact_email,
         contact_phone=contact_phone,
+        venue_catalog=public_venue_catalog(),
     )
 
 
