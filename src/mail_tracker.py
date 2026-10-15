@@ -284,6 +284,7 @@ delivery_observer = None
 commercial_prepare = None
 commercial_validate = None
 package_auto_delivery = None
+requested_auto_delivery = None
 
 
 def _package_auto_delivery_enabled(entry):
@@ -293,6 +294,14 @@ def _package_auto_delivery_enabled(entry):
         return bool(package_auto_delivery(entry))
     except Exception:
         logging.getLogger(__name__).exception('No se pudo confirmar el envío automático de paquetes')
+        return False
+
+
+def _requested_auto_delivery_enabled(entry):
+    try:
+        return bool(requested_auto_delivery and requested_auto_delivery(entry))
+    except Exception:
+        logging.getLogger(__name__).exception('No se pudo confirmar el envío solicitado')
         return False
 
 
@@ -322,19 +331,20 @@ class MailTracker:
         # Serialize scheduler and manual requests around idempotency lookup + write.
         with store.locked_tables('pending_emails', 'mail_log'):
             entry = self._queue_email(*args, **kwargs)
-            if (entry.get('status') != PENDIENTE or entry.get('package_auto_attempted_at')
+            if (entry.get('status') != PENDIENTE or entry.get('package_auto_attempted_at') or entry.get('requested_auto_attempted_at')
                     or entry.get('package_auto_requires_review')
                     or 'el contenido pedido para este correo cambio' in (entry.get('aviso_identidad') or '')
-                    or not _package_auto_delivery_enabled(entry)):
+                    or not (_package_auto_delivery_enabled(entry) or _requested_auto_delivery_enabled(entry))):
                 return entry
-            actor = 'sistema:paquetes-automaticos'
-            entry['package_auto_attempted_at'] = datetime.now().isoformat()
+            requested = _requested_auto_delivery_enabled(entry)
+            actor = 'sistema:correo-solicitado' if requested else 'sistema:paquetes-automaticos'
+            entry['requested_auto_attempted_at' if requested else 'package_auto_attempted_at'] = datetime.now().isoformat()
             store.upsert('pending_emails', entry)
         try:
             result = self.approve_and_send(entry['id'], sender_tenant_id=entry['tenant_id'], actor=actor)
             return result.get('pendiente') or store.get('pending_emails', entry['id']) or entry
         except Exception as exc:
-            logging.getLogger(__name__).exception('Resultado incierto del envío automático de paquetes')
+            logging.getLogger(__name__).exception('Resultado incierto del envío automático')
             entry = store.get('pending_emails', entry['id']) or entry
             if entry.get('status') not in (ENVIADO, BLOQUEADO, FALLO, CANCELADO):
                 _anotar(entry, FALLO, actor=actor,
@@ -345,16 +355,16 @@ class MailTracker:
                     try:
                         delivery_observer(entry)
                     except Exception:
-                        logging.getLogger(__name__).exception('No se pudo sincronizar el fallo de paquetes')
+                        logging.getLogger(__name__).exception('No se pudo sincronizar el fallo automático')
             return entry
 
     def _queue_email(self, to_email, subject, body='', template_id=None,
                     lead_id=None, job_id=None, client_id=None, attachments=None,
                     tenant_id=None, source=None, idempotency_key=None, html_body=None):
-        """Genera el borrador; queue_email entrega los paquetes automáticos autorizados.
+        """Create a snapshot; queue_email applies the authorized delivery policies.
 
-        Los demás correos siguen esperando aprobación manual. La excepción
-        comercial se decide por empresa y tipo de mensaje en el callback.
+        Package and explicit send-button exceptions are resolved by tenant and
+        source callbacks. Scheduled workflow delivery uses the separate queue.
 
         Se guarda una copia completa (asunto, cuerpo ya renderizado,
         adjuntos, cuenta, destinatario, job, plantilla) a proposito: si
@@ -428,7 +438,8 @@ class MailTracker:
                  and (e.get('status') in (PENDIENTE, ENVIANDO)
                       or (e.get('status') in (FALLO, CANCELADO)
                           and (e.get('package_auto_attempted_at')
-                               or _package_auto_delivery_enabled(e))))),
+                               or e.get('requested_auto_attempted_at')
+                               or _package_auto_delivery_enabled(e) or _requested_auto_delivery_enabled(e))))),
                 None,
             )
             if ya_en_cola:

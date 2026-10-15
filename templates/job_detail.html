@@ -70,7 +70,7 @@
       <div class="lead-eyebrow">Próximo paso</div>
       <h2 id="job-next-title">{{ (upcoming.step.display_name or upcoming.step.name) if upcoming.step else (upcoming.task.name if upcoming.task else 'Todo al día') }}</h2>
       {% if upcoming.step %}{% with step=upcoming.step %}{% include 'workflow_timing.html' %}{% endwith %}
-      {% elif upcoming.task %}<p class="sn-muted">Tarea manual pendiente{% if upcoming.task.start_date %} · {{ upcoming.task.start_date|fecha_legible }}{% if upcoming.task.start_time %}, {{ upcoming.task.start_time }}{% endif %}{% endif %}.</p>
+      {% elif upcoming.task %}<p class="sn-muted">{% if upcoming.task.type == 'email' %}{{ 'Revisar contenido en Correos' if upcoming.task.mail_requires_review and upcoming.task.status == 'queued' else 'Envío automático programado' if upcoming.task.status == 'queued' and workflow_auto_mail else 'Correo pendiente de aprobación' if upcoming.task.status == 'queued' else 'Envío por revisar en Correos' if upcoming.task.status == 'failed' else 'Correo pendiente de redactar' }}{% else %}Tarea manual pendiente{% endif %}{% if upcoming.task.start_date %} · {{ upcoming.task.start_date|fecha_legible }}{% if upcoming.task.start_time %}, {{ upcoming.task.start_time }}{% endif %}{% endif %}.</p>
       {% else %}<p class="sn-muted">No hay pasos pendientes disponibles.</p>{% endif %}
     </div>
     {% if upcoming.step and upcoming.step.status in ['queued', 'failed'] %}<a class="sn-btn" href="/emails">Revisar correo →</a>
@@ -99,7 +99,7 @@
           </div>
           {% endfor %}
         </div>
-        {% for task in job.manual_workflow_tasks or [] if not task.step_id %}<div class="workflow-step"><button class="workflow-check" type="button" onclick='completeManualTask({{ task.id|tojson }})' aria-label="Completar tarea" {% if task.status == 'done' %}disabled{% endif %}></button><div>{{ task.name }}</div></div>{% endfor %}
+        {% include '_job_manual_workflow_tasks.html' %}
         {% else %}
         {% set delivery_ids = ['envio_galeria', 'pedir_review', 'google_comments', 'job_complete'] %}
         <div class="lead-phase-heading"><h3>Producción</h3><span>{{ workflow_progress or 0 }}% completado</span></div>
@@ -107,46 +107,7 @@
           <div class="workflow-step done"><div class="workflow-check done" aria-hidden="true"><svg fill="currentColor" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8-1.4-1.4L8 11.2 5.4 8.6Z"/></svg></div><div><div class="workflow-step-name">Trabajo aceptado</div><div class="workflow-timing">Lead convertido en trabajo.</div></div></div>
           {% for step in workflow_steps if step.id not in delivery_ids and step.id != 'job_accepted' %}{% include 'job_workflow_step.html' %}{% endfor %}
         </div>
-        {% if job.manual_workflow_tasks %}
-        <div class="lead-phase-heading"><h3>Tareas y sesiones</h3><span>{{ job.manual_workflow_tasks|length }} tarea{{ 's' if job.manual_workflow_tasks|length != 1 else '' }}</span></div>
-        <div class="workflow-steps">
-          {% for task in job.manual_workflow_tasks or [] %}
-          <div class="workflow-step {{ 'done' if task.status == 'done' else '' }}">
-            <button class="workflow-check {{ 'done' if task.status == 'done' else '' }}" type="button" {% if task.status != 'done' %}onclick="completeManualTask('{{ task.id }}')"{% endif %} title="Completar tarea">
-              {% if task.status == 'done' %}
-              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-              {% endif %}
-            </button>
-            <div class="lead-step-content">
-              <div class="workflow-step-name">{{ task.name }}</div>
-              {% if task.type == 'email' and task.status != 'done' %}<button class="sn-btn sn-btn-sm" type="button" onclick='openEmailModal({subject: {{ task.name|tojson }}})'>Redactar correo</button>{% endif %}
-              {% if task.location %}<span class="workflow-step-desc">Lugar: {{ task.location }}</span>{% endif %}
-              <div>
-                {% if task.type == 'extra-event' %}<span class="sn-chip green">Sesión extra</span>
-                {% elif task.type == 'appointment' %}<span class="sn-chip cyan">Reunión</span>
-                {% elif task.type == 'email' %}<span class="sn-chip blue">Correo electrónico</span>
-                {% else %}<span class="sn-chip gray">{{ task.type }}</span>{% endif %}
-                {% if task.start_date %}
-                <span class="sn-chip gray">
-                  {{ task.start_date|fecha_legible }}{% if task.end_date and task.end_date != task.start_date %} - {{ task.end_date|fecha_legible }}{% endif %}
-                  {% if task.start_time %} · {{ task.start_time }}{% if task.end_time %} - {{ task.end_time }}{% endif %}{% endif %}
-                </span>
-                {% else %}
-                <span class="sn-chip gray">{{ task.created|fecha_legible }}</span>
-                {% endif %}
-                {% if task.show_in_portal %}<span class="sn-chip blue">Visible en el portal</span>{% endif %}
-              </div>
-            </div>
-            <div class="workflow-step-tools">
-              <button class="sn-menu-dots" type="button" onclick='openManualTaskActions(event, {{ task|tojson }})' title="Mas opciones">
-                <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
-              </button>
-            </div>
-          </div>
-          {% endfor %}
-
-        </div>
-        {% endif %}
+        {% include '_job_manual_workflow_tasks.html' %}
         <div class="lead-phase-heading"><h3>Evento principal</h3></div>
         <div class="workflow-steps">
           <div class="workflow-step job-wedding-milestone">
@@ -795,6 +756,8 @@
     <h2 class="modal-title">Enviar correo</h2>
     <form onsubmit="submitJobEmail(event)">
       <input type="hidden" id="email-step-id">
+      <input type="hidden" id="email-task-id">
+      <p id="email-task-schedule" class="sn-muted" hidden>Se enviará automáticamente en la fecha y hora de esta tarea; si ya pasó, saldrá en la siguiente revisión de la cola.</p>
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">Template</label>
@@ -1092,6 +1055,9 @@ function openEmailModal(options) {
     return;
   }
   document.getElementById('email-step-id').value = options.stepId || '';
+  document.getElementById('email-task-id').value = options.taskId || '';
+  document.getElementById('email-task-schedule').hidden = !options.taskId;
+  document.querySelector('#email-modal button[type=submit]').textContent = options.taskId ? 'Programar envío' : 'Enviar correo';
   document.getElementById('email-template').value = options.templateId || '';
   if (options.templateId) {
     applyEmailTemplate(options.templateId);
@@ -1137,7 +1103,7 @@ function triggerJobStep(stepId, stepName) {
 function openImportedStepActions(event, stepId, stepName, status) {
   var sendsMail = stepConfig(stepId, stepName).actionType.indexOf('send_') === 0;
   openActionMenu(event, [
-    sendsMail && ['pending', 'done'].indexOf(status) !== -1 ? { label: 'Preparar correo para aprobación', action: function() { completeImportedStep(stepId); } } : null,
+    sendsMail && ['pending', 'done'].indexOf(status) !== -1 ? { label: 'Preparar envío', action: function() { completeImportedStep(stepId); } } : null,
     !sendsMail && status === 'pending' ? { label: 'Completar ahora', action: function() { completeImportedStep(stepId); } } : null,
     ['queued', 'failed'].indexOf(status) !== -1 ? { label: 'Revisar en Correos', href: '/emails' } : null,
     ['pending', 'queued', 'failed'].indexOf(status) !== -1 ? { label: 'Omitir este paso', action: function() { skipJobStep(stepId, stepName); } } : null,
@@ -1229,7 +1195,9 @@ function completeManualTask(taskId) {
 function openManualTaskActions(event, task) {
   var hasSchedule = ['extra-event', 'appointment', 'email'].includes(task.type);
   openActionMenu(event, [
-    task.status !== 'done' ? { label: 'Completar ahora', action: function() { completeManualTask(task.id); } } : null,
+    task.type === 'email' && task.status === 'pending' ? { label: 'Redactar y programar', action: function() { openEmailModal({subject: task.name, taskId: task.id}); } } : null,
+    task.type === 'email' && ['queued', 'failed'].includes(task.status) ? { label: 'Ver estado en Correos', href: '/emails' } : null,
+    task.type !== 'email' && task.status !== 'done' ? { label: 'Completar ahora', action: function() { completeManualTask(task.id); } } : null,
     hasSchedule ? { label: 'Editar', action: function() { openEditTaskForm(task); } } : null,
     hasSchedule ? { label: task.show_in_portal ? 'Ocultar del portal' : 'Mostrar en el portal', action: function() { togglePortalManualTask(task.id); } } : null,
     { divider: true },
@@ -1562,7 +1530,8 @@ function submitJobEmail(event) {
     template_id: templateId,
     subject: document.getElementById('email-subject').value,
     body: document.getElementById('email-body').value,
-    step_id: document.getElementById('email-step-id').value
+    step_id: document.getElementById('email-step-id').value,
+    task_id: document.getElementById('email-task-id').value
   })
     .then(function(data) {
       if (!warnIfMailNotDelivered(data)) { flashToast('Email sent', 'success'); }

@@ -1,0 +1,46 @@
+        {% set custom_tasks = (job.manual_workflow_tasks or [])|rejectattr('step_id')|list %}
+        {% if custom_tasks %}
+        <div class="lead-phase-heading"><h3>Tareas y sesiones</h3><span>{{ custom_tasks|length }} tarea{{ 's' if custom_tasks|length != 1 else '' }}</span></div>
+        <div class="workflow-steps">
+          {% for task in custom_tasks %}
+          <div class="workflow-step {{ 'done' if task.status == 'done' else '' }}">
+            <button class="workflow-check {{ 'done' if task.status == 'done' else '' }}" type="button" {% if task.type == 'email' %}{% if task.status == 'pending' %}onclick='openEmailModal({subject: {{ task.name|tojson }}, taskId: {{ task.id|tojson }}})'{% else %}disabled{% endif %}{% elif task.status != 'done' %}onclick="completeManualTask('{{ task.id }}')"{% endif %} aria-label="{{ 'Redactar correo' if task.type == 'email' else 'Completar tarea' }}: {{ task.name }}">
+              {% if task.status == 'done' %}
+              <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+              {% endif %}
+            </button>
+            <div class="lead-step-content">
+              <div class="workflow-step-name">{{ task.name }}</div>
+              {% if task.type == 'email' %}
+              {% if task.status == 'pending' %}<button class="sn-btn sn-btn-sm" type="button" onclick='openEmailModal({subject: {{ task.name|tojson }}, taskId: {{ task.id|tojson }}})'>Redactar correo</button><div class="sn-muted">Redacta el mensaje para enviarlo en la fecha elegida.</div>
+              {% elif task.status == 'queued' %}<div class="workflow-timing" {% if workflow_auto_mail and not task.mail_requires_review %}data-workflow-watch="1"{% endif %}>{% if task.mail_requires_review %}<a href="/emails">Revisar contenido en Correos</a>{% else %}{{ 'Envío automático programado.' if workflow_auto_mail else 'Pendiente de aprobación.' }} <a href="/emails">Ver estado en Correos</a>{% endif %}</div>
+              {% elif task.status == 'failed' %}<div class="workflow-timing"><a href="/emails">El envío necesita revisión en Correos.</a></div>
+              {% else %}<div class="sn-muted">{{ 'Correo enviado.' if task.delivery_status in ['sent','opened','clicked'] else 'Marcado como completado · sin envío registrado.' }}</div>{% endif %}
+              {% endif %}
+              {% if task.location %}<span class="workflow-step-desc">Lugar: {{ task.location }}</span>{% endif %}
+              <div>
+                {% if task.type == 'extra-event' %}<span class="sn-chip green">Sesión extra</span>
+                {% elif task.type == 'appointment' %}<span class="sn-chip cyan">Reunión</span>
+                {% elif task.type == 'email' %}<span class="sn-chip blue">Correo electrónico</span>
+                {% else %}<span class="sn-chip gray">{{ task.type }}</span>{% endif %}
+                {% if task.start_date %}
+                <span class="sn-chip gray">
+                  {{ task.start_date|fecha_legible }}{% if task.end_date and task.end_date != task.start_date %} - {{ task.end_date|fecha_legible }}{% endif %}
+                  {% if task.start_time %} · {{ task.start_time }}{% if task.end_time %} - {{ task.end_time }}{% endif %}{% endif %}
+                </span>
+                {% else %}
+                <span class="sn-chip gray">{{ task.created|fecha_legible }}</span>
+                {% endif %}
+                {% if task.show_in_portal %}<span class="sn-chip blue">Visible en el portal</span>{% endif %}
+              </div>
+            </div>
+            <div class="workflow-step-tools">
+              <button class="sn-menu-dots" type="button" onclick='openManualTaskActions(event, {{ task|tojson }})' title="Mas opciones">
+                <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+
+        </div>
+        {% endif %}
