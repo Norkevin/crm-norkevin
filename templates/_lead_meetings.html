@@ -1,0 +1,46 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='lead-meetings.css', v='20261015-meetings-2') }}">
+<section class="lead-meetings" id="lead-meetings" aria-labelledby="lead-meetings-title" data-lead-id="{{ lead.id }}">
+  <div class="meeting-heading">
+    <div><h2 id="lead-meetings-title">Reuniones</h2><p>Conversaciones con el cliente, con su propio lugar en el calendario.</p></div>
+    <button class="sn-btn" type="button" data-open-meeting aria-expanded="false" aria-controls="lead-meeting-form">+ Agregar reunión</button>
+  </div>
+  {% if meetings %}
+  <ul class="meeting-list">
+    {% for meeting in meetings %}
+    <li>
+      <div class="meeting-when"><strong>{{ meeting.date|fecha_evento }}</strong><span>{{ meeting.start_time }}–{{ meeting.end_time }} · Guatemala</span></div>
+      <div class="meeting-info"><h3>Reunión {{ meeting.meeting_kind }}</h3>
+        {% if meeting.meeting_kind == 'virtual' %}<a href="{{ meeting.meeting_url }}" target="_blank" rel="noopener noreferrer">Entrar a la reunión ↗</a>{% else %}<p>{{ meeting.location }}</p>{% endif %}
+        {% if meeting.notes %}<p class="meeting-notes">{{ meeting.notes }}</p>{% endif %}
+      </div>
+      <div class="meeting-delivery">
+        {% if meeting.delivery_status == 'sent' %}<span>Invitación enviada</span>
+        {% elif meeting.delivery_status == 'sending' %}<span>Enviando invitación…</span>
+        {% elif meeting.delivery_status == 'unprepared' %}<button class="lead-text-button" type="button" data-retry-meeting="{{ meeting.id }}">Preparar invitación →</button>
+        {% else %}<a href="/emails">{{ 'Invitación pendiente' if meeting.delivery_status == 'pending' else 'Revisar invitación' }} →</a>{% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="meeting-empty">Todavía no hay reuniones. Agrega una virtual o presencial y envía los detalles por correo.</p>{% endif %}
+  {% set notice = namespace(unsent=false) %}
+  {% for meeting in meetings %}{% if meeting.delivery_status not in ['sent', 'unprepared'] %}{% set notice.unsent = true %}{% endif %}{% endfor %}
+  <p class="meeting-feedback" role="status" tabindex="-1" {% if not notice.unsent %}hidden{% endif %}>Hay reuniones guardadas cuya invitación aún no se ha enviado. <a href="/emails">Revisar en Correos →</a></p>
+  <form id="lead-meeting-form" class="meeting-form" hidden>
+    <h3>Nueva reunión</h3>
+    <p>Al guardar, enviaremos la invitación a <strong>{{ lead.email or 'este cliente, cuando agregues su correo' }}</strong>.</p>
+    <div class="meeting-fields">
+      <div><label for="meeting-kind">Tipo de reunión</label><select id="meeting-kind" name="meeting_kind"><option value="virtual">Virtual · Zoom, Meet u otro</option><option value="presencial">Presencial</option></select></div>
+      <div><label for="meeting-date">Fecha <span aria-hidden="true">*</span></label><input id="meeting-date" name="date" type="date" required></div>
+      <div><label for="meeting-start">Hora de inicio <span aria-hidden="true">*</span></label><input id="meeting-start" name="start_time" type="time" required></div>
+      <div><label for="meeting-end">Hora de fin <span aria-hidden="true">*</span></label><input id="meeting-end" name="end_time" type="time" required></div>
+      <div class="meeting-wide" data-virtual-field><label for="meeting-url">Enlace de la reunión <span aria-hidden="true">*</span></label><input id="meeting-url" name="meeting_url" type="url" placeholder="https://zoom.us/j/…" maxlength="2000" required aria-describedby="meeting-url-help"><small id="meeting-url-help">Crea la reunión en Zoom o Meet y pega aquí el enlace.</small></div>
+      <div class="meeting-wide" data-presencial-field hidden><label for="meeting-location">Lugar y dirección <span aria-hidden="true">*</span></label><input id="meeting-location" name="location" type="text" maxlength="500" disabled></div>
+      <div class="meeting-wide"><label for="meeting-notes">Mensaje para el cliente <span class="sn-muted">· opcional</span></label><textarea id="meeting-notes" name="notes" rows="2" maxlength="3000" placeholder="¿Qué conversaremos o qué debe tener a mano?"></textarea></div>
+    </div>
+    <p class="meeting-timezone">Todas las horas corresponden a Guatemala.</p>
+    <p class="meeting-error" role="alert" hidden></p>
+    <div class="meeting-actions"><button class="sn-btn sn-btn-primary" type="submit">Guardar y enviar invitación</button><button class="sn-btn" type="button" data-close-meeting>Cancelar</button></div>
+  </form>
+</section>
+<script src="{{ url_for('static', filename='lead-meetings.js', v='20261015-meetings-2') }}" defer></script>

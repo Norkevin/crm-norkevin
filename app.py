@@ -4269,6 +4269,7 @@ def lead_detail(lead_id):
 
     return render_template('lead_detail.html',
                           lead=lead,
+                          meetings=meetings_for_lead(store, lead_id),
                           workflow_steps=workflow_steps,
                           lead_steps=lead_steps, prod_steps=prod_steps,
                           workflow_progress=workflow_progress,
@@ -5641,6 +5642,7 @@ def job_detail(job_id):
     roles_disponibles = [(r, ETIQUETA_ROL.get(r, r)) for r in ROLES_JOB_CLIENT]
 
     return render_template('job_detail.html',
+                          meetings=meetings_for_lead(store, (lead or {}).get('id')),
                           linked_coverages=[j for j in _operational_jobs() if j.get('parent_job_id') == job_id],
                           booking=_booking_progress(job),
                           job_clientes=job_clientes,
@@ -12514,10 +12516,22 @@ def api_calendar_export_ics():
             desc_lines.append(f"Notas: {evt['notes']}")
         desc = '\\n'.join(desc_lines)
 
+        timing = [f'DTSTART;VALUE=DATE:{date_compact}', f'DTEND;VALUE=DATE:{end_day.strftime("%Y%m%d")}']
+        meeting_location = []
+        if evt.get('meeting_kind'):
+            from zoneinfo import ZoneInfo
+            def ical_time(value):
+                return datetime.fromisoformat(evt['date'] + 'T' + value).replace(
+                    tzinfo=ZoneInfo('America/Guatemala')).astimezone(ZoneInfo('UTC')).strftime('%Y%m%dT%H%M%SZ')
+            timing = ['DTSTART:' + ical_time(evt['start_time']), 'DTEND:' + ical_time(evt['end_time'])]
+            place = evt.get('meeting_url') or evt.get('location') or ''
+            escaped_place = place.replace('\\', '\\\\').replace(';', '\\;').replace(',', '\\,').replace('\n', '\\n').replace('\r', '')
+            meeting_location = ['LOCATION:' + escaped_place]
+            desc = (evt.get('notes') or '').replace('\\', '\\\\').replace(';', '\\;').replace(',', '\\,').replace('\n', '\\n').replace('\r', '')
         ics_lines.extend([
             'BEGIN:VEVENT',
-            f'DTSTART;VALUE=DATE:{date_compact}',
-            f'DTEND;VALUE=DATE:{end_day.strftime("%Y%m%d")}',
+            *timing,
+            *meeting_location,
             'TRANSP:OPAQUE',
             f'SUMMARY:{title}',
             f'DESCRIPTION:{desc}',
@@ -15320,7 +15334,7 @@ def _workflow_mail_needs_review(mail):
 
 _mail_tracker_module.requested_auto_delivery = lambda mail: (
     _workflow_mail_auto_enabled(mail.get('tenant_id')) and
-    mail.get('source') in ('manual:lead-send-email', 'manual:job-template'))
+    mail.get('source') in ('manual:lead-send-email', 'manual:job-template', 'manual:lead-meeting'))
 
 
 def _workflow_step_is_due(step, now=None):
@@ -15580,6 +15594,9 @@ def start_reminder_scheduler():
     _reminder_thread_started = True
     threading.Thread(target=_reminder_scheduler_loop, daemon=True).start()
 
+
+from src.lead_meetings import meetings_for_lead, register_lead_meetings
+register_lead_meetings(app, store, get_lead, _brand_display_name_for_tenant)
 
 from src.travel_routes import register_travel_routes
 register_travel_routes(app, store, travel_service, get_lead)
