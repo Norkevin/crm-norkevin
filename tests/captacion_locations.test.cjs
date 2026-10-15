@@ -64,6 +64,20 @@ test('reported Jardin Vilaflor is available locally without enabling paid reques
   }
 });
 
+test('a Safari suggestion is saved before blur can hide the list', () => {
+  const search = setup();
+  search.input('jardin vilaflor');
+  const option = search.node('location-results').children[0];
+  let prevented = false;
+  option.handlers.mousedown({ button: 0, preventDefault() { prevented = true; } });
+  search.node('locacion').handlers.blur();
+  assert.equal(prevented, true);
+  assert.equal(search.node('locacion').value, 'Jardín Vilaflor, Sacatepéquez, Guatemala');
+  assert.equal(search.node('location-results').hidden, true);
+  assert.equal(search.scheduledSearches(), 0);
+  assert.match(search.node('location-status').textContent, /Ubicación seleccionada/);
+});
+
 test('matches aliases, accents, partial names and municipality, without unrelated suggestions', () => {
   const search = setup();
   for (const [query, expected] of [['Hotel Pensativo', 'Pensativo House Hotel'],

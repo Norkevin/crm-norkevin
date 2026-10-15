@@ -116,7 +116,11 @@
         attribution.textContent = 'Google Maps';
         item.append(attribution);
       }
-      item.addEventListener('pointerdown', event => event.preventDefault());
+      item.addEventListener('mousedown', event => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        choose(index);
+      });
       item.addEventListener('click', () => choose(index));
       results.append(item);
     }
