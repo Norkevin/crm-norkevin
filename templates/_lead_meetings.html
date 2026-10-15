@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="{{ url_for('static', filename='lead-meetings.css', v='20261015-meetings-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='lead-meetings.css', v='20261015-meetings-3') }}">
 <section class="lead-meetings" id="lead-meetings" aria-labelledby="lead-meetings-title" data-lead-id="{{ lead.id }}">
   <div class="meeting-heading">
     <div><h2 id="lead-meetings-title">Reuniones</h2><p>Conversaciones con el cliente, con su propio lugar en el calendario.</p></div>
@@ -9,15 +9,18 @@
     {% for meeting in meetings %}
     <li>
       <div class="meeting-when"><strong>{{ meeting.date|fecha_evento }}</strong><span>{{ meeting.start_time }}–{{ meeting.end_time }} · Guatemala</span></div>
-      <div class="meeting-info"><h3>Reunión {{ meeting.meeting_kind }}</h3>
-        {% if meeting.meeting_kind == 'virtual' %}<a href="{{ meeting.meeting_url }}" target="_blank" rel="noopener noreferrer">Entrar a la reunión ↗</a>{% else %}<p>{{ meeting.location }}</p>{% endif %}
+      <div class="meeting-info"><h3>Reunión {{ meeting.meeting_kind }}{% if meeting.status == 'cancelled' %} <span class="meeting-state">Cancelada</span>{% elif meeting.notice_kind == 'update' %} <span class="meeting-state">Reprogramada</span>{% endif %}</h3>
+        {% if meeting.status == 'cancelled' %}<p>Esta reunión está cancelada.</p>{% elif meeting.meeting_kind == 'virtual' %}<a href="{{ meeting.meeting_url }}" target="_blank" rel="noopener noreferrer">Entrar a la reunión ↗</a>{% else %}<p>{{ meeting.location }}</p>{% endif %}
         {% if meeting.notes %}<p class="meeting-notes">{{ meeting.notes }}</p>{% endif %}
       </div>
       <div class="meeting-delivery">
-        {% if meeting.delivery_status == 'sent' %}<span>Invitación enviada</span>
-        {% elif meeting.delivery_status == 'sending' %}<span>Enviando invitación…</span>
-        {% elif meeting.delivery_status == 'unprepared' %}<button class="lead-text-button" type="button" data-retry-meeting="{{ meeting.id }}">Preparar invitación →</button>
-        {% else %}<a href="/emails">{{ 'Invitación pendiente' if meeting.delivery_status == 'pending' else 'Revisar invitación' }} →</a>{% endif %}
+        {% if meeting.delivery_status == 'sent' %}<span>{{ 'Cancelación avisada' if meeting.notice_kind == 'cancel' else 'Cambio avisado' if meeting.notice_kind == 'update' else 'Invitación enviada' }}</span>
+        {% elif meeting.delivery_status == 'sending' %}<span>Enviando aviso…</span>
+        {% elif meeting.delivery_status == 'unprepared' %}<button class="lead-text-button" type="button" data-retry-meeting="{{ meeting.id }}">{{ 'Preparar invitación' if meeting.notice_kind == 'invite' else 'Preparar aviso' }} →</button>
+        {% else %}<a href="/emails">{{ ('Invitación pendiente' if meeting.notice_kind == 'invite' else 'Aviso pendiente') if meeting.delivery_status == 'pending' else 'Revisar aviso' }} →</a>{% endif %}
+        {% if meeting.status != 'cancelled' %}
+        <div class="meeting-row-actions"><button class="sn-btn sn-btn-sm" type="button" data-edit-meeting="{{ meeting.id }}" aria-controls="lead-meeting-form" aria-expanded="false">Cambiar fecha</button><button class="sn-btn sn-btn-sm meeting-cancel-button" type="button" data-cancel-meeting="{{ meeting.id }}" aria-controls="lead-meeting-form" aria-expanded="false">Cancelar reunión</button></div>
+        {% endif %}
       </div>
     </li>
     {% endfor %}
@@ -25,10 +28,12 @@
   {% else %}<p class="meeting-empty">Todavía no hay reuniones. Agrega una virtual o presencial y envía los detalles por correo.</p>{% endif %}
   {% set notice = namespace(unsent=false) %}
   {% for meeting in meetings %}{% if meeting.delivery_status not in ['sent', 'unprepared'] %}{% set notice.unsent = true %}{% endif %}{% endfor %}
-  <p class="meeting-feedback" role="status" tabindex="-1" {% if not notice.unsent %}hidden{% endif %}>Hay reuniones guardadas cuya invitación aún no se ha enviado. <a href="/emails">Revisar en Correos →</a></p>
+  <p class="meeting-feedback" role="status" tabindex="-1" {% if not notice.unsent %}hidden{% endif %}>Hay avisos de reuniones que aún no se han enviado. <a href="/emails">Revisar en Correos →</a></p>
   <form id="lead-meeting-form" class="meeting-form" hidden>
-    <h3>Nueva reunión</h3>
-    <p>Al guardar, enviaremos la invitación a <strong>{{ lead.email or 'este cliente, cuando agregues su correo' }}</strong>.</p>
+    <h3 id="meeting-form-title">Nueva reunión</h3>
+    <p class="meeting-target" hidden></p>
+    <p><span id="meeting-action-description">Al guardar, enviaremos la invitación a</span> <strong id="meeting-recipient">{{ lead.email or 'este cliente, cuando agregues su correo' }}</strong>.</p>
+    <p class="meeting-cancel-help" hidden>La cita se quitará del calendario de Flowing y quedará en el historial. Si creaste una sala en Zoom o Meet, podés eliminarla allí.</p>
     <div class="meeting-fields">
       <div><label for="meeting-kind">Tipo de reunión</label><select id="meeting-kind" name="meeting_kind"><option value="virtual">Virtual · Zoom, Meet u otro</option><option value="presencial">Presencial</option></select></div>
       <div><label for="meeting-date">Fecha <span aria-hidden="true">*</span></label><input id="meeting-date" name="date" type="date" required></div>
@@ -43,4 +48,5 @@
     <div class="meeting-actions"><button class="sn-btn sn-btn-primary" type="submit">Guardar y enviar invitación</button><button class="sn-btn" type="button" data-close-meeting>Cancelar</button></div>
   </form>
 </section>
-<script src="{{ url_for('static', filename='lead-meetings.js', v='20261015-meetings-2') }}" defer></script>
+<script type="application/json" id="lead-meeting-data">{{ meetings|default([])|tojson }}</script>
+<script src="{{ url_for('static', filename='lead-meetings.js', v='20261015-meetings-3') }}" defer></script>

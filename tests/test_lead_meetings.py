@@ -101,7 +101,7 @@ def test_failed_invitation_keeps_meeting_and_never_silently_retries(automatic, a
     auth_client.post(endpoint, json=data)
     assert len(sent) == 1
     html = auth_client.get(f"/leads/{lead['id']}").get_data(as_text=True)
-    assert 'Revisar invitación' in html and f"/leads/{lead['id']}#lead-meetings" in auth_client.get('/calendar?month=2050-10').get_data(as_text=True)
+    assert 'Revisar aviso' in html and f"/leads/{lead['id']}#lead-meetings" in auth_client.get('/calendar?month=2050-10').get_data(as_text=True)
 
 
 def test_converted_lead_keeps_meeting_in_job(automatic, auth_client):
@@ -154,4 +154,4 @@ def test_disabled_auto_policy_preserves_manual_approval(automatic, auth_client, 
     result = auth_client.post(f"/api/leads/{lead['id']}/meetings", json=payload()).get_json()
     assert result['delivery_status'] == 'pending' and not sent
     html = auth_client.get(f"/leads/{lead['id']}").get_data(as_text=True)
-    assert 'Invitación pendiente' in html and 'Hay reuniones guardadas cuya invitación aún no se ha enviado.' in html
+    assert 'Invitación pendiente' in html and 'Hay avisos de reuniones que aún no se han enviado.' in html
