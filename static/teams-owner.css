@@ -1,0 +1,114 @@
+/* Owner workspace. The collaborator portal keeps its own layout. */
+.ft.ft-owner { max-width: 1440px; padding: 32px 32px 48px; container-name: teams-owner; container-type: inline-size; }
+.ft.ft-owner .ft-owner-hero { border: 0; padding: 0; margin-bottom: 24px; align-items: center; }
+.ft.ft-owner .ft-owner-hero h1 { margin: 0; font-size: 32px; letter-spacing: -.8px; line-height: 1.25; }
+.ft.ft-owner .ft-hero-meta { font-size: 14px; margin-top: 8px; }
+.ft-owner-brand { font-size: 13px; color: var(--sn-muted); }
+.ft.ft-owner .ft-nav { padding: 0; margin: 0 0 32px; gap: 24px; border: 0; border-bottom: 1px solid var(--sn-line); border-radius: 0; background: transparent; overflow: visible; }
+.ft.ft-owner .ft-nav a { min-height: 48px; padding: 12px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--sn-muted); font-size: 14px; }
+.ft.ft-owner .ft-nav a[aria-current] { color: var(--sn-accent-text); border-bottom-color: currentColor; background: transparent; }
+.ft.ft-owner .ft-nav a:hover { color: var(--sn-ink); background: transparent; }
+.ft.ft-owner .ft-nav svg { width: 16px; height: 16px; }
+.ft.ft-owner .ft-workspace-switch a { font-size: 13px; }
+.ft.ft-owner .ft-list-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 24px; }
+.ft.ft-owner .ft-list-heading h2 { display: flex; align-items: center; gap: 12px; font-size: 24px; margin: 0; letter-spacing: -.5px; }
+.ft.ft-owner .ft-list-count { font-size: 13px; font-weight: 500; color: var(--sn-muted); }
+.ft.ft-owner .ft-list-heading p { margin: 6px 0 0; font-size: 14px; color: var(--sn-muted); }
+.ft.ft-owner .sn-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+.ft.ft-owner .ft-jobs-list { margin-bottom: 24px; }
+.ft.ft-owner .ft-list-filter { gap: 12px; padding: 20px; margin: 0; border: 1px solid var(--sn-line); border-radius: 12px; background: var(--sn-white); }
+.ft.ft-owner .ft-list-filter label { gap: 8px; font-size: 12px; font-weight: 500; }
+.ft.ft-owner .ft-list-filter :is(input,select) { margin: 0; min-height: 40px; padding: 9px 12px; font-size: 14px; }
+.ft.ft-owner .ft-list-filter select { min-width: 160px; }
+.ft.ft-owner .ft-list-search { display: flex; align-items: end; gap: 12px; margin-left: auto; width: min(100%, 460px); }
+.ft.ft-owner .ft-list-filter .ft-search { flex: 1; min-width: 0; }
+.ft.ft-owner .ft-list-filter .sn-btn { min-height: 40px; }
+.ft.ft-owner .ft-bulk-invites { margin: 4px 0 12px; }
+.ft.ft-owner .ft-bulk-invites summary { width: fit-content; font-weight: 500; color: var(--sn-muted); }
+.ft.ft-owner .ft-bulk-invites summary:hover { color: var(--sn-accent-text); }
+.ft.ft-owner .ft-bulk-invites[open] { padding: 12px 20px 20px; background: var(--sn-white); border: 1px solid var(--sn-line); border-radius: 12px; }
+.ft.ft-owner .ft-bulk-invites p { font-size: 14px; line-height: 1.6; }
+.ft.ft-owner .ft-weddings-table { border: 1px solid var(--sn-line); border-radius: 12px; background: var(--sn-white); }
+.ft.ft-owner .ft-weddings-table table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; }
+.ft.ft-owner .ft-weddings-table th { padding: 16px 20px; background: transparent; font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: 0; border-bottom: 1px solid var(--sn-line); }
+.ft.ft-owner .ft-weddings-table th:first-child { width: 108px; }
+.ft.ft-owner .ft-weddings-table th:nth-child(3) { width: 22%; }
+.ft.ft-owner .ft-weddings-table th:nth-child(4) { width: 176px; text-align: right; }
+.ft.ft-owner .ft-weddings-table th:last-child { width: 64px; }
+.ft.ft-owner .ft-weddings-table td { padding: 24px 20px; vertical-align: top; border-bottom: 1px solid var(--sn-line); font-size: 14px; line-height: 1.55; }
+.ft.ft-owner .ft-weddings-table tr:last-child td { border-bottom: 0; }
+.ft.ft-owner .ft-wedding-row:hover { background: var(--sn-surface-hover); }
+.ft.ft-owner .ft-wedding-date time { display: flex; flex-direction: column; gap: 4px; font-variant-numeric: tabular-nums; }
+.ft.ft-owner .ft-date-day { font-size: 28px; line-height: 1; font-weight: 600; letter-spacing: -.5px; color: var(--sn-ink); }
+.ft.ft-owner .ft-date-month { font-size: 12px; color: var(--sn-muted); white-space: nowrap; }
+.ft.ft-owner .ft-wedding-name { display: block; width: fit-content; color: var(--sn-ink); font-size: 16px; font-weight: 650; line-height: 1.4; text-decoration: none; overflow-wrap: anywhere; }
+.ft.ft-owner .ft-wedding-name:hover { color: var(--sn-accent-text); text-decoration: underline; text-underline-offset: 4px; }
+.ft.ft-owner .ft-wedding-place { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--sn-muted); font-size: 13px; line-height: 1.6; margin-top: 6px; overflow-wrap: anywhere; }
+.ft.ft-owner .ft-wedding-notes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 10px; font-size: 12px; color: var(--sn-muted); }
+.ft.ft-owner .ft-cost-review { display: inline-flex; align-items: center; gap: 6px; color: var(--flow-warning); }
+.ft.ft-owner .ft-cost-review::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.ft.ft-owner .ft-wedding-info small { display: block; margin-top: 8px; font-size: 12px; line-height: 1.5; }
+.ft.ft-owner .ft-wedding-crew strong { font-weight: 550; }
+.ft.ft-owner .ft-wedding-crew > span { display: block; font-size: 12px; color: var(--sn-muted); margin-top: 5px; overflow-wrap: anywhere; }
+.ft.ft-owner .ft-crew-names { line-height: 1.6; }
+.ft.ft-owner .ft-wedding-crew .ft-crew-waiting { color: var(--flow-warning); }
+.ft.ft-owner .ft-wedding-balance { text-align: right; font-variant-numeric: tabular-nums; }
+.ft.ft-owner .ft-wedding-balance strong { font-size: 16px; font-weight: 600; white-space: nowrap; }
+.ft.ft-owner .ft-wedding-balance small { display: block; margin-top: 5px; font-size: 12px; }
+.ft.ft-owner .ft-wedding-actions { padding-left: 0 !important; padding-right: 12px !important; }
+.ft.ft-owner .ft-wedding-actions summary { display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 40px; min-height: 40px; border-color: transparent; background: transparent; }
+.ft.ft-owner .ft-wedding-actions summary:hover { background: var(--sn-mint); border-color: var(--sn-line); }
+.ft.ft-owner .ft-job-menu[open] > div { top: 100%; max-width: calc(100vw - 48px); }
+.ft.ft-owner .ft-weddings-empty td { padding: 48px 24px; text-align: center; }
+.ft.ft-owner .ft-weddings-empty h3 { margin: 0; font-size: 18px; }
+.ft.ft-owner .ft-weddings-empty p { color: var(--sn-muted); margin: 8px 0 20px; }
+.ft.ft-owner :is(input,select,textarea) { caret-color: var(--sn-accent-text); }
+.ft.ft-owner ::selection { background: var(--sn-mint); color: var(--sn-ink); }
+@media (max-width: 1100px) and (min-width: 768px) {
+  .ft.ft-owner .ft-weddings-table :is(th,td) { padding-left: 14px; padding-right: 14px; }
+  .ft.ft-owner .ft-weddings-table th:first-child { width: 88px; }
+  .ft.ft-owner .ft-weddings-table th:nth-child(4) { width: 150px; }
+}
+@media (max-width: 767px) {
+  .ft.ft-owner { padding: 24px 16px 40px; }
+  .ft.ft-owner .ft-owner-hero h1 { font-size: 28px; }
+  .ft.ft-owner .ft-owner-hero .ft-actions { gap: 12px; }
+  .ft.ft-owner .ft-nav { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 0; margin-bottom: 24px; }
+  .ft.ft-owner .ft-nav a { flex-direction: column; justify-content: center; min-height: 60px; padding: 8px 2px; gap: 6px; font-size: 11px; text-align: center; white-space: normal; }
+  .ft.ft-owner .ft-nav-admin { margin-left: 0; }
+  .ft.ft-owner .ft-list-heading { align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+  .ft.ft-owner .ft-list-heading p { font-size: 13px; max-width: 24ch; }
+  .ft.ft-owner .ft-list-heading > .sn-btn { font-size: 12px; min-height: 44px; }
+  .ft.ft-owner .ft-list-filter { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); gap: 16px 12px; padding: 16px; }
+  .ft.ft-owner .ft-list-filter label { min-width: 0; }
+  .ft.ft-owner .ft-list-filter select { width: 100%; min-width: 0; }
+  .ft.ft-owner .ft-list-filter :is(input,select) { min-height: 44px; font-size: 16px; }
+  .ft.ft-owner .ft-list-search { grid-column: 1 / -1; width: 100%; margin: 0; gap: 8px; }
+  .ft.ft-owner .ft-list-filter .ft-search { width: auto; min-width: 0; margin: 0; }
+  .ft.ft-owner .ft-list-filter .sn-btn { min-height: 44px; }
+}
+@container teams-owner (max-width: 700px) {
+  .ft.ft-owner .ft-weddings-table { border: 0; background: transparent; }
+  .ft.ft-owner .ft-weddings-table :is(table,tbody) { display: block; }
+  .ft.ft-owner .ft-weddings-table thead { display: none; }
+  .ft.ft-owner .ft-weddings-table .ft-wedding-row { position: relative; display: grid; grid-template-columns: 56px minmax(0,1fr); gap: 0 16px; padding: 20px 16px; margin: 0 0 12px; border: 1px solid var(--sn-line); border-radius: 12px; background: var(--sn-white); }
+  .ft.ft-owner .ft-weddings-table td { display: block; width: auto; border: 0; padding: 0; min-width: 0; }
+  .ft.ft-owner .ft-wedding-date { grid-column: 1; grid-row: 1; }
+  .ft.ft-owner .ft-date-day { font-size: 28px; }
+  .ft.ft-owner .ft-date-month { font-size: 11px; }
+  .ft.ft-owner .ft-wedding-info { grid-column: 2; padding-right: 32px !important; }
+  .ft.ft-owner .ft-wedding-name { font-size: 15px; }
+  .ft.ft-owner .ft-wedding-notes { gap: 6px 10px; }
+  .ft.ft-owner .ft-wedding-crew { grid-column: 2; margin-top: 16px; }
+  .ft.ft-owner .ft-weddings-table .ft-wedding-balance { grid-column: 2; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--sn-line); text-align: left; }
+  .ft.ft-owner .ft-wedding-balance::before { content: attr(data-label); display: block; font-size: 12px; color: var(--sn-muted); margin-bottom: 4px; }
+  .ft.ft-owner .ft-wedding-actions { position: absolute; right: 8px; top: 8px; padding: 0 !important; }
+  .ft.ft-owner .ft-wedding-actions summary { width: 44px; min-height: 44px; }
+  .ft.ft-owner .ft-weddings-empty { display: block; padding: 24px 16px; border: 1px solid var(--sn-line); border-radius: 12px; background: var(--sn-white); }
+  .ft.ft-owner .ft-weddings-empty td { padding: 0; }
+}
+
+@media (max-width: 480px) {
+  .ft.ft-owner #financial-report .ft-metrics { grid-template-columns: minmax(0,1fr); }
+  .ft.ft-owner #financial-report .ft-metrics article { min-width: 0; }
+}
