@@ -23,6 +23,7 @@ function setup(fetch = async () => ({ ok: true, json: async () => ({ features: [
     return nodes.get(id);
   };
   node('location-catalog').textContent = JSON.stringify(catalog);
+  node('form-captacion').querySelector = () => node('submit');
   const timers = new Map();
   let timerId = 0;
   vm.runInNewContext(source, { window: {}, document: { getElementById: node, createElement: element },
@@ -127,4 +128,14 @@ test('external-only results still work and are cached', async () => {
   search.input('Lugar nuevo');
   await search.runSearch();
   assert.equal(calls, 1);
+});
+
+test('missing event date blocks submission before any lead or conversion request', async () => {
+  let calls = 0;
+  const form = setup(async () => { calls++; });
+  await form.node('form-captacion').handlers.submit({ preventDefault() {} });
+  assert.equal(calls, 0);
+  assert.equal(form.node('form-error').hidden, false);
+  assert.match(form.node('form-error').textContent, /Selecciona la fecha del evento/);
+  assert.notEqual(form.node('submit').disabled, true);
 });

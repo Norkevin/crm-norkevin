@@ -27,6 +27,7 @@ def test_captacion_form_also_triggers_notification(client):
     """Ver docstring del test anterior: STAGE 2 encola en vez de entregar."""
     resp = client.post('/api/captacion', json={
         'nombre': 'Pedro Captacion', 'email': 'pedro@example.com',
+        'fecha_tentativa': '2027-08-01',
     })
     assert resp.status_code == 200
 

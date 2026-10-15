@@ -18,6 +18,7 @@ async function submit({ brand = 'norkevin-photography', ok = true, tag = 'workin
     return nodes.get(id);
   };
   const form = node('form-captacion');
+  node('fecha_tentativa').value = '2027-11-20';
   form.hidden = false;
   form.elements = { tenant_slug: { value: brand } };
   form.querySelector = () => node('submit');

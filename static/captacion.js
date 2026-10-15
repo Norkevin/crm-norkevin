@@ -186,6 +186,13 @@
     const label = document.getElementById('submit-label');
     const error = document.getElementById('form-error');
     error.hidden = true;
+    // Flatpickr's visible input is read-only, so native required validation is skipped.
+    if (!dateInput.value) {
+      error.textContent = 'Selecciona la fecha del evento para enviar tu solicitud.';
+      error.hidden = false;
+      (document.getElementById('fecha-visible') || dateInput).focus();
+      return;
+    }
     button.disabled = true;
     label.textContent = 'Enviando…';
     try {
