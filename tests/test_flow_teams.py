@@ -1341,7 +1341,7 @@ def test_calendar_oauth_checks_owner_brand_state_and_expiry_before_exchanging_co
     assert calls==[('brand-a','fake-test-only')]
 
 
-def test_invitation_button_is_visible_and_missing_contact_blocks_send(web,monkeypatch):
+def test_invitation_button_in_coverage_management_and_missing_contact_blocks_send(web,monkeypatch):
     from html.parser import HTMLParser
     from src import google_calendar
     application,owner,_=web
@@ -1361,7 +1361,8 @@ def test_invitation_button_is_visible_and_missing_contact_blocks_send(web,monkey
         html=owner.get('/teams/jobs/job-1').get_data(as_text=True);document=Buttons();document.feed(html)
         return html,document.invites
     html,buttons=page()
-    assert buttons and buttons[0][0]==0 and 'disabled' in buttons[0][1]
+    assert buttons and buttons[0][0]==1 and 'disabled' in buttons[0][1]
+    assert 'Gestionar cobertura' in html
     assert 'Enviar invitación y acceso' in html
     assert f'/teams/members#member-{person["id"]}' in html
     with store.transaction() as db:
@@ -1942,3 +1943,66 @@ def test_calendar_decline_is_prominent_on_worker_card(web):
     assert 'No disponible · Invitación rechazada' in html
     assert 'rechazó la invitación en Google Calendar' in html
     assert a['id'] in html and person['name'] in html
+
+
+def test_portal_wedding_team_exposes_only_names_roles_and_own_marker(web):
+    application, owner, _ = web
+    store = application.extensions['teams']
+    person = member(store)
+    publish(store, assignment(store, person))
+    colleague = run(store, 'member', name='Compañera visible', email='private-colleague@example.invalid',
+                    phone='55559999', role='Video', rate='9876')
+    shared = publish(store, assignment(store, colleague, slot='Video', role='Video', amount='9876',
+                                      instructions='INSTRUCCION PRIVADA DE OTRA PERSONA'))
+    # A second role still represents one person in the roster.
+    with store.transaction() as db:
+        duplicate = dict(shared, id='second-shared-role', role='Edición')
+        store.save(db, 'brand-a', 'assignment', duplicate)
+    for name, status, job, tenant in [
+        ('Borrador oculto', 'borrador', 'job-1', 'brand-a'),
+        ('Cancelada oculta', 'cancelada', 'job-1', 'brand-a'),
+        ('Rechazada oculta', 'rechazada', 'job-1', 'brand-a'),
+        ('Otra boda oculta', 'pendiente', 'job-2', 'brand-a'),
+        ('Otra marca oculta', 'pendiente', 'job-1', 'brand-b'),
+    ]:
+        other = run(store, 'member', tenant, name=name, email=name.replace(' ', '-')+'@example.invalid', role='Foto')
+        coverage = assignment(store, other, job=job, tenant=tenant, slot=name)
+        with store.transaction() as db:
+            coverage['status'] = status
+            store.save(db, tenant, 'assignment', coverage)
+    worker = member_client(application, owner, person)
+    response = worker.get('/teams-portal/summary?job_id=job-1')
+    assert response.status_code == 200
+    assert response.get_json()['wedding_team'] == [
+        dict(name=person['name'], roles=['Foto'], is_self=True),
+        dict(name=colleague['name'], roles=['Video', 'Edición'], is_self=False),
+    ]
+    html = worker.get('/teams-portal/?job_id=job-1').get_data(as_text=True)
+    assert 'Equipo de esta boda' in html and 'Compañera visible' in html
+    for private in (colleague['email'], colleague['phone'], 'INSTRUCCION PRIVADA DE OTRA PERSONA',
+                    'Q9,876.00', 'Borrador oculto', 'Cancelada oculta', 'Rechazada oculta', 'Otra boda oculta', 'Otra marca oculta'):
+        assert private not in response.get_data(as_text=True) and private not in html
+    assert response.get_json()['fee_summary']['amount'] == 150000
+    assert worker.get('/teams-portal/summary').get_json()['wedding_team'] == []
+    assert worker.get('/teams-portal/summary?job_id=job-2').status_code == 404
+
+
+def test_portal_wedding_team_requires_current_shared_coverage_not_payment_history(web):
+    application, owner, _ = web
+    store = application.extensions['teams']
+    person = member(store)
+    own = publish(store, assignment(store, person))
+    colleague = run(store, 'member', name='Equipo reservado', email='reserved@example.invalid', role='Video')
+    publish(store, assignment(store, colleague, slot='Video'))
+    worker = member_client(application, owner, person)
+    assert len(worker.get('/teams-portal/summary?job_id=job-1').get_json()['wedding_team']) == 2
+    with store.transaction() as db:
+        own['job_day'] = '2026-11-13'
+        store.save(db, 'brand-a', 'assignment', own)
+    assert worker.get('/teams-portal/summary?job_id=job-1').get_json()['wedding_team'] == []
+    with store.transaction() as db:
+        own['status'] = 'cancelada'
+        store.save(db, 'brand-a', 'assignment', own)
+    data = worker.get('/teams-portal/summary?job_id=job-1').get_json()
+    assert data['wedding_team'] == [] and data['assignments'] == []
+    assert 'Equipo reservado' not in worker.get('/teams-portal/?job_id=job-1').get_data(as_text=True)
