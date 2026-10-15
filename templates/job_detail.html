@@ -584,7 +584,7 @@
         ('extra-event', 'Boda civil', 'Ceremonia civil con fecha y lugar propios.'),
         ('extra-event', 'Welcome party', 'Celebración de bienvenida.'),
         ('extra-event', 'Evento extra', 'Otra sesión o actividad de este trabajo.'),
-        ('email', 'Correo electrónico', 'Recordatorio en el calendario para redactar y enviar otro correo. No se envía automáticamente.')
+        ('email', 'Correo electrónico', 'Elige la fecha; después redacta el mensaje y programa su envío automático.' if workflow_auto_mail else 'Elige la fecha y redacta el mensaje para revisarlo en Correos.')
       ] %}
       <button class="sn-choice-card" type="button" onclick='openScheduleTaskForm({{ type|tojson }}, {{ name|tojson }})'>
         <strong>{{ name }}</strong><span>{{ description }}</span>

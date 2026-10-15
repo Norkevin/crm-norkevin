@@ -151,6 +151,7 @@ def test_imported_and_native_jobs_render_the_same_custom_task_composer(automatic
     a, job, task, _, _, _ = custom_mail(automatic, auth_client, imported=True)
     html = auth_client.get('/jobs/'+job['id']).get_data(as_text=True)
     assert 'Envío automático programado.' in html and 'email-task-id' in html
+    assert 'programa su envío automático' in html and 'No se envía automáticamente' not in html
     assert 'task_id: document.getElementById' in html
 
 
