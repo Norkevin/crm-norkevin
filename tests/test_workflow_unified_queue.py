@@ -202,7 +202,7 @@ def test_manual_production_entry_points_share_dispatcher(flow):
     assert inst.step_states['test_step'] == a.StepStatus.DONE
 
 
-def test_inbox_prepares_overdue_drafts_without_background_runner_or_delivery(flow, monkeypatch):
+def test_inbox_leaves_preparation_to_the_background_runner(flow, monkeypatch):
     a, client, tenant, tpl = flow
     configure(a, tenant, tpl)
     lead, inst = subject(a, tenant)
@@ -225,11 +225,10 @@ def test_inbox_prepares_overdue_drafts_without_background_runner_or_delivery(flo
     first = client.get('/emails')
     assert first.status_code == 200
     mails = [m for m in a.store.list('pending_emails') if m.get('lead_id') == lead['id']]
-    assert len(mails) == 1 and mails[0]['status'] == 'pending'
-    assert mails[0]['subject'].encode() in first.data
-    assert inst.step_states['test_step'] == a.StepStatus.QUEUED
+    assert mails == []
+    assert inst.step_states['test_step'] == a.StepStatus.PENDING
     assert client.get('/emails').status_code == 200
-    assert len([m for m in a.store.list('pending_emails') if m.get('lead_id') == lead['id']]) == 1
+    assert not [m for m in a.store.list('pending_emails') if m.get('lead_id') == lead['id']]
     assert all(state == a.StepStatus.PENDING for state in foreign.step_states.values())
 
 

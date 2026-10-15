@@ -2,6 +2,7 @@
 (function () {
   var main = document.querySelector('.main-content');
   var nav = document.querySelector('.bottom-nav');
+  var sheet = document.querySelector('#more-sheet');
   if (!main || !nav) return;
   var mobile = window.matchMedia('(max-width: 760px)');
   var path = window.location.pathname;
@@ -17,7 +18,15 @@
       link.classList.remove('is-pending');
       link.removeAttribute('aria-busy');
     });
+    if (typeof window.closeMoreSheet === 'function') window.closeMoreSheet();
   }
+  if (sheet) sheet.addEventListener('click', function (event) {
+    var link = event.target.closest('a[href]');
+    if (link && !event.defaultPrevented && event.button === 0 &&
+        !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+      window.closeMoreSheet();
+    }
+  });
   if (mobile.matches && isTab) {
     try { main.scrollTop = Number(sessionStorage.getItem(key)) || 0; } catch (_) {}
   }

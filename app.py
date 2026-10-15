@@ -8702,12 +8702,16 @@ def api_admin_import_astral_leads():
 # forma de que un correo generado por el CRM llegue a alguien.
 # ============================================================
 
-def _pending_email_view(p):
+def _pending_email_view(p, *, cache=None):
     """Vista compacta de un pendiente, resolviendo nombres para la lista."""
-    cliente = get_client(p.get('client_id')) if p.get('client_id') else None
-    job = get_job(p.get('job_id')) if p.get('job_id') else None
-    tenant = next((t for t in store.list('tenants')
-                   if t.get('id') == p.get('tenant_id')), None) or {}
+    if cache is None:
+        cliente = get_client(p.get('client_id')) if p.get('client_id') else None
+        job = get_job(p.get('job_id')) if p.get('job_id') else None
+        tenant = next((t for t in store.list('tenants') if t.get('id') == p.get('tenant_id')), None) or {}
+    else:
+        cliente = cache['clients'].get(p.get('client_id'))
+        job = cache['jobs'].get(p.get('job_id'))
+        tenant = cache['tenants'].get(p.get('tenant_id')) or {}
     from src.mail_tracker import check_recipient_identity, MISSING_CLIENT_WARNING, NEW_LEAD_NOTIFICATION
     warning = p.get('aviso_identidad')
     internal_verified = False
@@ -8735,7 +8739,8 @@ def _pending_email_view(p):
         'origen': p.get('source') or 'desconocido',
         'creado': p.get('created_at'),
         'estado': p.get('status'),
-        'motivo_bloqueo': p.get('blocked_reason') or _mail_tracker_module._commercial_check(p),
+        'motivo_bloqueo': p.get('blocked_reason') or (
+            _mail_tracker_module._commercial_check(p) if p.get('status') in ('pending', 'failed', 'blocked') else None),
         # No bloquea, pero hay que verlo antes de aprobar (direccion que no
         # es la del cliente, o que existe tambien en la otra empresa).
         'aviso_identidad': warning,
@@ -8755,13 +8760,13 @@ def _actor_actual():
 @app.route('/emails')
 def pending_emails_page():
     """Bandeja de correos por aprobar, enviados y bloqueados."""
-    # Recover due drafts even when the background runner has not processed them.
+    # Preparation and delivery belong to the background queue, never a page request.
     tenant_id = get_current_tenant_id()
-    if tenant_id:
-        _prepare_due_workflow_emails(tenant_id=tenant_id)
     pendientes = sorted(store.list('pending_emails'),
                         key=lambda p: p.get('created_at') or '', reverse=True)
-    vistas = [_pending_email_view(p) for p in pendientes]
+    cache = {table: {row['id']: row for row in store.list(table)}
+             for table in ('clients', 'jobs', 'tenants')}
+    vistas = [_pending_email_view(p, cache=cache) for p in pendientes]
     return render_template(
         'pending_emails.html',
         auto_workflow=_workflow_mail_auto_enabled(_active_tenant_id()),
@@ -15244,7 +15249,7 @@ def _send_due_workflow_emails(tenant_id=None, now=None, limit=5):
                 _workflow_tenant.reset(token)
         return delivered
     delivered = []
-    with _workflow_queue_lock:
+    with _workflow_send_lock:
         pending = sorted(store.list('pending_emails'), key=lambda mail: (
             mail.get('created_at') or '', mail.get('id') or ''))
         for mail in pending:
@@ -15377,6 +15382,7 @@ def _prepare_due_workflow_emails(tenant_id=None, now=None, subject_type=None):
 
 
 _workflow_queue_lock = threading.RLock()
+_workflow_send_lock = threading.Lock()
 
 
 def _workflow_queue_loop():
