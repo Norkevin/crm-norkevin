@@ -57,17 +57,22 @@
   <article class="ft-panel ft-crew-card">
     <div class="ft-section-title"><div class="ft-person-heading"><span class="ft-avatar" aria-hidden="true">{{ a.member_name[:1] }}</span><h3>{{ a.member_name }}</h3></div>{% if invitation and invitation.event and invitation.response_status == 'declined' %}<span class="ft-pill ft-rsvp-declined">No disponible · Invitación rechazada</span>{% else %}<span class="ft-pill ft-status-{{ a.status }}">{{ '' if a.status == 'borrador' else 'Portal · ' }}{{ {'borrador':'Sin invitar','pendiente':'Por responder','aceptada':'Confirmada','reconfirmar':'Reconfirmar','realizada':'Servicio realizado'}.get(a.status,a.status) }}</span>{% endif %}</div>
     <p class="ft-coverage-role">{{ a.role }}<small>{{ a.slot }} · {{ "Horario general" if a.schedule_source == "general" else "Horario personalizado" }} · {% if a.schedule_pending %}<strong>Horario pendiente</strong>{% else %}{{ a.start[11:16] }}–{{ a.end[11:16] }}{% if a.start[:10] != a.end[:10] %} · termina {{ a.end[:10]|teams_date }}{% endif %}{% endif %}</small></p>
+    {% if c %}<div class="ft-person-money"><span>Honorario <strong>{{ c.total|teams_money }}</strong></span><span>Pagado <strong>{{ c.paid|teams_money }}</strong></span><span>Pendiente <strong>{{ (c.total - c.paid if c.status == 'estimado' else c.pending)|teams_money }}</strong></span></div>{% endif %}
+    <div class="ft-crew-confirmations">{% include 'teams_calendar_response.html' %}</div>
+    {% if invitation and invitation.event and invitation.response_status == 'declined' %}<p class="ft-warning" role="status">{{ a.member_name }} rechazó la invitación en Google Calendar. No está disponible para esta cobertura; revisa su reemplazo.</p>{% endif %}
+    {% if a.other_brand_conflicts %}<p class="ft-warning">Esta persona tiene otra cobertura en {{ a.other_brand_conflicts|map(attribute='brand_name')|unique|join(', ') }} en este horario. Revisa antes de confirmar.</p>{% endif %}
+    {% if a.changed or a.conflicts %}<p class="ft-warning">{{ 'Fecha comercial modificada. Revisa las condiciones.' if a.changed else 'Hay un solapamiento de horario; revisa antes de confirmar.' }}</p>{% endif %}
+    {% if not a.can_invite or invitation.error or invitation.email_error %}<p class="ft-crew-attention">Hay un problema con el envío. Abre «Gestionar cobertura» para revisarlo.</p>{% elif invitation.not_before %}<p class="ft-crew-attention">Envío programado: {{ invitation.not_before|teams_calendar_date }}.</p>{% endif %}
+    <details class="ft-crew-manage"><summary>Gestionar cobertura<span>Invitación, pagos y ajustes</span></summary>
     {% if a.schedule_pending %}<p class="ft-muted">La hora de llegada y salida se confirmará más adelante.</p>{% elif not selected.closed and a.status != "realizada" %}<button type="button" class="sn-btn" data-action="assignment_schedule_pending" data-id="{{ a.id }}" data-version="{{ a.version }}">Marcar horario pendiente para esta persona</button>{% endif %}
     {% if a.trip %}<div class="ft-person-travel"><strong>Disponibilidad para el viaje · {{ a.trip.response_label }}</strong><p>Salida {{ a.trip.departure|teams_date }}<br>Regreso {{ a.trip.return_date|teams_date }}</p>{% if a.trip.response_note %}<p class="ft-muted">{{ a.trip.response_note }}</p>{% endif %}
       {% if not selected.closed and a.status != 'realizada' %}<details><summary>{{ 'Editar fechas personales de viaje' if a.trip.personal else 'Esta persona viaja en otras fechas' }}</summary><form data-command="assignment_travel" class="ft-form">{{ fields('assignment_travel',a.id,a.version) }}
         <label class="ft-full">Fechas de viaje<select name="personal" data-travel-toggle><option value="false" {{ 'selected' if not a.trip.personal else '' }}>Usar las fechas del equipo</option><option value="true" {{ 'selected' if a.trip.personal else '' }}>Usar otras fechas para esta persona</option></select></label>
         <div class="ft-full ft-form" data-travel-fields {{ 'hidden' if not a.trip.personal else '' }}>{{ input('departure','Salida personal','date',a.trip.departure,required=false) }}{{ input('return_date','Regreso personal','date',a.trip.return_date,required=false) }}</div>
         <button class="sn-btn">Guardar fechas</button><small>Al cambiar las fechas, esta persona debe volver a responder.</small></form></details>{% endif %}</div>{% endif %}
-    {% if c %}<div class="ft-person-money"><span>Honorario <strong>{{ c.total|teams_money }}</strong></span><span>Pagado <strong>{{ c.paid|teams_money }}</strong></span><span>Pendiente <strong>{{ (c.total - c.paid if c.status == 'estimado' else c.pending)|teams_money }}</strong></span></div>{% endif %}
     {% if c and c.due_date %}<p class="ft-muted">Fecha límite de pago: <strong>{{ c.due_date|teams_date }}</strong> · máximo 30 días después de la boda.</p>{% endif %}
     {% if a.status in ['borrador','pendiente','aceptada','reconfirmar','realizada'] %}
     <div class="ft-invitation">
-      {% include 'teams_calendar_response.html' %}{% if invitation and invitation.event and invitation.response_status == 'declined' %}<p class="ft-warning" role="status">{{ a.member_name }} rechazó la invitación en Google Calendar. No está disponible para esta cobertura; revisa su reemplazo.</p>{% endif %}
       <details class="ft-delivery-details" {{ 'open' if not a.can_invite or invitation.error or invitation.email_error or invitation.bulk_skip_reason or invitation.not_before else '' }}><summary>Envío y confirmación manual</summary>
       {% if not selected.closed and a.can_confirm_manually %}
       {% if a.manual_confirmed %}<button class="sn-btn" type="button" data-action="assignment_acknowledge" data-id="{{ a.id }}" data-version="{{ a.version }}" data-status="withdrawn">Quitar confirmación manual</button>
@@ -93,8 +98,6 @@
       {% if invitation.status == 'pending' and invitation.not_before %}<button class="sn-btn" data-action="calendar_cancel_scheduled" data-endpoint="/api/teams/calendar/cancel-scheduled" data-id="{{ invitation.id }}" data-version="{{ invitation.version }}">Cancelar envío programado</button>{% endif %}
       {% if invitation.html_url %}<a class="ft-text-link" href="{{ invitation.html_url }}" target="_blank" rel="noopener noreferrer">Ver en Google Calendar ↗</a>{% endif %}
     </div>{% endif %}
-    {% if a.other_brand_conflicts %}<p class="ft-warning">Esta persona tiene otra cobertura en {{ a.other_brand_conflicts|map(attribute='brand_name')|unique|join(', ') }} en este horario. Revisa antes de confirmar.</p>{% endif %}
-    {% if a.changed or a.conflicts %}<p class="ft-warning">{{ 'Fecha comercial modificada. Revisa las condiciones.' if a.changed else 'Hay un solapamiento de horario; revisa antes de confirmar.' }}</p>{% endif %}
     <div class="ft-crew-controls">
     {% if c and not selected.closed %}<details class="ft-crew-payment"><summary>Registrar pago o ver abonos</summary>{{ cost_controls(c,true) }}</details>{% endif %}
     <details class="ft-edit-worker"><summary>{{ "Definir horario, trabajador u honorario" if a.schedule_pending else "Editar trabajador, horario u honorario" }}</summary><p>{% if a.schedule_pending %}Horario pendiente · {{ a.start[:10]|teams_date }}{% else %}{{ a.start[:10]|teams_date }} · llegada {{ a.start[11:16] }} · fin {{ a.end[11:16] }} · margen libre {{ a.buffer }} minutos antes y después.{% endif %}</p><p>{{ a.instructions or 'Sin instrucciones específicas.' }}</p>
@@ -110,6 +113,7 @@
       {% if a.status == 'borrador' and not selected.closed %}<button class="sn-btn" data-action="assignment_publish" data-id="{{ a.id }}" data-version="{{ a.version }}">Publicar sin enviar correo</button>{% endif %}
       {% if not selected.closed and a.status != 'realizada' %}<button class="sn-btn" data-action="assignment_status" data-id="{{ a.id }}" data-version="{{ a.version }}" data-status="cancelada" data-confirm="¿Quitar a {{ a.member_name }} de esta boda? Se conserva el historial y sus gastos; los pagos existentes deben revisarse antes.">Quitar de esta boda</button>{% endif %}
     </div></details></div>
+    </details>
   </article>{% else %}<div class="ft-panel"><p>Elige a la primera persona de esta boda. Su honorario aparecerá en la misma ficha.</p></div>{% endfor %}
   </div>
   {% include 'teams_calendar_invitations.html' %}

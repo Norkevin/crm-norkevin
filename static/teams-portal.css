@@ -127,3 +127,15 @@
   .ft-agenda-views{align-self:start}
   .ft-portal .ft-job-tabs button{font-size:12px;padding:10px 5px}
 }
+
+/* The event roster deliberately contains names and roles only. */
+.ft-wedding-team h2{font-size:20px;margin:0 0 8px}
+.ft-wedding-team>p{font-size:13px;margin:0 0 16px}
+.ft-wedding-team ul{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
+.ft-wedding-team li{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--sn-line);min-width:0}
+.ft-wedding-team li>div{min-width:0;overflow-wrap:anywhere}
+.ft-wedding-team li strong{display:block;font-size:14px;font-weight:600}
+.ft-wedding-team li strong small{display:inline;font-size:12px;font-weight:400;color:var(--sn-muted)}
+.ft-wedding-team li div>span{display:block;font-size:12px;color:var(--sn-muted);margin-top:3px}
+.ft-wedding-team .ft-avatar{flex-shrink:0;border-radius:8px;background:var(--sn-surface-2);color:var(--sn-ink)}
+@media(max-width:600px){.ft-wedding-team ul{grid-template-columns:minmax(0,1fr)}}

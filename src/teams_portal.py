@@ -394,13 +394,14 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
     def state(calendar_only=False):
         tenant, member = g.teams_portal_tenant, g.teams_member
         with store.transaction() as db:
-            assignments = [a for a in store.records(db, tenant, 'assignment') if a['member_id'] == member['id'] and a['status'] in VISIBLE_ASSIGNMENTS]
+            all_assignments = store.records(db, tenant, 'assignment')
+            assignments = [a for a in all_assignments if a['member_id'] == member['id'] and a['status'] in VISIBLE_ASSIGNMENTS]
             job_ids = {a['job_id'] for a in assignments}
             jobs = {}
             for identifier in job_ids:
                 job = read_job(identifier)
                 jobs[identifier] = {k: job.get(k) for k in ('id', 'nombre', 'boda_date', 'end_date', 'location', 'status', 'parent_job_id', 'parent_name', 'secondary')}
-            published = {a['id'] for a in store.records(db, tenant, 'assignment') if a['member_id'] == member['id']
+            published = {a['id'] for a in all_assignments if a['member_id'] == member['id']
                          and (a.get('published_at') or a['status'] in VISIBLE_ASSIGNMENTS)}
             cost_rows = [c for c in store.records(db, tenant, 'cost') if c['beneficiary'] == member['id']
                          and c['status'] in ('aprobado','incurrido')
@@ -456,6 +457,20 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                 coverage.append(own)
             current_job_ids = {a['job_id'] for a in assignments if a['job_day'] == jobs[a['job_id']]['boda_date']
                                and jobs[a['job_id']]['status'] not in ('Cancelado', 'Archivado')}
+            # Only a current, shared coverage grants a roster; never serialize coworkers' records.
+            wedding_team = {}
+            if selected_job_id in current_job_ids:
+                members = {m['id']: m for m in store.records(db, tenant, 'member')}
+                for a in all_assignments:
+                    person = members.get(a['member_id'])
+                    if (a['job_id'] != selected_job_id or a['status'] not in VISIBLE_ASSIGNMENTS
+                            or a['job_day'] != jobs[selected_job_id]['boda_date'] or not person):
+                        continue
+                    teammate = wedding_team.setdefault(a['member_id'], dict(
+                        name=person['name'], roles=[], is_self=a['member_id'] == member['id']))
+                    if a['role'] not in teammate['roles']:
+                        teammate['roles'].append(a['role'])
+            wedding_team = sorted(wedding_team.values(), key=lambda p: (not p['is_self'], p['name'].casefold()))
             receipts = [r for r in store.records(db, tenant, 'receipt') if r['member_id'] == member['id']]
             documents = []
             for d in store.records(db, tenant, 'document'):
@@ -551,7 +566,7 @@ def register_portal(app, owner_blueprint, store, crm_store, owner_job_reader):
                       honorarium=sum(c['amount'] for c in costs if c['honorarium']),
                       reimbursements=sum(c['amount'] for c in costs if not c['honorarium']),
                       funds_remaining=sum(a['remaining'] for a in advances))
-        return dict(selected_wedding=selected_wedding, wedding_options=wedding_options, member={k: member.get(k) for k in ('id','name','email','phone')}, assignments=coverage, documents=documents,
+        return dict(selected_wedding=selected_wedding, wedding_options=wedding_options, wedding_team=wedding_team, member={k: member.get(k) for k in ('id','name','email','phone')}, assignments=coverage, documents=documents,
                     costs=costs, advances=advances, tasks=tasks, expense_requests=requests, availability=availability,
                     financial_jobs=sorted(financial_jobs,key=lambda j:j['day'] or ''),history=history,year=year,totals=totals,
                     fee_summary=fee_summary, history_years=history_years, current_year=str(datetime.now(teams_zone(crm_store, tenant)).year),

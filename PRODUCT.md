@@ -17,6 +17,8 @@ Uso diario en computadora y teléfono, incluido el iPhone 14 Pro Max. Guatemala,
 ## Capabilities and Constraints
 Flask y plantillas Jinja existentes. Conservar rutas, permisos por empresa, aprobación de correos, formularios, firma, cálculos y proveedores. Teams muestra eventos activos; Jobs abre por fecha más cercana. No usar datos reales para pruebas de escritura ni enviar comunicaciones durante las comprobaciones. El envío de invitaciones pendientes incluye todas las próximas coberturas de la marca abierta, publica borradores y confirma sus honorarios, conserva programaciones y omite respuestas ya registradas. Antes de enviar, comprueba la cobertura vigente y la respuesta real de Google; los envíos individuales siguen disponibles por boda.
 
+En el portal de una boda, el equipo puede consultar solo los nombres y roles de las personas con cobertura compartida vigente de esa misma marca y boda; los honorarios, pagos, correos e instrucciones de otros miembros permanecen privados.
+
 ## Brand Commitments
 Flow CRM y Teams. El usuario pide una apariencia profesional, elegante, moderna y coherente, evitando una apariencia genérica de IA. Mantener las marcas y los documentos configurables por empresa. Teams debe distinguirse del CRM.
 
