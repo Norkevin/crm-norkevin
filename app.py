@@ -7349,6 +7349,13 @@ def api_captacion_submit():
     tenant = _tenant_by_slug(data.get('tenant_slug') or 'astral-weddings')
     if not tenant:
         return jsonify({'ok': False, 'error': 'Cuenta no reconocida'}), 400
+    event_date = data.get('fecha_tentativa')
+    try:
+        if not isinstance(event_date, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', event_date):
+            raise ValueError('Missing or invalid event date')
+        date.fromisoformat(event_date)
+    except ValueError:
+        return jsonify({'ok': False, 'error': 'Selecciona una fecha del evento válida.'}), 400
     # El slug ya quedo validado contra tenants.json: recien ahora se fija la
     # cuenta de la peticion, para que el store deje escribir el lead.
     g.public_tenant_id = tenant['id']
@@ -7363,7 +7370,7 @@ def api_captacion_submit():
         'status': 'Nuevo',
         'fuente': data.get('fuente', 'Web'),
         'tipo_evento': data.get('tipo_evento', 'Boda'),
-        'fecha_tentativa': data.get('fecha_tentativa'),
+        'fecha_tentativa': event_date,
         'locacion': data.get('locacion', ''),
         'presupuesto': data.get('presupuesto', ''),
         'notas': notes.strip(),

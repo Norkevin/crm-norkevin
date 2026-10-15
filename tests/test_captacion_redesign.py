@@ -65,7 +65,8 @@ def test_invalid_partner_name_does_not_create_lead(client, partner_name):
 
 @pytest.mark.parametrize('slug', ['astral-weddings', 'norkevin-photography'])
 def test_partner_name_is_optional(client, slug):
-    response = client.post('/api/captacion', json={'nombre': 'Sin pareja', 'tenant_slug': slug})
+    response = client.post('/api/captacion', json={'nombre': 'Sin pareja', 'tenant_slug': slug,
+                                                  'fecha_tentativa': '2027-11-20'})
     assert response.status_code == 200
 
 
@@ -97,8 +98,10 @@ def test_brand_contact_details_and_widgets(client, monkeypatch):
         assert 'name="notas"' in html and 'maxlength="5000"' in html
         assert 'role="combobox"' in html and 'flatpickr.min.js' in html
         assert 'brand@example.com' in html
-        assert '>Fecha del evento</label>' in html
+        assert '>Fecha del evento *</label>' in html
         assert '>Fecha tentativa</label>' not in html
+        assert 'aria-describedby="date-hint" required' in html
+        assert 'Puedes dejarla por definir.' not in html
         assert 'Finca La Ruca' in html
         assert 'id="location-catalog" type="application/json"' in html
     legacy = client.get('/captacion/ramiro-cruz-photo').get_data(as_text=True)
@@ -132,3 +135,17 @@ def test_public_location_catalog_exposes_only_public_names_and_areas():
     ruca = next(place for place in catalog if place['name'] == 'Finca La Ruca Jardín Boutique')
     assert ruca['detail'] == 'Sacatepéquez, Guatemala'
     assert all(set(place) == {'name', 'aliases', 'detail'} for place in catalog)
+
+
+@pytest.mark.parametrize('slug', ['astral-weddings', 'norkevin-photography'])
+@pytest.mark.parametrize('event_date', [None, '', ' ', 'sin fecha', '2027-02-30', '2027-1-10', [], 123])
+def test_event_date_is_required_and_valid_before_creating_any_records(client, slug, event_date):
+    import app as module
+    before = {table: module.store.list(table) for table in ('leads', 'clients', 'pending_emails')}
+    payload = {'nombre': 'Sin fecha', 'tenant_slug': slug}
+    if event_date is not None:
+        payload['fecha_tentativa'] = event_date
+    response = client.post('/api/captacion', json=payload)
+    assert response.status_code == 400
+    assert response.get_json()['error'] == 'Selecciona una fecha del evento válida.'
+    assert all(module.store.list(table) == rows for table, rows in before.items())

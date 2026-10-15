@@ -24,6 +24,7 @@ def test_public_contact_form_lead_creates_a_linked_client(client):
 def test_captacion_form_lead_creates_a_linked_client(client):
     resp = client.post('/api/captacion', json={
         'nombre': 'Diego Formulario', 'email': 'diego.formulario@example.com',
+        'fecha_tentativa': '2027-08-01',
     })
     assert resp.status_code == 200
     lead_id = resp.get_json()['lead_id']
