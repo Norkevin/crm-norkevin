@@ -44,3 +44,20 @@ def test_workflow_timing_only_requires_approval_in_manual_mode(flask_app, automa
         assert 'automáticamente' in html
     else:
         assert 'aprueba el envío' in html or 'aprobar el envío' in html
+
+
+@pytest.mark.parametrize('server_zone', ['UTC', 'America/Guatemala'])
+def test_calendar_based_deadline_displays_its_actual_local_hour(monkeypatch, server_zone):
+    import app as a
+    previous = os.environ.get('TZ')
+    try:
+        os.environ['TZ'] = server_zone
+        time.tzset()
+        step = dict(scheduled='2026-10-18T14:05:00', schedule_basis='calendar', status='queued')
+        result = a._workflow_time_labels([step], None)[0]
+        assert result['scheduled_display'] == 'domingo, 18 de octubre de 2026, 2:05 p. m.'
+        assert result['scheduled_epoch'] == 1792353900000
+    finally:
+        if previous is None:os.environ.pop('TZ', None)
+        else:os.environ['TZ'] = previous
+        time.tzset()

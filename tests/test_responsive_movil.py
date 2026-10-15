@@ -138,7 +138,8 @@ def _tablas_sin_apilado():
         if '<table' not in html:
             continue
         apila = any(c in html for c in ('stack-mobile', 'table-responsive',
-                                        'doc-table', 'dashboard-jobs-table'))
+                                        'doc-table', 'dashboard-jobs-table',
+                                        'ft-weddings-table'))
         if not (apila and 'data-label' in html):
             ofensores.append(nombre)
     return ofensores

@@ -562,6 +562,8 @@ def _mail_delivery_warning(entry):
         return None
     estado = entry.get('status')
     if estado == 'pending':
+        if _workflow_mail_needs_review(entry):
+            return 'El contenido cambió después de programarlo. Revisa el correo en Correos antes de enviarlo.'
         if _workflow_mail_auto_enabled(entry.get('tenant_id')) and (
                 _workflow_mail_is_bound(entry) or str(entry.get('source') or '').startswith(('workflow:', 'auto:job-template'))):
             return 'El correo está en la cola del workflow y se enviará automáticamente cuando corresponda.'
@@ -784,6 +786,20 @@ def _sync_imported_job_delivery(job, step_id, mail):
     upsert_job(job)
 
 
+def _sync_custom_workflow_delivery(job, task, mail):
+    if mail.get('job_id') != job['id'] or mail.get('tenant_id') != job.get('tenant_id'):
+        return
+    if task.get('mail_id') and task['mail_id'] != mail['id']:
+        return
+    delivery = mail.get('status')
+    task.update(mail_id=mail['id'], delivery_status=delivery, mail_requires_review=_workflow_mail_needs_review(mail),
+                status='done' if delivery in ('sent', 'opened', 'clicked') else
+                       'queued' if delivery in ('pending', 'sending') else 'failed')
+    if task['status'] == 'done':
+        task['completed'] = mail.get('sent_at') or datetime.now().isoformat()
+    upsert_job(job)
+
+
 def _sync_mail_delivery(mail):
     """One completion hook for approval, failure, and manual retry."""
     parts = (mail.get('idempotency_key') or '').split(':')
@@ -804,7 +820,12 @@ def _sync_mail_delivery(mail):
                 elif collection == 'questionnaires' and record.get('status') != 'Respondido':
                     record['status'] = 'Sent'
             store.upsert(collection, record)
-    if mail.get('imported_workflow_step_id'):
+    if mail.get('workflow_task_id'):
+        job = get_job(mail.get('job_id'))
+        task = next((t for t in (job or {}).get('manual_workflow_tasks') or []
+                     if t.get('id') == mail['workflow_task_id'] and t.get('type') == 'email'), None)
+        if task:_sync_custom_workflow_delivery(job, task, mail)
+    elif mail.get('imported_workflow_step_id'):
         job = get_job(mail.get('job_id'))
         if job:_sync_imported_job_delivery(job, mail['imported_workflow_step_id'], mail)
     elif mail.get('workflow_instance_id'):
@@ -815,6 +836,15 @@ def _sync_mail_delivery(mail):
         instance = _workflow_instance_for('lead' if kind == 'leadstep' else 'job', record_id, tenant_id=mail.get('tenant_id'))
         if instance and instance.tenant_id == mail.get('tenant_id'):
             _apply_workflow_delivery(instance, parts[2], mail)
+
+    if mail.get('lead_id') and not mail.get('job_id') and _workflow_mail_is_bound(mail):
+        lead = get_lead(mail['lead_id'])
+        if lead and lead.get('tenant_id') == mail.get('tenant_id'):
+            lead['mail_status'] = _lead_mail_status_chip(mail)
+            steps, _, _ = compute_workflow_steps_for_lead(lead, tenant_id=mail['tenant_id'])
+            next_step = next((s for s in steps if s.get('status') not in ('done', 'skipped')), None)
+            lead['next_task'] = next_step['name'] if next_step else ('Recomendado a Astral' if _is_astral_referral(lead) else 'Trabajo aceptado')
+            upsert_lead(lead)
 
 
 # MailTracker owns delivery; the application owns commercial/workflow effects.
@@ -2457,6 +2487,8 @@ def _workflow_time_labels(steps, instance):
         scheduled = step.get('scheduled')
         if scheduled:
             when = datetime.fromisoformat(scheduled)
+            if not when.tzinfo and step.get('schedule_basis') == 'calendar':
+                when = when.replace(tzinfo=ZoneInfo('America/Guatemala'))
             local = when.astimezone(ZoneInfo('America/Guatemala'))
             period = 'a. m.' if local.hour < 12 else 'p. m.'
             step['scheduled_display'] = (
@@ -5457,7 +5489,8 @@ def jobs_list():
         try:
             steps, prog, _ = compute_workflow_steps_for_job(
                 j, job_ids_cache=_jobs_job_ids_cache, lead_ids_cache=_jobs_lead_ids_cache)
-            pending = [s for s in steps if s['status'] == 'pending' and s.get('source_stage') != 'LEAD']
+            pending = [s for s in steps + (j.get('manual_workflow_tasks') or [])
+                       if s.get('status') in ('pending', 'queued', 'failed', 'running') and s.get('source_stage') != 'LEAD']
             j['next_task'] = (pending[0].get('display_name') or pending[0]['name']) if pending else 'Completado'
             j['workflow_progress'] = prog
         except Exception:
@@ -8357,18 +8390,12 @@ def api_job_notes(job_id):
 
 
 def _send_job_template_email(job, *, template_id=None, subject=None, body=None, attachments=None,
-                              step_id=None, auto_fire=False, idempotency_key=None):
-    """Compone y pone en cola (STAGE 2, agosto 2026) un correo a partir de
-    una plantilla para un job. Extraido de la ruta para que el modal manual
-    y el disparador automatico por fecha (_auto_fire_due_job_steps)
-    compartan la misma logica.
+                              step_id=None, task=None, auto_fire=False, idempotency_key=None):
+    """Render once and retain a snapshot of the requested message.
 
-    step_id/auto_fire deciden la clave de idempotencia: el disparador
-    automatico pasa auto_fire=True + el step['id'] real, para una clave
-    ESTABLE que no vuelva a encolar el mismo aviso en cada pasada de 6h
-    mientras el pendiente anterior siga sin revisar. El modal manual no
-    pasa step_id (no siempre esta ligado a un step) y usa una clave por
-    minuto, que solo protege contra doble-click."""
+    Free messages use the authorized send-button policy. Workflow steps and
+    custom tasks keep a stable key and their live schedule in the serial queue.
+    """
     from src.mail_tracker import get_tracker
 
     lead = get_lead(job.get('lead_id', '')) if job.get('lead_id') else None
@@ -8384,8 +8411,8 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
     rendered_subject = _render_message_template(rendered_subject, client=client, lead=lead, job=job)
     rendered_body = _render_message_template(rendered_body, client=client, lead=lead, job=job)
 
-    idempotency_key = idempotency_key or (
-        f"jobstep:{job.get('id')}:{step_id}" if (step_id and (auto_fire or job.get('studio_ninja_workflow') is not None))
+    idempotency_key = idempotency_key or (f"jobtask:{job['id']}:{task['id']}" if task else None) or (
+        f"jobstep:{job.get('id')}:{step_id}" if step_id
         else f"jobtemplate:{job.get('id')}:{_idempotency_minute_bucket()}"
     )
     entry = get_tracker().queue_email(
@@ -8398,9 +8425,13 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
         client_id=job.get('client_id') or None,
         attachments=attachments or [],
         tenant_id=job.get('tenant_id'),
-        source='auto:job-template' if auto_fire else 'manual:job-template',
+        source='workflow:custom-task' if task else 'auto:job-template' if auto_fire else 'workflow:job-template' if step_id else 'manual:job-template',
         idempotency_key=idempotency_key,
     )
+    if task:
+        entry['workflow_task_id'] = task['id']
+        store.upsert('pending_emails', entry)
+        _sync_custom_workflow_delivery(job, task, entry)
     return {
         'mail_id': entry['id'],
         'to': to_email,
@@ -8413,21 +8444,39 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
 
 @app.route('/api/jobs/<job_id>/send-email', methods=['POST'])
 def api_job_send_email(job_id):
+    with _workflow_send_lock:
+        return _job_send_email_locked(job_id)
+
+
+def _job_send_email_locked(job_id):
     """Registra un email enviado desde el job y opcionalmente completa un workflow step."""
     job = get_job(job_id)
     if not job:
         return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
 
     data = request.get_json() or {}
-    if data.get('step_id') and job.get('studio_ninja_workflow') is not None and not any(s['id'] == data['step_id'] and s['status'] != 'skipped' for s in job['studio_ninja_workflow']):
-        return jsonify(ok=False, error='Selecciona un paso vigente de este trabajo'), 400
+    task = next((t for t in job.get('manual_workflow_tasks') or []
+                 if t.get('id') == data.get('task_id') and t.get('type') == 'email'), None)
+    if data.get('task_id') and (not task or data.get('step_id') or task.get('status') in ('done', 'failed')):
+        return jsonify(ok=False, error='Selecciona una tarea de correo vigente; los fallos se revisan en Correos'), 400
+    if task:
+        schedule_error = _workflow_schedule_error(task.get('start_date'), task.get('end_date') or task.get('start_date'),
+                                                  task.get('start_time'), task.get('end_time'))
+        if schedule_error:
+            return jsonify(ok=False, error='Edita la fecha de la tarea antes de programar el correo: ' + schedule_error), 400
+    if task and not (data.get('body') or '').strip() and not data.get('template_id'):
+        return jsonify(ok=False, error='Escribe el contenido del correo antes de programarlo'), 400
+    if data.get('step_id'):
+        steps, _, _ = compute_workflow_steps_for_job(job, tenant_id=job.get('tenant_id'))
+        if not any(step['id'] == data['step_id'] and step.get('status') != 'skipped' for step in steps):
+            return jsonify(ok=False, error='Selecciona un paso vigente de este trabajo'), 400
     result = _send_job_template_email(
         job,
         template_id=data.get('template_id'),
         subject=data.get('subject'),
         body=data.get('body'),
         attachments=data.get('attachments'),
-        step_id=data.get('step_id'),
+        step_id=data.get('step_id'), task=task,
     )
     if result.get('error'):
         return jsonify({'ok': False, 'error': result['error']}), 400
@@ -8758,7 +8807,7 @@ def _pending_email_view(p, *, cache=None):
     return {
         'id': p.get('id'),
         'aviso_interno': internal_verified,
-        'workflow_automatico': _workflow_mail_auto_enabled(p.get('tenant_id')) and _workflow_mail_is_bound(p),
+        'workflow_automatico': _workflow_mail_auto_enabled(p.get('tenant_id')) and _workflow_mail_is_bound(p) and not _workflow_mail_needs_review(p),
         'empresa': tenant.get('name') or p.get('tenant_id'),
         'tenant_id': p.get('tenant_id'),
         'para': p.get('to'),
@@ -10284,6 +10333,8 @@ def api_job_workflow_task_complete(job_id, task_id):
     found = None
     for task in job.get('manual_workflow_tasks') or []:
         if task.get('id') == task_id:
+            if task.get('type') == 'email' and task.get('status') != 'done':
+                return jsonify(ok=False, error='El correo se completa al confirmar su envío. Redáctalo o revisa su estado en Correos.'), 400
             task['status'] = 'done'
             task['completed'] = datetime.now().isoformat()[:10]
             found = task
@@ -10296,6 +10347,11 @@ def api_job_workflow_task_complete(job_id, task_id):
 
 @app.route('/api/jobs/<job_id>/workflow-task/<task_id>/update', methods=['POST'])
 def api_job_workflow_task_update(job_id, task_id):
+    with _workflow_send_lock:
+        return _job_workflow_task_update_locked(job_id, task_id)
+
+
+def _job_workflow_task_update_locked(job_id, task_id):
     """Edita un shoot extra / appointment ya creado (nombre, fecha, hora,
     ubicacion, visibilidad en el portal) y mantiene su evento de calendario
     sincronizado con los mismos datos."""
@@ -10357,6 +10413,11 @@ def api_job_workflow_task_update(job_id, task_id):
 
 @app.route('/api/jobs/<job_id>/workflow-task/<task_id>/delete', methods=['POST'])
 def api_job_workflow_task_delete(job_id, task_id):
+    with _workflow_send_lock:
+        return _job_workflow_task_delete_locked(job_id, task_id)
+
+
+def _job_workflow_task_delete_locked(job_id, task_id):
     job = get_job(job_id)
     if not job:
         return jsonify({'ok': False, 'error': 'Job no encontrado'}), 404
@@ -10366,6 +10427,13 @@ def api_job_workflow_task_delete(job_id, task_id):
     if not task:
         return jsonify({'ok': False, 'error': 'Tarea no encontrada'}), 404
 
+    if task.get('type') == 'email' and task.get('mail_id'):
+        mail = store.get('pending_emails', task['mail_id'])
+        if mail and mail.get('workflow_task_id') == task_id and mail.get('job_id') == job_id:
+            if mail.get('status') == 'sending':
+                return jsonify(ok=False, error='El correo se está enviando; espera a que termine.'), 409
+            if mail.get('status') in ('pending', 'failed', 'blocked'):
+                _mail_tracker_module.get_tracker().discard_pending(mail['id'], actor=_actor_actual())
     identifier = 'secondary:' + (task.get('calendar_event_id') or task['id'])
     if task.get('type') == 'extra-event' and _secondary_coverage_has_history(identifier):
         return jsonify(ok=False, error='Esta cobertura tiene equipo o movimientos en Teams. Conserva el evento para mantener su historial.'), 409
@@ -15241,15 +15309,29 @@ def _workflow_delivery_view_mode():
 
 
 def _workflow_mail_is_bound(mail):
-    return bool(mail.get('workflow_step_id') and
-                (mail.get('workflow_instance_id') or mail.get('imported_workflow_step_id')))
+    return bool((mail.get('workflow_task_id') and mail.get('job_id')) or
+                (mail.get('workflow_step_id') and (mail.get('workflow_instance_id') or mail.get('imported_workflow_step_id'))))
+
+
+def _workflow_mail_needs_review(mail):
+    return bool(mail.get('package_auto_requires_review') or
+                'el contenido pedido para este correo cambio' in (mail.get('aviso_identidad') or ''))
+
+
+_mail_tracker_module.requested_auto_delivery = lambda mail: (
+    _workflow_mail_auto_enabled(mail.get('tenant_id')) and
+    mail.get('source') in ('manual:lead-send-email', 'manual:job-template'))
 
 
 def _workflow_step_is_due(step, now=None):
     scheduled = step.get('scheduled')
     if not scheduled:
         return True
-    due = datetime.fromisoformat(scheduled)
+    try:
+        due = datetime.fromisoformat(scheduled)
+    except (TypeError, ValueError):
+        logger.warning('Fecha de workflow inválida; el paso %s conserva su estado', step.get('id'))
+        return False
     if due.tzinfo:
         reference = now or datetime.now(timezone.utc)
         if not reference.tzinfo:
@@ -15288,13 +15370,14 @@ def _send_due_workflow_emails(tenant_id=None, now=None, limit=5):
                 break
             owner = mail.get('tenant_id')
             if (mail.get('status') != 'pending' or not _workflow_mail_is_bound(mail)
+                    or _workflow_mail_needs_review(mail)
                     or not _workflow_mail_auto_enabled(owner)
                     or (tenant_id and owner != tenant_id)):
                 continue
             token = _workflow_tenant.set(owner)
             try:
                 instance = workflow_engine.get_instance(mail.get('workflow_instance_id'))
-                if not instance and not mail.get('imported_workflow_step_id'):
+                if not instance and not mail.get('imported_workflow_step_id') and not mail.get('workflow_task_id'):
                     continue
                 if instance and (instance.tenant_id != owner or instance.status != WorkflowStatus.ACTIVE):
                     continue
@@ -15306,13 +15389,22 @@ def _send_due_workflow_emails(tenant_id=None, now=None, limit=5):
                     continue
                 if instance and (instance.subject_id != record['id'] or instance.subject_type != kind):
                     continue
-                if mail.get('imported_workflow_step_id') and mail['imported_workflow_step_id'] != mail['workflow_step_id']:
-                    continue
-                compute = compute_workflow_steps_for_job if kind == 'job' else compute_workflow_steps_for_lead
-                steps, _, _ = compute(record, tenant_id=owner)
-                step = next((step for step in steps if step['id'] == mail['workflow_step_id']), None)
-                if not step or step.get('status') != 'queued' or not str(step.get('action_type') or '').startswith('send_'):
-                    continue
+                if mail.get('workflow_task_id'):
+                    task = next((t for t in record.get('manual_workflow_tasks') or []
+                                 if t.get('id') == mail['workflow_task_id'] and t.get('type') == 'email'), None)
+                    if not task or task.get('status') != 'queued' or task.get('mail_id') != mail['id']:
+                        continue
+                    if not task.get('start_date'):
+                        continue
+                    step = dict(scheduled=task['start_date']+'T'+(task.get('start_time') or '00:00'), schedule_basis='calendar')
+                else:
+                    if mail.get('imported_workflow_step_id') and mail['imported_workflow_step_id'] != mail['workflow_step_id']:
+                        continue
+                    compute = compute_workflow_steps_for_job if kind == 'job' else compute_workflow_steps_for_lead
+                    steps, _, _ = compute(record, tenant_id=owner)
+                    step = next((step for step in steps if step['id'] == mail['workflow_step_id']), None)
+                    if not step or step.get('status') != 'queued' or not str(step.get('action_type') or '').startswith('send_'):
+                        continue
                 if not _workflow_step_is_due(step, schedule_now):
                     continue
                 result = _mail_tracker_module.get_tracker().approve_and_send(
@@ -15344,8 +15436,10 @@ def _prepare_due_imported_workflow_emails(tenant_id, now):
                     scheduled = step.get('scheduled')
                     if step.get('status') != 'pending' or not scheduled:
                         continue
+                    if not _workflow_step_is_due(step, now):
+                        continue
                     due = datetime.fromisoformat(scheduled).replace(tzinfo=None)
-                    if due < datetime(2026, 10, 13) or not _workflow_step_is_due(step, now):
+                    if due < datetime(2026, 10, 13):
                         continue
                     if not str(step.get('action_type') or '').startswith('send_'):
                         continue
