@@ -9,12 +9,14 @@ const catalog = seed.venues.map(place => ({ name: place.name, aliases: place.ali
 
 function setup(fetch = async () => ({ ok: true, json: async () => ({ features: [] }) }), { google = false } = {}) {
   const nodes = new Map();
+  const documentHandlers = {};
   function element() {
     return { hidden: false, value: '', textContent: '', children: [], attributes: {}, handlers: {}, dataset: {},
       addEventListener(name, fn) { this.handlers[name] = fn; },
       setAttribute(name, value) { this.attributes[name] = value; },
       removeAttribute(name) { delete this.attributes[name]; },
       replaceChildren() { this.children = []; }, append(child) { this.children.push(child); },
+      contains(target) { return target === this || this.children.some(child => child.contains(target)); },
       scrollIntoView() {}, focus() {},
     };
   }
@@ -28,7 +30,8 @@ function setup(fetch = async () => ({ ok: true, json: async () => ({ features: [
   node('form-captacion').querySelector = () => node('submit');
   const timers = new Map();
   let timerId = 0;
-  vm.runInNewContext(source, { window: {}, document: { getElementById: node, createElement: element },
+  vm.runInNewContext(source, { window: {}, document: { getElementById: node, createElement: element,
+    addEventListener(name, fn) { documentHandlers[name] = fn; } },
     fetch, AbortController, URLSearchParams,
     setTimeout(fn, ms) { timers.set(++timerId, { fn, ms }); return timerId; },
     clearTimeout(id) { timers.delete(id); },
@@ -37,6 +40,7 @@ function setup(fetch = async () => ({ ok: true, json: async () => ({ features: [
     node,
     input(value) { node('locacion').value = value; node('locacion').handlers.input(); },
     key(key) { node('locacion').handlers.keydown({ key, preventDefault() {} }); },
+    pointerDown(target) { documentHandlers.pointerdown({ target }); },
     names() { return node('location-results').children.map(child => child.textContent); },
     scheduledSearches() { return [...timers.values()].filter(timer => timer.ms === 200).length; },
     runSearch() {
@@ -64,18 +68,32 @@ test('reported Jardin Vilaflor is available locally without enabling paid reques
   }
 });
 
-test('a Safari suggestion is saved before blur can hide the list', () => {
+test('Safari blur keeps a touched suggestion available until its click selects it', () => {
   const search = setup();
   search.input('jardin vilaflor');
   const option = search.node('location-results').children[0];
-  let prevented = false;
-  option.handlers.mousedown({ button: 0, preventDefault() { prevented = true; } });
+  search.pointerDown(option.children[0]);
   search.node('locacion').handlers.blur();
-  assert.equal(prevented, true);
+  assert.equal(search.node('location-results').hidden, false);
+  option.handlers.click();
   assert.equal(search.node('locacion').value, 'Jardín Vilaflor, Sacatepéquez, Guatemala');
   assert.equal(search.node('location-results').hidden, true);
   assert.equal(search.scheduledSearches(), 0);
   assert.match(search.node('location-status').textContent, /Ubicación seleccionada/);
+});
+
+test('outside touches and Tab dismiss suggestions without swallowing keyboard focus', () => {
+  const search = setup();
+  search.input('jardin vilaflor');
+  search.pointerDown(search.node('locacion'));
+  assert.equal(search.node('location-results').hidden, false);
+  search.pointerDown(search.node('notas'));
+  assert.equal(search.node('location-results').hidden, true);
+  search.input('jardin vilaflor');
+  search.node('locacion').handlers.keydown({ key: 'Tab', preventDefault() { throw new Error('Tab must move focus'); } });
+  assert.equal(search.node('location-results').hidden, true);
+  assert.equal(search.scheduledSearches(), 0);
+  assert.equal(search.node('locacion').value, 'jardin vilaflor');
 });
 
 test('matches aliases, accents, partial names and municipality, without unrelated suggestions', () => {

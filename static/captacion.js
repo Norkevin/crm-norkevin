@@ -116,11 +116,6 @@
         attribution.textContent = 'Google Maps';
         item.append(attribution);
       }
-      item.addEventListener('mousedown', event => {
-        if (event.button !== 0) return;
-        event.preventDefault();
-        choose(index);
-      });
       item.addEventListener('click', () => choose(index));
       results.append(item);
     }
@@ -211,7 +206,7 @@
     }, 200);
   });
   location.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { cancelSearch(); closeResults(); return; }
+    if (event.key === 'Escape' || event.key === 'Tab') { cancelSearch(); closeResults(); return; }
     if (results.hidden) return;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
@@ -227,8 +222,13 @@
   });
   location.addEventListener('blur', () => {
     cancelSearch();
-    closeResults();
     if (status.textContent === 'Buscando lugares…') status.textContent = 'Puedes escribir el lugar o volver a buscar.';
+  });
+  // Safari blurs the input before a touch becomes a click on its suggestion.
+  document.addEventListener('pointerdown', event => {
+    if (event.target === location || results.contains(event.target)) return;
+    cancelSearch();
+    closeResults();
   });
 
   form.addEventListener('submit', async event => {
