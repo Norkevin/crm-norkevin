@@ -29,6 +29,23 @@ TRAVEL_LEVELS = {
     3: {'name': 'Lejano', 'photo_amount': 2500, 'photo_video_amount': 4500},
 }
 SEED_PATH = Path(__file__).resolve().parents[1] / 'data' / 'seeds' / 'venues_guatemala.default.json'
+
+
+def public_venue_catalog():
+    """Public place names only, without tenant data or commercial approvals."""
+    seed = json.loads(SEED_PATH.read_text(encoding='utf-8'))
+    return [
+        {
+            'name': venue['name'],
+            'aliases': venue.get('aliases', []),
+            'detail': ', '.join(dict.fromkeys(filter(None, (
+                venue.get('municipality'), venue.get('department'), 'Guatemala',
+            )))),
+        }
+        for venue in seed.get('venues', []) if venue.get('name')
+    ]
+
+
 _GEOCODE_LOCK = threading.Lock()
 _GEOCODE_LAST_REQUEST = 0.0
 _FOREIGN_COUNTRIES = (
