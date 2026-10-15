@@ -31,3 +31,16 @@ def test_only_automatic_pending_mail_shows_countdown(monkeypatch, status, enable
     step = {'scheduled':'2026-10-01T19:43:00','status':status,'action_type':'send_email'}
     instance = SimpleNamespace(auto_prepare=enabled,status=a.WorkflowStatus.ACTIVE)
     assert not a._workflow_time_labels([step],instance)[0]['auto_prepare']
+
+
+@pytest.mark.parametrize('automatic', [True, False])
+@pytest.mark.parametrize('status', ['pending', 'queued'])
+def test_workflow_timing_only_requires_approval_in_manual_mode(flask_app, automatic, status):
+    step = dict(status=status, auto_prepare=status == 'pending', scheduled_epoch=1792025220000)
+    html = flask_app.jinja_env.get_template('workflow_timing.html').render(
+        step=step, workflow_auto_mail=automatic)
+    if automatic:
+        assert 'aprobar el envío' not in html and 'aprueba el envío' not in html
+        assert 'automáticamente' in html
+    else:
+        assert 'aprueba el envío' in html or 'aprobar el envío' in html

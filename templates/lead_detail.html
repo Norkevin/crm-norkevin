@@ -57,7 +57,7 @@
   {% for step in workflow_steps %}
     {% if not upcoming.step and step.status not in ['done', 'skipped'] and not step.locked %}{% set upcoming.step = step %}{% endif %}
   {% endfor %}
-  <section class="lead-next" aria-labelledby="lead-next-title">
+  <section data-workflow-live="next" class="lead-next" aria-labelledby="lead-next-title">
     <div class="lead-next-icon" aria-hidden="true">↗</div>
     <div class="lead-next-copy">
       <div class="lead-eyebrow">Próximo paso</div>
@@ -72,7 +72,7 @@
   </section>
 
   <div class="lead-workspace">
-    <aside class="lead-workflow-panel" id="lead-workflow" aria-labelledby="lead-workflow-title">
+    <aside class="lead-workflow-panel" id="lead-workflow" data-workflow-live="steps" aria-labelledby="lead-workflow-title">
       <div class="lead-section-heading"><div><h2 id="lead-workflow-title">Workflow</h2><p>{{ workflow_name }}</p></div><a class="lead-template-link" href="/workflow-editor?id=lead_workflow_v1">Editar plantilla ↗</a></div>
       {% if lead.astral_referral_at or lead.blocked_date_notice_attempted_at %}<p class="sn-muted">Recomendado a Astral por fecha no disponible. Los seguimientos de Norkevin están desactivados.</p>{% endif %}
       <div class="lead-workflow-card">
@@ -840,7 +840,7 @@ document.addEventListener('keydown', function(event) {
   closeAcceptJobModal();
 });
 </script>
-<script src="{{ url_for('static', filename='workflow-timing.js') }}" defer></script>
+<script src="{{ url_for('static', filename='workflow-timing.js', v='20261014-auto-send') }}" defer></script>
 <script src="{{ url_for('static', filename='email-preview.js') }}"></script>
 <script>installEmailPreview("lead-email-subject", "lead-email-body");</script>
 {% endblock %}

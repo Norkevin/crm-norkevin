@@ -15386,12 +15386,15 @@ _workflow_send_lock = threading.Lock()
 
 
 def _workflow_queue_loop():
+    logger.info('Cola automática de correos iniciada en el proceso web %s', os.getpid())
     while True:
         time.sleep(60)
         try:
             with app.app_context():
-                _prepare_due_workflow_emails()
-                _send_due_workflow_emails()
+                prepared = _prepare_due_workflow_emails()
+                delivered = _send_due_workflow_emails()
+                if prepared or delivered:
+                    logger.info('Cola automática: %s preparados, %s envíos procesados', len(prepared), len(delivered))
         except Exception:
             logger.exception('No se pudo procesar la cola automática del workflow')
 
