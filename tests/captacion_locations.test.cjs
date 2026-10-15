@@ -36,8 +36,9 @@ function setup(fetch = async () => ({ ok: true, json: async () => ({ features: [
     input(value) { node('locacion').value = value; node('locacion').handlers.input(); },
     key(key) { node('locacion').handlers.keydown({ key, preventDefault() {} }); },
     names() { return node('location-results').children.map(child => child.textContent); },
+    scheduledSearches() { return [...timers.values()].filter(timer => timer.ms === 200).length; },
     runSearch() {
-      const [id, timer] = [...timers].find(([, timer]) => timer.ms === 450);
+      const [id, timer] = [...timers].find(([, timer]) => timer.ms === 200);
       timers.delete(id);
       return timer.fn();
     },
@@ -71,7 +72,7 @@ test('keeps local results and manual input usable when the external service fail
   search.input('Finca de la Ruca');
   await search.runSearch();
   assert.equal(search.node('location-results').hidden, false);
-  assert.match(search.node('location-status').textContent, /catálogo/);
+  assert.match(search.node('location-status').textContent, /lugar sugerido/);
   search.node('location-results').children[0].handlers.click();
   assert.match(search.node('locacion').value, /^Finca La Ruca Jardín Boutique, Sacatepéquez, Guatemala$/);
   assert.equal(search.node('location-results').hidden, true);
@@ -116,7 +117,7 @@ test('a late external response cannot overwrite a new search, a selection or a c
   assert.equal(search.node('location-results').hidden, true);
 });
 
-test('external-only results still work and are cached', async () => {
+test('repeating an external search shows cached results immediately without another wait or request', async () => {
   let calls = 0;
   const search = setup(async () => {
     calls++;
@@ -125,9 +126,34 @@ test('external-only results still work and are cached', async () => {
   search.input('Lugar nuevo');
   await search.runSearch();
   assert.deepEqual(search.names(), ['Lugar nuevo']);
-  search.input('Lugar nuevo');
-  await search.runSearch();
+  search.input('LUGAR NUEVO');
+  assert.deepEqual(search.names(), ['Lugar nuevo']);
+  assert.equal(search.scheduledSearches(), 0);
   assert.equal(calls, 1);
+});
+
+test('keeps matching external suggestions visible while refining a query, even if the next request fails', async () => {
+  let calls = 0;
+  const search = setup(async () => {
+    calls++;
+    if (calls === 2) throw new TypeError('Slow or offline external service');
+    return { ok: true, json: async () => ({ features: calls === 1 ? [{ properties: {
+      name: 'Arco de Santa Catalina', city: 'Antigua Guatemala',
+    } }] : [] }) };
+  });
+  search.input('Arco Santa');
+  await search.runSearch();
+  search.input('Arco Santa Catalina');
+  assert.deepEqual(search.names(), ['Arco de Santa Catalina']);
+  assert.equal(search.node('location-results').hidden, false);
+  await search.runSearch();
+  assert.deepEqual(search.names(), ['Arco de Santa Catalina']);
+  assert.equal(search.node('location-results').hidden, false);
+  search.input('Arco Catalina Antigua');
+  await search.runSearch();
+  assert.deepEqual(search.names(), ['Arco de Santa Catalina']);
+  search.input('Otro destino sin relación');
+  assert.equal(search.node('location-results').hidden, true);
 });
 
 test('missing event date blocks submission before any lead or conversion request', async () => {

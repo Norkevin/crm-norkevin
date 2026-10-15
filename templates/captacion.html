@@ -5,6 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Contacto · {{ tenant.name or 'ASTRAL WEDDINGS' }}</title>
+<link rel="preconnect" href="https://photon.komoot.io" crossorigin>
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/flatpickr/flatpickr.min.css') }}">
 <style>
   :root { --ink: #242823; --muted: #666960; --line: #d7d8d0; --paper: #fafaf6; --accent: {{ '#756044' if tenant_slug == 'astral-weddings' else '#242823' }}; }
@@ -91,7 +92,7 @@
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/flatpickr.min.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/flatpickr/es.js') }}"></script>
 <script id="location-catalog" type="application/json">{{ venue_catalog | tojson }}</script>
-<script defer src="{{ url_for('static', filename='captacion.js', v='20261014-required-date') }}"></script>
+<script defer src="{{ url_for('static', filename='captacion.js', v='20261014-fast-places') }}"></script>
 <link rel="stylesheet" href="/static/flow-tokens.css?v=20261005-modern">
 <link rel="stylesheet" href="/static/client-design.css?v=20261005-modern">
 </head>

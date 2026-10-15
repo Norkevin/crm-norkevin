@@ -123,10 +123,17 @@
     }
     const currentRequest = requestId;
     const local = localPlaces(query);
-    showResults(local);
-    status.textContent = local.length ? 'Selecciona un lugar o conserva lo que escribiste.' : 'Buscando lugares…';
+    const queryKey = normalize(query);
+    const terms = words(query);
+    const cached = cache.get(queryKey) || [...cache.values()].flat().filter(place => {
+      const candidateWords = words(place.label);
+      return terms.length && terms.every(term => candidateWords.some(word => similarWord(term, word)));
+    });
+    const immediate = combinePlaces(local, cached);
+    showResults(immediate);
+    if (cache.has(queryKey)) return;
+    status.textContent = immediate.length ? 'Selecciona un lugar o conserva lo que escribiste.' : 'Buscando lugares…';
     timer = setTimeout(async () => {
-      if (cache.has(query)) { showResults(combinePlaces(local, cache.get(query))); return; }
       const searchController = new AbortController();
       controller = searchController;
       const timeout = setTimeout(() => searchController.abort(), 8000);
@@ -149,14 +156,15 @@
           return true;
         });
         if (cache.size >= 30) cache.delete(cache.keys().next().value);
-        cache.set(query, items);
-        showResults(combinePlaces(local, items));
+        const combined = combinePlaces(items, cached);
+        cache.set(queryKey, combined);
+        showResults(combinePlaces(local, combined));
       } catch (_) {
-        if (currentRequest === requestId) status.textContent = local.length
-          ? 'Puedes elegir un lugar del catálogo o escribir otra ubicación.'
+        if (currentRequest === requestId) status.textContent = immediate.length
+          ? 'Puedes elegir un lugar sugerido o escribir otra ubicación.'
           : 'La búsqueda no está disponible. Puedes escribir el lugar y enviar tu solicitud.';
       } finally { clearTimeout(timeout); }
-    }, 450);
+    }, 200);
   });
   location.addEventListener('keydown', event => {
     if (event.key === 'Escape') { cancelSearch(); closeResults(); return; }
