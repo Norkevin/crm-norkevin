@@ -137,6 +137,19 @@ def test_public_location_catalog_exposes_only_public_names_and_areas():
     assert all(set(place) == {'name', 'aliases', 'detail'} for place in catalog)
 
 
+def test_google_configuration_exposes_only_a_boolean_and_provider_notice(client, monkeypatch):
+    monkeypatch.setenv('FLOW_GOOGLE_PLACES_ENABLED', '1')
+    monkeypatch.setenv('GOOGLE_PLACES_API_KEY', 'do-not-expose-this-key')
+    html = client.get('/captacion/norkevin-photography').get_data(as_text=True)
+    assert 'data-google-places="true"' in html
+    assert 'Privacidad y condiciones de la búsqueda' in html
+    assert 'do-not-expose-this-key' not in html
+    monkeypatch.delenv('GOOGLE_PLACES_API_KEY')
+    html = client.get('/captacion/norkevin-photography').get_data(as_text=True)
+    assert 'data-google-places="false"' in html
+    assert 'Privacidad y condiciones de la búsqueda' not in html
+
+
 @pytest.mark.parametrize('slug', ['astral-weddings', 'norkevin-photography'])
 @pytest.mark.parametrize('event_date', [None, '', ' ', 'sin fecha', '2027-02-30', '2027-1-10', [], 123])
 def test_event_date_is_required_and_valid_before_creating_any_records(client, slug, event_date):

@@ -4525,6 +4525,29 @@
       "import_source": "lugares_bodas_guatemala.xlsx",
       "import_sheet": "Lugares",
       "import_row": 142
+    },
+    {
+      "id": "gt-jardin-vilaflor-sacatepequez",
+      "name": "Jardín Vilaflor",
+      "aliases": [],
+      "municipality": null,
+      "department": "Sacatepéquez",
+      "country": "GT",
+      "address": null,
+      "latitude": null,
+      "longitude": null,
+      "source_url": "https://www.waze.com/es/live-map/directions/jardin-vilaflor-san-lucas-sacatepequez?to=place.w.176488594.1765148083.13527705",
+      "source_urls": [
+        "https://www.waze.com/es/live-map/directions/jardin-vilaflor-san-lucas-sacatepequez?to=place.w.176488594.1765148083.13527705",
+        "https://www.facebook.com/jardinvilaflor/"
+      ],
+      "verification_status": "pending",
+      "verified_at": null,
+      "approval_status": "proposed",
+      "travel_level": null,
+      "policy_brand": "norkevin",
+      "classification_reason": "Lugar reportado por el usuario y encontrado en Waze. Municipio y política comercial pendientes de verificar; sin tarifa automática.",
+      "verification_notes": "2026-10-14: nombre confirmado por captura de Google Maps del usuario y ficha pública de Waze. Las referencias discrepan entre San Lucas, Santa Lucía Milpas Altas y Antigua; no inferir municipio ni viáticos."
     }
   ],
   "proposed_destination_rules": [

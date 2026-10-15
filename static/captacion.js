@@ -29,6 +29,7 @@
   const status = document.getElementById('location-status');
   let timer, controller, active = -1, suggestions = [], requestId = 0;
   const cache = new Map();
+  const googleEnabled = location.dataset?.googlePlaces === 'true';
   const normalize = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const words = text => normalize(text).split(' ').filter(word => word && !['de', 'del', 'la', 'las', 'el', 'los', 'y'].includes(word));
   const catalog = JSON.parse(document.getElementById('location-catalog')?.textContent || '[]').map(place => ({
@@ -91,6 +92,9 @@
   }
   function showResults(items) {
     const selected = suggestions[active]?.label;
+    if (selected && !items.some(place => place.label === selected)) {
+      items = [...items.slice(0, 7), suggestions[active]];
+    }
     suggestions = items;
     active = items.findIndex(place => place.label === selected);
     location.removeAttribute('aria-activedescendant');
@@ -105,6 +109,13 @@
       const detail = document.createElement('small');
       detail.textContent = place.detail;
       item.append(detail);
+      if (place.provider === 'google') {
+        const attribution = document.createElement('small');
+        attribution.className = 'location-provider';
+        attribution.setAttribute('translate', 'no');
+        attribution.textContent = 'Google Maps';
+        item.append(attribution);
+      }
       item.addEventListener('pointerdown', event => event.preventDefault());
       item.addEventListener('click', () => choose(index));
       results.append(item);
@@ -121,6 +132,10 @@
       status.textContent = 'Escribe al menos 3 letras o deja tu ubicación por definir.';
       return;
     }
+    if (query.length > 160 || /@|https?:\/\/|(?:\d[\s()-]*){7,}/i.test(query)) {
+      status.textContent = 'Puedes escribir la ubicación completa y enviar tu solicitud.';
+      return;
+    }
     const currentRequest = requestId;
     const local = localPlaces(query);
     const queryKey = normalize(query);
@@ -131,15 +146,20 @@
     });
     const immediate = combinePlaces(local, cached);
     showResults(immediate);
-    if (cache.has(queryKey)) return;
+    if (cache.has(queryKey) && !googleEnabled) return;
     status.textContent = immediate.length ? 'Selecciona un lugar o conserva lo que escribiste.' : 'Buscando lugares…';
     timer = setTimeout(async () => {
       const searchController = new AbortController();
       controller = searchController;
       const timeout = setTimeout(() => searchController.abort(), 8000);
-      try {
+      let photonItems = cached, googleItems = [];
+      const publish = () => {
+        if (currentRequest === requestId) showResults(combinePlaces(googleItems, combinePlaces(local, photonItems)));
+      };
+      const searches = [];
+      if (!cache.has(queryKey)) searches.push(async () => {
         // ponytail: public Photon suits low-volume forms; use a hosted provider if traffic grows.
-        const params = new URLSearchParams({ q: query, limit: '8', lat: '14.56', lon: '-90.73' });
+        const params = new URLSearchParams({ q: query, limit: '8', lat: '14.56', lon: '-90.73', countrycode: 'GT' });
         const response = await fetch(`https://photon.komoot.io/api/?${params}`, { signal: searchController.signal, referrerPolicy: 'no-referrer', credentials: 'omit' });
         if (!response.ok) throw new Error('Location search unavailable');
         const data = await response.json();
@@ -155,14 +175,34 @@
           seen.add(place.label);
           return true;
         });
+        photonItems = combinePlaces(items, cached);
         if (cache.size >= 30) cache.delete(cache.keys().next().value);
-        const combined = combinePlaces(items, cached);
-        cache.set(queryKey, combined);
-        showResults(combinePlaces(local, combined));
-      } catch (_) {
-        if (currentRequest === requestId) status.textContent = immediate.length
-          ? 'Puedes elegir un lugar sugerido o escribir otra ubicación.'
-          : 'La búsqueda no está disponible. Puedes escribir el lugar y enviar tu solicitud.';
+        cache.set(queryKey, photonItems);
+        publish();
+      });
+      if (googleEnabled) searches.push(async () => {
+        const response = await fetch('/api/captacion/places', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit',
+          signal: searchController.signal,
+          body: JSON.stringify({ query, tenant_slug: form.elements.tenant_slug.value }),
+        });
+        if (!response.ok) throw new Error('Google Places unavailable');
+        const data = await response.json();
+        if (!data.ok || !Array.isArray(data.items)) throw new Error('Google Places unavailable');
+        googleItems = data.items;
+        // Google predictions stay only in the current list, never in the Photon cache.
+        publish();
+      });
+      try {
+        const outcomes = await Promise.allSettled(searches.map(search => search()));
+        if (currentRequest === requestId && outcomes.some(result => result.status === 'rejected')) {
+          if (outcomes.every(result => result.status === 'rejected')) {
+            status.textContent = immediate.length ? 'Puedes elegir un lugar sugerido o escribir otra ubicación.'
+              : 'La búsqueda no está disponible. Puedes escribir el lugar y enviar tu solicitud.';
+          } else if (!suggestions.length) {
+            status.textContent = 'No pudimos completar la búsqueda. Puedes escribir el lugar y enviar tu solicitud.';
+          }
+        }
       } finally { clearTimeout(timeout); }
     }, 200);
   });

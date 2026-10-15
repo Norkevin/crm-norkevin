@@ -10,7 +10,7 @@ def test_user_list_crosswalk_preserves_every_row_and_existing_policy():
     seed = json.loads(SEED_PATH.read_text())
     crosswalk = json.loads((Path(__file__).resolve().parents[1] / 'docs/viaticos-listado-cruce.json').read_text())
     venues = {venue['id']: venue for venue in seed['venues']}
-    assert len(venues) == len(seed['venues']) == 166
+    assert len(venues) == len(seed['venues']) == 167
     assert len(crosswalk['rows']) == 141
     assert len({row['excel_row'] for row in crosswalk['rows']}) == 141
     existing = [row for row in crosswalk['rows'] if row['seed_id']]
@@ -41,7 +41,7 @@ def test_every_imported_pending_venue_is_recognized_without_assigning_fees(tmp_p
         raise AssertionError('Reading a pending venue must not query external services')
     monkeypatch.setattr(service, '_geocode', deny_lookup)
     pending = [venue for venue in service.catalog(tenant) if venue['verification_status'] == 'pending']
-    assert len(pending) == 118
+    assert len(pending) == 119
     for venue in pending:
         result = service.resolve({'tenant_id': tenant, 'locacion': venue['name']})
         assert result['venue_id'] == venue['id'], (venue['name'], result)
