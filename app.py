@@ -1316,15 +1316,17 @@ _mail_tracker_module.package_auto_delivery = _should_auto_send_package_email
 
 
 def _complete_lead_workflow_step(lead, step_id, result_message=None, *, send_email=True,
-                                  subject_override=None, body_override=None, existing_mail=None, template_override_id=None):
+                                  subject_override=None, body_override=None, existing_mail=None, template_override_id=None,
+                                  send_now=False):
     with _workflow_queue_lock:
         return _complete_lead_workflow_step_locked(lead, step_id, result_message, send_email=send_email,
             subject_override=subject_override, body_override=body_override, existing_mail=existing_mail,
-            template_override_id=template_override_id)
+            template_override_id=template_override_id, send_now=send_now)
 
 
 def _complete_lead_workflow_step_locked(lead, step_id, result_message=None, *, send_email=True,
-                                  subject_override=None, body_override=None, existing_mail=None, template_override_id=None):
+                                  subject_override=None, body_override=None, existing_mail=None, template_override_id=None,
+                                  send_now=False):
     if not step_id:
         return {'completed': False}
     if _is_astral_referral(lead) and step_id in ASTRAL_REFERRAL_FOLLOWUPS:
@@ -1381,10 +1383,8 @@ def _complete_lead_workflow_step_locked(lead, step_id, result_message=None, *, s
         body = _render_message_template(
             body_override or (template or {}).get('cuerpo') or '', lead=lead, client=client)
         from src.mail_tracker import get_tracker
-        # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega
-        # inmediata. Clave estable: la logica de arriba (linea 605-606) ya
-        # impide re-disparar un step DONE, asi que esto es un respaldo, no
-        # la guarda principal.
+        # The send button delivers now; scheduled preparation keeps its due time.
+        # Both paths share one key so an early send cannot be sent again when due.
         mail_entry = get_tracker().queue_email(
             to_email=to_email,
             subject=subject,
@@ -1395,6 +1395,7 @@ def _complete_lead_workflow_step_locked(lead, step_id, result_message=None, *, s
             source=f'workflow:lead-step:{step_id}',
             tenant_id=lead.get('tenant_id'),
             idempotency_key=f"leadstep:{lead.get('id')}:{step_id}",
+            send_now=send_now and _workflow_mail_auto_enabled(lead.get('tenant_id')),
         )
         lead['mail_status'] = _lead_mail_status_chip(mail_entry)
 
@@ -1416,6 +1417,8 @@ def _complete_lead_workflow_step_locked(lead, step_id, result_message=None, *, s
     upsert_lead(lead)
 
     action_label = ('encolado para envío automático' if _workflow_mail_auto_enabled(lead.get('tenant_id')) else 'preparado para aprobación') if mail_entry else 'completado manualmente'
+    if mail_entry and send_now:
+        action_label = 'enviado manualmente' if mail_entry.get('status') == 'sent' else 'envío no completado'
     workflow_engine._log(instance, 'step.manual', f'{step.name}: {action_label}')
     workflow_engine._save_to_storage()
     return {
@@ -1426,6 +1429,9 @@ def _complete_lead_workflow_step_locked(lead, step_id, result_message=None, *, s
         'queued': bool(mail_entry and mail_entry.get('status') == 'pending'),
         'delivery_status': mail_entry.get('status') if mail_entry else None,
         'template': mail_entry.get('template_id') if mail_entry else None,
+        'warning': (_mail_delivery_warning(mail_entry) or 'El correo no se envió. Revisa su estado en Correos.')
+                   if send_now and mail_entry and _workflow_mail_auto_enabled(lead.get('tenant_id'))
+                   and mail_entry.get('status') not in ('sent', 'opened', 'clicked') else None,
     }
 
 
@@ -4462,6 +4468,7 @@ def api_lead_trigger_step(lead_id):
         lead,
         step_id,
         send_email=send_email,
+        send_now=True,
         result_message=data.get('result_message'),
         subject_override=data.get('subject'),
         body_override=data.get('body'),
@@ -4477,6 +4484,7 @@ def api_lead_trigger_step(lead_id):
         'step': result.get('step'),
         'email': lead.get('email', ''),
         'mail_id': result.get('mail_id'),
+        'delivery_status': result.get('delivery_status'),
         'job_id': result.get('job_id'),
         'client_id': result.get('client_id'),
         'converted': result.get('converted', False),
@@ -15229,7 +15237,7 @@ def api_workflow_step():
 
     if not _get_email_template(template_id):
         return jsonify({'ok': False, 'error': 'Vincula un Email Template de esta cuenta'}), 400
-    result = _complete_lead_workflow_step(lead, step_id)
+    result = _complete_lead_workflow_step(lead, step_id, send_now=True)
     if result.get('warning'):
         return jsonify({'ok': False, 'error': result['warning']}), 400
     return jsonify({'ok': True, 'template': template_id, **result})
