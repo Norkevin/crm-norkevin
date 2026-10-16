@@ -327,16 +327,16 @@ class MailTracker:
 
     # ---------------------------------------------------- cola de aprobacion
 
-    def queue_email(self, *args, **kwargs):
+    def queue_email(self, *args, send_now=False, **kwargs):
         # Serialize scheduler and manual requests around idempotency lookup + write.
         with store.locked_tables('pending_emails', 'mail_log'):
             entry = self._queue_email(*args, **kwargs)
             if (entry.get('status') != PENDIENTE or entry.get('package_auto_attempted_at') or entry.get('requested_auto_attempted_at')
                     or entry.get('package_auto_requires_review')
                     or 'el contenido pedido para este correo cambio' in (entry.get('aviso_identidad') or '')
-                    or not (_package_auto_delivery_enabled(entry) or _requested_auto_delivery_enabled(entry))):
+                    or not (send_now or _package_auto_delivery_enabled(entry) or _requested_auto_delivery_enabled(entry))):
                 return entry
-            requested = _requested_auto_delivery_enabled(entry)
+            requested = send_now or _requested_auto_delivery_enabled(entry)
             actor = 'sistema:correo-solicitado' if requested else 'sistema:paquetes-automaticos'
             entry['requested_auto_attempted_at' if requested else 'package_auto_attempted_at'] = datetime.now().isoformat()
             store.upsert('pending_emails', entry)
