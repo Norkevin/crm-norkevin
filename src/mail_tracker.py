@@ -325,16 +325,26 @@ class MailTracker:
     def log(self):
         return store.list('mail_log')
 
-    # ---------------------------------------------------- cola de aprobacion
+    # ---------------------------------------------------- cola de entrega
 
-    def queue_email(self, *args, send_now=False, **kwargs):
+    def queue_email(self, *args, send_now=False, defer_delivery=False, **kwargs):
+        """Deliver by brand policy; scheduled callers explicitly defer delivery."""
         # Serialize scheduler and manual requests around idempotency lookup + write.
         with store.locked_tables('pending_emails', 'mail_log'):
             entry = self._queue_email(*args, **kwargs)
             if (entry.get('status') != PENDIENTE or entry.get('package_auto_attempted_at') or entry.get('requested_auto_attempted_at')
-                    or entry.get('package_auto_requires_review')
-                    or 'el contenido pedido para este correo cambio' in (entry.get('aviso_identidad') or '')
                     or not (send_now or _package_auto_delivery_enabled(entry) or _requested_auto_delivery_enabled(entry))):
+                return entry
+            if (entry.get('package_auto_requires_review')
+                    or 'el contenido pedido para este correo cambio' in (entry.get('aviso_identidad') or '')):
+                _anotar(entry, BLOQUEADO, motivo='El contenido cambió después de programarlo. Regenera el correo con el contenido actual.')
+                store.upsert('pending_emails', entry)
+                if delivery_observer:
+                    delivery_observer(entry)
+                return entry
+            entry['delivery_policy'] = 'scheduled' if defer_delivery else 'automatic'
+            if defer_delivery:
+                store.upsert('pending_emails', entry)
                 return entry
             requested = send_now or _requested_auto_delivery_enabled(entry)
             actor = 'sistema:correo-solicitado' if requested else 'sistema:paquetes-automaticos'
@@ -363,8 +373,8 @@ class MailTracker:
                     tenant_id=None, source=None, idempotency_key=None, html_body=None):
         """Create a snapshot; queue_email applies the authorized delivery policies.
 
-        Package and explicit send-button exceptions are resolved by tenant and
-        source callbacks. Scheduled workflow delivery uses the separate queue.
+        The tenant policy covers every mail source. Explicit scheduling keeps
+        the snapshot in the due queue; it never requires a second approval.
 
         Se guarda una copia completa (asunto, cuerpo ya renderizado,
         adjuntos, cuenta, destinatario, job, plantilla) a proposito: si
@@ -436,6 +446,8 @@ class MailTracker:
                  if e.get('idempotency_key') == idempotency_key
                  and e.get('tenant_id') == tenant_id
                  and (e.get('status') in (PENDIENTE, ENVIANDO)
+                      or (e.get('status') == BLOQUEADO and (e.get('package_auto_requires_review')
+                          or 'el contenido pedido para este correo cambio' in (e.get('aviso_identidad') or '')))
                       or (e.get('status') in (FALLO, CANCELADO)
                           and (e.get('package_auto_attempted_at')
                                or e.get('requested_auto_attempted_at')
@@ -527,7 +539,7 @@ class MailTracker:
         return entry
 
     def send_new_lead_notification(self, *, to_email, subject, body, lead_id, tenant_id, html_body=None):
-        """Auto-deliver only a new internal lead notice; client mail stays queued."""
+        """Deliver a new internal lead notice exactly once."""
         key = f'leadnotify:{lead_id}'
         # ponytail: one Render worker; serialize creation and delivery here.
         # A repeated form callback must not retry failed or discarded notices,
@@ -538,11 +550,14 @@ class MailTracker:
                              and p.get('idempotency_key') == key), None)
             if existing:
                 return existing
-            entry = self.queue_email(
+            # This method delivers after releasing the outer store lock.
+            entry = self._queue_email(
                 to_email, subject, body, lead_id=lead_id, tenant_id=tenant_id,
                 source=NEW_LEAD_NOTIFICATION, idempotency_key=key, html_body=html_body)
             if entry.get('status') != PENDIENTE:
                 return entry
+            entry['delivery_policy'] = 'automatic'
+            store.upsert('pending_emails', entry)
         try:
             result = self.approve_and_send(
                 entry['id'], sender_tenant_id=tenant_id,

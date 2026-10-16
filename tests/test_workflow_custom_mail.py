@@ -105,29 +105,30 @@ def test_custom_task_requires_live_own_job_and_binding_and_survives_restart(auto
     assert len(sent) == len(rows)
 
 
-def test_changed_custom_snapshot_requires_review_and_does_not_send_original_text(automatic, auth_client):
+def test_changed_custom_snapshot_is_blocked_and_does_not_send_original_text(automatic, auth_client):
     a, job, task, result, payload, sent = custom_mail(automatic, auth_client, imported=True)
     payload['body'] = 'Una versión nueva que no debe reemplazar el original en silencio.'
     duplicate = auth_client.post(f"/api/jobs/{job['id']}/send-email", json=payload).get_json()
-    assert duplicate['mail_id'] == result['mail_id'] and 'Revisa el correo' in duplicate['mail_warning']
+    assert duplicate['mail_id'] == result['mail_id'] and 'BLOQUEADO' in duplicate['mail_warning']
+    assert duplicate['delivery_status'] == 'blocked'
     assert not a._send_due_workflow_emails(now=datetime(2026, 10, 20)) and sent == []
     html = auth_client.get('/jobs/'+job['id']).get_data(as_text=True)
-    assert html.count('Revisar contenido en Correos') >= 2
+    assert 'El envío necesita revisión en Correos.' in html
     partial = a.app.jinja_env.get_template('_job_manual_workflow_tasks.html').render(
         job=a.store.get('jobs', job['id']), workflow_auto_mail=True)
     assert 'Envío automático programado' not in partial and 'data-workflow-watch="1"' not in partial
 
 
-def test_manual_composer_for_a_workflow_step_keeps_schedule_and_custom_body(automatic, auth_client):
+def test_manual_composer_for_a_workflow_step_sends_now_with_custom_body(automatic, auth_client):
     a, setup, sent = automatic
     job, instance = setup('tenant-norkevin', 'job')
     login_as_tenant(auth_client, 'tenant-norkevin')
     response = auth_client.post(f"/api/jobs/{job['id']}/send-email", json=dict(
         step_id='auto_step', subject='Especial', body='Texto personalizado del paso.'))
-    assert response.status_code == 200 and response.get_json()['delivery_status'] == 'pending' and not sent
+    assert response.status_code == 200 and response.get_json()['delivery_status'] == 'sent' and len(sent) == 1
     due = instance.trigger_at + timedelta(hours=3)
     assert not a._send_due_workflow_emails(now=due-timedelta(minutes=1))
-    assert len(a._send_due_workflow_emails(now=due)) == 1
+    assert not a._send_due_workflow_emails(now=due) and len(sent) == 1
     assert sent[0][0][2] == 'Texto personalizado del paso.'
 
 

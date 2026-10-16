@@ -100,18 +100,18 @@ def test_matching_existing_pending_can_be_dispatched_after_authorization(package
     assert len(packages['calls']) == 1
 
 
-def test_changed_existing_pending_preserves_original_and_requires_manual_review(packages):
+def test_changed_existing_pending_preserves_original_and_blocks_stale_content(packages):
     packages['enabled'] = False
     original = packages['queue']()
     packages['enabled'] = True
     changed = packages['queue'](body='Contenido distinto')
     assert changed['id'] == original['id'] and changed['body'] == original['body']
-    assert changed['status'] == 'pending' and changed['package_auto_requires_review']
+    assert changed['status'] == 'blocked' and changed['package_auto_requires_review']
     assert not packages['calls']
-    # Historical warnings created before this feature also require manual review.
+    # Historical warnings also keep stale content blocked.
     changed.pop('package_auto_requires_review')
     packages['crm'].store.upsert('pending_emails', changed)
-    assert packages['queue']()['status'] == 'pending' and not packages['calls']
+    assert packages['queue']()['status'] == 'blocked' and not packages['calls']
 
 
 def test_cancelled_packages_are_not_recreated_or_sent_automatically(packages):
