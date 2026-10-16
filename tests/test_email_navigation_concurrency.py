@@ -69,7 +69,7 @@ def test_navigation_and_claim_remain_available_during_provider_wait(automatic, m
     token = a._workflow_tenant.set(tenant)
     try:
         mail = tracker.queue_email(lead['email'], 'Hola', 'Mensaje de prueba',
-                                   tenant_id=tenant, lead_id=lead['id'], client_id=lead['client_id'])
+                                   tenant_id=tenant, lead_id=lead['id'], client_id=lead['client_id'], defer_delivery=True)
         if mode == 'workflow':
             mail = a.store.get('pending_emails', a._prepare_due_workflow_emails(tenant_id=tenant, now=due)[0]['mail_id'])
         if mode == 'retry':

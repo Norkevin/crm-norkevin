@@ -545,28 +545,15 @@ def _job_all_recipient_emails(job, primary_client=None, lead=None):
 
 
 def _mail_delivery_warning(entry):
-    """Kevin recibia toasts de 'enviado' cuando en realidad Gmail estaba
-    desconectado y el correo solo se guardaba en data/mail_outbox.json
-    (local_outbox), sin llegar nunca al cliente. send_email() cae ahi en
-    silencio -- este helper convierte ese caso en un aviso explicito que el
-    frontend puede mostrar en vez de un exito falso.
-
-    STAGE 2 (agosto 2026): ahora tambien recibe registros de pending_emails
-    (lo que devuelve MailTracker.queue_email()), no solo de mail_log -- los
-    14 puntos de envio de produccion pasaron de log_email() (entrega
-    inmediata) a queue_email() (espera aprobacion humana en /emails), asi
-    que el caso mas comun en la practica ya no es 'se entrego' sino 'quedo
-    en la cola'. Sin este aviso, la pantalla seguiria diciendo 'enviado'
-    para algo que en realidad nadie reviso todavia."""
+    """Expose scheduled delivery, blocked/failed attempts, and local-only delivery."""
     if not entry:
         return None
     estado = entry.get('status')
     if estado == 'pending':
         if _workflow_mail_needs_review(entry):
             return 'El contenido cambió después de programarlo. Revisa el correo en Correos antes de enviarlo.'
-        if _workflow_mail_auto_enabled(entry.get('tenant_id')) and (
-                _workflow_mail_is_bound(entry) or str(entry.get('source') or '').startswith(('workflow:', 'auto:job-template'))):
-            return 'El correo está en la cola del workflow y se enviará automáticamente cuando corresponda.'
+        if _workflow_mail_auto_enabled(entry.get('tenant_id')):
+            return 'El correo está en la cola de envío y se enviará automáticamente cuando corresponda.'
         return ('El correo quedo en la cola de aprobacion (STAGE 2): no sale '
                 'hasta que alguien lo apruebe en /emails.')
     if estado == 'blocked':
@@ -1396,6 +1383,7 @@ def _complete_lead_workflow_step_locked(lead, step_id, result_message=None, *, s
             tenant_id=lead.get('tenant_id'),
             idempotency_key=f"leadstep:{lead.get('id')}:{step_id}",
             send_now=send_now and _workflow_mail_auto_enabled(lead.get('tenant_id')),
+            defer_delivery=not send_now and _workflow_mail_auto_enabled(lead.get('tenant_id')),
         )
         lead['mail_status'] = _lead_mail_status_chip(mail_entry)
 
@@ -8401,11 +8389,11 @@ def api_job_notes(job_id):
 
 
 def _send_job_template_email(job, *, template_id=None, subject=None, body=None, attachments=None,
-                              step_id=None, task=None, auto_fire=False, idempotency_key=None):
+                              step_id=None, task=None, auto_fire=False, idempotency_key=None, send_now=False):
     """Render once and retain a snapshot of the requested message.
 
-    Free messages use the authorized send-button policy. Workflow steps and
-    custom tasks keep a stable key and their live schedule in the serial queue.
+    Send buttons deliver now. Scheduled preparation and custom tasks defer to
+    the serial queue; all paths retain a stable key to prevent duplicate mail.
     """
     from src.mail_tracker import get_tracker
 
@@ -8438,6 +8426,7 @@ def _send_job_template_email(job, *, template_id=None, subject=None, body=None, 
         tenant_id=job.get('tenant_id'),
         source='workflow:custom-task' if task else 'auto:job-template' if auto_fire else 'workflow:job-template' if step_id else 'manual:job-template',
         idempotency_key=idempotency_key,
+        defer_delivery=bool(task) or (auto_fire and not send_now),
     )
     if task:
         entry['workflow_task_id'] = task['id']
@@ -8788,9 +8777,8 @@ def api_admin_import_astral_leads():
 
 
 # ============================================================
-# EMAILS PENDIENTES DE APROBACION
-# Despues del incidente ningun correo sale solo. Estas rutas son la unica
-# forma de que un correo generado por el CRM llegue a alguien.
+# EMAIL DELIVERY HISTORY
+# Both brands deliver without approval; scheduled mail waits only for its due time.
 # ============================================================
 
 def _pending_email_view(p, *, cache=None):
@@ -8850,7 +8838,7 @@ def _actor_actual():
 
 @app.route('/emails')
 def pending_emails_page():
-    """Bandeja de correos por aprobar, enviados y bloqueados."""
+    """Bandeja de correos programados, enviados, fallidos y bloqueados."""
     # Preparation and delivery belong to the background queue, never a page request.
     tenant_id = get_current_tenant_id()
     pendientes = sorted(store.list('pending_emails'),
@@ -9894,7 +9882,7 @@ def api_questionnaire_submit(questionnaire_id):
 
 def _create_job_questionnaire(job, *, subject=None, body=None,
                                status=None, template_id=None, send_email=True, host_url=None,
-                               reuse_draft=True, questionnaire_id=None, auto_fire=False):
+                               reuse_draft=True, questionnaire_id=None, auto_fire=False, send_now=False):
     """Crea (o reutiliza) el cuestionario de un job y opcionalmente lo manda.
     Extraido de la ruta para que tanto el modal manual (api_job_create_questionnaire)
     como el disparador automatico por fecha (_auto_fire_due_job_steps) compartan
@@ -9998,6 +9986,7 @@ def _create_job_questionnaire(job, *, subject=None, body=None,
                 source='auto:job-questionnaire' if auto_fire else 'manual:job-questionnaire',
                 idempotency_key=idempotency_key,
                 attachments=[questionnaire['name']],
+                defer_delivery=auto_fire and not send_now,
             )
             _apply_document_delivery(questionnaire, entry)
             if questionnaire.get('status') != 'Respondido':
@@ -10184,7 +10173,7 @@ def api_job_history(job_id):
                 continue
             for field, label in timestamps:
                 add(record.get(field), collection + '.' + field, label)
-    labels = {'pending': 'Pendiente de aprobación', 'sending': 'Enviando', 'sent': 'Enviado',
+    labels = {'pending': 'Pendiente de envío', 'sending': 'Enviando', 'sent': 'Enviado',
               'failed': 'Falló el envío', 'blocked': 'Bloqueado', 'discarded': 'Descartado'}
     for mail in store.list('pending_emails'):
         if mail.get('job_id') != job_id and not (job.get('lead_id') and mail.get('lead_id') == job['lead_id']):
@@ -10317,7 +10306,7 @@ def api_job_imported_workflow_complete(job_id, step_id):
                 if (mail and mail.get('job_id') == job['id'] and mail.get('tenant_id') == job.get('tenant_id')
                         and mail.get('status') in ('sent','opened','clicked')):
                     return jsonify(ok=True, mail_id=mail['id'], delivery_status=mail['status'], message='Este correo ya fue enviado. No se creó otro envío.')
-                result = _prepare_job_workflow_email(job, config)
+                result = _prepare_job_workflow_email(job, config, send_now=True)
                 if result.get('error'):return jsonify(ok=False, **result), 400
                 if not result.get('mail_id'):return jsonify(ok=False, error='No se preparó el correo. Revisa el email del cliente'), 400
                 workflow = _complete_job_workflow_step(job, step_id, mail_id=result['mail_id'])
@@ -11171,9 +11160,8 @@ def api_pago_send(pago_id):
         'email': to_email,
         'invoice_url': invoice_url,
         'mail_warning': _mail_delivery_warning(mail),
-        'message': (f'Factura puesta en cola de aprobacion para {to_email} (revisa /emails)'
-                    if mail.get('status') == 'pending'
-                    else f'Factura NO se pudo poner en cola: {mail.get("blocked_reason") or "motivo no especificado"}'),
+        'message': (f'Factura enviada a {to_email}.' if mail.get('status') == 'sent'
+                    else _mail_delivery_warning(mail) or 'No se confirmó el envío de la factura.'),
     })
 
 
@@ -11350,9 +11338,8 @@ def api_payment_send_reminder(pago_id):
         'mail_id': mail.get('id'),
         'delivery_status': mail.get('status'),
         'mail_warning': _mail_delivery_warning(mail),
-        'message': (f'Recordatorio puesto en cola de aprobacion para {to_email} (revisa /emails)'
-                    if mail.get('status') == 'pending'
-                    else f'Recordatorio NO se pudo poner en cola: {mail.get("blocked_reason") or "motivo no especificado"}'),
+        'message': (f'Recordatorio enviado a {to_email}.' if mail.get('status') == 'sent'
+                    else _mail_delivery_warning(mail) or 'No se confirmó el envío del recordatorio.'),
     })
 
 
@@ -14244,9 +14231,7 @@ def api_quote_send(quote_id):
     subject = _render_message_template(subject, client=client, lead=lead, job=job)
     body = _render_message_template(body, client=client, lead=lead, job=job)
     body = _inject_link(body, quote_url, ['[[QUOTE_LINK]]'], 'Ver mi cotización')
-    # STAGE 2 (agosto 2026): ya no se entrega de inmediato -- se pone en la
-    # cola de aprobacion (mail_tracker.queue_email) y espera a que alguien
-    # la revise y apruebe en /emails. Preparada y Enviada son estados distintos.
+    # Keep the rendered snapshot and confirm delivery through the shared policy.
     mail = get_tracker().queue_email(
         to_email=to_email,
         subject=subject,
@@ -14274,9 +14259,8 @@ def api_quote_send(quote_id):
         'mail_warning': _mail_delivery_warning(mail),
         'email': to_email,
         'quote_url': quote_url,
-        'message': (f'Cotizacion puesta en cola de aprobacion para {to_email} (revisa /emails)'
-                    if mail.get('status') == 'pending'
-                    else f'Cotizacion NO se pudo poner en cola: {mail.get("blocked_reason") or "motivo no especificado"}')
+        'message': (f'Cotización enviada a {to_email}.' if mail.get('status') == 'sent'
+                    else _mail_delivery_warning(mail) or 'No se confirmó el envío de la cotización.')
     })
 
 
@@ -15024,9 +15008,8 @@ def api_contract_send(contract_id):
         'mail_warning': _mail_delivery_warning(mail),
         'email': to_email,
         'contract_url': contract_url,
-        'message': (f'Contrato puesto en cola de aprobacion para {to_email} (revisa /emails)'
-                    if mail.get('status') == 'pending'
-                    else f'Contrato NO se pudo poner en cola: {mail.get("blocked_reason") or "motivo no especificado"}'),
+        'message': (f'Contrato enviado a {to_email}.' if mail.get('status') == 'sent'
+                    else _mail_delivery_warning(mail) or 'No se confirmó el envío del contrato.'),
     })
 
 
@@ -15263,7 +15246,7 @@ def api_job_production_step(job_id):
     if not step:
         return jsonify({'ok': False, 'error': 'Step desconocido'}), 400
     if step.action_type.value.startswith('send_'):
-        result = _prepare_job_workflow_email(job, step.to_dict())
+        result = _prepare_job_workflow_email(job, step.to_dict(), send_now=True)
         if result.get('error'):
             return jsonify({'ok': False, **result}), 400
         workflow = _complete_job_workflow_step(job, step_id, mail_id=result.get('mail_id'))
@@ -15279,7 +15262,7 @@ def _auto_fire_due_job_steps():
             for item in _prepare_due_workflow_emails(subject_type='job')]
 
 
-def _prepare_job_workflow_email(job, step):
+def _prepare_job_workflow_email(job, step, *, send_now=False):
     """One dispatcher for the client workflow and the scheduled queue."""
     template = _get_email_template(step.get('email_template_id'))
     if not template or not (template.get('cuerpo') or '').strip():
@@ -15289,7 +15272,7 @@ def _prepare_job_workflow_email(job, step):
     if action == 'send_questionnaire':
         return _create_job_questionnaire(
             job, template_id=template['id'], send_email=True,
-            reuse_draft=True, auto_fire=True, host_url=base,
+            reuse_draft=True, auto_fire=True, host_url=base, send_now=send_now,
         )
     body = template['cuerpo']
     contract = None
@@ -15307,7 +15290,7 @@ def _prepare_job_workflow_email(job, step):
         return {'error': 'Esta acción requiere ejecución manual'}
     result = _send_job_template_email(
         job, template_id=template['id'], subject=template.get('asunto'), body=body,
-        step_id=step['id'], auto_fire=True,
+        step_id=step['id'], auto_fire=True, send_now=send_now,
         idempotency_key=f"contract:{contract['id']}:workflow:{step['id']}" if contract else None,
     )
     if contract and result.get('mail_id'):
@@ -15344,9 +15327,9 @@ def _workflow_mail_needs_review(mail):
                 'el contenido pedido para este correo cambio' in (mail.get('aviso_identidad') or ''))
 
 
+# Applies to every source, including future mail types. Only explicit scheduling defers delivery.
 _mail_tracker_module.requested_auto_delivery = lambda mail: (
-    _workflow_mail_auto_enabled(mail.get('tenant_id')) and
-    mail.get('source') in ('manual:lead-send-email', 'manual:job-template', 'manual:lead-meeting'))
+    _workflow_mail_auto_enabled(mail.get('tenant_id')))
 
 
 def _workflow_step_is_due(step, now=None):

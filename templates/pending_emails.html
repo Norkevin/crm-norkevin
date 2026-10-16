@@ -82,7 +82,7 @@
     <div>
       <h1 class="sn-page-title">Correos</h1>
       <div class="sn-breadcrumbs">
-        {% if auto_workflow %}Los correos del workflow se envían automáticamente en su fecha, por orden de llegada a la cola. Los envíos fallidos o bloqueados muestran aquí su motivo.{% else %}Los paquetes de Norkevin se envían automáticamente{% if not auto_packages %} cuando activas esa opción{% endif %}. Si el destino no tiene una tarifa aprobada, se envía el correo normal sin viáticos. Los demás correos conservan su aprobación habitual.{% endif %}
+        {% if auto_workflow %}Todos los correos de esta marca se envían sin aprobación. Los programados se envían en su fecha. Los envíos fallidos o bloqueados muestran aquí su motivo.{% else %}Los paquetes de Norkevin se envían automáticamente{% if not auto_packages %} cuando activas esa opción{% endif %}. Si el destino no tiene una tarifa aprobada, se envía el correo normal sin viáticos. Los demás correos conservan su aprobación habitual.{% endif %}
       </div>
     </div>
   </div>
