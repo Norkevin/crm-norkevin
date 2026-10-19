@@ -14,7 +14,17 @@ Controles de 40 px en escritorio y al menos 44 px en móvil. Radios de 8–10 px
 
 Listas con filtros en una banda, nombres legibles y estados con semántica. Detalles con una acción principal, acciones secundarias visibles y evento separado. Dashboard y pagos mantienen cálculos, períodos y significados; los colores de alerta no representan series financieras neutrales. Teams mantiene visibles costos incompletos y márgenes parciales.
 
+La identidad del espacio de trabajo se apoya en la marca Flow de mayor presencia, la navegación oscura con selección clara y la tipografía Manrope con pesos definidos. Las listas agrupan filtros en una superficie secundaria; los nombres y las fechas destacan sobre la información auxiliar. El dashboard conserva ventas y gráficas primero en escritorio y el orden operativo existente en móvil. La métrica seleccionada usa el acento azul, el resumen financiero existente comparte el fondo de la navegación y los widgets secundarios pierden cajas redundantes. No se añaden datos ni funciones para decorar la interfaz.
+
 Portal con saludo sans de 32 px, evento compacto, recorrido legible, siguiente acción real, documentos por pestañas y resumen de pagos. Login con una superficie dividida e integrada, marca y Google como único acceso. Calendario con controles agrupados y un botón de fecha accesible por día.
+
+## Fichas y herramientas internas
+
+Leads y trabajos comparten un encabezado de evento compacto, una columna de seguimiento y una hoja blanca para documentos y pagos. Las pestañas usan subrayado; los apartados internos usan separación sin volver a encerrar cada contenido. Omitir un paso es una acción secundaria. Los formularios y sus etiquetas siguen la misma escala y el mismo idioma.
+
+El equipo de cada boda es una lista horizontal: identidad y cobertura a la izquierda, honorario, pagado y pendiente a la derecha. Las alertas de conflicto y respuestas de Calendar permanecen visibles. Invitaciones, pagos, gastos y edición se abren dentro de «Gestionar cobertura». Horario general, viajes, incorporación de miembros y conexión de Calendar usan desplegables nativos. Los errores de sincronización abren su bloque automáticamente. No volver a expandir todas las gestiones por defecto: en la revisión de 1440 px cada ficha pasó de 933 a 218 px, con tres trabajadores y conflictos entre marcas.
+
+Las facturas internas comparten la franja del evento y una hoja documental sin degradados; sus documentos públicos conservan el diseño de cada marca. Clientes utiliza datos de contacto y registros por pestañas; Configuración agrupa enlaces por propósito; el editor de workflow comparte la hoja de trabajo y conserva controles de reordenación accesibles. El dashboard conserva su composición aprobada. Impeccable dirige esta pasada; Taste aporta la composición de aplicación «framed-sheet», conservando la marca, y UI/UX Pro Max apoya densidad y adaptación. Los bordes de tablas, campos y divisiones funcionales prevalecen sobre prohibiciones genéricas de páginas promocionales.
 
 ## Adaptación y seguridad
 

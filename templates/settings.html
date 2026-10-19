@@ -6,8 +6,7 @@
 {% block topbar_title %}Settings{% endblock %}
 
 {% block content %}
-{% include "_calendar_connection.html" %}
-<section class="sn-page">
+<section class="sn-page settings-page">
 <style>
 .settings-tile {
   background: var(--sn-white);
@@ -66,10 +65,12 @@
   </div>
 </div>
 
+{% include "_calendar_connection.html" %}
+
 <!-- ============================================================
      APARIENCIA (modo claro/oscuro)
      ============================================================ -->
-<div class="mb-8">
+<div class="mb-8 settings-group">
   <h3 class="settings-section-title">Apariencia</h3>
   <div class="sn-card white settings-appearance" style="padding:18px;">
     <p class="sn-muted text-sm mb-4">
@@ -92,7 +93,7 @@
 <!-- ============================================================
      FUNDAMENTALS
      ============================================================ -->
-<div class="mb-8">
+<div class="mb-8 settings-group">
   <h3 class="settings-section-title">Esenciales</h3>
   <div class="settings-grid">
     <button type="button" class="settings-tile clickable" style="text-align:left;" onclick="openEditCompanyModal()">
@@ -175,7 +176,7 @@
 <!-- ============================================================
      CLIENT EXPERIENCE
      ============================================================ -->
-<div class="mb-8">
+<div class="mb-8 settings-group">
   <h3 class="settings-section-title">Experiencia del cliente</h3>
   <div class="settings-grid">
     <a href="{{ captacion_url }}" target="_blank" rel="noopener" class="settings-tile clickable">
@@ -199,7 +200,7 @@
 <!-- ============================================================
      TEMPLATES
      ============================================================ -->
-<div class="mb-8">
+<div class="mb-8 settings-group">
   <h3 class="settings-section-title">Plantillas</h3>
   <div class="settings-grid">
     <a href="/settings/email-templates" class="settings-tile clickable">
@@ -233,7 +234,7 @@
 <!-- ============================================================
      STORAGE (Stats locales)
      ============================================================ -->
-<div class="mb-8">
+<div class="mb-8 settings-group">
   <h3 class="settings-section-title">Almacenamiento Local</h3>
   <div class="sn-card white" style="padding:18px;">
     <p class="sn-muted text-sm mb-4">Datos guardados en archivos JSON dentro de <code>data/</code>.</p>

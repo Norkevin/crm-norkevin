@@ -121,3 +121,54 @@ body.ft-portal-body{margin:0;background:var(--flow-canvas);color:var(--sn-ink);f
 .ft-bulk-invites { margin-block: 12px; }
 .ft .ft-bulk-invites summary { min-height: 44px; display: list-item; color: var(--sn-accent-text); font-size: 13px; }
 .ft-bulk-invites p { max-width: 75ch; }
+/* The roster is a compact working list. Management expands inside its person. */
+.ft.ft-owner .ft-event-setup{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start;margin:16px 0}
+.ft.ft-owner .ft-event-setup>.ft-setup{margin:0;padding:0 16px;min-width:0}
+.ft.ft-owner .ft-setup>summary{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px 26px 14px 0;position:relative;list-style:none;font-size:14px;font-weight:600;cursor:pointer}
+.ft.ft-owner .ft-setup>summary::-webkit-details-marker,.ft.ft-owner .ft-crew-manage>summary::-webkit-details-marker{display:none}
+.ft.ft-owner .ft-setup>summary::after,.ft.ft-owner .ft-crew-manage>summary::after{content:"";width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);position:absolute;right:3px;top:22px}
+.ft.ft-owner .ft-setup[open]>summary::after,.ft.ft-owner .ft-crew-manage[open]>summary::after{transform:rotate(225deg)}
+.ft.ft-owner .ft-setup>summary small{font-size:12px;font-weight:400;margin:0}
+.ft.ft-owner .ft-setup[open]{padding-bottom:16px}
+.ft.ft-owner .ft-setup[open]>summary{border-bottom:1px solid var(--sn-line);margin-bottom:12px}
+.ft.ft-owner .ft-crew-grid{grid-template-columns:minmax(0,1fr);gap:12px;align-items:start;margin:16px 0}
+.ft.ft-owner .ft-crew-record{padding:16px 20px;overflow:visible;border-radius:12px}
+.ft.ft-owner .ft-crew-overview{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:24px;align-items:center}
+.ft.ft-owner .ft-crew-identity{min-width:0}
+.ft.ft-owner .ft-crew-record .ft-person-heading h3{font-size:16px;font-weight:700;line-height:1.4;overflow-wrap:anywhere}
+.ft.ft-owner .ft-crew-record .ft-avatar{width:32px;height:32px;min-width:32px;font-size:13px;background:var(--sn-surface-2);color:var(--sn-ink)}
+.ft.ft-owner .ft-crew-record .ft-section-title{gap:12px;align-items:center;flex-wrap:wrap}
+.ft.ft-owner .ft-crew-record .ft-coverage-role{font-size:13px;margin:8px 0 0 42px;line-height:1.5}
+.ft.ft-owner .ft-crew-record .ft-coverage-role small{font-size:12px;margin-top:2px}
+.ft.ft-owner .ft-crew-record .ft-person-money{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0;padding:0;border:0;background:transparent;border-radius:0}
+.ft.ft-owner .ft-crew-record .ft-person-money>span{display:block;font-size:12px;text-align:right}
+.ft.ft-owner .ft-crew-record .ft-person-money strong{font-size:18px;font-weight:650;line-height:1.4;margin-top:4px;white-space:nowrap}
+.ft.ft-owner .ft-crew-record>.ft-warning{font-size:12px;line-height:1.5;padding:8px 12px;margin:12px 0 0;border:0;border-radius:6px}
+.ft.ft-owner .ft-crew-record .ft-crew-trip-status{margin:6px 0 0 42px;font-size:12px;color:var(--sn-muted)}
+.ft.ft-owner .ft-crew-record .ft-crew-manage{margin-top:12px;border-top:1px solid var(--sn-line)}
+.ft.ft-owner .ft-crew-manage>summary{position:relative;display:flex;align-items:center;gap:16px;list-style:none;min-height:44px;padding:10px 24px 0 0;font-size:13px;font-weight:600;cursor:pointer;color:var(--sn-accent-text)}
+.ft.ft-owner .ft-crew-manage>summary span{font-size:12px;font-weight:400;color:var(--sn-muted)}
+.ft.ft-owner .ft-crew-manage>summary::after{top:21px}
+.ft.ft-owner .ft-crew-manage-body{padding-top:16px}
+.ft.ft-owner .ft-crew-manage-body>.ft-muted{margin:0 0 12px;font-size:13px}
+.ft.ft-owner .ft-crew-record .ft-invitation{margin-top:12px;padding:16px;background:var(--sn-surface-2);border:0;border-radius:8px}
+.ft.ft-owner .ft-crew-record .ft-invitation .ft-warning{padding:10px 12px}
+.ft.ft-owner .ft-crew-record .ft-invitation-form>.sn-btn-primary{background:var(--sn-green);border-color:var(--sn-green)}
+.ft.ft-owner .ft-crew-record .ft-invitation-form>.sn-btn-primary:hover{background:var(--sn-green-dark)}
+.ft.ft-owner .ft-crew-record .ft-crew-controls{margin-top:16px}
+.ft.ft-owner .ft-crew-record .ft-crew-controls>details>summary{padding:12px 0;min-height:44px;font-size:13px}
+.ft.ft-owner .ft-crew-record .ft-crew-controls .ft-form{max-width:760px}
+.ft.ft-owner .ft-crew-record .ft-person-travel{margin-top:0}
+@media(max-width:1000px){
+  .ft.ft-owner .ft-crew-overview{grid-template-columns:1fr;gap:16px}
+  .ft.ft-owner .ft-crew-record .ft-person-money>span{text-align:left}
+}
+@media(max-width:600px){
+  .ft.ft-owner .ft-event-setup{grid-template-columns:1fr;gap:8px}
+  .ft.ft-owner .ft-crew-record{padding:14px 16px}
+  .ft.ft-owner .ft-crew-record .ft-coverage-role{margin-left:0}
+  .ft.ft-owner .ft-crew-record .ft-person-money{gap:10px}
+  .ft.ft-owner .ft-crew-record .ft-person-money strong{font-size:16px;white-space:normal;overflow-wrap:anywhere}
+  .ft.ft-owner .ft-crew-manage>summary{flex-wrap:wrap;gap:2px 12px;padding-top:12px;padding-bottom:4px}
+  .ft.ft-owner .ft-crew-manage>summary span{flex-basis:100%}
+}

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}{{ cliente['Nombre'] }} · Client{% endblock %}
+{% block title %}{{ cliente['Nombre'] }} · Cliente{% endblock %}
 {% block header %}{{ cliente['Nombre'] }}{% endblock %}
 {% block subtitle %}Dashboard &gt; Clients Overview &gt; {{ cliente['Nombre'] }}{% endblock %}
 {% block topbar_title %}Cliente{% endblock %}
 
 {% block content %}
-<section class="sn-page-wide">
+<section class="sn-page-wide client-detail">
   <div class="sn-page-head">
     <div>
       <h1 class="sn-page-title">{{ cliente['Nombre'] }}</h1>
@@ -26,8 +26,8 @@
   <div class="client-summary-bar">
     <div class="client-summary-avatar">{{ (cliente['Nombre'] or '?')[:1] }}</div>
     <div class="client-summary-copy">
-      <div class="client-summary-name">{{ cliente['Nombre'] }}</div>
-      <div class="client-summary-meta">{{ cliente.get('Estado') or 'Activo' }} &middot; {{ cliente.get('Email') or 'Sin correo' }}</div>
+      <div class="client-summary-name">{{ cliente.get('Email') or 'Sin correo' }}</div>
+      <div class="client-summary-meta">{{ cliente.get('Estado') or 'Activo' }} &middot; {{ cliente.get('Teléfono') or 'Sin teléfono' }}</div>
     </div>
     <div class="client-summary-due">
       <div class="sn-muted" style="font-size:11px;">Saldo pendiente</div>
@@ -39,7 +39,7 @@
      ficha de alguien que acaba de llamar. Sale de los mismos helpers que
      la lista de jobs, asi que no puede contradecirla. #}
   {% if resumen_cliente is defined and resumen_cliente.jobs_total %}
-  <div class="sn-card" style="margin-bottom:14px;">
+  <div class="sn-card client-context" style="margin-bottom:14px;">
     <div class="sn-card-body" style="display:flex;flex-wrap:wrap;gap:22px;align-items:baseline;">
       <div>
         <div class="sn-muted" style="font-size:11px;">Bodas</div>
@@ -57,7 +57,7 @@
       {% if resumen_cliente.proximo_pago %}
       <div>
         <div class="sn-muted" style="font-size:11px;">Proximo pago</div>
-        <div style="font-weight:600;">{{ resumen_cliente.proximo_pago }}</div>
+        <div style="font-weight:600;">{{ resumen_cliente.proximo_pago|fecha_es }}</div>
       </div>
       {% endif %}
       {% if resumen_cliente.vencidas %}
@@ -86,20 +86,20 @@
     <section class="sn-card">
       <div class="sn-card-head">
         <div class="sn-card-title">Datos de contacto</div>
-        <button class="sn-btn sn-btn-sm" type="button" onclick="openClientEdit()">Edit Client</button>
+        <button class="sn-btn sn-btn-sm" type="button" onclick="openClientEdit()">Editar contacto</button>
       </div>
       <div class="sn-card-body">
         <div class="sn-field-grid">
-          <div class="sn-field-label">Phone:</div><div class="sn-field-value">{{ cliente.get('Teléfono') or '—' }}</div>
-          <div class="sn-field-label">Email:</div><div class="sn-field-value sn-ellipsis">{{ cliente.get('Email') or '—' }}</div>
-          <div class="sn-field-label">Street Address:</div><div class="sn-field-value">{{ cliente.get('Dirección facturación') or '—' }}</div>
-          <div class="sn-field-label">Suburb/Town:</div><div class="sn-field-value">—</div>
-          <div class="sn-field-label">Postcode/Zip:</div><div class="sn-field-value">—</div>
-          <div class="sn-field-label">Country:</div><div class="sn-field-value">Guatemala</div>
+          <div class="sn-field-label">Teléfono</div><div class="sn-field-value">{{ cliente.get('Teléfono') or '—' }}</div>
+          <div class="sn-field-label">Correo</div><div class="sn-field-value sn-ellipsis">{{ cliente.get('Email') or '—' }}</div>
+          <div class="sn-field-label">Dirección de facturación</div><div class="sn-field-value">{{ cliente.get('Dirección facturación') or '—' }}</div>
+          <div class="sn-field-label">Municipio</div><div class="sn-field-value">—</div>
+          <div class="sn-field-label">Código postal</div><div class="sn-field-value">—</div>
+          <div class="sn-field-label">País</div><div class="sn-field-value">Guatemala</div>
         </div>
         <div class="sn-list-actions" style="margin-top:14px;">
           <button class="sn-btn sn-btn-sm" type="button" onclick="sendClientEmail()">Enviar correo</button>
-          <button class="sn-btn sn-btn-sm" type="button" onclick="archiveClient()">Archive</button>
+          <button class="sn-btn sn-btn-sm" type="button" onclick="archiveClient()">Archivar cliente</button>
         </div>
       </div>
     </section>
@@ -108,17 +108,17 @@
       <div class="sn-card-head">
         <div class="sn-card-title">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5h6M9 9h6M9 13h6M7 21h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z"/></svg>
-          Files &amp; Portal
+          Archivos y portal
         </div>
       </div>
       <div class="sn-card-body">
         <div class="sn-list">
           <div class="sn-list-item">
-            <div class="sn-list-title">Client portal</div>
+            <div class="sn-list-title">Portal del cliente</div>
             <div class="sn-list-meta">{{ cliente.get('Portal URL') or ('/portal/' ~ cliente.id) }}</div>
             <div class="sn-list-actions">
-              <button class="sn-btn sn-btn-sm" type="button" onclick="openPortal()">Open</button>
-              <button class="sn-btn sn-btn-sm" type="button" onclick="copyPortal()">Copy Link</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="openPortal()">Abrir portal</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick="copyPortal()">Copiar enlace</button>
             </div>
           </div>
         </div>
@@ -149,9 +149,9 @@
                 <span class="sn-chip {% if lead.status == 'Convertido' %}green{% elif lead.status == 'Perdido' %}red{% else %}cyan{% endif %}">{{ lead.status or 'Nuevo' }}</span>
               </div>
               <div class="sn-list-actions">
-                <a class="sn-btn sn-btn-sm" href="/leads/{{ lead.id }}">View</a>
+                <a class="sn-btn sn-btn-sm" href="/leads/{{ lead.id }}">Ver lead</a>
                 {% if lead.status != 'Convertido' %}
-                <button class="sn-btn sn-btn-sm" type="button" onclick="acceptLead('{{ lead.id }}')">Accept</button>
+                <button class="sn-btn sn-btn-sm" type="button" onclick="acceptLead('{{ lead.id }}')">Aceptar lead</button>
                 {% endif %}
               </div>
             </div>
@@ -459,11 +459,11 @@
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="cl-telefono">Telefono</label>
+          <label class="form-label" for="cl-telefono">Teléfono</label>
           <input class="form-input" id="cl-telefono" name="telefono" value="{{ cliente.get('Teléfono') or '' }}">
         </div>
         <div class="form-group">
-          <label class="form-label" for="cl-email">Email</label>
+          <label class="form-label" for="cl-email">Correo</label>
           <input class="form-input" id="cl-email" name="email" type="email" value="{{ cliente.get('Email') or '' }}">
         </div>
       </div>
@@ -498,11 +498,11 @@
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="lead-email">Email</label>
+          <label class="form-label" for="lead-email">Correo</label>
           <input class="form-input" id="lead-email" name="email" type="email" value="{{ cliente.get('Email') or '' }}">
         </div>
         <div class="form-group">
-          <label class="form-label" for="lead-phone">Telefono</label>
+          <label class="form-label" for="lead-phone">Teléfono</label>
           <input class="form-input" id="lead-phone" name="telefono" value="{{ cliente.get('Teléfono') or '' }}">
         </div>
       </div>
@@ -512,7 +512,7 @@
           <input class="form-input" id="lead-type" name="tipo_evento" value="Boda">
         </div>
         <div class="form-group">
-          <label class="form-label" for="lead-date">Boda Date</label>
+          <label class="form-label" for="lead-date">Fecha del evento</label>
           <input class="form-input" id="lead-date" name="fecha_tentativa" type="date">
         </div>
       </div>
@@ -540,7 +540,7 @@
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="job-date">Boda Date</label>
+          <label class="form-label" for="job-date">Fecha del evento</label>
           <input class="form-input" id="job-date" name="boda_date" type="date">
         </div>
         <div class="form-group">

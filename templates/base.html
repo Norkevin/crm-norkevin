@@ -3126,7 +3126,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
 </style>
 <!-- Load the shell before first paint; final links retain page override order. -->
 <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css', v='20261005-fluid') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='flow-design.css', v='20261005-modern') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='flow-design.css', v='20261019-workspace') }}">
 </head>
 <body data-page="{{ request.path }}">
 <script>
@@ -3144,7 +3144,7 @@ textarea.form-input { height: auto; min-height: 220px; padding: 11px 13px; line-
     <span class="sidebar-brand-mark">
       <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" width="18" height="18">
     </span>
-    <span class="sidebar-brand-name">Flow CRM</span>
+    <span class="sidebar-brand-name">Flow <small>CRM</small></span>
   </a>
   <div class="sidebar-nav">
     <a href="/dashboard" class="sidebar-item" data-nav="/dashboard">
@@ -4067,7 +4067,7 @@ document.addEventListener('keydown', function(e) {
 </script>
 
 <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css', v='20261005-fluid') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='flow-design.css', v='20261005-modern') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='flow-design.css', v='20261019-workspace') }}">
 <script src="{{ url_for('static', filename='date-range.js') }}?v=20261008-weekdays"></script>
 <script src="{{ url_for('static', filename='flow-web-push.js', v='20261011') }}" defer></script>
 <script src="{{ url_for('static', filename='mobile.js') }}" defer></script>
