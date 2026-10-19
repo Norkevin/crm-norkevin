@@ -1,9 +1,9 @@
 {% if travel is defined and travel %}
-<section class="lead-travel" aria-labelledby="lead-travel-title">
+<details class="lead-travel" aria-labelledby="lead-travel-title">
   <style>
   .lead-travel{margin:20px 0 24px;padding:20px;border:1px solid var(--sn-line);border-radius:12px;background:var(--sn-white)}.lead-travel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.lead-travel h2{margin:0;font-size:17px}.lead-travel p{line-height:1.6;margin:12px 0;color:var(--sn-muted);font-size:13px}.lead-travel dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:20px 0}.lead-travel dt{font-size:12px;color:var(--sn-muted);margin-bottom:5px}.lead-travel dd{margin:0;font-size:14px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.lead-travel-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.lead-travel [role="status"]:empty{display:none}@media(max-width:760px){.lead-travel dl{grid-template-columns:1fr 1fr}.lead-travel{padding:18px}.lead-travel .sn-btn{min-height:44px}}@media(max-width:420px){.lead-travel dl{grid-template-columns:1fr}}
   </style>
-  <div class="lead-travel-head"><h2 id="lead-travel-title">Ubicación y viáticos</h2><span class="sn-chip {{ 'green' if travel.confidence == 'verified' and not travel.requires_review else 'gray' }}">{{ {'verified':'Ubicación verificada','probable':'Ubicación probable','ambiguous':'Ubicación ambigua','unknown':'Por identificar','international':'Destino internacional'}.get(travel.confidence, 'Por revisar') }}</span></div>
+  <summary class="lead-travel-head"><h2 id="lead-travel-title">Ubicación y viáticos</h2><span class="sn-chip {{ 'green' if travel.confidence == 'verified' and not travel.requires_review else 'gray' }}">{{ {'verified':'Ubicación verificada','probable':'Ubicación probable','ambiguous':'Ubicación ambigua','unknown':'Por identificar','international':'Destino internacional'}.get(travel.confidence, 'Por revisar') }}</span></summary>
   <dl>
     <div><dt>Lugar indicado por el cliente</dt><dd>{{ travel.original_location or lead.locacion or 'Sin especificar' }}</dd></div>
     <div><dt>Lugar reconocido</dt><dd>{{ travel.venue_name or 'Sin coincidencia confirmada' }}</dd></div>
@@ -19,7 +19,7 @@
   <div class="lead-travel-actions"><a class="sn-btn sn-btn-sm" href="/settings/travel{{ '#travel-reviews' if travel.requires_review else '#travel-catalog' }}">{{ 'Revisar ubicación' if travel.requires_review else 'Ver catálogo' }}</a>{% if travel.requires_review %}<button type="button" class="sn-btn sn-btn-sm" onclick="researchLeadTravel(this)">Buscar coincidencias</button>{% endif %}</div>
   {% if travel.requires_review %}<p>La búsqueda geográfica utiliza datos de <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors (ODbL)</a>. Las coincidencias externas requieren verificación.</p>{% endif %}
   <p id="lead-travel-status" role="status" aria-live="polite"></p>
-</section>
+</details>
 <script>
 async function researchLeadTravel(button) {
   const status = document.getElementById('lead-travel-status'); button.disabled = true; status.textContent = 'Consultando el catálogo y las fuentes disponibles…';

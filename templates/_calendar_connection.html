@@ -1,6 +1,6 @@
 {% if config.FLOW_TEAMS_ENABLED or config.FLOW_TEAMS_LOCAL %}
-<section class="sn-card" style="padding:18px;margin-bottom:20px;" aria-label="Conexión con Google Calendar">
-  <h3>Google Calendar</h3>
+<details class="sn-card calendar-connection" aria-label="Conexión con Google Calendar" {% if crm_calendar_failed %}open{% endif %}>
+  <summary><strong>Google Calendar</strong><span>{{ crm_calendar_email or "Sin conectar" }}{% if crm_calendar_failed %} · {{ crm_calendar_failed }} errores de sincronización{% elif crm_calendar_pending %} · Sincronizando{% endif %}</span></summary>
   {% if crm_calendar_email %}
   <p>Cuenta conectada: <strong>{{ crm_calendar_email }}</strong>.</p>
   <p class="sn-muted">Todo tu calendario de Flow se sincroniza automáticamente con Google Calendar, incluidas las fechas, el lugar y las cancelaciones. Los cambios hechos en Google no modifican Flow.</p>
@@ -13,5 +13,5 @@
   <p>Conecta la cuenta de Google de esta marca una sola vez. Los trabajos, leads, eventos y bloqueos existentes y nuevos se mantendrán actualizados automáticamente en su calendario principal.</p>
   {% if not config.FLOW_TEAMS_LOCAL %}<a class="sn-btn sn-btn-primary" href="/teams/calendar/connect">Conectar Google Calendar</a>{% endif %}
   {% endif %}
-</section>
+</details>
 {% endif %}

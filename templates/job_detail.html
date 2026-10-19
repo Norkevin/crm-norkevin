@@ -4,7 +4,7 @@
 
 {% block content %}
 {% set source_quotes=(job.studio_ninja_service_documents or [])|selectattr('kind','equalto','quote')|list %}
-<link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css', v='20261008-event-weekday') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css', v='20261019-records') }}">
 <section class="sn-page-wide lead-detail job-detail">
   <nav class="lead-breadcrumb" aria-label="Ruta de navegación"><a href="/jobs">← Trabajos</a><span>/</span><span>Detalle del trabajo</span></nav>
   <header class="lead-hero">
@@ -95,7 +95,7 @@
             <div class="lead-step-content"><div class="workflow-step-name">{{ step.name }}</div><div class="workflow-timing" style="white-space:pre-line">{{ step.source_details }}</div>
               <div class="sn-muted">{{ 'Correo enviado' if step.delivery_status in ['sent','opened','clicked'] else ('En cola del workflow' if workflow_auto_mail else 'Pendiente de aprobación en Correos') if step.status == 'queued' else 'Envío por revisar en Correos' if step.status == 'failed' else 'Marcado como completado · sin envío registrado en Flow' if step.status == 'done' and step.action_type.startswith('send_') else 'Completado' if step.status == 'done' else 'Omitido' if step.status == 'skipped' else 'Correo por preparar' if step.action_type.startswith('send_') else 'Pendiente' }}</div>
               {% if step.status in ['queued','failed'] %}<a class="sn-btn sn-btn-sm" href="/emails">Revisar correo pendiente</a>{% elif step.action_type.startswith('send_') and step.status != 'skipped' and not step.delivery_status %}<button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick='completeImportedStep({{ step.id|tojson }})'>Preparar correo</button>{% endif %}
-              {% if step.status in ['pending', 'queued', 'failed'] %}<button class="sn-btn sn-btn-primary sn-btn-sm" type="button" onclick='skipJobStep({{ step.id|tojson }}, {{ step.name|tojson }})'>Omitir paso</button>{% endif %}
+              {% if step.status in ['pending', 'queued', 'failed'] %}<button class="sn-btn sn-btn-sm" type="button" onclick='skipJobStep({{ step.id|tojson }}, {{ step.name|tojson }})'>Omitir paso</button>{% endif %}
             </div>
             <button class="sn-menu-dots" type="button" onclick='openImportedStepActions(event, {{ step.id|tojson }}, {{ step.name|tojson }}, {{ step.status|tojson }})' aria-label="Opciones de {{ step.name }}"></button>
           </div>
@@ -160,7 +160,7 @@
             </div>
             <div style="min-width:120px;">
               <div class="sn-list-meta">Pagado</div>
-              <div class="sn-list-title" style="color:var(--sn-green,#2F7D73);">Q{{ '{:,.2f}'.format(pagos_resumen.pagado) }}</div>
+              <div class="sn-list-title" style="color:var(--sn-accent-text);">Q{{ '{:,.2f}'.format(pagos_resumen.pagado) }}</div>
             </div>
             <div style="min-width:120px;">
               <div class="sn-list-meta">Pendiente</div>
@@ -246,7 +246,7 @@
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 3h10v18H7zM9 7h6M9 11h6M9 15h4"/></svg>
             Facturas
           </div>
-          <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="openModal('invoice-modal')" title="Add invoice">
+          <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="openModal('invoice-modal')" title="Crear factura">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
           </button>
         </div>
@@ -442,7 +442,7 @@
             <div class="sn-list-row">
               <div>
                 <div class="sn-list-title">{{ f.name or f.id }}</div>
-                <div class="sn-list-meta">Uploaded on {{ f.created|fecha_legible or '-' }} · {{ f.size or '0.00 MB' }}</div>
+                <div class="sn-list-meta">Subido el {{ f.created|fecha_legible or '-' }} · {{ f.size or '0.00 MB' }}</div>
               </div>
               <span class="sn-chip gray">{{ f.status or 'Attached' }}</span>
             </div>
@@ -645,17 +645,17 @@
 
 <div class="modal-overlay" id="job-edit-modal">
   <div class="modal-content">
-    <h2 class="modal-title">Edit Job</h2>
+    <h2 class="modal-title">Editar trabajo</h2>
     <form onsubmit="saveJob(event)">
-      <div class="form-group"><label class="form-label">Job name</label><input class="form-input" name="nombre" value="{{ job.nombre }}"></div>
+      <div class="form-group"><label class="form-label">Nombre del trabajo</label><input class="form-input" name="nombre" value="{{ job.nombre }}"></div>
       <div class="grid-2">
-        <div class="form-group"><label class="form-label">Boda date</label><input class="form-input" name="boda_date" type="date" onchange="previewWeddingDate(this.value)" value="{{ job.boda_date or '' }}"></div><div id="date-change-preview" role="status" class="sn-muted" style="grid-column:1/-1;white-space:pre-line;">Al cambiar la fecha se actualizan tareas pendientes relativas a la boda. Las cuotas existentes conservan sus fechas e importes.</div>
+        <div class="form-group"><label class="form-label">Fecha del evento</label><input class="form-input" name="boda_date" type="date" onchange="previewWeddingDate(this.value)" value="{{ job.boda_date or '' }}"></div><div id="date-change-preview" role="status" class="sn-muted" style="grid-column:1/-1;white-space:pre-line;">Al cambiar la fecha se actualizan tareas pendientes relativas a la boda. Las cuotas existentes conservan sus fechas e importes.</div>
         <div class="form-group"><label class="form-label">Estado</label><select class="form-input" name="status"><option>{{ job.status }}</option><option>Cotizando</option><option>Confirmado</option><option>En produccion</option><option>Listo</option><option>Archivado</option></select></div>
       </div>
       {% if not lead %}<div class="form-group"><label class="form-label" for="job-lead-source">Fuente del trabajo</label><input class="form-input" id="job-lead-source" name="lead_source" value="{{ job.lead_source or '' }}" placeholder="Instagram, Wedding Planner, Recomendacion..."></div>{% endif %}
       <div class="form-group"><label class="form-label">Lugar</label><input class="form-input" name="location" value="{{ job.location or '' }}"></div>
       <div class="grid-2">
-        <div class="form-group"><label class="form-label">Package</label><input class="form-input" name="package" value="{{ job.package or '' }}"></div>
+        <div class="form-group"><label class="form-label">Paquete</label><input class="form-input" name="package" value="{{ job.package or '' }}"></div>
         <div class="form-group"><label class="form-label">Total</label><input class="form-input" name="price_total" type="number" step="0.01" value="{{ job.price_total or 0 }}"></div>
       </div>
       <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('job-edit-modal')">Cancelar</button><button class="sn-btn sn-btn-primary" type="submit">Guardar</button></div>
@@ -665,14 +665,14 @@
 
 <div class="modal-overlay" id="invoice-modal">
   <div class="modal-content">
-    <h2 class="modal-title">Add Invoice</h2>
+    <h2 class="modal-title">Crear factura</h2>
     <form onsubmit="createInvoice(event)">
-      <div class="form-group"><label class="form-label">Concept</label><input class="form-input" name="concepto" required value="Invoice - {{ job.nombre }}"></div>
+      <div class="form-group"><label class="form-label">Concepto</label><input class="form-input" name="concepto" required value="Invoice - {{ job.nombre }}"></div>
       <div class="grid-2">
         <div class="form-group"><label class="form-label">Monto</label><input class="form-input" name="monto" type="number" step="0.01" required></div>
-        <div class="form-group"><label class="form-label">Due date</label><input class="form-input" name="due_date" type="date"></div>
+        <div class="form-group"><label class="form-label">Vencimiento</label><input class="form-input" name="due_date" type="date"></div>
       </div>
-      <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('invoice-modal')">Cancelar</button><button class="sn-btn sn-btn-primary" type="submit">Create</button></div>
+      <div class="sn-actions" style="justify-content:flex-end;"><button class="sn-btn" type="button" onclick="closeModal('invoice-modal')">Cancelar</button><button class="sn-btn sn-btn-primary" type="submit">Crear factura</button></div>
     </form>
   </div>
 </div>
@@ -689,7 +689,7 @@
 
 <div class="modal-overlay" id="delete-payments-modal">
   <div class="modal-content" style="width:min(460px,100%);">
-    <button type="button" class="modal-close" onclick="closeModal('delete-payments-modal')" aria-label="Close">x</button>
+    <button type="button" class="modal-close" onclick="closeModal('delete-payments-modal')" aria-label="Cerrar">x</button>
     <h2 class="modal-title">Eliminar pagos</h2>
     <p class="sn-muted" style="font-size:13px;margin-top:-6px;margin-bottom:14px;">
       Esto borra TODAS las cuotas de este job -- pagadas y pendientes.
@@ -709,7 +709,7 @@
 
 <div class="modal-overlay" id="link-client-modal">
   <div class="modal-content" style="width:min(480px,100%);">
-    <button type="button" class="modal-close" onclick="closeModal('link-client-modal')" aria-label="Close">x</button>
+    <button type="button" class="modal-close" onclick="closeModal('link-client-modal')" aria-label="Cerrar">x</button>
     <h2 class="modal-title" id="link-client-title">Add contact</h2>
     <form onsubmit="submitLinkClient(event)">
       <input type="hidden" id="link-client-role">
@@ -735,11 +735,11 @@
         </div>
         <div class="grid-2">
           <div class="form-group">
-            <label class="form-label">Email</label>
+            <label class="form-label">Correo</label>
             <input class="form-input" id="link-client-email" type="email">
           </div>
           <div class="form-group">
-            <label class="form-label">Telefono</label>
+            <label class="form-label">Teléfono</label>
             <input class="form-input" id="link-client-phone">
           </div>
         </div>
@@ -754,7 +754,7 @@
 
 <div class="modal-overlay" id="email-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
-    <button type="button" class="modal-close" onclick="closeModal('email-modal')" aria-label="Close">x</button>
+    <button type="button" class="modal-close" onclick="closeModal('email-modal')" aria-label="Cerrar">x</button>
     <h2 class="modal-title">Enviar correo</h2>
     <form onsubmit="submitJobEmail(event)">
       <input type="hidden" id="email-step-id">
@@ -784,7 +784,7 @@
         <textarea class="form-input" id="email-body" rows="14" required></textarea>
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
-        <button class="sn-btn" type="button" onclick="closeModal('email-modal')">Back</button>
+        <button class="sn-btn" type="button" onclick="closeModal('email-modal')">Volver</button>
         <button class="sn-btn sn-btn-primary" type="submit">Enviar correo</button>
       </div>
     </form>
@@ -793,8 +793,8 @@
 
 <div class="modal-overlay" id="contract-send-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
-    <button type="button" class="modal-close" onclick="closeModal('contract-send-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title">Send Contract</h2>
+    <button type="button" class="modal-close" onclick="closeModal('contract-send-modal')" aria-label="Cerrar">x</button>
+    <h2 class="modal-title">Enviar contrato</h2>
     <form onsubmit="submitContractSend(event)">
       <input type="hidden" id="contract-send-id">
       <input type="hidden" id="contract-send-step-id">
@@ -822,8 +822,8 @@
         <textarea class="form-input" id="contract-send-body" rows="12" required></textarea>
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
-        <button class="sn-btn" type="button" onclick="closeModal('contract-send-modal')">Back</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Send Contract</button>
+        <button class="sn-btn" type="button" onclick="closeModal('contract-send-modal')">Volver</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Enviar contrato</button>
       </div>
     </form>
   </div>
@@ -831,8 +831,8 @@
 
 <div class="modal-overlay" id="questionnaire-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
-    <button type="button" class="modal-close" onclick="closeModal('questionnaire-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title">Send Questionnaire</h2>
+    <button type="button" class="modal-close" onclick="closeModal('questionnaire-modal')" aria-label="Cerrar">x</button>
+    <h2 class="modal-title">Enviar cuestionario</h2>
     <form onsubmit="submitQuestionnaire(event)">
       <input type="hidden" id="questionnaire-step-id">
       <input type="hidden" id="questionnaire-id">
@@ -855,7 +855,7 @@
         <div class="form-group">
           <label class="form-label">Cuestionario</label>
           <input class="form-input" id="questionnaire-name" value="{{ questionnaire_template_name }}" readonly>
-          <a class="sn-muted" href="/settings/questionnaires" target="_blank" rel="noopener">Editar preguntas en Settings</a>
+          <a class="sn-muted" href="/settings/questionnaires" target="_blank" rel="noopener">Editar preguntas en Configuración</a>
         </div>
         <div class="form-group">
           <label class="form-label">Asunto</label>
@@ -879,8 +879,8 @@ Si tienes alguna pregunta o necesitas asistencia en el proceso, por favor no dud
 Quedo a tu disposición para cualquier consulta adicional.</textarea>
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
-        <button class="sn-btn" type="button" onclick="closeModal('questionnaire-modal')">Back</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Send Questionnaire</button>
+        <button class="sn-btn" type="button" onclick="closeModal('questionnaire-modal')">Volver</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Enviar cuestionario</button>
       </div>
     </form>
   </div>
@@ -888,7 +888,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 
 <div class="modal-overlay" id="history-log-modal">
   <div class="modal-content" style="width:min(560px,100%);">
-    <button type="button" class="modal-close" onclick="closeModal('history-log-modal')" aria-label="Close">x</button>
+    <button type="button" class="modal-close" onclick="closeModal('history-log-modal')" aria-label="Cerrar">x</button>
     <h2 class="modal-title">Historial del trabajo</h2>
     <div class="sn-list" id="history-log-list" style="max-height:420px;overflow:auto;"></div>
   </div>
@@ -896,7 +896,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 
 <div class="modal-overlay" id="photographer-sign-modal">
   <div class="modal-content" style="width:min(460px,100%);">
-    <button type="button" class="modal-close" onclick="closeModal('photographer-sign-modal')" aria-label="Close">x</button>
+    <button type="button" class="modal-close" onclick="closeModal('photographer-sign-modal')" aria-label="Cerrar">x</button>
     <h2 class="modal-title">Firma del fotografo</h2>
     <p class="sn-muted" style="margin:-8px 0 14px;font-size:12.5px;">Puedes dibujar tu firma o escribir tu nombre.</p>
     <div style="display:flex;gap:8px;margin-bottom:12px;">
@@ -921,16 +921,16 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 
 <div class="modal-overlay" id="file-modal">
   <div class="modal-content">
-    <button type="button" class="modal-close" onclick="closeModal('file-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title">Add File</h2>
+    <button type="button" class="modal-close" onclick="closeModal('file-modal')" aria-label="Cerrar">x</button>
+    <h2 class="modal-title">Subir archivo</h2>
     <form onsubmit="submitFile(event)">
       <div class="form-group">
-        <label class="form-label">File (hasta 50MB)</label>
+        <label class="form-label">Archivo (hasta 50 MB)</label>
         <input class="form-input" id="file-input" type="file" required style="padding-top:6px;">
       </div>
       <div class="sn-actions" style="justify-content:flex-end;">
         <button class="sn-btn" type="button" onclick="closeModal('file-modal')">Cancelar</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Upload File</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Subir archivo</button>
       </div>
     </form>
   </div>
@@ -938,20 +938,20 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 
 <div class="modal-overlay" id="payment-modal">
   <div class="modal-content" style="width:min(420px,100%);">
-    <button type="button" class="modal-close" onclick="closeModal('payment-modal')" aria-label="Close">x</button>
+    <button type="button" class="modal-close" onclick="closeModal('payment-modal')" aria-label="Cerrar">x</button>
     <h2 class="modal-title">Registrar pago</h2>
     <form onsubmit="submitRecordPayment(event)">
       <input type="hidden" id="payment-id">
       <div class="form-group">
-        <label class="form-label">Amount*</label>
+        <label class="form-label">Monto*</label>
         <input class="form-input" id="payment-amount" type="number" step="0.01" required>
       </div>
       <div class="form-group">
-        <label class="form-label">Paid On*</label>
+        <label class="form-label">Fecha del pago*</label>
         <input class="form-input" id="payment-date" type="date" required>
       </div>
       <div class="sn-actions" style="justify-content:flex-start;">
-        <button class="sn-btn sn-btn-primary" type="submit">Save Payment</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Guardar pago</button>
         <button class="sn-btn" type="button" onclick="closeModal('payment-modal')">Cancelar</button>
       </div>
     </form>

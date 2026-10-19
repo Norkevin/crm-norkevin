@@ -7,7 +7,6 @@
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static',filename='calendar-navigation.css',v='20261013-views') }}">
 <section class="sn-page-wide">
-{% include "_calendar_connection.html" %}
   <div class="sn-page-head">
     <div>
       <h1 class="sn-page-title">Calendario</h1>
@@ -26,6 +25,7 @@
     </div>
   </div>
 
+  {% include "_calendar_connection.html" %}
   <div class="calendar-layout">
     {% include '_calendar_month.html' %}
 

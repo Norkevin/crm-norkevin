@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Invoice {{ invoice.invoice_id }} · {{ current_tenant.name }} CRM{% endblock %}
-{% block header %}Invoice {{ invoice.invoice_id }}{% endblock %}
-{% block subtitle %}Dashboard &gt; Jobs &gt; {{ job.nombre if job else 'Job' }} &gt; Payments &gt; Invoice {{ invoice.invoice_id }}{% endblock %}
-{% block topbar_title %}Payments{% endblock %}
+{% block title %}Factura {{ invoice.invoice_id }} · {{ current_tenant.name }} CRM{% endblock %}
+{% block header %}Factura {{ invoice.invoice_id }}{% endblock %}
+{% block subtitle %}Inicio &gt; Trabajos &gt; {{ job.nombre if job else 'Job' }} &gt; Pagos &gt; Factura {{ invoice.invoice_id }}{% endblock %}
+{% block topbar_title %}Pagos{% endblock %}
 
 {% block content %}
 <style>
@@ -37,7 +37,7 @@
 .invoice-doc-hero {
   position: relative;
   padding: 28px 28px 22px;
-  background: radial-gradient(120% 160% at 0% 0%, #405F76 0%, #203443 46%, #14232F 100%);
+  background: var(--sn-surface-2);
   color: #fff;
   overflow: hidden;
 }
@@ -117,14 +117,14 @@
   .invoice-context-grid { grid-template-columns: 1fr; }
 }
 </style>
-<section class="sn-page-wide">
+<section class="sn-page-wide invoice-detail">
   <div class="sn-page-head">
     <div>
-      <h1 class="sn-page-title">Invoice {{ invoice.invoice_id }}</h1>
+      <h1 class="sn-page-title">Factura {{ invoice.invoice_id }}</h1>
       <div class="sn-breadcrumbs">
-        Dashboard &gt;
-        {% if job %}<a href="/jobs/{{ job.id }}">Jobs</a> &gt; {{ job.nombre }} &gt;{% endif %}
-        Payments &gt; Invoice {{ invoice.invoice_id }}
+        Inicio &gt;
+        {% if job %}<a href="/jobs/{{ job.id }}">Trabajos</a> &gt; {{ job.nombre }} &gt;{% endif %}
+        Pagos &gt; Factura {{ invoice.invoice_id }}
       </div>
     </div>
     <div class="sn-actions">
@@ -135,7 +135,6 @@
     </div>
   </div>
 
-  <div style="height:1px;background:var(--sn-line);margin:24px 0 32px;"></div>
 
   <div class="invoice-context-grid">
     <div class="invoice-context-card">
@@ -151,14 +150,14 @@
       <div class="invoice-context-value">{{ invoice_context.services }}</div>
     </div>
     <div class="invoice-context-card">
-      <div class="invoice-context-label">Ubicacion</div>
+      <div class="invoice-context-label">Ubicación</div>
       <div class="invoice-context-value">{{ invoice_context.location }}</div>
     </div>
   </div>
 
   <div class="sn-page-head" style="align-items:flex-end;">
     <div>
-      <h2 class="sn-page-title" style="font-size:22px;">Payment Schedule</h2>
+      <h2 class="sn-page-title" style="font-size:22px;">Plan de pagos</h2>
       <div class="sn-muted">
         {% if quote %}Generada desde la cotizacion aceptada {{ quote.id }}{% else %}Factura manual{% endif %}
       </div>
@@ -166,7 +165,7 @@
     <div class="sn-actions">
       <button class="sn-btn" type="button" onclick='sendInvoice({{ invoice.id|tojson }})'>
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>
-        Send Invoice
+        Enviar factura
       </button>
       {# Sistema de documentos (29-ago-2026): la factura ahora tiene una
          vista web real, hermana de la cotizacion. Esta es la MISMA pagina
@@ -180,7 +179,7 @@
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 2h9l5 5v15H6zM14 2v6h6M9 15h6"/></svg>
         PDF
       </a>
-      {% if client %}<a class="sn-btn" href="/portal/{{ client.id }}" target="_blank">Open in Client Portal</a>{% endif %}
+      {% if client %}<a class="sn-btn" href="/portal/{{ client.id }}" target="_blank">Abrir portal del cliente</a>{% endif %}
     </div>
   </div>
 
@@ -189,8 +188,8 @@
       <thead>
         <tr>
           <th style="width:130px;">Estado</th>
-          <th style="width:200px;">Due</th>
-          <th>Last Action</th>
+          <th style="width:200px;">Vencimiento</th>
+          <th>Último movimiento</th>
           <th style="width:150px;text-align:right;">Monto</th>
           <th style="width:180px;text-align:right;"></th>
         </tr>
@@ -200,16 +199,16 @@
         <tr class="{{ 'is-selected' if row.is_selected else '' }}">
           <td data-label="Estado">
             {% if row.status == 'Pagado' %}
-              <span class="sn-chip green">Paid</span>
+              <span class="sn-chip green">Pagado</span>
             {% elif row.status == 'Late' %}
-              <span class="sn-chip red">Late</span>
+              <span class="sn-chip red">Vencido</span>
             {% elif row.original_amount and row.amount is not none and row.amount|float < row.original_amount|float %}
-              <span class="sn-chip blue">Partial</span>
+              <span class="sn-chip blue">Parcial</span>
             {% else %}
-              <span class="sn-chip gray">Unpaid</span>
+              <span class="sn-chip gray">Pendiente</span>
             {% endif %}
           </td>
-          <td data-label="Due">
+          <td data-label="Vencimiento">
             <div style="display:flex;align-items:center;gap:6px;">
               <span>{{ row.due_date_display_es or row.due_date or '-' }}</span>
               {% if row.status != 'Pagado' %}
@@ -218,14 +217,14 @@
             </div>
             {% if row.relative_due %}<div class="sn-list-meta">{{ row.relative_due }}</div>{% endif %}
           </td>
-          <td data-label="Last Action">{{ row.last_action_display or '-' }}</td>
+          <td data-label="Último movimiento">{{ row.last_action_display or '-' }}</td>
           <td data-label="Monto" style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(row.amount or 0) }}</span></td>
           <td class="stack-actions" style="text-align:right;">
             <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;">
             {% if row.status == 'Pagado' %}
-              <button class="sn-btn sn-btn-sm" type="button" onclick='sendInvoice({{ row.id|tojson }})'>Send Receipt</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick='sendInvoice({{ row.id|tojson }})'>Enviar recibo</button>
             {% else %}
-              <button class="sn-btn sn-btn-sm" type="button" onclick='openRecordPayment({{ row.id|tojson }}, {{ (row.amount or 0)|tojson }})'>Record Payment</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick='openRecordPayment({{ row.id|tojson }}, {{ (row.amount or 0)|tojson }})'>Registrar pago</button>
               {% if row.payment_link_url %}
               <button class="sn-btn sn-btn-sm" type="button" onclick='navigator.clipboard && navigator.clipboard.writeText({{ row.payment_link_url|tojson }}); flashToast("Link copiado", "success")'>
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
@@ -248,7 +247,7 @@
 
   <div class="invoice-total-panel" style="margin-top:28px;">
     <div class="invoice-total-line"><span>Subtotal</span><span>Q{{ '{:,.2f}'.format(total) }}</span></div>
-    <div class="invoice-total-line"><span>Paid</span><span>Q{{ '{:,.2f}'.format(paid) }}</span></div>
+    <div class="invoice-total-line"><span>Pagado</span><span>Q{{ '{:,.2f}'.format(paid) }}</span></div>
     <div class="invoice-total-line total"><span>Saldo pendiente</span><span>Q{{ '{:,.2f}'.format(balance) }}</span></div>
   </div>
 
@@ -258,21 +257,21 @@
         <div>
           <div class="invoice-doc-logo">{{ current_tenant.logo_letter|default('A') }}</div>
           <div class="invoice-doc-meta">
-            <div>Invoice ID &nbsp; {{ invoice.invoice_id }}</div>
-            <div>Issue Date &nbsp; {{ invoice.due_date_display or invoice.due_date or '-' }}</div>
+            <div>Factura &nbsp; {{ invoice.invoice_id }}</div>
+            <div>Vencimiento &nbsp; {{ invoice.due_date_display or invoice.due_date or '-' }}</div>
           </div>
         </div>
         <div class="invoice-stamp {{ 'sent' if invoice.sent_at else 'not-sent' }}">
-          {{ 'Sent' if invoice.sent_at else 'Not Sent' }}
+          {{ 'Enviada' if invoice.sent_at else 'Sin enviar' }}
         </div>
         <div class="invoice-doc-parties">
           <div class="block">
-            <div class="sn-list-meta" style="color:rgba(255,255,255,.65);">From</div>
+            <div class="sn-list-meta" style="color:var(--sn-muted);">Emisor</div>
             <strong>{{ current_tenant.name|default('Flow CRM') }}</strong>
             {{ company_email or '' }}
           </div>
           <div class="block">
-            <div class="sn-list-meta" style="color:rgba(255,255,255,.65);">Invoice for</div>
+            <div class="sn-list-meta" style="color:var(--sn-muted);">Para</div>
             <strong>{{ job.nombre if job else 'Client' }}</strong>
             {% if client %}{{ client.first_name }} {{ client.last_name }}<br>{{ client.email }}{% endif %}
           </div>
@@ -302,8 +301,8 @@
 
 <div class="modal-overlay" id="payment-record-modal">
   <div class="modal-content" style="width:min(420px,100%);">
-    <button type="button" class="modal-close" onclick="closeRecordPayment()" aria-label="Close">x</button>
-    <h2 class="modal-title">Record Payment</h2>
+    <button type="button" class="modal-close" onclick="closeRecordPayment()" aria-label="Cerrar">x</button>
+    <h2 class="modal-title">Registrar pago</h2>
     <form onsubmit="submitRecordPayment(event)">
       <input type="hidden" id="record-payment-id">
       <div class="form-group">
@@ -326,7 +325,7 @@
 
 <div class="modal-overlay" id="reminder-preview-modal">
   <div class="modal-content" style="width:min(640px,94vw);">
-    <button type="button" class="modal-close" onclick="closeReminderPreview()" aria-label="Close">x</button>
+    <button type="button" class="modal-close" onclick="closeReminderPreview()" aria-label="Cerrar">x</button>
     <h2 class="modal-title">Enviar correo</h2>
     <p class="sn-muted" style="font-size:12px;margin-top:-6px;margin-bottom:14px;">Revisa o edita el mensaje antes de enviarlo. No se ha enviado nada todavia.</p>
     <div class="form-group">
@@ -350,7 +349,7 @@
 
 <div class="modal-overlay" id="invoice-send-modal">
   <div class="modal-content" style="width:min(640px,94vw);">
-    <button type="button" class="modal-close" onclick="closeInvoiceSendModal()" aria-label="Close">x</button>
+    <button type="button" class="modal-close" onclick="closeInvoiceSendModal()" aria-label="Cerrar">x</button>
     <h2 class="modal-title" id="invoice-send-title">Enviando factura...</h2>
     <p class="sn-muted" style="font-size:12px;margin-top:-6px;margin-bottom:14px;" id="invoice-send-status">Preparando el correo...</p>
     <div id="invoice-send-form" style="display:none;">

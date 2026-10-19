@@ -5,7 +5,7 @@
 {% block topbar_title %}Lead{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css', v='20261008-event-weekday') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css', v='20261019-records') }}">
 <section class="sn-page-wide lead-detail">
   <nav class="lead-breadcrumb" aria-label="Ruta de navegación"><a href="/leads">← Leads</a><span>/</span><span>Detalle del lead</span></nav>
   <header class="lead-hero">
@@ -53,8 +53,6 @@
 
   {% include '_lead_meetings.html' %}
 
-  {% include '_lead_travel.html' %}
-
   {% set upcoming = namespace(step=none) %}
   {% for step in workflow_steps %}
     {% if not upcoming.step and step.status not in ['done', 'skipped'] and not step.locked %}{% set upcoming.step = step %}{% endif %}
@@ -93,6 +91,8 @@
       <button class="lead-archive lead-text-button" type="button" onclick="archiveLead()">Archivar lead</button>
     </aside>
     <div class="lead-records">
+      {% include '_lead_travel.html' %}
+
       <div class="lead-section-heading"><div><h2>Documentos y actividad</h2><p>Todo lo que compartes con este cliente.</p></div></div>
       <section class="grid-2">
         <div class="sn-card">
@@ -327,14 +327,14 @@
 
 <div class="modal-overlay" id="lead-questionnaire-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
-    <button type="button" class="modal-close" onclick="closeModal('lead-questionnaire-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title">Send Questionnaire</h2>
+    <button type="button" class="modal-close" onclick="closeModal('lead-questionnaire-modal')" aria-label="Cerrar">x</button>
+    <h2 class="modal-title">Enviar cuestionario</h2>
     <form onsubmit="submitLeadQuestionnaire(event)">
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">Cuestionario</label>
           <input class="form-input" id="lead-questionnaire-name" value="{{ questionnaire_template_name }}" readonly>
-          <a class="sn-muted" href="/settings/questionnaires" target="_blank" rel="noopener">Editar preguntas en Settings</a>
+          <a class="sn-muted" href="/settings/questionnaires" target="_blank" rel="noopener">Editar preguntas en Configuración</a>
         </div>
         <div class="form-group">
           <label class="form-label">Asunto</label>
@@ -358,8 +358,8 @@ Si tienes alguna pregunta o necesitas asistencia en el proceso, por favor no dud
 Quedo a tu disposición para cualquier consulta adicional.</textarea>
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
-        <button class="sn-btn" type="button" onclick="closeModal('lead-questionnaire-modal')">Back</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Send Questionnaire</button>
+        <button class="sn-btn" type="button" onclick="closeModal('lead-questionnaire-modal')">Volver</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Enviar cuestionario</button>
       </div>
     </form>
   </div>
@@ -369,7 +369,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 
 <div class="modal-overlay" id="lead-email-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
-    <button type="button" class="modal-close" onclick="closeModal('lead-email-modal')" aria-label="Close">x</button>
+    <button type="button" class="modal-close" onclick="closeModal('lead-email-modal')" aria-label="Cerrar">x</button>
     <h2 class="modal-title">Enviar correo</h2>
     <form onsubmit="submitLeadEmail(event)">
       <input type="hidden" id="lead-email-step-id">
@@ -397,7 +397,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
         <textarea class="form-input" id="lead-email-body" rows="14" required></textarea>
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
-        <button class="sn-btn" type="button" onclick="closeModal('lead-email-modal')">Back</button>
+        <button class="sn-btn" type="button" onclick="closeModal('lead-email-modal')">Volver</button>
         <button class="sn-btn sn-btn-primary" type="submit">Enviar correo</button>
       </div>
     </form>
@@ -406,8 +406,8 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 
 <div class="modal-overlay" id="contract-send-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
-    <button type="button" class="modal-close" onclick="closeModal('contract-send-modal')" aria-label="Close">x</button>
-    <h2 class="modal-title">Send Contract</h2>
+    <button type="button" class="modal-close" onclick="closeModal('contract-send-modal')" aria-label="Cerrar">x</button>
+    <h2 class="modal-title">Enviar contrato</h2>
     <form onsubmit="submitContractSend(event)">
       <input type="hidden" id="contract-send-id">
       <div class="form-group">
@@ -423,8 +423,8 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
         <textarea class="form-input" id="contract-send-body" rows="12" required></textarea>
       </div>
       <div class="sn-actions" style="justify-content:space-between;">
-        <button class="sn-btn" type="button" onclick="closeModal('contract-send-modal')">Back</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Send Contract</button>
+        <button class="sn-btn" type="button" onclick="closeModal('contract-send-modal')">Volver</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Enviar contrato</button>
       </div>
     </form>
   </div>
@@ -432,15 +432,15 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 
 <div class="modal-overlay" id="edit-lead-modal">
   <div class="modal-content">
-    <h2 class="modal-title">Edit Lead</h2>
+    <h2 class="modal-title">Editar lead</h2>
     <form id="edit-lead-form" onsubmit="saveLead(event)">
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label" for="lead-email">Email</label>
+          <label class="form-label" for="lead-email">Correo</label>
           <input class="form-input" id="lead-email" name="email" type="email" value="{{ lead.email or '' }}">
         </div>
         <div class="form-group">
-          <label class="form-label" for="lead-phone">Telefono</label>
+          <label class="form-label" for="lead-phone">Teléfono</label>
           <input class="form-input" id="lead-phone" name="telefono" value="{{ lead.telefono or '' }}">
         </div>
       </div>
@@ -450,7 +450,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
           <input class="form-input" id="lead-event-type" name="tipo_evento" value="{{ lead.tipo_evento or '' }}">
         </div>
         <div class="form-group">
-          <label class="form-label" for="lead-date">Boda Date</label>
+          <label class="form-label" for="lead-date">Fecha del evento</label>
           <input class="form-input" id="lead-date" name="fecha_evento" type="date" value="{{ lead.fecha_tentativa or '' }}">
         </div>
       </div>
@@ -470,7 +470,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
       </div>
       <div class="sn-actions" style="justify-content:flex-end;margin-top:14px;">
         <button class="sn-btn" type="button" onclick="closeLeadEdit()">Cancelar</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Save Lead</button>
+        <button class="sn-btn sn-btn-primary" type="submit">Guardar cambios</button>
       </div>
     </form>
   </div>
@@ -481,7 +481,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
     <h2 class="modal-title">Nuevo</h2>
     <div class="grid-1">
       <button class="sn-btn" type="button" onclick="closeAddMenu(); createMultiOptionQuote();">Cotizacion</button>
-      <button class="sn-btn" type="button" onclick="closeAddMenu(); sendEmailToLead();">Email</button>
+      <button class="sn-btn" type="button" onclick="closeAddMenu(); sendEmailToLead();">Correo</button>
       <button class="sn-btn" type="button" onclick="closeAddMenu(); createQuestionnaire();">Cuestionario</button>
       <button class="sn-btn" type="button" onclick="closeAddMenu(); uploadFile();">Archivo</button>
     </div>
@@ -490,7 +490,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 
 <div class="modal-overlay" id="accept-job-modal">
   <div class="modal-content accept-job-modal">
-    <button class="modal-x" type="button" onclick="closeAcceptJobModal()" aria-label="Close">×</button>
+    <button class="modal-x" type="button" onclick="closeAcceptJobModal()" aria-label="Cerrar">×</button>
     <h2 class="modal-title accept-job-title">Mark as “Job Accepted”?</h2>
     <p class="accept-job-copy">This will convert the lead into a job and move it to Jobs.</p>
     <div class="sn-actions accept-job-actions">
