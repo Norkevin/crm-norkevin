@@ -80,7 +80,25 @@
 
   <div class="lead-workspace job-workspace">
     <aside class="lead-workflow-panel job-workflow" id="job-workflow" data-workflow-live="steps" aria-labelledby="job-workflow-title">
-      {% if linked_coverages %}<section class="job-secondary-coverages" aria-label="Trabajos secundarios"><h2>Trabajos secundarios</h2><p class="sn-muted">Coberturas ligadas a esta boda. Los honorarios y gastos del equipo se descuentan del trabajo principal.</p>{% for coverage in linked_coverages %}<div class="sn-list-item"><div class="sn-list-row"><div><strong>{{ coverage.nombre }}</strong><div class="sn-list-meta">{{ coverage.boda_date|fecha_es }}{% if coverage.start_time %} · {{ coverage.start_time }}{% if coverage.end_time %}–{{ coverage.end_time }}{% endif %}{% endif %} · {{ coverage.location or 'Lugar por definir' }}</div></div><a class="sn-btn sn-btn-sm" href="/teams/jobs/{{ coverage.id }}">Organizar equipo</a></div></div>{% endfor %}</section>{% endif %}
+      {% if linked_coverages %}
+      <section class="job-secondary-coverages" aria-label="Trabajos secundarios">
+        <h2>Trabajos secundarios</h2><p class="sn-muted">Coberturas ligadas a esta boda. Los honorarios y gastos del equipo se descuentan del trabajo principal.</p>
+        {% for coverage in linked_coverages %}
+        {% set coverage_task = (job.manual_workflow_tasks or [])|selectattr('id', 'equalto', coverage.source_task_id)|first %}
+        <div class="sn-list-item">
+          <strong>{{ coverage.nombre }}</strong>
+          <div class="sn-list-meta">{{ coverage.boda_date|fecha_es }}{% if coverage.start_time %} · {{ coverage.start_time }}{% if coverage.end_time %}–{{ coverage.end_time }}{% endif %}{% endif %} · {{ coverage.location or 'Lugar por definir' }}</div>
+          <div class="sn-list-actions">
+            {% if coverage_task %}
+            <button class="sn-btn sn-btn-sm" type="button" onclick='openEditTaskForm({{ coverage_task|tojson }})' aria-label="Editar {{ coverage.nombre }}">Editar</button>
+            <button class="sn-btn sn-btn-sm" type="button" onclick='confirmDeleteManualTask({{ coverage_task.id|tojson }}, {{ coverage_task.name|tojson }})' aria-label="Eliminar {{ coverage.nombre }}">Eliminar</button>
+            {% endif %}
+            <a class="sn-btn sn-btn-sm" href="/teams/jobs/{{ coverage.id }}">Organizar equipo</a>
+          </div>
+        </div>
+        {% endfor %}
+      </section>
+      {% endif %}
     <div class="lead-section-heading"><div><h2 id="job-workflow-title">Workflow</h2><p>{{ workflow_name }}</p></div><button class="sn-btn sn-btn-primary" type="button" onclick="openModal('workflow-task-modal')">+ Agregar</button></div>
       <div class="lead-workflow-card">
         {% if job.studio_ninja_workflow is defined %}
@@ -1154,7 +1172,7 @@ function openEditTaskForm(task) {
   document.getElementById('schedule-task-submit').textContent = 'Guardar cambios';
   document.getElementById('schedule-task-name').value = task.name || '';
   document.getElementById('schedule-task-start-date').value = task.start_date || '';
-  document.getElementById('schedule-task-end-date').value = task.end_date || '';
+  document.getElementById('schedule-task-end-date').value = task.end_date !== task.start_date ? (task.end_date || '') : '';
   document.getElementById('schedule-task-start-time').value = task.start_time || '';
   document.getElementById('schedule-task-end-time').value = task.end_time || '';
   document.getElementById('schedule-task-location').value = task.location || '';
@@ -1210,6 +1228,9 @@ function togglePortalManualTask(taskId) {
   apiPost('/api/jobs/' + JOB_ID + '/workflow-task/' + taskId + '/toggle-portal', {})
     .then(function() { setTimeout(function() { location.reload(); }, 300); })
     .catch(function(err) { flashToast(err.message, 'error'); });
+}
+function confirmDeleteManualTask(taskId, taskName) {
+  if (confirm('Eliminar "' + taskName + '"? También se quitará del calendario.')) deleteManualTask(taskId);
 }
 function deleteManualTask(taskId) {
   apiPost('/api/jobs/' + JOB_ID + '/workflow-task/' + taskId + '/delete', {})

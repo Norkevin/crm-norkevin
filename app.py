@@ -10396,6 +10396,7 @@ def _job_workflow_task_update_locked(job_id, task_id):
             })
             store.upsert('calendar', event)
         else:
+            import uuid
             event_id = 'evt-' + uuid.uuid4().hex[:8]
             store.upsert('calendar', {
                 'id': event_id, 'date': start_date, 'end_date': end_date,
