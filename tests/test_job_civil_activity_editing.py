@@ -101,3 +101,16 @@ def test_correcting_civil_restores_a_missing_calendar_event(auth_client):
     event = crm.store.get('calendar', updated['calendar_event_id'])
     assert event['date'] == '2026-10-24'
     assert event['job_id'] == job_id
+
+
+def test_imported_workflow_mirror_keeps_its_source_step_controls(auth_client):
+    crm, job_id, task = _create_civil(auth_client)
+    job = crm.store.get('jobs', job_id)
+    job['manual_workflow_tasks'][0]['step_id'] = 'imported-confirm-details'
+    crm.store.upsert('jobs', job)
+    html = auth_client.get(f'/jobs/{job_id}').get_data(as_text=True)
+    secondary = re.search(r'<section\b[^>]*aria-label="Trabajos secundarios".*?</section>', html, re.S).group(0)
+    assert 'Boda civil' in secondary and 'Organizar equipo' in secondary
+    assert 'openEditTaskForm(' not in secondary
+    assert 'confirmDeleteManualTask(' not in secondary
+    assert 'Opciones de Confirmar detalles' in html
