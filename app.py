@@ -9863,6 +9863,7 @@ def questionnaire_pdf(questionnaire_id):
         event_name=(job or lead or {}).get('nombre') or (lead or {}).get('Nombre') or '',
         event_date=_format_date_es((job or {}).get('boda_date') or (lead or {}).get('fecha_tentativa')),
         completed_at=_format_date_es(questionnaire.get('answered_at')),
+        theme=_document_theme(tenant_id),
     )
     filename = secure_filename(f"cuestionario-{questionnaire_id}") or 'cuestionario'
     response = send_file(BytesIO(pdf), mimetype='application/pdf', as_attachment=True,

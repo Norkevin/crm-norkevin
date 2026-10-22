@@ -7,3 +7,8 @@ Se descargan de https://fonts.google.com/specimen/Inter (Get font ->
 Download all) o de https://github.com/rsms/inter/releases.
 No hay que tocar codigo: si los archivos estan, se registran solos;
 si no, el PDF usa Helvetica, que tambien es sans y se ve limpia.
+
+Cuestionarios PDF: Manrope-Regular.ttf, Manrope-SemiBold.ttf y Manrope-Bold.ttf
+son instancias estaticas 400, 600 y 700 de manrope-variable.ttf, generadas
+con fontTools.varLib.instancer. Conservan la licencia manrope-OFL.txt.
+Se incluyen para exportar sin descargas ni conversiones en el servidor.
