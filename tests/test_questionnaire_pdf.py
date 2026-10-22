@@ -147,3 +147,62 @@ def test_draft_export_preserves_removed_answers_without_completing_form(auth_cli
     assert 'Estado: Draft' in text
     assert 'Jardín <Principal> & Salón' in text
     assert crm.store.get('questionnaires', q['id']) == q
+
+
+def test_download_uses_each_tenants_saved_theme_without_brand_leakage(client, tmp_path):
+    import app as crm
+    from conftest import login_as_tenant
+    from reportlab.lib.colors import HexColor
+    pypdf = pytest.importorskip('pypdf')
+
+    brands = (
+        ('tenant-norkevin', 'Astral Weddings', '#86205D'),
+        ('tenant-norkevin-photography', 'Norkevin Photography', '#147B68'),
+    )
+    for tenant_id, name, color in brands:
+        crm.store.save_tenant_dict('settings', {
+            'quote_theme': {'primary': color, 'primary_dark': color, 'accent': color,
+                            'display_name': 'OTHER ACCOUNT MUST NOT APPEAR'},
+        }, tenant_id=tenant_id)
+
+    documents = []
+    for tenant_id, name, color in brands:
+        login_as_tenant(client, tenant_id, email=f'{tenant_id}@example.invalid')
+        q = _seed(f'questionnaire-{tenant_id}', tenant_id=tenant_id)
+        response = client.get(f"/questionnaires/{q['id']}/pdf")
+        assert response.status_code == 200
+        text = _text(response.data, tmp_path)
+        reader = pypdf.PdfReader(BytesIO(response.data))
+        colors = {
+            tuple(round(float(channel), 4) for channel in operands)
+            for page in reader.pages
+            for operands, operator in page.get_contents().operations
+            if operator in (b'rg', b'RG')
+        }
+        documents.append((text, colors))
+
+    for index, (_, name, color) in enumerate(brands):
+        text, colors = documents[index]
+        other_name = brands[1 - index][1]
+        own_rgb = tuple(round(value, 4) for value in HexColor(color).rgb())
+        other_rgb = tuple(round(value, 4) for value in HexColor(brands[1 - index][2]).rgb())
+        assert name in text
+        assert other_name not in text and 'OTHER ACCOUNT MUST NOT APPEAR' not in text
+        assert own_rgb in colors, 'The exported PDF must use this account\'s saved visual theme'
+        assert other_rgb not in colors, 'Another account\'s theme must not leak into the export'
+
+
+def test_long_section_descriptions_and_event_metadata_can_span_pages(tmp_path):
+    q = _seed()
+    q['questions'][0]['description'] = '\n'.join(
+        f'Preferencia {index:03d}: fotografía de nuestra celebración.' for index in range(110)
+    )
+    event_name = '\n'.join(f'Celebración {index:03d}: Ana y José.' for index in range(110))
+    original = deepcopy(q)
+    pdf = render_questionnaire_pdf(q, q['questions'], {'display_name': 'Astral Weddings'},
+                                   client_name='Ana y José', event_name=event_name)
+    text = _text(pdf, tmp_path)
+    for expected in ('Celebración 000', 'Celebración 109', 'Preferencia 000', 'Preferencia 109',
+                     '¿Dónde será la ceremonia?', 'Jardín <Principal> & Salón', 'Capilla original'):
+        assert expected in text
+    assert q == original
