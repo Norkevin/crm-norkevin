@@ -82,6 +82,9 @@ fieldset.q-field { border:0; padding:0; margin:0; }
     </div>
   </section>
   {% if answered %}<div class="card card--accent q-notice" role="status"><h2 class="doc-h2">Respuestas enviadas</h2><p class="doc-text">¡Gracias! Recibimos sus respuestas{{ ' el ' ~ questionnaire.answered_at[:10] if questionnaire.answered_at else '' }}. Aquí pueden consultarlas cuando lo necesiten.</p></div>{% endif %}
+  {% if not preview and session.get('logged_in') and session.get('tenant_id') == ((job.tenant_id if job else none) or questionnaire.tenant_id) %}
+  <div class="q-actions"><a class="btn btn--secondary" href="{{ url_for('questionnaire_pdf', questionnaire_id=questionnaire.id) }}" download>Descargar PDF</a></div>
+  {% endif %}
   <div class="q-layout">
     <aside class="q-aside" aria-label="Progreso y secciones">
       <div class="card q-progress"><div class="doc-label">{{ 'Sus respuestas' if answered else 'Su progreso' }}</div><p id="q-progress-text" class="doc-text" style="margin-top:8px;"></p><progress id="q-progress" value="0" max="100" aria-label="Preguntas respondidas"></progress></div>

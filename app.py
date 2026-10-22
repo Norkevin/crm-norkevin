@@ -9839,6 +9839,38 @@ def questionnaire_view(questionnaire_id):
     )
 
 
+@app.route('/questionnaires/<questionnaire_id>/pdf')
+def questionnaire_pdf(questionnaire_id):
+    """Owner-only download; tenant-scoped storage also protects linked records."""
+    from io import BytesIO
+    from flask import send_file
+    from werkzeug.utils import secure_filename
+    from src.pdf_questionnaire import render_questionnaire_pdf
+
+    questionnaire = store.get('questionnaires', questionnaire_id)
+    if not questionnaire:
+        abort(404)
+    questionnaire = _linked_questionnaire(questionnaire)
+    job = get_job(questionnaire.get('job_id')) if questionnaire.get('job_id') else None
+    lead = get_lead(questionnaire.get('lead_id')) if questionnaire.get('lead_id') else None
+    client_id = questionnaire.get('client_id') or (job or lead or {}).get('client_id')
+    client = get_client(client_id) if client_id else None
+    tenant_id = questionnaire.get('tenant_id') or (job or lead or {}).get('tenant_id')
+    groups = questionnaire.get('questions') or _questionnaire_template(tenant_id)['questions']
+    pdf = render_questionnaire_pdf(
+        questionnaire, groups, resolve_pdf_brand(tenant_id),
+        client_name=_client_name(client=client, lead=lead, job=job),
+        event_name=(job or lead or {}).get('nombre') or (lead or {}).get('Nombre') or '',
+        event_date=_format_date_es((job or {}).get('boda_date') or (lead or {}).get('fecha_tentativa')),
+        completed_at=_format_date_es(questionnaire.get('answered_at')),
+    )
+    filename = secure_filename(f"cuestionario-{questionnaire_id}") or 'cuestionario'
+    response = send_file(BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
+                         download_name=filename + '.pdf', max_age=0)
+    response.headers['Cache-Control'] = 'private, no-store'
+    return response
+
+
 @app.route('/api/questionnaires/<questionnaire_id>/submit', methods=['POST'])
 def api_questionnaire_submit(questionnaire_id):
     """Guarda las respuestas del cuestionario enviadas por el cliente."""

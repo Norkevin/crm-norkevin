@@ -424,7 +424,7 @@
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8M8 11h8M8 15h5M5 4h14v16H5z"/></svg>
           Client Notes
         </div>
-        <button class="sn-btn-icon" type="button" onclick="saveClientNotes()">+</button>
+        <button class="sn-btn sn-btn-sm" type="button" onclick="saveClientNotes()">Guardar notas</button>
       </div>
       <div class="sn-card-body">
         <textarea id="client-notes" class="form-input" rows="6" placeholder="Notes">{{ cliente.get('Notas') or '' }}</textarea>
@@ -437,7 +437,7 @@
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M12 3l8 4v6c0 5-3.5 8-8 8s-8-3-8-8V7l8-4Z"/></svg>
           Consent
         </div>
-        <button class="sn-btn-icon" type="button" onclick="saveConsent()">+</button>
+        <button class="sn-btn sn-btn-sm" type="button" onclick="saveConsent()">Guardar consentimiento</button>
       </div>
       <div class="sn-card-body">
         <label class="flex items-center gap-2 text-sm">

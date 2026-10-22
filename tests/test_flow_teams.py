@@ -1341,7 +1341,7 @@ def test_calendar_oauth_checks_owner_brand_state_and_expiry_before_exchanging_co
     assert calls==[('brand-a','fake-test-only')]
 
 
-def test_invitation_button_in_coverage_management_and_missing_contact_blocks_send(web,monkeypatch):
+def test_invitation_is_accessible_in_coverage_management_and_missing_contact_blocks_send(web,monkeypatch):
     from html.parser import HTMLParser
     from src import google_calendar
     application,owner,_=web
@@ -1349,22 +1349,24 @@ def test_invitation_button_in_coverage_management_and_missing_contact_blocks_sen
     store=application.extensions['teams'];person=member(store);a=assignment(store,person)
     run(store,'assignment_publish',id=a['id'],version=a['version'])
     class Buttons(HTMLParser):
-        def __init__(self):super().__init__();self.depth=0;self.invites=[]
+        def __init__(self):super().__init__();self.disclosures=[];self.invites=[]
         def handle_starttag(self,tag,attrs):
             attrs=dict(attrs)
-            if tag=='details':self.depth+=1
+            if tag=='details':self.disclosures.append(attrs)
             if tag=='button' and 'data-calendar-submit' in attrs and 'data-team' not in attrs:
-                self.invites.append((self.depth,attrs))
+                self.invites.append((self.disclosures.copy(),attrs))
         def handle_endtag(self,tag):
-            if tag=='details':self.depth-=1
+            if tag=='details':self.disclosures.pop()
     def page():
         html=owner.get('/teams/jobs/job-1').get_data(as_text=True);document=Buttons();document.feed(html)
         return html,document.invites
     html,buttons=page()
-    assert buttons and buttons[0][0]==1 and 'disabled' in buttons[0][1]
+    assert len(buttons)==1 and 'disabled' in buttons[0][1]
+    disclosures=buttons[0][0]
+    assert sum('ft-crew-manage' in disclosure.get('class','').split() for disclosure in disclosures)==1
     assert 'Gestionar cobertura' in html
     assert 'Enviar invitación y acceso' in html
-    assert f'/teams/members#member-{person["id"]}' in html
+    assert f'/teams/members#ft-edit-member-{person["id"]}' in html
     with store.transaction() as db:
         person['email']='photo@flow-qa-84982.com';store.save(db,'brand-a','member',person)
     assert 'disabled' not in page()[1][0][1]

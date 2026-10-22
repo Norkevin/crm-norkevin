@@ -79,6 +79,18 @@ def register_calendar(app,blueprint,crm_store,database,read_job,canonical_jobs):
             previous_events={record['identity']:record['event']})
         return True if desired.get(record['identity'])==record['event'] else 'Las condiciones cambiaron. Revisa la invitación individual.'
     sync.invitation_eligible=invitation_eligible
+    def response_job(tenant, identifier):
+        jobs=crm_store.list_privileged('jobs',tenant_id=tenant,
+            reason='Teams: validar una respuesta de Calendar dentro de su marca')
+        if identifier.startswith('secondary:'):
+            from src.linked_coverages import linked_coverages
+            calendar=crm_store.list_privileged('calendar',tenant_id=tenant,
+                reason='Teams: validar una respuesta de Calendar para una cobertura secundaria')
+            jobs+=linked_coverages(jobs,calendar)
+        job=next((j for j in jobs if j['id']==identifier),None)
+        if not job:raise TeamsError('La boda ya no está disponible.',404)
+        return job
+    sync.response_job=response_job
     def reconcile_tenant(tenant):
         # Reuse the CRM's explicit tenant context, also used by workflow workers.
         from app import _workflow_tenant, _calendar_non_job_events

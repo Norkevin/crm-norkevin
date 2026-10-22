@@ -1,4 +1,9 @@
 (() => {
+  const localState = {
+    get(key) { try { return sessionStorage.getItem(key); } catch (_) { return null; } },
+    set(key, value) { try { sessionStorage.setItem(key, value); } catch (_) { /* Browser storage is optional. */ } },
+    remove(key) { try { sessionStorage.removeItem(key); } catch (_) { /* Browser storage is optional. */ } }
+  };
   document.querySelectorAll('.ft-list-filter select').forEach(select => {
     select.addEventListener('change', () => select.form.requestSubmit());
   });
@@ -15,7 +20,8 @@
     const file = source.elements?.file?.files[0];
     const fileLimit = 10;
     if (file && file.size > fileLimit * 1024 * 1024) { showError(`El archivo supera ${fileLimit} MB.`); return; }
-    const key = source.dataset.commandKey || crypto.randomUUID();
+    const key = source.dataset.commandKey || crypto.randomUUID?.() ||
+      Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
     const body = JSON.stringify({...data, key});
     // Retrying an uncertain result keeps the same key and exact content.
     if (source.dataset.commandBody && source.dataset.commandBody !== body) {
@@ -29,7 +35,7 @@
       const inline = source.querySelector('[data-calendar-error]');
       if (inline) inline.hidden = true;
       button.textContent = data.scope === 'pending_invitations' ? 'Preparando invitaciones…' : data.send_at ? 'Guardando programación…' : 'Preparando invitación…';
-    }
+    } else button.textContent = data.action === 'logout' ? 'Cerrando sesión…' : 'Guardando…';
     button.disabled = true;
     try {
       let endpoint = source.dataset.endpoint || window.flowTeamsEndpoint || '/api/teams/command';
@@ -45,17 +51,16 @@
       const response = await fetch(endpoint, {method: 'POST', headers, body: payload});
       const result = await response.json();
       if (!response.ok) {
-        const preserveRetry = data.action === 'access_email' || (data.action === 'calendar_sync' && data.scope === 'pending_invitations');
-        if (response.status < 500 || !preserveRetry) {
+        if (response.status < 500) {
           delete source.dataset.commandKey;
           delete source.dataset.commandBody;
         }
         throw new Error(result.error || 'No se pudo guardar. Recarga y comprueba tu sesión.');
       }
-      if (result.warnings?.length) sessionStorage.setItem('flow-teams-message', result.warnings.join(' '));
+      if (result.warnings?.length) localState.set('flow-teams-message', result.warnings.join(' '));
       if (data.action === 'job_classification') {
         const messages = {archived:'Boda archivada en Teams.', not_applicable:'Boda marcada como no aplica.', included:'Boda incluida en Teams.'};
-        sessionStorage.setItem('flow-teams-classification', JSON.stringify({message:messages[data.state],
+        localState.set('flow-teams-classification', JSON.stringify({message:messages[data.state],
           job_id:data.job_id, state:source.dataset.before || 'included', version:result.record.version,
           undo:data.state !== 'included' && source.dataset.isUndo !== 'true'}));
       }
@@ -231,7 +236,7 @@
   });
   document.querySelectorAll('[data-job-tab]').forEach(button => {
     const activate = () => {
-      sessionStorage.setItem(`flow-teams-tab:${location.pathname}`, button.dataset.jobTab);
+      localState.set(`flow-teams-tab:${location.pathname}`, button.dataset.jobTab);
       document.querySelectorAll('[data-job-tab]').forEach(tab => {
         const selected = tab === button;
         tab.setAttribute('aria-selected', String(selected));
@@ -250,7 +255,7 @@
       tabs[index].click(); tabs[index].focus();
     });
   });
-  const rememberedTab = sessionStorage.getItem(`flow-teams-tab:${location.pathname}`);
+  const rememberedTab = localState.get(`flow-teams-tab:${location.pathname}`);
   const restoreTab = [...document.querySelectorAll('[data-job-tab]')]
     .find(button => button.dataset.jobTab === rememberedTab);
   if (restoreTab && !window.flowTeamsPortalOverview) restoreTab.click();
@@ -323,6 +328,19 @@
   });
   if (new URLSearchParams(location.search).get('tab') === 'expenses')
     document.querySelector('[data-job-tab="expenses"]')?.click();
+  const openLinkedEditor = () => {
+    let id;
+    try { id = decodeURIComponent(location.hash.slice(1)); } catch (_) { return; }
+    const target = document.getElementById(id);
+    if (!target?.closest('.ft')) return;
+    const pane = target.closest('[role="tabpanel"]');
+    if (pane) document.querySelector(`[data-job-tab][aria-controls="${pane.id}"]`)?.click();
+    for (let parent = target; parent; parent = parent.parentElement)
+      if (parent.tagName === 'DETAILS') parent.open = true;
+    target.scrollIntoView({block:'start'});
+  };
+  window.addEventListener('hashchange', openLinkedEditor);
+  if (location.hash) openLinkedEditor();
   document.querySelectorAll('[data-search]').forEach(input => input.addEventListener('input', () => {
     if (input.dataset.search === 'calendar') {
       document.querySelectorAll('[data-calendar-search]').forEach(card => {
@@ -339,9 +357,9 @@
       row.hidden = !row.textContent.toLocaleLowerCase().includes(input.value.toLocaleLowerCase());
     });
   }));
-  const classification = sessionStorage.getItem('flow-teams-classification');
+  const classification = localState.get('flow-teams-classification');
   if (classification) {
-    sessionStorage.removeItem('flow-teams-classification');
+    localState.remove('flow-teams-classification');
     try {
       const saved = JSON.parse(classification);
       feedback.textContent = saved.message; feedback.hidden = false;
@@ -353,9 +371,9 @@
       }
     } catch (_) { /* Invalid local feedback does not affect stored classifications. */ }
   }
-  const savedMessage = sessionStorage.getItem('flow-teams-message');
+  const savedMessage = localState.get('flow-teams-message');
   if (savedMessage) {
-    sessionStorage.removeItem('flow-teams-message');
+    localState.remove('flow-teams-message');
     showError(savedMessage);
   }
 })();

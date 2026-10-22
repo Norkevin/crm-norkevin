@@ -229,7 +229,7 @@ def test_invoice_view_shows_partial_badge_on_every_credited_row(auth_client):
 
     resp = auth_client.get(f'/invoices/{ids[0]}')
     html = resp.get_data(as_text=True)
-    assert html.count('>Partial<') == 4, 'las 4 cuotas restantes recibieron credito -- todas deben marcarse Partial'
+    assert html.count('>Parcial<') == 4, 'las 4 cuotas restantes recibieron credito -- todas deben marcarse Partial'
     assert '>Unpaid<' not in html
 
 
