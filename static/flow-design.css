@@ -301,7 +301,7 @@ body[data-page]:not([data-page="/dashboard"]) .sn-page-head{margin-bottom:22px}
 .record-list .date-badge{background:transparent;border-radius:0;align-items:flex-start;width:34px}
 .record-list .date-badge strong{font-size:22px;font-weight:700;color:var(--sn-ink)}
 .record-list .date-badge em{font-size:11px;color:var(--sn-muted)}
-.record-list .job-pay-chip{font-weight:650;white-space:nowrap}
+.record-list .job-pay-chip{font-weight:650;white-space:normal}
 .record-list .sn-progress-pct{font-size:12px}
 .record-list .sn-pagination{padding:16px 20px;border-top:1px solid var(--sn-line)}
 .record-list .sn-toolbar .sn-search{width:280px}

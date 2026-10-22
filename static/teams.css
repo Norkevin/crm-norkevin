@@ -50,6 +50,7 @@
 .ft-date-control:focus-within .ft-date-caption{color:var(--sn-green)}
 .ft-schedule-row{display:grid;grid-template-columns:2fr 1fr auto;gap:12px;align-items:end;margin-bottom:12px}.ft-schedule-row button{margin-bottom:1px}
 #ft-roles{scroll-margin-top:100px}
+.ft :is(#ft-add-member,#ft-add-person,#ft-new-worker,[id^="ft-edit-member-"]){scroll-margin-top:100px}
 body:has(.ft) .sidebar-item[data-nav="/teams"]{color:#fff;background:var(--sn-sidebar-active-bg);border:0}
 @media(max-width:900px){.ft-metrics strong{font-size:23px}.ft-heading{align-items:start}.ft-owner-hero .ft-actions{justify-content:flex-start;flex-wrap:wrap}}
 @media(max-width:600px){.ft{padding:18px 14px 32px}.ft-owner-hero h1{font-size:22px}.ft-owner-hero .ft-actions{margin-top:14px;gap:8px}.ft-nav{margin:8px 0 18px}.ft-nav a{padding:9px 12px}.ft-panel{padding:17px}.ft-metrics article{padding:14px}.ft-quick-summary{display:grid;grid-template-columns:1fr;padding:16px;gap:12px}.ft-quick-summary>div{display:flex;align-items:center;justify-content:space-between;gap:12px}.ft-quick-summary>div+div{border-left:0;padding-left:0;border-top:1px solid var(--sn-line);padding-top:12px}.ft-quick-summary strong{font-size:21px;margin:0}.ft-job-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.ft-job-tabs button{padding:10px 6px}.ft input,.ft select,.ft textarea{font-size:16px}.ft-schedule-row{grid-template-columns:1fr}.ft-date-caption{font-size:14px}}

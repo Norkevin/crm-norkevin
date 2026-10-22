@@ -203,6 +203,7 @@ struct RecordRow: View {
 
 struct RecordsView: View {
     @EnvironmentObject var flow: FlowSession
+    @Environment(\.scenePhase) private var scenePhase
     let kind: String
     let title: String
     @State private var records: [CRMRecord] = []
@@ -216,6 +217,10 @@ struct RecordsView: View {
     }
     var body: some View {
         List {
+            Section {
+                CRMWebLink(title: kind == "clients" ? "Nuevo cliente" : kind == "jobs" ? "Nuevo trabajo" : "Nuevo lead", path: "\(kind)?new=1", symbol: "plus")
+                CRMWebLink(title: "Gestionar \(title.lowercased())", path: kind)
+            } header: { Text("Gestionar en la web") } footer: { WebEditingNote() }
             if !records.isEmpty {
                 Section {
                     Picker("Estado", selection: $status) {
@@ -230,8 +235,6 @@ struct RecordsView: View {
             }
             if loading { ProgressView("Cargando…") }
             if let loadError { Section { Text(loadError); Button("Reintentar") { Task { await load() } } } }
-        }
-        .overlay {
             if filtered.isEmpty && !loading && loadError == nil {
                 ContentUnavailableView(search.isEmpty ? "Aún no hay registros" : "Sin resultados", systemImage: "tray", description: Text("Los registros de esta empresa aparecerán aquí."))
             }
@@ -239,6 +242,9 @@ struct RecordsView: View {
         .navigationTitle(title).searchable(text: $search, prompt: "Buscar en los registros cargados")
         .toolbar { InboxButton() }
         .refreshable { await load() }.task { await load() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await load() } }
+        }
     }
     private func load(offset: Int = 0) async {
         loading = true; loadError = nil
@@ -278,7 +284,7 @@ struct RecordDetail: View {
                     openURL(url)
                 }
             } footer: {
-                Text("Documentos, edición y operaciones del CRM continúan disponibles en la web durante esta primera etapa.")
+                WebEditingNote()
             }
         }
         .navigationTitle(record.kind == "jobs" ? "Trabajo" : "Detalle")
@@ -306,6 +312,9 @@ struct CalendarView: View {
     var body: some View {
         ScrollViewReader { proxy in
             List {
+                Section {
+                    CRMWebLink(title: "Crear eventos y gestionar bloqueos", path: "calendar", symbol: "calendar.badge.plus")
+                } header: { Text("Gestionar en la web") } footer: { WebEditingNote() }
                 if textSize.isAccessibilitySize { selectedEvents }
                 Section {
                     VStack(spacing: 16) {
@@ -466,6 +475,7 @@ struct NoticeView: View {
 
 struct PaymentsView: View {
     @EnvironmentObject var flow: FlowSession
+    @Environment(\.scenePhase) private var scenePhase
     @State private var payments: [Payment] = []
     @State private var summary: [String: Double] = [:]
     @State private var nextOffset: Int?
@@ -474,6 +484,9 @@ struct PaymentsView: View {
     @State private var year = 0
     var body: some View {
         List {
+            Section {
+                CRMWebLink(title: "Gestionar pagos y cobros", path: "payments", symbol: "creditcard")
+            } header: { Text("Gestionar en la web") } footer: { WebEditingNote() }
             if year > 0 {
                 Section("Resumen de \(String(year))") {
                     LabeledContent("Cobrado") { Text(summary["paid"] ?? 0, format: .currency(code: "GTQ")).monospacedDigit() }
@@ -495,6 +508,9 @@ struct PaymentsView: View {
                 if payments.isEmpty && !loading && loadError == nil { Text("No hay pagos en esta empresa.").foregroundStyle(.secondary) }
             }
         }.navigationTitle("Pagos").refreshable { await load() }.task { await load() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await load() } }
+            }
     }
     private func load(offset: Int = 0) async {
         loading = true; loadError = nil
@@ -523,12 +539,36 @@ struct MoreView: View {
                 NavigationLink { NoticeView() } label: { Label("Notificaciones", systemImage: "bell") }
                 NavigationLink { NotificationSettings() } label: { Label("Configuración de avisos", systemImage: "gearshape") }
             }
+            Section {
+                CRMWebLink(title: "Configuración del CRM", path: "settings", symbol: "gearshape")
+                CRMWebLink(title: "Correos", path: "emails", symbol: "envelope")
+                CRMWebLink(title: "Cotizaciones", path: "quotes", symbol: "doc.text")
+            } header: { Text("Gestionar en la web") } footer: { WebEditingNote() }
             Section { Button("Cerrar sesión", role: .destructive) { confirmLogout = true } }
         }.navigationTitle("Más")
             .confirmationDialog("¿Desconectar esta cuenta del iPhone?", isPresented: $confirmLogout, titleVisibility: .visible) {
                 Button("Cerrar sesión", role: .destructive) { Task { await flow.logout() } }
                 Button("Cancelar", role: .cancel) {}
             }
+    }
+}
+
+private struct CRMWebLink: View {
+    @EnvironmentObject var flow: FlowSession
+    let title: String
+    let path: String
+    var symbol = "arrow.up.right.square"
+    var body: some View {
+        if let base = flow.base, let url = URL(string: path, relativeTo: base)?.absoluteURL {
+            Link(destination: url) { Label(title, systemImage: symbol) }
+                .accessibilityHint("Abre Flowing en el navegador para editar.")
+        }
+    }
+}
+
+private struct WebEditingNote: View {
+    var body: some View {
+        Text("Se abre el navegador para editar. Si te lo pide, inicia sesión y comprueba la empresa. Para ver los cambios en la app, vuelve a la lista y desliza hacia abajo.")
     }
 }
 
@@ -567,6 +607,7 @@ struct NotificationSettings: View {
 
 struct TeamsView: View {
     @EnvironmentObject var flow: FlowSession
+    @Environment(\.scenePhase) private var scenePhase
     @State private var page: TeamPage?
     @State private var section = 0
     @State private var phase = "upcoming"
@@ -579,6 +620,11 @@ struct TeamsView: View {
                 Text("Coberturas").tag(0); Text("Equipo").tag(1)
             }.pickerStyle(.segmented)
             if let page, page.enabled {
+                Section {
+                    CRMWebLink(title: "Añadir miembro", path: "teams/members#ft-add-member", symbol: "person.badge.plus")
+                    CRMWebLink(title: section == 0 ? "Gestionar coberturas" : "Gestionar directorio del equipo", path: section == 0 ? "teams/jobs" : "teams/members", symbol: "person.2")
+                    CRMWebLink(title: "Pagos al equipo", path: "teams/payments", symbol: "creditcard")
+                } header: { Text("Gestionar en la web") } footer: { WebEditingNote() }
                 if section == 0 {
                     Picker("Eventos", selection: $phase) {
                         Text("Próximos").tag("upcoming"); Text("Pasados").tag("past"); Text("Todos").tag("all")
@@ -616,6 +662,9 @@ struct TeamsView: View {
         .navigationTitle("Teams").toolbar { InboxButton() }
         .searchable(text: $query, prompt: section == 0 ? "Buscar evento" : "Buscar miembro")
         .refreshable { await load() }.task { await load() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await load() } }
+        }
     }
     private func load() async {
         loading = true; failure = nil
@@ -646,12 +695,12 @@ struct TeamJobDetail: View {
                 if job.incomplete { Label("Revisión de costos pendiente", systemImage: "exclamationmark.circle").foregroundStyle(.secondary) }
             }
             Section {
-                if let base = flow.base {
-                    Link("Gestionar cobertura en Flowing", destination: base.appendingPathComponent("teams/jobs").appendingPathComponent(job.id))
+                if !job.closed {
+                    CRMWebLink(title: "Añadir una persona", path: "teams/jobs/\(MobileURL.segment(job.id))#ft-add-person", symbol: "person.badge.plus")
+                    CRMWebLink(title: "Crear trabajador nuevo", path: "teams/jobs/\(MobileURL.segment(job.id))#ft-new-worker", symbol: "plus")
                 }
-                Text("Asignaciones, invitaciones y pagos se gestionan en la web. La app muestra su estado actualizado al abrir Teams.")
-                    .font(.footnote).foregroundStyle(.secondary)
-            }
+                CRMWebLink(title: "Gestionar cobertura en Flowing", path: "teams/jobs/\(MobileURL.segment(job.id))")
+            } footer: { WebEditingNote() }
         }.navigationTitle("Cobertura").navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -700,6 +749,10 @@ struct TeamMemberDetail: View {
                 LabeledContent("Por pagar") { Text(teamMoney(member.pending)).foregroundStyle(Color(uiColor: .label)) }
                 if member.rate_missing { Text("Tarifa pendiente de revisar").foregroundStyle(.secondary) }
             }
+            Section {
+                CRMWebLink(title: "Editar miembro", path: "teams/members#ft-edit-member-\(MobileURL.segment(member.id))", symbol: "pencil")
+                CRMWebLink(title: "Ver ficha del miembro", path: "teams/members/\(MobileURL.segment(member.id))", symbol: "person.crop.circle")
+            } header: { Text("Gestionar en la web") } footer: { WebEditingNote() }
             ForEach(jobs.filter { job in job.assignments.contains { $0.member_id == member.id } }) { job in
                 Section(job.name) {
                     ForEach(job.assignments.filter { $0.member_id == member.id }) { assignment in TeamAssignmentRow(assignment: assignment) }

@@ -222,6 +222,7 @@
                   </div>
                   <span class="sn-chip cyan">{{ q.status or 'Sent' }}</span>
                 </div>
+                <div class="sn-list-actions"><a class="sn-btn sn-btn-sm" href="{{ url_for('questionnaire_pdf', questionnaire_id=q.id) }}" download>Descargar PDF</a></div>
               </div>
               {% endfor %}
             </div>

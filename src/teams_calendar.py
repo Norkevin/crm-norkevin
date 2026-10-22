@@ -12,8 +12,8 @@ from uuid import uuid4
 
 from itsdangerous import URLSafeSerializer
 
-from src.teams import TeamsError, now, assignment_trip, teams_date
-from src.teams_features import VISIBLE_ASSIGNMENTS, document_visible
+from src.teams import LOCAL_ZONE, TeamsError, now, assignment_trip, teams_date
+from src.teams_features import VISIBLE_ASSIGNMENTS, document_visible, handle_command, clean
 from src.google_calendar import CalendarClient, connected_email, delivery_error
 from src.tenant_brand_map import all_known_tenant_ids
 
@@ -130,8 +130,9 @@ def events(store,tenant,job,origin,zone,secret,eligible_ids=None,portal_ids=None
 def attendee_response(record, event):
     if event.get('status') == 'cancelled':
         return 'cancelled'
-    expected = {a.get('email', '').casefold() for a in (record.get('event') or {}).get('attendees', [])}
-    guest = next((a for a in event.get('attendees', []) if a.get('email', '').casefold() in expected), {})
+    expected = {a.get('email', '').strip().casefold() for a in (record.get('event') or {}).get('attendees', []) if a.get('email')}
+    guest = next((a for a in event.get('attendees', []) if not a.get('organizer')
+                  and a.get('email', '').strip().casefold() in expected), {})
     response = guest.get('responseStatus')
     return response if response in ('accepted', 'declined', 'tentative', 'needsAction') else 'unknown'
 
@@ -144,6 +145,7 @@ class CalendarSync:
         self.reconcile_tenant=None
         self.send_invitation_email=None
         self.invitation_eligible=None
+        self.response_job=None
 
     def start(self):
         if self.started:return
@@ -246,6 +248,11 @@ class CalendarSync:
                     record['event_id']=hashlib.sha256((tenant+':'+identity+':'+str(previous['version'])).encode()).hexdigest()
                 record.update(digest=digest,delivery_key=delivery,event=event,status='pending',error='',queued_at=now(),retry_after=None)
                 if identity.startswith('assignment:'):
+                    if event:
+                        assignment=self.store.get(db,tenant,'assignment',identity.split(':',1)[1])
+                        member=self.store.get(db,tenant,'member',assignment['member_id'])
+                        record['response_snapshot']=dict(member_id=member['id'],email=member.get('email','').strip().casefold(),
+                                                         terms_version=assignment['terms_version'])
                     if event is None:record['invite_unanswered_only']=False
                     elif delivery_key is not None:record['invite_unanswered_only']=bool(invite_unanswered_only)
                     if delivery_key is not None:record.pop('bulk_skip_reason',None)
@@ -299,7 +306,7 @@ class CalendarSync:
                     html_url=result.get('htmlLink',''))
                 if status == 'synced' and record['identity'].startswith('assignment:') and record['event']:
                     self._record_response(db, tenant, current, dict(response_status=attendee_response(record,result),
-                        response_checked_at=now(),response_error=''))
+                        response_checked_at=now(),response_error=''), result)
                 if skip_reason:
                     current.update(bulk_skip_reason=str(skip_reason),email_status='skipped',email_error='')
                 elif status=='synced':current.pop('bulk_skip_reason',None)
@@ -342,10 +349,45 @@ class CalendarSync:
                     if record.get('invite_unanswered_only'):current['invite_unanswered_only']=False
                     self.store.save(db,tenant,'calendar_sync',current)
 
-    def _record_response(self, db, tenant, current, fields):
+    def _accept_response(self, db, tenant, current, event):
+        private=event.get('extendedProperties',{}).get('private',{})
+        if not self.response_job or private.get('flow_identity')!=current['identity'] or not private.get('flow_digest'):return
+        if private['flow_digest']!=current['digest']:
+            # A guarded bulk send can skip an already accepted, identical Google event.
+            skipped=(event.get('_flow_invite_skipped') or current.get('bulk_skip_reason'))=='accepted'
+            same_event=all(event.get(key)==value for key,value in current['event'].items() if key!='attendees')
+            if not skipped or not same_event:return
+        try:
+            assignment=self.store.get(db,tenant,'assignment',current['identity'].split(':',1)[1])
+            member=self.store.get(db,tenant,'member',assignment['member_id'])
+            snapshot=dict(member_id=member['id'],email=member.get('email','').strip().casefold(),
+                          terms_version=assignment['terms_version'])
+            # Google retains old RSVPs on event updates; revised terms still need a portal response.
+            if assignment['status']!='pendiente':return
+            if current.get('response_snapshot')!=snapshot and not (
+                    not current.get('response_snapshot') and assignment['terms_version']==1):return
+            if {a.get('email','').strip().casefold() for a in current['event'].get('attendees',[])}!={snapshot['email']}:return
+            if assignment['job_id']!=current['job_id']:return
+            end=datetime.fromisoformat(assignment['end'])
+            if end.replace(tzinfo=end.tzinfo or LOCAL_ZONE)<=datetime.now(timezone.utc):return
+            job=self.response_job(tenant,assignment['job_id'])
+            job_ids={assignment['job_id'],job.get('parent_job_id')}
+            if any(o['job_id'] in job_ids and o.get('closed') for o in self.store.records(db,tenant,'operation')):return
+            if any(c['job_id'] in job_ids and c['state']!='included' for c in self.store.records(db,tenant,'job_classification')):return
+            record,before,_=handle_command(self.store,db,tenant,'Google Calendar',
+                dict(action='response',id=assignment['id'],version=assignment['version'],
+                     terms_version=assignment['terms_version'],status='aceptada'),lambda identifier:job,member['id'])
+            self.store.create(db,tenant,'audit',action='calendar_acceptance',actor='Google Calendar',created_at=now(),
+                              before=clean(before),after=clean(record))
+        except (TeamsError, ValueError, TypeError, KeyError):
+            # Keep the RSVP visible even when this coverage needs an owner's review.
+            return
+
+    def _record_response(self, db, tenant, current, fields, event=None):
         previous = current.get('response_notified_status', current.get('response_status'))
         current.update(fields)
         response = fields.get('response_status')
+        if response=='accepted' and event:self._accept_response(db,tenant,current,event)
         if response not in ('accepted', 'declined'):
             return
         if previous != response:
@@ -365,6 +407,7 @@ class CalendarSync:
                     and (not r.get('response_retry_at') or datetime.fromisoformat(r['response_retry_at']) <= clock)]
         client = self.client_factory(tenant)
         for record in rows:
+            event=None
             try:
                 event = client.response(record['event_id'], record['identity'])
                 fields = dict(response_status=attendee_response(record, event), response_checked_at=now(), response_error='',
@@ -376,5 +419,5 @@ class CalendarSync:
                 current = self.store.get(db, tenant, 'calendar_sync', record['id'])
                 if current['digest'] != record['digest'] or current['status'] != 'synced':
                     continue
-                self._record_response(db, tenant, current, fields)
+                self._record_response(db, tenant, current, fields, event)
                 self.store.save(db, tenant, 'calendar_sync', current)
