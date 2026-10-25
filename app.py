@@ -1284,7 +1284,8 @@ def _validate_travel_email(entry):
     if not result.get('applicable'):
         return None
     fees_changed = (result.get('fingerprint') != (snapshot or {}).get('fingerprint')
-                    and (result.get('level') not in (None, 0) or (snapshot or {}).get('level') not in (None, 0)))
+                    and any(state.get(key) for state in (result, snapshot or {})
+                            for key in ('photo_amount', 'photo_video_amount')))
     if (not snapshot or fees_changed
             or (lead.get('fecha_tentativa') or lead.get('fecha_evento') or '') != snapshot.get('event_date')
             or entry.get('template_id') != snapshot.get('template_id')):

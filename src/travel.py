@@ -253,6 +253,11 @@ class TravelService:
                   for name, level, aliases in [('Lago de Atitlán', 1, ['Atitlán', 'Lago Atitlán']),
                                                 ('Retalhuleu', 2, ['Reu', 'IRTRA Retalhuleu', 'IRTRA de Retalhuleu']),
                                                 ('Petén', 3, ['Flores, Petén', 'Flores Petén'])]]
+        rules.append(dict(id='region-monterrico-santa-rosa', name='Monterrico, Santa Rosa',
+                          value='Monterrico', department='Santa Rosa', scope='region',
+                          aliases=['Monterrico Santa Rosa'], level=None,
+                          photo_amount=1000, photo_video_amount=1500, approval_status='approved',
+                          reason='Tarifa específica para Monterrico, Santa Rosa, confirmada por el usuario.'))
         return rules
 
     def catalog(self, tenant_id):
@@ -346,9 +351,18 @@ class TravelService:
         status = 'proposed' if data.get('approval_status') == 'provisional' else data.get('approval_status') or 'proposed'
         if not value or status not in ('approved', 'proposed', 'rejected'):
             raise ValueError('Destino o estado de regla inválido.')
+        amounts = {key: data.get(key) for key in ('photo_amount', 'photo_video_amount')}
+        custom = any(amount not in (None, '') for amount in amounts.values())
+        if custom:
+            if any(not re.fullmatch(r'[0-9]{1,7}', str(amount)) for amount in amounts.values()):
+                raise ValueError('Indica ambos importes en quetzales enteros, entre 0 y 9,999,999.')
+            amounts = {key: int(amount) for key, amount in amounts.items()}
+        else:
+            amounts = dict.fromkeys(amounts)
         return {'name': str(data.get('name') or value)[:250], 'value': value, 'scope': scope,
                 'aliases': _aliases(data.get('aliases')), 'department': str(data.get('department') or '')[:150],
-                'level': _level(data.get('level', data.get('travel_level'))), 'approval_status': status,
+                'level': None if custom else _level(data.get('level', data.get('travel_level'))),
+                **amounts, 'approval_status': status,
                 'reason': str(data.get('reason') or data.get('classification_reason') or '')[:1500],
                 'source_url': _url(data.get('source_url')), 'verified_at': str(data.get('verified_at') or '')[:100]}
 
@@ -459,7 +473,7 @@ class TravelService:
         department = normalize((venue or {}).get('department') or context['department'])
         segments = self._segments(context)
         if venue:
-            segments += [normalize(venue.get('municipality')), normalize(venue.get('department'))]
+            segments += [normalize(venue.get('locality')), normalize(venue.get('municipality')), normalize(venue.get('department'))]
         # Ignore the trailing country Guatemala; otherwise every national address
         # would accidentally become Ciudad de Guatemala and therefore exempt.
         if len(segments) > 1 and segments[-1] in ('guatemala', 'gt'):
@@ -471,6 +485,12 @@ class TravelService:
             if rule.get('approval_status') == 'rejected':
                 continue
             names = {normalize(rule['value']), *(normalize(alias) for alias in rule.get('aliases', []))}
+            if rule.get('department'):
+                departments = {part for part in segments if part in _DEPARTMENTS}
+                if department:
+                    departments.add(department)
+                if departments - {normalize(rule['department'])}:
+                    continue
             if rule['scope'] == 'municipality':
                 if department and rule.get('department') and normalize(rule['department']) != department:
                     continue
@@ -479,7 +499,7 @@ class TravelService:
                 else:
                     matched = any(part in names for part in segments)
             else:
-                matched = department in names or any(part in names for part in segments)
+                matched = municipality in names or department in names or any(part in names for part in segments)
             if matched:
                 candidates.append(rule)
         municipal = [rule for rule in candidates if rule['scope'] == 'municipality']
@@ -570,7 +590,20 @@ class TravelService:
                 if approved_venue:
                     matches = [approved_venue]
             raw_matches = self._match_venues(venues, {**context, 'municipality': '', 'department': '', 'notes': ''})
-            if raw_matches and not matches:
+            matched_rules = self._match_rules(rules, context)
+            # An explicitly approved destination outranks unverified geocoder
+            # suggestions that saved the same query as aliases for several places.
+            exact_rules = []
+            for rule in matched_rules:
+                names = [rule['value'], *rule.get('aliases', [])]
+                names += [', '.join(filter(None, [name, rule.get('department')])) for name in list(names)]
+                names += [name + ', Guatemala' for name in list(names)]
+                if normalize(context['location']) in {normalize(name) for name in names}:
+                    exact_rules.append(rule)
+            if (raw_matches and any(rule['approval_status'] == 'approved' for rule in exact_rules)
+                    and not any(venue['verification_status'] == 'verified' for venue in raw_matches + matches)):
+                self._resolve_rules(result, exact_rules)
+            elif raw_matches and not matches:
                 result.update(confidence='ambiguous', reason='El municipio o departamento indicado contradice el venue reconocido; confirmar ubicación.')
             elif len(matches) == 1 and self._venue_conflict(matches[0], context, venues, rules):
                 result.update(confidence='ambiguous', reason='La dirección escrita contradice la ubicación verificada del venue; confirmar municipio y departamento.')
@@ -617,7 +650,6 @@ class TravelService:
                         result.update(confidence='verified', reason='Ubicación verificada; falta una regla comercial aprobada.')
                         self._resolve_rules(result, self._match_rules(rules, context, venue))
             else:
-                matched_rules = self._match_rules(rules, context)
                 if matched_rules:
                     self._resolve_rules(result, matched_rules)
                 else:
@@ -640,18 +672,22 @@ class TravelService:
         result['fingerprint'] = _hash({'context': context, 'result': result})
         return result
 
-    def _apply(self, result, level, reason):
-        result.update(level=level, **{key: value for key, value in TRAVEL_LEVELS[level].items() if key != 'name'},
+    def _apply(self, result, level, reason, amounts=None):
+        rates = amounts if amounts is not None else TRAVEL_LEVELS[level]
+        result.update(level=level, **{key: rates[key] for key in ('photo_amount', 'photo_video_amount')},
                       confidence='verified', country='GT', requires_review=False, definitive=True, reason=reason)
 
     def _resolve_rules(self, result, rules):
         approved = [rule for rule in rules if rule['approval_status'] == 'approved']
-        if len({rule['level'] for rule in rules}) > 1:
+        if len({(rule['level'], rule.get('photo_amount'), rule.get('photo_video_amount')) for rule in rules}) > 1:
             result.update(confidence='ambiguous', reason='Reglas de destino contradictorias; confirmar la ubicación antes de cotizar.')
         elif approved:
             rule = approved[0]
-            result.update(rule_id=rule['id'], normalized_location=result['normalized_location'] or f"{rule['value']}, Guatemala", approval_status='approved')
-            self._apply(result, rule['level'], 'Regla aprobada de ' + ('municipio: ' if rule['scope'] == 'municipality' else 'región: ') + rule['value'] + '. ' + rule.get('reason', ''))
+            location = ', '.join(filter(None, [rule['value'],
+                rule.get('department') if rule.get('photo_amount') is not None else None, 'Guatemala']))
+            result.update(rule_id=rule['id'], normalized_location=result['normalized_location'] or location, approval_status='approved')
+            self._apply(result, rule['level'], 'Regla aprobada de ' + ('municipio: ' if rule['scope'] == 'municipality' else 'región: ') + rule['value'] + '. ' + rule.get('reason', ''),
+                        amounts=rule if rule.get('photo_amount') is not None else None)
         elif rules:
             result.update(confidence='probable', suggested_level=rules[0]['level'], reason='Destino con nivel propuesto; pendiente de aprobación comercial.')
 
