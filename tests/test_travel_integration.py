@@ -278,7 +278,7 @@ def test_resolver_failure_keeps_pending_review_screen_available(travel_flow, mon
     assert client.get('/emails').status_code == 200
 
 
-@pytest.mark.parametrize('location,amount', [('Hotel Atitlán', 'Q1,500'), ('Departamento de Petén', 'Q2,500'), ('Lugar no confirmado 314159', None), ('Sacatepéquez', None), ('Boda en Argentina', None)])
+@pytest.mark.parametrize('location,amount', [('Monterrico, Santa Rosa', 'Q1,000'), ('Hotel Atitlán', 'Q1,500'), ('Departamento de Petén', 'Q2,500'), ('Lugar no confirmado 314159', None), ('Sacatepéquez', None), ('Boda en Argentina', None)])
 def test_authorized_norkevin_packages_auto_deliver_normal_or_with_approved_fees(travel_flow, monkeypatch, location, amount):
     crm, client, make = travel_flow
     from src.email_delivery import DeliveryResult
@@ -449,3 +449,33 @@ def test_other_tenant_delivery_does_not_hide_legitimate_package_failure(travel_f
     instance = crm._workflow_instance_for('lead', lead['id'], tenant_id=TID)
     crm._apply_workflow_delivery(instance, 'envio_paquetes', dict(mail, status=status))
     assert instance.step_states['envio_paquetes'].value == expected
+
+
+def test_monterrico_email_has_custom_rates_and_rejects_obsolete_amounts(travel_flow):
+    crm, client, make = travel_flow
+    lead = make('Monterrico, Santa Rosa', '2027')
+    mail = queue(crm, lead)
+    assert mail['status'] == 'pending'
+    assert 'fotografía: Q1,000.' in mail['body']
+    assert 'fotografía y video: Q1,500.' in mail['body']
+    assert FIXTURE['links']['2027'] in mail['body']
+    assert 'podrían aplicarse' not in mail['body']
+    assert crm._validate_travel_email(mail) is None
+    assert compose_travel(mail['body'], mail['travel_snapshot']) == mail['body']
+    rule = next(row for row in crm.travel_service.rules(TID) if row['value'] == 'Monterrico')
+    crm.travel_service.save_rule(TID, {'id': rule['id'], 'photo_video_amount': 1800})
+    assert 'tarifa cambió' in crm._validate_travel_email(mail)
+    from src.mail_tracker import get_tracker
+    get_tracker().discard_pending(mail['id'], actor='test')
+    new_mail = queue(crm, lead)
+    assert 'fotografía y video: Q1,800.' in new_mail['body']
+    assert new_mail['body'].count('se aplicarían los siguientes viáticos:') == 1
+    assert crm._validate_travel_email(new_mail) is None
+
+
+def test_unknown_to_custom_rate_invalidates_old_notice(travel_flow):
+    crm, client, make = travel_flow
+    mail = queue(crm, make('Playa de ejemplo'))
+    crm.travel_service.save_rule(TID, dict(value='Playa de ejemplo', scope='region',
+        photo_amount=1000, photo_video_amount=1500, approval_status='approved'))
+    assert 'tarifa cambió' in crm._validate_travel_email(mail)

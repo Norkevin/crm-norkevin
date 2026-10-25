@@ -27,7 +27,7 @@ def strip_travel_block(body):
 
 
 def travel_block(result):
-    if not result.get('definitive') or result.get('level') == 0:
+    if not result.get('definitive') or not any(result.get(key) for key in ('photo_amount', 'photo_video_amount')):
         return ''
     location = result.get('venue_name') or result.get('normalized_location') or result['original_location']
     location = ' '.join(location.split())

@@ -578,3 +578,69 @@ def test_full_real_seed_schema_and_required_venues(tmp_path):
     assert len([row for row in actual.rules(NORKEVIN) if row['approval_status'] == 'proposed']) == len(seed['proposed_destination_rules'])
     for name, level in [('Finca San Cayetano', 0), ('Hotel Atitlán', 1), ('La Casa del Mundo', 1), ('IRTRA Retalhuleu', 2), ('Tecpán', 0), ('Flores, Petén', 3)]:
         assert actual.resolve(lead(name))['level'] == level
+
+
+@pytest.mark.parametrize('location', [
+    'Monterrico, Santa Rosa', 'MONTERRICO, STA. ROSA', 'Monterrico Santa Rosa',
+    'Monterrico', 'Monterrico, Santa Rosa, Guatemala', 'Hotel nuevo, Monterrico, Santa Rosa',
+])
+def test_monterrico_custom_destination_rate(service, location):
+    result = service.resolve(lead(location))
+    assert result['definitive'] and not result['requires_review']
+    assert result['level'] is None
+    assert (result['photo_amount'], result['photo_video_amount']) == (1000, 1500)
+    assert result['normalized_location'] == 'Monterrico, Santa Rosa, Guatemala'
+
+
+def test_destination_rule_ignores_unverified_geocoder_alias_collisions(service):
+    for name in ('Aldea sugerida', 'Playa sugerida'):
+        service.save_venue(NORKEVIN, venue(name, 'Taxisco', 'Santa Rosa', None,
+            aliases=['Monterrico, Santa Rosa'], verification_status='pending', approval_status='proposed'))
+    result = service.resolve(lead('Monterrico, Santa Rosa'))
+    assert result['definitive'] and result['photo_amount'] == 1000 and not result['venue_id']
+
+
+@pytest.mark.parametrize('location,extra', [
+    ('Santa Rosa', {}), ('Taxisco, Santa Rosa', {}), ('Hotel Monterrico', {}),
+    ('Monterrico, Escuintla', {}), ('Monterrico', {'departamento': 'Escuintla'}),
+    ('Monterrico, Santa Rosa', {'pais': 'Argentina'}),
+    ('Monterrico, Santa Rosa', {'tenant_id': ASTRAL}),
+])
+def test_monterrico_rule_does_not_spread_to_other_destinations_or_brands(service, location, extra):
+    result = service.resolve(lead(location, **extra))
+    assert not result['definitive'] and result['photo_amount'] is None
+
+
+def test_verified_locality_uses_rate_but_venue_exception_still_wins(service):
+    row = service.save_venue(NORKEVIN, venue('Hotel de la Playa', 'Taxisco', 'Santa Rosa', None,
+                                           locality='Monterrico', approval_status='proposed'))
+    assert service.resolve(lead(row['name']))['photo_amount'] == 1000
+    assert service.resolve(lead(row['name'] + ', Monterrico, Santa Rosa'))['photo_amount'] == 1000
+    service.save_venue(NORKEVIN, {'id': row['id'], 'travel_level': 0, 'approval_status': 'approved'})
+    assert service.resolve(lead(row['name']))['photo_amount'] == 0
+
+
+def test_custom_rule_edit_survives_seeding_and_can_return_to_level(service):
+    rule = next(row for row in service.rules(NORKEVIN) if row['value'] == 'Monterrico')
+    service.save_rule(NORKEVIN, {'id': rule['id'], 'photo_video_amount': 1800})
+    assert service.resolve(lead('Monterrico'))['photo_video_amount'] == 1800
+    service.ensure_catalog(NORKEVIN)
+    assert service.resolve(lead('Monterrico'))['photo_video_amount'] == 1800
+    service.save_rule(NORKEVIN, {'id': rule['id'], 'photo_amount': None, 'photo_video_amount': None, 'level': 1})
+    assert service.resolve(lead('Monterrico'))['photo_video_amount'] == 2500
+
+
+@pytest.mark.parametrize('amounts', [
+    {'photo_amount': 1000}, {'photo_amount': -1, 'photo_video_amount': 1500},
+    {'photo_amount': True, 'photo_video_amount': 1500}, {'photo_amount': 'NaN', 'photo_video_amount': 1500},
+    {'photo_amount': 1000.50, 'photo_video_amount': 1500}, {'photo_amount': 1000, 'photo_video_amount': 10000000},
+])
+def test_custom_rule_requires_two_valid_whole_quetzal_amounts(service, amounts):
+    with pytest.raises(ValueError, match='ambos importes'):
+        service.save_rule(NORKEVIN, dict(value='Destino nuevo', scope='region', approval_status='approved', **amounts))
+
+
+def test_custom_rules_with_different_amounts_are_ambiguous(service):
+    service.save_rule(NORKEVIN, dict(value='Playa alternativa', aliases=['Monterrico'], scope='region',
+        department='Santa Rosa', photo_amount=1200, photo_video_amount=1800, approval_status='approved'))
+    assert service.resolve(lead('Monterrico'))['confidence'] == 'ambiguous'

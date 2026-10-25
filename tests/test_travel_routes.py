@@ -165,3 +165,20 @@ def test_settings_and_records_are_isolated_from_astral(travel_ui):
     finally:
         crm._workflow_tenant.reset(token)
     assert crm.travel_service.settings(tenant)['enabled'] is True
+
+
+def test_custom_destination_rates_can_be_saved_and_displayed(travel_ui):
+    crm, client, tenant = travel_ui
+    rule = next(row for row in crm.travel_service.rules(tenant) if row['value'] == 'Monterrico')
+    response = client.post('/api/travel/rules', json=dict(id=rule['id'], photo_amount='1000', photo_video_amount='1500'))
+    assert response.status_code == 200
+    assert response.json['rule']['level'] is None
+    html = client.get('/settings/travel').get_data(as_text=True)
+    assert 'Importes específicos del destino' in html and 'Fotografía (Q)' in html
+    row = next(row for row in re.findall(r'<tr>.*?</tr>', html, re.S) if 'Monterrico' in row)
+    assert 'Foto: Q1,000' in row and 'Foto + video: Q1,500' in row
+    assert client.post('/api/travel/rules', json=dict(id=rule['id'], photo_amount=-1)).status_code == 400
+    lead = dict(id='monterrico-ui', tenant_id=tenant, nombre='Pareja de prueba', locacion='Monterrico, Santa Rosa', status='Nuevo')
+    crm.store.upsert('leads', lead)
+    html = client.get('/leads/' + lead['id']).get_data(as_text=True)
+    assert 'Tarifa específica del destino' in html and 'Foto Q1,000 · Foto + video Q1,500' in html
