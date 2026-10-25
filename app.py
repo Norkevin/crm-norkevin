@@ -7329,6 +7329,18 @@ def api_settings_package_delete(package_id):
     return jsonify({'ok': True})
 
 
+PUBLIC_INTAKE_SERVICES = ('Fotografía de boda', 'Video de boda', 'Fotografía y video de boda',
+                          'Sesión / Save the Date', 'Otro servicio')
+PUBLIC_INTAKE_BUDGETS = ('Sí, la inversión es compatible',
+                         'Necesitamos orientación',
+                         'Presupuesto menor al catálogo')
+PUBLIC_INTAKE_NORKEVIN_2028 = 'https://drive.google.com/file/d/18TR7KhEcRDpGOKsUnJNOaRvTna5l9edS/view'
+PUBLIC_INTAKE_CATALOGS = {
+    'norkevin-photography': 'https://drive.google.com/file/d/1BQFU3oq_3WImnKose6L8rFTPE5Mh-kXf/view',
+    'astral-weddings': 'https://drive.google.com/file/d/1irm5P-Oru9fUo55B58y4XBuUrMj76y3H/view',
+}
+
+
 @app.route('/captacion')
 @app.route('/captacion/<tenant_slug>')
 def captacion_form(tenant_slug=None):
@@ -7357,6 +7369,10 @@ def captacion_form(tenant_slug=None):
         tenant=tenant,
         contact_email=contact_email,
         contact_phone=contact_phone,
+        intake_services=PUBLIC_INTAKE_SERVICES,
+        intake_budgets=PUBLIC_INTAKE_BUDGETS,
+        intake_catalog_url=PUBLIC_INTAKE_CATALOGS.get(tenant.get('slug')),
+        intake_catalog_2028_url=PUBLIC_INTAKE_NORKEVIN_2028 if tenant.get('slug') == 'norkevin-photography' else None,
         venue_catalog=public_venue_catalog(),
         google_places_enabled=google_places_enabled(),
     )
@@ -7405,6 +7421,28 @@ def api_captacion_submit():
     tenant = _tenant_by_slug(data.get('tenant_slug') or 'astral-weddings')
     if not tenant:
         return jsonify({'ok': False, 'error': 'Cuenta no reconocida'}), 400
+    qualification = None
+    if tenant.get('slug') in PUBLIC_INTAKE_CATALOGS and any(
+            key in data for key in ('intake_version', 'servicio_solicitado', 'coleccion_interes')):
+        service = data.get('servicio_solicitado')
+        budget = data.get('presupuesto')
+        collection = data.get('coleccion_interes', '')
+        if service not in PUBLIC_INTAKE_SERVICES or budget not in PUBLIC_INTAKE_BUDGETS:
+            return jsonify({'ok': False, 'error': 'Selecciona el servicio y cómo encajan las colecciones con su inversión.'}), 400
+        if not isinstance(collection, str) or len(collection) > 160:
+            return jsonify({'ok': False, 'error': 'Escribe la colección en un máximo de 160 caracteres.'}), 400
+        qualification = {
+            'version': 1, 'service': service, 'budget_fit_declared': budget,
+            'collection': collection.strip(),
+            'catalog_url': PUBLIC_INTAKE_NORKEVIN_2028 if tenant['slug'] == 'norkevin-photography'
+                and str(data.get('fecha_tentativa', '')).startswith('2028-') else PUBLIC_INTAKE_CATALOGS[tenant['slug']],
+            'status': 'Pendiente de revisión',
+        }
+        summary = f'Servicio solicitado: {service}\nEncaje de inversión declarado: {budget}'
+        if collection.strip():
+            summary += f'\nColección de interés: {collection.strip()}'
+        summary += '\nSolicitud: revisar disponibilidad y propuesta. Disponibilidad y encaje pendientes de revisión.'
+        notes = summary + ('\n\n' + notes.strip() if notes.strip() else '')
     event_date = data.get('fecha_tentativa')
     try:
         if not isinstance(event_date, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', event_date):
@@ -7436,6 +7474,8 @@ def api_captacion_submit():
         'mail_status': 'ENVIADO',
         'tenant_id': tenant['id'],
     }
+    if qualification is not None:
+        lead['intake_qualification'] = qualification
     upsert_lead(lead)
     client, _client_created = _ensure_client_for_lead(lead)
     lead['client_id'] = client['id']

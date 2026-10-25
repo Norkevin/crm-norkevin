@@ -196,6 +196,32 @@
           </div>
         </div>
       </fieldset>
+      <fieldset>
+        <legend><span>03</span> La cobertura que buscan</legend>
+        <div class="fields">
+          <input type="hidden" name="intake_version" value="1">
+          <div>
+            <label for="servicio_solicitado">¿Qué servicio necesitan? *</label>
+            <select id="servicio_solicitado" name="servicio_solicitado" class="field" required>
+              <option value="" selected>Selecciona un servicio</option>
+              {% for service in intake_services %}<option value="{{ service }}">{{ service }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="presupuesto">¿Las colecciones encajan con su inversión? *</label>
+            <p class="hint" id="catalog-hint">Antes de elegir, <a href="{{ intake_catalog_url }}" target="_blank" rel="noopener noreferrer">consulta nuestras colecciones y precios (PDF)</a>{% if intake_catalog_2028_url %}; para una boda en 2028, <a href="{{ intake_catalog_2028_url }}" target="_blank" rel="noopener noreferrer">consulta el catálogo 2028 (PDF)</a>{% endif %}. Confirmaremos la tarifa y disponibilidad para su fecha.</p>
+            <select id="presupuesto" name="presupuesto" class="field" aria-describedby="catalog-hint" required>
+              <option value="" selected>Selecciona una opción</option>
+              {% for budget in intake_budgets %}<option value="{{ budget }}">{{ budget }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="coleccion_interes">Colección de interés <span class="optional">/ opcional</span></label>
+            <input id="coleccion_interes" name="coleccion_interes" class="field" maxlength="160" placeholder="Nombre de la colección o cobertura que desean">
+          </div>
+          <p class="hint">Con estos datos revisaremos la disponibilidad y la propuesta adecuada. Si todavía necesitan orientación, pueden indicarlo.</p>
+        </div>
+      </fieldset>
       <div id="form-error" class="form-error" role="alert" hidden></div>
       <button type="submit" class="submit"><span id="submit-label">Enviar solicitud</span><span aria-hidden="true">↗</span></button>
       <p class="form-foot">* Campos obligatorios. Los demás detalles pueden esperar.</p>
