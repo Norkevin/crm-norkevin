@@ -64,10 +64,6 @@
   .plan-check-row { display: flex; flex-wrap: wrap; gap: 10px; }
   .plan-check { display: flex; align-items: center; gap: 7px; border: 1px solid var(--doc-line); border-radius: 10px; padding: 8px 14px; font-size: 13px; cursor: pointer; user-select: none; }
   .plan-check input { margin: 0; }
-  .send-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(20,20,25,.5); z-index: 200; align-items: center; justify-content: center; padding: 24px; }
-  .send-modal-overlay.open { display: flex; }
-  .send-modal-content { background: #fff; border-radius: 16px; width: min(640px, 94vw); max-height: 88vh; overflow: auto; padding: 24px; }
-  .send-modal-content h2 { font-size: 17px; font-weight: 600; margin-bottom: 16px; }
   .opt-badge { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; background: #FDF1DC; color: #97620C; padding: 2px 8px; border-radius: 999px; margin-bottom: 4px; }
   .opt-subtitle { font-size: 12.5px; color: var(--doc-ink-soft); margin-top: 1px; }
   .opt-price-old { font-size: 12.5px; color: var(--doc-ink-soft); text-decoration: line-through; margin-right: 6px; }
@@ -331,7 +327,7 @@
 
       <div class="doc-section">
         <div class="doc-eyebrow">Preparación de la propuesta</div>
-        <p class="doc-hint">Al aceptar se vinculan el trabajo, las cuotas y estos documentos. Los correos quedan sujetos a tu aprobación en Emails.</p>
+        <p class="doc-hint">Al aceptar se vinculan el trabajo, las cuotas y los documentos seleccionados.</p>
         <label class="plan-check"><input type="checkbox" id="prepare-contract" {% if quote.get('prepare_contract', true) %}checked{% endif %}> Preparar contrato de boda</label>
         <label class="plan-check"><input type="checkbox" id="prepare-questionnaire" {% if quote.get('prepare_questionnaire', true) %}checked{% endif %}> Preparar cuestionario de boda</label>
         <button class="doc-btn outline" type="button" onclick="savePreparation()">Guardar preparación</button>
@@ -396,31 +392,6 @@
 
     <div class="doc-footer">{{ brand.display_name }} &middot; {{ brand.email }} &middot; {{ brand.phone }}</div>
 
-  </div>
-</div>
-
-<div class="send-modal-overlay" id="send-quote-modal">
-  <div class="send-modal-content">
-    <h2>Preparar envío al cliente</h2>
-    <form onsubmit="submitSendQuote(event)">
-      <div class="opt-field">
-        <label>Para</label>
-        <input id="send-quote-to" readonly>
-      </div>
-      <div class="opt-field">
-        <label>Asunto</label>
-        <input id="send-quote-subject">
-      </div>
-      <div class="opt-field">
-        <label>Mensaje</label>
-        <textarea id="send-quote-body" style="min-height:160px;"></textarea>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button type="button" class="doc-btn outline" onclick="closeSendQuoteModal()">Cancelar</button>
-        <button type="submit" class="doc-btn primary">Poner en cola de aprobación</button>
-      </div>
-      <p class="doc-hint" style="margin-top:10px;">Después de enviarla, usa Editar cotización para cambiar el plan o volver a borrador.</p>
-    </form>
   </div>
 </div>
 
@@ -714,25 +685,8 @@ function savePlanOptions() {
 }
 
 function sendQuote() {
-  var opts = document.querySelectorAll('.opt-card');
-  if (!opts.length) { alert('Agrega al menos 1 opcion de paquete antes de enviar'); return; }
-  document.getElementById('send-quote-to').value = {{ (display_email or '')|tojson }};
-  document.getElementById('send-quote-subject').value = 'Cotizacion ' + QUOTE_ID + ' - ' + {{ brand.display_name|tojson }};
-  // El link real (/q/<token>) recien se genera al enviar -- por seguridad
-  // el token no existe hasta ese momento (public_tokens.emitir_para), asi
-  // que aca no se puede mostrar la URL final, solo un marcador. El
-  // backend (api_quote_send) reemplaza ese marcador por el link real
-  // en CUALQUIER body que llegue (editado o no) antes de mandar el
-  // correo -- nunca sale un correo real con una URL adivinada o vieja.
-  document.getElementById('send-quote-body').value =
-    'Hola ' + {{ (display_name or 'Cliente')|tojson }} + ',\n\n' +
-    'Tu cotizacion esta lista. Puedes verla y aceptarla en este enlace:\n' +
-    '[[QUOTE_LINK]]' + '\n\nSaludos,\n' + {{ brand.display_name|tojson }};
-  document.getElementById('send-quote-modal').classList.add('open');
-}
-
-function closeSendQuoteModal() {
-  document.getElementById('send-quote-modal').classList.remove('open');
+  reviewDocumentEmail('quote', QUOTE_ID, {beforeSend: savePreparation,
+    onSent: function () { window.location.href = '/quotes/' + QUOTE_ID; }});
 }
 
 async function savePreparation() {
@@ -750,26 +704,6 @@ async function savePreparation() {
     return false;
   }
 }
-async function submitSendQuote(event) {
-  event.preventDefault();
-  try { if (!(await savePreparation())) return; }
-  catch (error) { alert('No se pudo guardar la preparación. Intenta de nuevo.'); return; }
-  fetch('/api/quotes/' + QUOTE_ID + '/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      subject: document.getElementById('send-quote-subject').value,
-      body: document.getElementById('send-quote-body').value
-    })
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.ok) { window.location.href = '/quotes/' + QUOTE_ID; }
-      else { alert('Error: ' + data.error); }
-    })
-    .catch(function() { alert('Error de red'); });
-}
-
 // ---------- Agregados opcionales (extras) ----------
 var EXTRAS_CATALOG = {{ extras_catalog|tojson }};
 
@@ -859,5 +793,6 @@ function savePresentation() {
 }
 </script>
 
+{% include "_invoice_email.html" %}
 </body>
 </html>

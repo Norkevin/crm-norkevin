@@ -29,8 +29,8 @@ def test_job_detail_contract_modal_has_template_selector(auth_client):
     resp = auth_client.get(f'/jobs/{job_id}')
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    assert 'id="contract-template"' in html
-    assert 'applyContractTemplate' in html
+    assert 'id="invoice-email-template"' in html
+    assert "reviewDocumentEmail('contract'" in html
 
 
 def test_contract_send_keeps_signing_link_even_with_a_template_missing_it(auth_client):

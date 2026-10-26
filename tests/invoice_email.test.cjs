@@ -4,13 +4,16 @@ const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
 const source = readFileSync(require('node:path').join(__dirname, '../static/invoice-email.js'), 'utf8');
 
-function composer(deliveryStatus = 'pending') {
+function composer(deliveryStatus = 'pending', kind = 'invoice') {
+  const path = {invoice: 'payments', quote: 'quotes', contract: 'contracts'}[kind];
+  const marker = {invoice: '[[INVOICE_LINK]]', quote: '[[QUOTE_LINK]]', contract: '[[CONTRACT_LINK]]'}[kind];
   const calls = [];
   const fields = new Map();
   function element(id) {
     if (!fields.has(id)) {
       const listeners = {};
-      fields.set(id, {value: '', disabled: false, open: false,
+      fields.set(id, {value: '', disabled: false, open: false, style: {},
+        replaceChildren() {},
         addEventListener: (name, action) => { listeners[name] = action; },
         fire: async name => listeners[name]?.({preventDefault() {}})});
     }
@@ -23,24 +26,25 @@ function composer(deliveryStatus = 'pending') {
   dialog.querySelector = () => element('editor');
   field('form').reset = () => {};
   field('form').reportValidity = () => true;
-  const context = {document: {getElementById: element}, window: {},
+  const context = {document: {getElementById: element}, window: {}, Option: function () {},
     crypto: {randomUUID: () => '11111111-1111-4111-8111-111111111111'},
     fetch: async url => {
       calls.push(['GET', url]);
       return {ok: true, json: async () => ({ok: true, to_email: 'client@example.invalid',
-        subject: 'Recordatorio', body: 'Saldo Q1,900\n[[INVOICE_LINK]]',
+        subject: 'Recordatorio', body: 'Documento\n' + marker,
         preview_url: '/invoices/test/documento', company: 'Estudio', from_email: ''})};
     },
     apiPost: async (url, body) => {
       calls.push(['POST', url, body]);
       if (url === '/api/email-preview') return {html: body.body, unresolved: []};
-      if (url.startsWith('/api/payments/')) return {mail_id: 'queued', delivery_status: deliveryStatus};
+      if (url.endsWith('/send-preview')) return {...body, html: body.body, unresolved: []};
+      if (url.startsWith('/api/' + path + '/')) return {mail_id: 'queued', delivery_status: deliveryStatus};
       return {ok: true};
     },
     flashToast: (...args) => calls.push(['toast', ...args]),
     location: {reload: () => calls.push(['reload'])}};
   vm.runInNewContext(source, context);
-  return {calls, field, open: () => context.window.sendInvoice('test')};
+  return {calls, field, open: options => context.window.reviewDocumentEmail(kind, 'test', options)};
 }
 
 test('opening and cancelling invoice review never queues or sends mail', async () => {
@@ -52,6 +56,18 @@ test('opening and cancelling invoice review never queues or sends mail', async (
   assert.equal(ui.field('dialog').open, false);
   assert.equal(ui.calls.filter(([method, url]) => method === 'POST' && url !== '/api/email-preview').length, 0);
 });
+
+for (const kind of ['quote', 'contract']) {
+  test(kind + ': opening and cancelling never sends; only confirmation delivers', async () => {
+    const ui = composer('sent', kind);
+    await ui.open();
+    await ui.field('cancel').fire('click');
+    assert.equal(ui.calls.filter(([, url]) => typeof url === 'string' && url.endsWith('/send')).length, 0);
+    await ui.open();
+    await Promise.all([ui.field('form').fire('submit'), ui.field('form').fire('submit')]);
+    assert.equal(ui.calls.filter(([, url]) => typeof url === 'string' && url.endsWith('/send')).length, 1);
+  });
+}
 
 test('edited content must be previewed, and confirmation sends the reviewed content once', async () => {
   const ui = composer();

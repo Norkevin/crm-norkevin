@@ -14284,6 +14284,93 @@ def quote_decline(quote_id):
     return redirect(url_for('quote_view', quote_id=quote_id))
 
 
+def _document_email_context(kind, document):
+    job = get_job(document.get('job_id', '')) if document.get('job_id') else None
+    client_id = document.get('client_id') or ((job or {}).get('client_id') if kind == 'quote' else None)
+    client = get_client(client_id) if client_id else None
+    lead = get_lead(document.get('lead_id', '')) if document.get('lead_id') else None
+    if kind == 'quote' and not lead:
+        lead = {'id': document.get('lead_id') or document.get('job_id') or document['id'],
+                'nombre': _client_name(client=client, job=job), 'email': _email_for(client=client)}
+    return client, lead, job
+
+
+def _document_email_text(kind, document, client, lead, job, host, data):
+    """Compose the same resolved message for review and delivery, without publishing anything."""
+    tenant_id = document.get('tenant_id') or (job or {}).get('tenant_id')
+    company = _brand_display_name_for_tenant(tenant_id)
+    url = host + ('/quotes/' if kind == 'quote' else '/contracts/') + document['id']
+    if kind == 'quote':
+        subject = f'Cotizacion {document.get("number") or document["id"]} - {company}'
+        body = (f"Hola {(lead or {}).get('nombre') or 'Cliente'},\n\n"
+                f"Tu cotizacion esta lista. Puedes verla y aceptarla en este enlace:\n{url}\n\n"
+                f"Saludos,\n{company}")
+        markers, label = ['[[QUOTE_LINK]]'], 'Ver mi cotización'
+    else:
+        subject = f'Tu contrato de servicios fotograficos - {company}'
+        body = (f"Hola {_client_name(client=client, lead=lead, job=job)},\n\n"
+                "Aqui esta el contrato de servicios. Puedes leerlo y firmarlo electronicamente desde este link:\n"
+                f"{url}\n\nSi tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\n{company}")
+        markers, label = ['[[CONTRACT_LINK]]', '[LINK AL CONTRATO]', '[LINK DEL CONTRATO]'], 'Firma tu contrato aqui'
+    if data.get('use_template') and not data.get('template_id'):
+        data = dict(data, subject='', body='')
+    elif data.get('use_template'):
+        template = _get_email_template(data.get('template_id'))
+        if not template:
+            raise ValueError('Plantilla no encontrada')
+        data = dict(data, subject=template.get('asunto') or '', body=template.get('cuerpo') or '')
+    subject = _render_message_template((data.get('subject') or '').strip() or subject, client=client, lead=lead, job=job)
+    body = _render_message_template((data.get('body') or '').strip() or body, client=client, lead=lead, job=job)
+    return subject, _inject_link(body, url, markers, label)
+
+
+def _document_email_request(kind, document_id, data):
+    """Validate manual input and identify one composition across repeated confirmations."""
+    import uuid
+    if not isinstance(data, dict) or any(key in data and not isinstance(data[key], str)
+                                        for key in ('to_email', 'subject', 'body')):
+        raise ValueError('Destinatario, asunto y mensaje deben ser texto')
+    request_id = data.get('send_request_id')
+    if request_id is not None:
+        try:
+            request_id = str(uuid.UUID(request_id))
+        except (ValueError, TypeError, AttributeError):
+            raise ValueError('Identificador de envío no válido')
+    key = f'{kind}:{document_id}:send:{request_id or _idempotency_minute_bucket()}'
+    existing = next((mail for mail in store.list('pending_emails') if mail.get('idempotency_key') == key), None)
+    return key, existing
+
+
+@app.route('/api/quotes/<document_id>/send-preview', defaults={'kind': 'quote'}, methods=['GET', 'POST'])
+@app.route('/api/contracts/<document_id>/send-preview', defaults={'kind': 'contract'}, methods=['GET', 'POST'])
+def api_document_send_preview(kind, document_id):
+    from src.email_delivery import render_email_html, unresolved_email_fields
+    from src import gmail_delivery
+    document = store.get('quotes' if kind == 'quote' else 'contracts', document_id)
+    if not document:
+        return jsonify(ok=False, error='Documento no encontrado'), 404
+    if kind == 'quote' and document.get('status') == 'Borrador' and not document.get('options'):
+        return jsonify(ok=False, error='Agrega al menos 1 opcion de paquete antes de enviar'), 400
+    data = (request.get_json(silent=True) or {}) if request.method == 'POST' else dict(
+        template_id=request.args.get('template_id'), use_template=bool(request.args.get('template_id')))
+    try:
+        _document_email_request(kind, document_id, data)
+        client, lead, job = _document_email_context(kind, document)
+        host = request.host_url.rstrip('/')
+        subject, body = _document_email_text(kind, document, client, lead, job, host, data)
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    tenant_id = document.get('tenant_id') or (job or {}).get('tenant_id')
+    return jsonify(ok=True, subject=subject, body=body,
+                   to_email=(data.get('to_email') or '').strip() or _email_for(client=client, lead=lead),
+                   preview_url=host + ('/quotes/' if kind == 'quote' else '/contracts/') + document_id,
+                   company=_brand_display_name_for_tenant(tenant_id),
+                   from_email=gmail_delivery.connected_email(tenant_id=tenant_id) or '',
+                   html=render_email_html(subject, body), unresolved=unresolved_email_fields(subject, body),
+                   templates=[{'id': tpl['id'], 'name': tpl.get('name') or tpl['id']}
+                              for tpl in store.list('email_templates') if tpl.get('activo', True)] if kind == 'contract' else [])
+
+
 @app.route('/api/quotes/<quote_id>/send', methods=['POST'])
 def api_quote_send(quote_id):
     """Envia la cotizacion por email al cliente."""
@@ -14297,17 +14384,17 @@ def api_quote_send(quote_id):
     if quote.get('status') == 'Borrador' and not quote.get('options'):
         return jsonify({'ok': False, 'error': 'Agrega al menos 1 opcion de paquete antes de enviar'}), 400
 
-    lead = get_lead(quote.get('lead_id', ''))
-    job = get_job(quote.get('job_id', '')) if quote.get('job_id') else None
-    client = get_client(quote.get('client_id') or (job or {}).get('client_id', '')) if (quote.get('client_id') or (job or {}).get('client_id')) else None
-    if not lead:
-        lead = {
-            'id': quote.get('lead_id') or quote.get('job_id') or quote_id,
-            'nombre': _client_name(client=client, job=job),
-            'email': _email_for(client=client),
-        }
-
-    to_email = _email_for(client=client, lead=lead)
+    data = request.get_json(silent=True) or request.form.to_dict() or {}
+    try:
+        idempotency_key, existing = _document_email_request('quote', quote_id, data)
+        client, lead, job = _document_email_context('quote', quote)
+        host = request.host_url.rstrip('/')
+        subject, body = _document_email_text('quote', quote, client, lead, job, host, data)
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    if existing:
+        return jsonify(ok=True, mail_id=existing['id'], delivery_status=existing['status'])
+    to_email = (data.get('to_email') or '').strip() or _email_for(client=client, lead=lead)
     if not to_email:
         return jsonify({'ok': False, 'error': 'Esta cotizacion no tiene email de cliente'}), 400
 
@@ -14329,25 +14416,7 @@ def api_quote_send(quote_id):
     # catalogo/template/branding despues no debe cambiarla silenciosamente.
     _snapshot_public_quote_extras(quote, tenant_id_for_send)
 
-    data = request.json or request.form or {}
-    empresa = _brand_display_name_for_tenant(tenant_id_for_send)
-    subject = (data.get('subject') or '').strip() or f'Cotizacion {quote.get("number") or quote_id} - {empresa}'
-    body = (data.get('body') or '').strip() or (
-        f"Hola {lead.get('nombre') or 'Cliente'},\n\n"
-        "Tu cotizacion esta lista. Puedes verla y aceptarla en este enlace:\n"
-        f"{quote_url}\n\n"
-        f"Saludos,\n{empresa}"
-    )
-    # quote_edit.html (BLOQUE D) no puede mostrar el link real en la vista
-    # previa del mensaje -- el token recien se emite arriba, en este mismo
-    # request. Manda el mensaje con un marcador [[QUOTE_LINK]] en su lugar;
-    # se reemplaza aca por la URL real de ESTE envio, tanto si el admin
-    # dejo la plantilla tal cual como si la edito y el marcador sigue en
-    # el texto. Antes de este reemplazo, un envio sin editar el mensaje
-    # salia con el link interno viejo (/quotes/<id>) en vez de /q/<token>.
-    subject = _render_message_template(subject, client=client, lead=lead, job=job)
-    body = _render_message_template(body, client=client, lead=lead, job=job)
-    body = _inject_link(body, quote_url, ['[[QUOTE_LINK]]'], 'Ver mi cotización')
+    body = body.replace(host + '/quotes/' + quote_id, quote_url)
     # Keep the rendered snapshot and confirm delivery through the shared policy.
     mail = get_tracker().queue_email(
         to_email=to_email,
@@ -14359,7 +14428,7 @@ def api_quote_send(quote_id):
         attachments=[],
         tenant_id=tenant_id_for_send,
         source='manual:quote-send',
-        idempotency_key=f'quote:{quote_id}:send:{_idempotency_minute_bucket()}',
+        idempotency_key=idempotency_key,
     )
 
     # Publicar la propuesta y registrar por separado la entrega del correo.
@@ -15068,35 +15137,25 @@ def api_contract_send(contract_id):
     if not contract:
         return jsonify({'ok': False, 'error': 'Contrato no encontrado'}), 404
 
-    job = get_job(contract.get('job_id', '')) if contract.get('job_id') else None
-    client = get_client(contract.get('client_id', '')) if contract.get('client_id') else None
-    lead = get_lead(contract.get('lead_id', '')) if contract.get('lead_id') else None
-    to_email = _email_for(client=client, lead=lead)
+    data = request.get_json(silent=True) or request.form.to_dict() or {}
+    try:
+        idempotency_key, existing = _document_email_request('contract', contract_id, data)
+        client, lead, job = _document_email_context('contract', contract)
+        subject, body = _document_email_text('contract', contract, client, lead, job, request.host_url.rstrip('/'), data)
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    if existing:
+        return jsonify(ok=True, mail_id=existing['id'], delivery_status=existing['status'])
+    to_email = (data.get('to_email') or '').strip() or _email_for(client=client, lead=lead)
     if not to_email:
         return jsonify({'ok': False, 'error': 'Este contrato no tiene email de cliente'}), 400
-
-    host = request.host_url.rstrip('/')
-    contract_url = host + f'/contracts/{contract_id}'
-    name = _client_name(client=client, lead=lead, job=job)
-
-    data = request.json or request.form or {}
-    empresa = _brand_display_name_for_tenant((job or {}).get('tenant_id') or contract.get('tenant_id'))
-    subject = (data.get('subject') or '').strip() or f'Tu contrato de servicios fotograficos - {empresa}'
-    body = (data.get('body') or '').strip() or (
-        f"Hola {name},\n\n"
-        "Aqui esta el contrato de servicios. Puedes leerlo y firmarlo electronicamente desde este link:\n"
-        f"{contract_url}\n\n"
-        f"Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\n{empresa}"
-    )
-    # Igual que con cuestionarios: si Kevin elige una plantilla de Settings
-    # que no trae el link del contrato, el correo saldria sin forma de
-    # firmarlo -- _inject_link garantiza que el link siempre vaya, sea cual
-    # sea la plantilla elegida.
-    subject = _render_message_template(subject, client=client, lead=lead, job=job)
-    body = _render_message_template(body, client=client, lead=lead, job=job)
-    body = _inject_link(body, contract_url,
-                        placeholders=['[LINK AL CONTRATO]', '[LINK DEL CONTRATO]'],
-                        fallback_label='Firma tu contrato aqui')
+    step_id = data.get('workflow_step_id')
+    if step_id:
+        step = next((step for step in PRODUCTION_WORKFLOW((job or {}).get('tenant_id')).steps
+                     if step.id == step_id and step.action_type.value == 'send_contract'), None)
+        if not job or not step:
+            return jsonify(ok=False, error='Paso de contrato no encontrado'), 400
+    contract_url = request.host_url.rstrip('/') + f'/contracts/{contract_id}'
     # STAGE 2 (agosto 2026): cola de aprobacion en vez de entrega inmediata.
     mail = get_tracker().queue_email(
         to_email=to_email,
@@ -15108,13 +15167,15 @@ def api_contract_send(contract_id):
         client_id=contract.get('client_id'),
         tenant_id=(job or {}).get('tenant_id') or contract.get('tenant_id'),
         source='manual:contract-send',
-        idempotency_key=f'contract:{contract_id}:send:{_idempotency_minute_bucket()}',
+        idempotency_key=idempotency_key,
     )
 
     _apply_document_delivery(contract, mail)
     if not contract.get('signed'):
         contract['status'] = 'Enviado' if mail.get('status') == 'sent' else 'Preparado'
     store.upsert('contracts', contract)
+    if step_id:
+        _complete_job_workflow_step(job, step_id, mail_id=mail.get('id'))
 
     return jsonify({
         'ok': True,
