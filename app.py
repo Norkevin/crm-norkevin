@@ -11143,18 +11143,33 @@ def _invoice_send_email_text(pay, client, job, lead, host, *, emitir_token=False
         host, client, invoice_id, emitir_token=emitir_token,
         tenant_id=(job or {}).get('tenant_id') or pay.get('tenant_id')) if emitir_token else '[[INVOICE_LINK]]'
     name = _client_name(client=client, lead=lead, job=job)
-    amount = float(pay.get('amount') or 0)
+    tenant_id = (job or {}).get('tenant_id') or pay.get('tenant_id')
+    document = _invoice_document(pay['id'], tenant_id=tenant_id)
+    amount = document['pendiente'] if document else _row_saldo_vivo(pay)
     # Antes hardcodeado a 'ASTRAL WEDDINGS' sin importar el tenant del job --
     # mismo patron del incidente del 16 de agosto, aca en la firma de la
     # factura. Resuelto via la marca canonica del tenant dueno del pago/job.
     empresa = _brand_display_name_for_tenant((job or {}).get('tenant_id') or pay.get('tenant_id'))
 
-    subject = f'Factura {invoice_id} - {empresa}'
+    subject = (f'Recordatorio de pago · Factura {invoice_id} - {empresa}' if amount > 0
+               else f'Estado de cuenta · Factura {invoice_id} - {empresa}')
+    summary = (
+        f'Este es un recordatorio automático de {empresa}. '
+        f'Actualmente tienes un saldo pendiente de Q{amount:,.2f} '
+        f'correspondiente a tu factura {invoice_id}.'
+        if amount > 0 else f'Tu factura {invoice_id} está pagada. Gracias por tu pago.'
+    )
     body = (
         f"Hola {name},\n\n"
-        f"Tu factura por Q{amount:,.2f} ({pay.get('concepto') or 'Pago'}) esta lista.\n"
-        f"Puedes verla y pagarla en este enlace:\n{invoice_url}\n\n"
-        f"Saludos,\n{empresa}"
+        f"{summary}\n\n"
+        f"En el siguiente enlace puedes consultar el desglose de los servicios, "
+        f"los pagos registrados y el saldo de tu factura:\n"
+        f"Ver desglose de tu factura\n{invoice_url}\n\n"
+        + ("Si ya realizaste el pago, por favor responde a este correo con tu comprobante "
+           "para que podamos verificarlo y actualizar tu saldo.\n\n"
+           "Si necesitas coordinar el pago o tienes alguna duda, estamos a tu disposición.\n\n"
+           if amount > 0 else '')
+        + f"Saludos,\n{empresa}"
     )
     return subject, body, invoice_url
 
@@ -11175,12 +11190,22 @@ def api_pago_send_preview(pago_id):
     host = request.host_url.rstrip('/')
     subject, body, _ = _invoice_send_email_text(pay, client, job, lead, host)
 
-    return jsonify({'ok': True, 'to_email': to_email or '', 'subject': subject, 'body': body})
+    from src.email_delivery import render_email_html
+    from src import gmail_delivery
+    preview_url = host + f"/invoices/{pay['id']}/documento"
+    return jsonify({
+        'ok': True, 'to_email': to_email or '', 'subject': subject, 'body': body,
+        'preview_url': preview_url,
+        'html': render_email_html(subject, body.replace('[[INVOICE_LINK]]', preview_url)),
+        'company': _brand_display_name_for_tenant((job or {}).get('tenant_id') or pay.get('tenant_id')),
+        'from_email': gmail_delivery.connected_email(tenant_id=pay.get('tenant_id') or (job or {}).get('tenant_id')) or '',
+    })
 
 
 @app.route('/api/payments/<pago_id>/send', methods=['POST'])
 def api_pago_send(pago_id):
     """Envia la factura/invoice por email al cliente, no solo marca sent_at."""
+    import uuid
     from src.mail_tracker import get_tracker
 
     pay = store.get('payments', pago_id) or next((p for p in store.list('payments') if p.get('invoice_id') == pago_id), None)
@@ -11190,6 +11215,27 @@ def api_pago_send(pago_id):
     job = get_job(pay.get('job_id', '')) if pay.get('job_id') else None
     client = get_client(pay.get('client_id', '')) if pay.get('client_id') else None
     lead = get_lead(job.get('lead_id', '')) if (job and job.get('lead_id')) else None
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify(ok=False, error='El correo debe incluir destinatario, asunto y mensaje'), 400
+    request_id = data.get('send_request_id')
+    if request_id is not None:
+        try:
+            request_id = str(uuid.UUID(request_id))
+        except (ValueError, TypeError, AttributeError):
+            return jsonify(ok=False, error='Identificador de envío no válido'), 400
+    idempotency_key = f"pago:{pay['id']}:invoice:{request_id or _idempotency_minute_bucket()}"
+    existing = next((m for m in store.list('pending_emails')
+                     if m.get('idempotency_key') == idempotency_key), None)
+    if existing:
+        return jsonify(ok=True, mail_id=existing['id'], delivery_status=existing['status'],
+                       message='Este correo ya fue preparado. Revisa su estado antes de volver a enviarlo.')
+    for field in ('to_email', 'subject', 'body'):
+        if field in data and not isinstance(data[field], str):
+            return jsonify(ok=False, error='Destinatario, asunto y mensaje deben ser texto'), 400
+    to_email = (data.get('to_email') or '').strip() or _email_for(client=client, lead=lead)
+    if not to_email:
+        return jsonify({'ok': False, 'error': 'Este pago no tiene email de cliente'}), 400
     host = request.host_url.rstrip('/')
     # Aca SI se emite el token: este es el momento en que el enlace sale
     # hacia el cliente. Ver _invoice_send_email_text.
@@ -11198,10 +11244,6 @@ def api_pago_send(pago_id):
 
     # Si Kevin edito el "Para/Asunto/Mensaje" en la vista previa, respetamos
     # eso tal cual -- si no mando nada, generamos el correo por defecto.
-    data = request.get_json(silent=True) or {}
-    to_email = (data.get('to_email') or '').strip() or _email_for(client=client, lead=lead)
-    if not to_email:
-        return jsonify({'ok': False, 'error': 'Este pago no tiene email de cliente'}), 400
     subject = (data.get('subject') or '').strip() or default_subject
     body = (data.get('body') or '').strip() or default_body
     # El cuerpo editado en la previa trae el marcador; se cambia por el
@@ -11219,7 +11261,7 @@ def api_pago_send(pago_id):
         client_id=pay.get('client_id') or None,
         tenant_id=pay.get('tenant_id') or (job or {}).get('tenant_id'),
         source='manual:invoice-send',
-        idempotency_key=f"pago:{pay['id']}:invoice:{_idempotency_minute_bucket()}",
+        idempotency_key=idempotency_key,
     )
 
     _apply_document_delivery(pay, mail)
@@ -11235,8 +11277,8 @@ def api_pago_send(pago_id):
         'email': to_email,
         'invoice_url': invoice_url,
         'mail_warning': _mail_delivery_warning(mail),
-        'message': (f'Factura enviada a {to_email}.' if mail.get('status') == 'sent'
-                    else _mail_delivery_warning(mail) or 'No se confirmó el envío de la factura.'),
+        'message': (f'Correo enviado a {to_email}.' if mail.get('status') == 'sent'
+                    else _mail_delivery_warning(mail) or 'No se confirmó el envío del correo.'),
     })
 
 

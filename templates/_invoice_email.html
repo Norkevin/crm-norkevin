@@ -1,0 +1,52 @@
+<dialog id="invoice-email-dialog" class="invoice-email-dialog" aria-labelledby="invoice-email-title" aria-describedby="invoice-email-status">
+  <form id="invoice-email-form">
+    <header class="invoice-email-header">
+      <h2 class="modal-title" id="invoice-email-title">Revisar antes de enviar</h2>
+      <p id="invoice-email-status" class="sn-muted" role="status">Cargando el correo…</p>
+    </header>
+    <div class="invoice-email-content">
+      <p id="invoice-email-from" class="sn-muted"></p>
+      <div class="form-group">
+        <label class="form-label" for="invoice-email-to">Para</label>
+        <input class="form-input" id="invoice-email-to" type="email" required autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="invoice-email-subject">Asunto</label>
+        <input class="form-input" id="invoice-email-subject" required>
+      </div>
+      <iframe id="invoice-email-frame" title="Así se verá el correo" sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe>
+      <details class="invoice-email-editor">
+        <summary>Editar mensaje</summary>
+        <div class="form-group">
+          <label class="form-label" for="invoice-email-body">Mensaje</label>
+          <textarea class="form-input" id="invoice-email-body" rows="10" required></textarea>
+          <p class="sn-muted invoice-email-hint">El cliente recibirá su enlace a la factura al confirmar el envío.</p>
+        </div>
+        <button class="sn-btn" id="invoice-email-preview" type="button">Actualizar vista previa</button>
+      </details>
+      <a class="sn-btn" id="invoice-email-review" href="/emails" hidden>Revisar envío en Correos</a>
+    </div>
+    <footer class="invoice-email-actions">
+      <button class="sn-btn" id="invoice-email-cancel" type="button">Cerrar sin enviar</button>
+      <button class="sn-btn sn-btn-primary" id="invoice-email-send" type="submit" disabled>Confirmar y enviar</button>
+    </footer>
+  </form>
+</dialog>
+<style>
+.invoice-email-dialog { width:min(700px,calc(100vw - 24px)); max-width:700px; max-height:calc(100dvh - 24px); margin:auto; padding:0; border:0; border-radius:16px; background:var(--sn-surface,#fff); color:var(--sn-text,#172B4D); box-shadow:0 20px 64px #172b4d38; }
+.invoice-email-dialog::backdrop { background:#172b4d80; }
+.invoice-email-dialog form { display:flex; flex-direction:column; max-height:calc(100dvh - 24px); }
+.invoice-email-header { padding:24px 24px 0; }
+.invoice-email-header p { margin:8px 0 16px; }
+.invoice-email-content { overflow:auto; padding:0 24px 20px; min-height:0; }
+.invoice-email-content input,.invoice-email-content textarea { font-size:16px; }
+.invoice-email-hint { font-size:12px; margin:6px 0 0; }
+.invoice-email-editor { margin-top:12px; }
+.invoice-email-editor summary { cursor:pointer; min-height:44px; padding:12px 0; }
+.invoice-email-content iframe { display:block; width:100%; height:380px; margin-top:16px; border:1px solid var(--sn-line,#e2e8f0); border-radius:8px; background:#fff; }
+.invoice-email-content iframe[hidden],.invoice-email-content [hidden] { display:none; }
+.invoice-email-actions { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:16px 24px; border-top:1px solid var(--sn-line,#e2e8f0); }
+.invoice-email-dialog button { min-height:44px; }
+@media(max-width:480px) { .invoice-email-header { padding:20px 16px 0; } .invoice-email-content { padding:0 16px 16px; } .invoice-email-actions { padding:12px 16px; } .invoice-email-actions button { flex:1; } }
+</style>
+<script src="{{ url_for('static', filename='invoice-email.js') }}"></script>
