@@ -693,11 +693,7 @@ function acceptLead(leadId) {
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-function sendPayment(paymentId) {
-  apiPost('/api/payments/' + paymentId + '/send', {})
-    .then(function(data) { flashToast(data.message || 'Invoice sent', 'success'); setTimeout(function() { location.reload(); }, 500); })
-    .catch(function(err) { flashToast(err.message, 'error'); });
-}
+function sendPayment(paymentId) { sendInvoice(paymentId); }
 
 function markPaymentPaid(paymentId) {
   apiPost('/api/payments/' + paymentId + '/pay', {})
@@ -705,11 +701,7 @@ function markPaymentPaid(paymentId) {
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-function sendContract(contractId) {
-  apiPost('/api/contracts/' + contractId + '/send', {})
-    .then(function(data) { flashToast(data.message || 'Contract sent', 'success'); setTimeout(function(){ location.reload(); }, 500); })
-    .catch(function(err) { flashToast(err.message, 'error'); });
-}
+function sendContract(id) { reviewDocumentEmail('contract', id); }
 
 function sendClientEmail() {
   if (!CLIENT_EMAIL) { flashToast('Client has no email', 'error'); return; }
@@ -733,4 +725,5 @@ document.addEventListener('keydown', function(event) {
   closeJobModal();
 });
 </script>
+{% include "_invoice_email.html" %}
 {% endblock %}

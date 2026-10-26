@@ -810,44 +810,6 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="contract-send-modal">
-  <div class="modal-content" style="width:min(880px,94vw);">
-    <button type="button" class="modal-close" onclick="closeModal('contract-send-modal')" aria-label="Cerrar">x</button>
-    <h2 class="modal-title">Enviar contrato</h2>
-    <form onsubmit="submitContractSend(event)">
-      <input type="hidden" id="contract-send-id">
-      <input type="hidden" id="contract-send-step-id">
-      <div class="grid-2">
-        <div class="form-group">
-          <label class="form-label">Template</label>
-          <select class="form-input" id="contract-template" onchange="applyContractTemplate(this.value)">
-            <option value="">Custom email</option>
-            {% for tpl in email_templates %}
-            <option value="{{ tpl.id }}">{{ tpl.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Para</label>
-          <input class="form-input" id="contract-send-to" readonly>
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Asunto</label>
-        <input class="form-input" id="contract-send-subject" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Message</label>
-        <textarea class="form-input" id="contract-send-body" rows="12" required></textarea>
-      </div>
-      <div class="sn-actions" style="justify-content:space-between;">
-        <button class="sn-btn" type="button" onclick="closeModal('contract-send-modal')">Volver</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Enviar contrato</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <div class="modal-overlay" id="questionnaire-modal">
   <div class="modal-content" style="width:min(880px,94vw);">
     <button type="button" class="modal-close" onclick="closeModal('questionnaire-modal')" aria-label="Cerrar">x</button>
@@ -1310,58 +1272,8 @@ function createContractForStep(stepId) {
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-function contractDefaultBody(contractUrl) {
-  return 'Hola ' + CLIENT_NAME + ',\n\n' +
-    'Aqui esta el contrato de servicios. Puedes leerlo y firmarlo electronicamente desde este link:\n' +
-    contractUrl + '\n\n' +
-    'Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\n' + COMPANY_NAME;
-}
-
-function applyContractTemplate(templateId) {
-  var contractUrl = window.location.origin + '/contracts/' + document.getElementById('contract-send-id').value;
-  if (!templateId) {
-    document.getElementById('contract-send-subject').value = 'Tu contrato de servicios fotograficos - ' + COMPANY_NAME;
-    document.getElementById('contract-send-body').value = contractDefaultBody(contractUrl);
-    return;
-  }
-  var tpl = findTemplate(templateId);
-  if (!tpl) return;
-  document.getElementById('contract-send-subject').value = renderTemplate(tpl.asunto || '');
-  var body = renderTemplate(tpl.cuerpo || '');
-  // Mismo criterio que el backend (_inject_link): la plantilla puede no
-  // traer el link del contrato -- se lo agregamos igual para que lo que
-  // se ve en el preview sea exactamente lo que se va a mandar.
-  if (body.indexOf(contractUrl) === -1) {
-    body += '\n\nFirma tu contrato aqui: ' + contractUrl;
-  }
-  document.getElementById('contract-send-body').value = body;
-}
-
 function openContractSendModal(contractId, stepId, templateId) {
-  document.getElementById('contract-send-id').value = contractId;
-  document.getElementById('contract-send-step-id').value = stepId || '';
-  document.getElementById('contract-send-to').value = CLIENT_EMAIL || '';
-  document.getElementById('contract-template').value = templateId || '';
-  applyContractTemplate(templateId || '');
-  openModal('contract-send-modal');
-}
-
-function submitContractSend(event) {
-  event.preventDefault();
-  var contractId = document.getElementById('contract-send-id').value;
-  var stepId = document.getElementById('contract-send-step-id').value;
-  apiPost('/api/contracts/' + contractId + '/send', {
-    subject: document.getElementById('contract-send-subject').value,
-    body: document.getElementById('contract-send-body').value,
-    template_id: document.getElementById('contract-template').value || null
-  })
-    .then(function(data) {
-      var warned = warnIfMailNotDelivered(data);
-      if (!stepId) return warned;
-      return apiPost('/api/jobs/' + JOB_ID + '/trigger-step', { step_id: stepId }).then(function() { return warned; });
-    })
-    .then(function(warned) { if (!warned) { flashToast('Contract sent', 'success'); } setTimeout(function(){ location.reload(); }, 650); })
-    .catch(function(err) { flashToast(err.message, 'error'); });
+  reviewDocumentEmail('contract', contractId, {workflow_step_id: stepId, template_id: templateId});
 }
 function sendPayment(paymentId) { sendInvoice(paymentId); }
 function openRecordPayment(id, amount) {
@@ -1382,16 +1294,8 @@ function submitRecordPayment(event) {
     .then(function() { flashToast('Pago registrado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
-function sendQuote(id) {
-  apiPost('/api/quotes/' + id + '/send', {})
-    .then(function(data) { flashToast(data.message || 'Quote enviado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
-    .catch(function(err) { flashToast(err.message, 'error'); });
-}
-function sendContract(id) {
-  apiPost('/api/contracts/' + id + '/send', {})
-    .then(function(data) { flashToast(data.message || 'Contrato enviado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
-    .catch(function(err) { flashToast(err.message, 'error'); });
-}
+function sendQuote(id) { reviewDocumentEmail('quote', id); }
+function sendContract(id) { reviewDocumentEmail('contract', id); }
 
 var photogSigCanvas, photogSigCtx, photogSigDrawing = false, photogSigContractId = null;
 var photogSigMode = 'draw';

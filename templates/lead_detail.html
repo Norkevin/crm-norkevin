@@ -405,32 +405,6 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
   </div>
 </div>
 
-<div class="modal-overlay" id="contract-send-modal">
-  <div class="modal-content" style="width:min(880px,94vw);">
-    <button type="button" class="modal-close" onclick="closeModal('contract-send-modal')" aria-label="Cerrar">x</button>
-    <h2 class="modal-title">Enviar contrato</h2>
-    <form onsubmit="submitContractSend(event)">
-      <input type="hidden" id="contract-send-id">
-      <div class="form-group">
-        <label class="form-label">Para</label>
-        <input class="form-input" id="contract-send-to" value="{{ lead.email or '' }}" readonly>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Asunto</label>
-        <input class="form-input" id="contract-send-subject" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Message</label>
-        <textarea class="form-input" id="contract-send-body" rows="12" required></textarea>
-      </div>
-      <div class="sn-actions" style="justify-content:space-between;">
-        <button class="sn-btn" type="button" onclick="closeModal('contract-send-modal')">Volver</button>
-        <button class="sn-btn sn-btn-primary" type="submit">Enviar contrato</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <div class="modal-overlay" id="edit-lead-modal">
   <div class="modal-content">
     <h2 class="modal-title">Editar lead</h2>
@@ -753,33 +727,8 @@ function markPaymentPaid(paymentId) {
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 
-function sendContract(contractId) {
-  if (!LEAD_EMAIL) {
-    flashToast('Este lead no tiene email', 'error');
-    return;
-  }
-  document.getElementById('contract-send-id').value = contractId;
-  document.getElementById('contract-send-to').value = LEAD_EMAIL;
-  document.getElementById('contract-send-subject').value = 'Tu contrato de servicios fotograficos - ' + COMPANY_NAME;
-  var contractUrl = window.location.origin + '/contracts/' + contractId;
-  document.getElementById('contract-send-body').value =
-    'Hola ' + LEAD_NAME + ',\n\n' +
-    'Aqui esta el contrato de servicios. Puedes leerlo y firmarlo electronicamente desde este link:\n' +
-    contractUrl + '\n\n' +
-    'Si tienes preguntas legales, no dudes en consultarnos.\n\nSaludos,\n' + COMPANY_NAME;
-  openModal('contract-send-modal');
-}
+function sendContract(id) { reviewDocumentEmail('contract', id); }
 
-function submitContractSend(event) {
-  event.preventDefault();
-  var contractId = document.getElementById('contract-send-id').value;
-  apiPost('/api/contracts/' + contractId + '/send', {
-    subject: document.getElementById('contract-send-subject').value,
-    body: document.getElementById('contract-send-body').value
-  })
-    .then(function(data) { flashToast(data.message || 'Contract sent', 'success'); setTimeout(function(){ location.reload(); }, 500); })
-    .catch(function(err) { flashToast(err.message, 'error'); });
-}
 
 function checkDate() {
   apiPost('/api/leads/' + LEAD_ID + '/check-date', {})
