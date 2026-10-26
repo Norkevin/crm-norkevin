@@ -72,12 +72,20 @@ def test_send_invoice_preview_does_not_send(auth_client):
     import app as app_module
     job_id, pay1_id, pay2_id, invoice_id = _make_job_with_two_installments(app_module, 'c')
 
+    before = {table: app_module.store.list(table) for table in ('payments', 'pending_emails', 'mail_log')}
     resp = auth_client.get(f'/api/payments/{pay1_id}/send-preview')
     assert resp.status_code == 200
     data = resp.get_json()
     assert data['ok'] is True
     assert data['to_email'] == 'invoicedyn@example.com'
     assert invoice_id in data['subject']
+    assert 'Q15,000.00' in data['body']
+    assert 'recordatorio automático' in data['body']
+    assert 'pagarla' not in data['body']
+    assert data['preview_url'].endswith(f'/invoices/{pay1_id}/documento')
+    assert '[[INVOICE_LINK]]' not in data['html']
+    for table, records in before.items():
+        assert app_module.store.list(table) == records
 
     pay = app_module.store.get('payments', pay1_id)
     assert not pay.get('sent_at'), 'la vista previa no debe marcar la factura como enviada'
@@ -106,3 +114,50 @@ def test_send_invoice_respects_edited_subject_and_body(auth_client):
     pay = app_module.store.get('payments', pay1_id)
     assert pay.get('queued_at')
     assert not pay.get('sent_at')
+
+
+def test_reminder_uses_invoice_balance_even_when_selected_installment_is_paid(auth_client):
+    import app as crm
+    _, first_id, second_id, _ = _make_job_with_two_installments(crm, 'balance')
+    first = crm.store.get('payments', first_id)
+    first.update(status='Pagado', paid_amount=7500)
+    crm.store.upsert('payments', first)
+    second = crm.store.get('payments', second_id)
+    second.update(amount=1900, original_amount=7500)
+    crm.store.upsert('payments', second)
+
+    preview = auth_client.get(f'/api/payments/{first_id}/send-preview').get_json()
+    assert 'saldo pendiente de Q1,900.00' in preview['body']
+    assert 'Q7,500.00' not in preview['body']
+    assert 'comprobante' in preview['body']
+
+    second.update(status='Pagado', amount=0)
+    crm.store.upsert('payments', second)
+    paid = auth_client.get(f'/api/payments/{first_id}/send-preview').get_json()
+    assert 'está pagada' in paid['body']
+    assert 'recordatorio' not in paid['subject'].lower()
+    assert 'saldo pendiente' not in paid['body']
+
+
+def test_invoice_confirmation_preserves_reviewed_message_and_does_not_rotate_link_twice(auth_client):
+    import app as crm
+    _, first_id, _, _ = _make_job_with_two_installments(crm, 'confirmed')
+    preview = auth_client.get(f'/api/payments/{first_id}/send-preview').get_json()
+    payload = {key: preview[key] for key in ('to_email', 'subject', 'body')}
+    payload['send_request_id'] = str(uuid.uuid4())
+    first = auth_client.post(f'/api/payments/{first_id}/send', json=payload).get_json()
+    token_hash = crm.store.get('payments', first_id)['public_token_hash']
+    second = auth_client.post(f'/api/payments/{first_id}/send', json=payload).get_json()
+    assert first['mail_id'] == second['mail_id']
+    assert crm.store.get('payments', first_id)['public_token_hash'] == token_hash
+    queued = crm.store.get('pending_emails', first['mail_id'])
+    assert queued['status'] in ('pending', 'sent')
+    assert queued['subject'] == preview['subject']
+    assert '[[INVOICE_LINK]]' not in queued['body']
+    assert '/i/' in queued['body']
+
+    if queued['status'] == 'pending':
+        result = auth_client.post(f"/api/pending-emails/{first['mail_id']}/send", json={})
+        assert result.status_code == 200
+        assert result.get_json()['email']['estado'] == 'sent'
+    assert crm.store.get('payments', first_id)['delivery_status'] == 'sent'

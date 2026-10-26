@@ -1363,11 +1363,7 @@ function submitContractSend(event) {
     .then(function(warned) { if (!warned) { flashToast('Contract sent', 'success'); } setTimeout(function(){ location.reload(); }, 650); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
-function sendPayment(id) {
-  apiPost('/api/payments/' + id + '/send', {})
-    .then(function(data) { flashToast(data.message || 'Invoice enviado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
-    .catch(function(err) { flashToast(err.message, 'error'); });
-}
+function sendPayment(paymentId) { sendInvoice(paymentId); }
 function openRecordPayment(id, amount) {
   document.getElementById('payment-id').value = id;
   document.getElementById('payment-amount').value = Number(amount || 0).toFixed(2);
@@ -1829,4 +1825,5 @@ function openHistoryLog() {
 <script src="{{ url_for('static', filename='email-preview.js') }}"></script>
 <script>installEmailPreview("email-subject", "email-body");</script>
 {% include "_edit_payment_date.html" %}
+{% include "_invoice_email.html" %}
 {% endblock %}

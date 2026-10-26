@@ -745,11 +745,7 @@ function sendEmailToLead() {
 }
 
 
-function sendPayment(paymentId) {
-  apiPost('/api/payments/' + paymentId + '/send', {})
-    .then(function(data) { flashToast(data.message || 'Invoice sent', 'success'); setTimeout(function() { location.reload(); }, 500); })
-    .catch(function(err) { flashToast(err.message, 'error'); });
-}
+function sendPayment(paymentId) { sendInvoice(paymentId); }
 
 function markPaymentPaid(paymentId) {
   apiPost('/api/payments/' + paymentId + '/pay', {})
@@ -846,4 +842,5 @@ document.addEventListener('keydown', function(event) {
 <script src="{{ url_for('static', filename='workflow-timing.js', v='20261014-auto-send') }}" defer></script>
 <script src="{{ url_for('static', filename='email-preview.js') }}"></script>
 <script>installEmailPreview("lead-email-subject", "lead-email-body");</script>
+{% include "_invoice_email.html" %}
 {% endblock %}
