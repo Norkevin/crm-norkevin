@@ -26,7 +26,7 @@ function composer(deliveryStatus = 'pending', kind = 'invoice') {
   dialog.querySelector = () => element('editor');
   field('form').reset = () => {};
   field('form').reportValidity = () => true;
-  const context = {document: {getElementById: element}, window: {}, Option: function () {},
+  const context = {document: {getElementById: element}, window: {}, Option: function () {}, URLSearchParams,
     crypto: {randomUUID: () => '11111111-1111-4111-8111-111111111111'},
     fetch: async url => {
       calls.push(['GET', url]);
@@ -91,4 +91,21 @@ test('an already delivered confirmation is not approved or sent a second time', 
   await ui.field('form').fire('submit');
   assert.equal(ui.calls.filter(([, url]) => url === '/api/pending-emails/queued/send').length, 0);
   assert.equal(ui.calls.filter(([kind]) => kind === 'reload').length, 1);
+});
+
+test('receipt review keeps its purpose through preview, edits, and explicit confirmation', async () => {
+  const ui = composer();
+  await ui.open({purpose: 'receipt'});
+  assert.ok(ui.calls.some(([method, url]) => method === 'GET' && url === '/api/payments/test/send-preview?purpose=receipt'));
+  assert.equal(ui.field('title').textContent, 'Enviar recibo de pago');
+  assert.equal(ui.calls.filter(([, url]) => url === '/api/payments/test/send').length, 0);
+  ui.field('body').value = 'Pago recibido.\n/invoices/test/documento';
+  await ui.field('body').fire('input');
+  await ui.field('preview').fire('click');
+  await ui.field('form').fire('submit');
+  const sent = ui.calls.find(([, url]) => url === '/api/payments/test/send');
+  assert.equal(sent[2].purpose, 'receipt');
+  assert.equal(sent[2].body, 'Pago recibido.\n[[INVOICE_LINK]]');
+  await ui.open();
+  assert.equal(ui.field('title').textContent, 'Revisar antes de enviar');
 });
