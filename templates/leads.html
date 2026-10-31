@@ -19,6 +19,8 @@
   vertical-align: -3px;
 }
 .date-status-badge svg { width: 12px; height: 12px; }
+.leads-page .lead-repeat-link { align-self: flex-start; white-space: normal; margin-top: 4px; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 760px) { .leads-page .lead-repeat-link { min-height: 44px; display: inline-flex; align-items: center; } }
 .date-status-badge.red { background: #fecaca; color: #b3263b; }
 .date-status-badge.orange { background: #fed7aa; color: #b3540a; }
 .date-status-badge.yellow { background: #fde68a; color: #92610a; }
@@ -82,6 +84,7 @@
               <div class="lead-primary">
                 <a class="record-name" href="/leads/{{ lead.id }}">{{ lead.nombre or 'Sin nombre' }}</a>
                 <span class="lead-meta">{{ lead.status or 'Nuevo' }}{% if lead.created %} · Recibido {{ lead.created[:10]|fecha_legible }}{% endif %}</span>
+                {% if lead.repeat_count %}<a class="sn-chip yellow lead-repeat-link" href="/leads/{{ lead.id }}#lead-repeats" aria-label="Revisar {{ lead.repeat_count }} posibles solicitudes repetidas de {{ lead.nombre }}">Posible repetida · {{ lead.repeat_count }} solicitudes</a>{% endif %}
               </div>
             </div>
           </td>

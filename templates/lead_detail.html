@@ -5,7 +5,7 @@
 {% block topbar_title %}Lead{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css', v='20261019-records') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='lead-detail.css', v='20261031-repeats') }}">
 <section class="sn-page-wide lead-detail">
   <nav class="lead-breadcrumb" aria-label="Ruta de navegación"><a href="/leads">← Leads</a><span>/</span><span>Detalle del lead</span></nav>
   <header class="lead-hero">
@@ -31,6 +31,25 @@
       {% endfor %}
       {% if lead.astral_referral_at %}<p>Los seguimientos de Norkevin están cancelados. Revisa en Correos el estado de la respuesta de fecha no disponible.</p>{% else %}<p>Corresponde usar la respuesta de fecha no disponible, no los paquetes habituales.</p>{% endif %}
     </div>
+    {% endif %}
+    {% if repeat_leads %}
+    <section class="lead-repeats" id="lead-repeats" aria-labelledby="lead-repeats-title">
+      <h2 id="lead-repeats-title">Posible solicitud repetida · {{ repeat_leads|length }} solicitudes</h2>
+      <p>Coinciden el correo o teléfono y la fecha del evento. Revisa los datos y las notas antes de responder.</p>
+      <details>
+        <summary>Comparar solicitudes y notas</summary>
+        <ol class="lead-repeat-list">
+          {% for inquiry in repeat_leads %}
+          <li>
+            <div class="lead-repeat-heading"><strong>{{ inquiry.nombre or 'Sin nombre' }}</strong>{% if inquiry.id == lead.id %}<span class="sn-chip gray">Esta solicitud</span>{% else %}<a href="/leads/{{ inquiry.id }}">Abrir solicitud</a>{% endif %}</div>
+            <p class="lead-repeat-meta">{{ inquiry.status or 'Nuevo' }} · {% if inquiry.received.date %}Recibida {{ inquiry.received.date|fecha_legible }}{% if inquiry.received.time %} a las {{ inquiry.received.time }}{% endif %}{% else %}Sin fecha de recepción{% endif %}</p>
+            <p class="lead-repeat-meta">{{ inquiry.email or 'Sin correo' }} · {{ inquiry.telefono or 'Sin teléfono' }}</p>
+            <p class="lead-repeat-notes">{{ inquiry.notas or inquiry.notes or 'Sin notas en esta solicitud.' }}</p>
+          </li>
+          {% endfor %}
+        </ol>
+      </details>
+    </section>
     {% endif %}
     <details class="mobile-event-details" data-mobile-fold open>
       <summary>Detalles del evento <span class="event-date-summary">{{ lead.fecha_tentativa|fecha_evento or 'Por definir' }}</span></summary>
