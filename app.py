@@ -6314,6 +6314,7 @@ def invoice_view(invoice_id):
 
     for row in schedule:
         row['is_selected'] = row.get('id') == selected.get('id')
+        row['can_send_receipt'] = row.get('status') != 'Cancelado' and _row_paid_amount(row) > 0
         row['due_date_display_es'] = _format_date_es(row.get('due_date')) or row.get('due_date') or '-'
         row['paid_date_display_es'] = _format_date_es(row.get('paid_date') or row.get('fecha_pago'))
         row['last_action_display'] = row.get('last_action') or (f"Pagado el {row['paid_date_display_es']}" if row.get('paid_date_display_es') else '-')
@@ -11170,7 +11171,7 @@ def _client_facing_invoice_url(host, client, invoice_id, *, emitir_token=False, 
     return host + f"/invoices/{invoice_id}"
 
 
-def _invoice_send_email_text(pay, client, job, lead, host, *, emitir_token=False):
+def _invoice_send_email_text(pay, client, job, lead, host, *, emitir_token=False, purpose='invoice'):
     """Texto del correo de factura.
 
     emitir_token: solo el ENVIO real lo pone en True. La vista previa no
@@ -11179,12 +11180,29 @@ def _invoice_send_email_text(pay, client, job, lead, host, *, emitir_token=False
     emitir, la previa muestra el marcador [[INVOICE_LINK]], que api_pago_send
     reemplaza por la URL real recien emitida (mismo patron ya probado con
     [[QUOTE_LINK]] en api_quote_send)."""
+    if purpose not in ('invoice', 'receipt'):
+        raise ValueError('Tipo de correo no válido')
+    if purpose == 'receipt' and (pay.get('tipo') == 'team_payment' or pay.get('status') == 'Cancelado'
+                                 or _row_paid_amount(pay) <= 0):
+        raise ValueError('Registra un pago en esta cuota antes de enviar un recibo')
     invoice_id = pay.get('invoice_id') or pay['id']
     invoice_url = _client_facing_invoice_url(
         host, client, invoice_id, emitir_token=emitir_token,
         tenant_id=(job or {}).get('tenant_id') or pay.get('tenant_id')) if emitir_token else '[[INVOICE_LINK]]'
     name = _client_name(client=client, lead=lead, job=job)
     tenant_id = (job or {}).get('tenant_id') or pay.get('tenant_id')
+    if purpose == 'receipt':
+        template = next((tpl for tpl in filter_by_tenant(store.list('email_templates'), tenant_id)
+                         if tpl.get('activo', True) and tpl.get('cuerpo')
+                         and ' '.join((tpl.get('name') or '').casefold().split()) == 'pago recibido'), {})
+        company = _brand_display_name_for_tenant(tenant_id)
+        subject = template.get('asunto') or f'Pago recibido - {company}'
+        body = template.get('cuerpo') or (
+            f'Hola {name},\n\nHemos registrado tu pago. Muchas gracias por tu confianza.\n\n'
+            f'Puedes consultar los pagos registrados en tu factura:\n{invoice_url}\n\nSaludos,\n{company}')
+        body = _inject_link(body, invoice_url, ['%invoice_link%', '[[INVOICE_LINK]]'], 'Ver pagos registrados')
+        return (_render_message_template(subject, client=client, lead=lead, job=job),
+                _render_message_template(body, client=client, lead=lead, job=job), invoice_url)
     document = _invoice_document(pay['id'], tenant_id=tenant_id)
     amount = document['pendiente'] if document else _row_saldo_vivo(pay)
     # Antes hardcodeado a 'ASTRAL WEDDINGS' sin importar el tenant del job --
@@ -11229,7 +11247,11 @@ def api_pago_send_preview(pago_id):
     lead = get_lead(job.get('lead_id', '')) if (job and job.get('lead_id')) else None
     to_email = _email_for(client=client, lead=lead)
     host = request.host_url.rstrip('/')
-    subject, body, _ = _invoice_send_email_text(pay, client, job, lead, host)
+    try:
+        subject, body, _ = _invoice_send_email_text(
+            pay, client, job, lead, host, purpose=request.args.get('purpose', 'invoice'))
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
 
     from src.email_delivery import render_email_html
     from src import gmail_delivery
@@ -11265,7 +11287,10 @@ def api_pago_send(pago_id):
             request_id = str(uuid.UUID(request_id))
         except (ValueError, TypeError, AttributeError):
             return jsonify(ok=False, error='Identificador de envío no válido'), 400
-    idempotency_key = f"pago:{pay['id']}:invoice:{request_id or _idempotency_minute_bucket()}"
+    purpose = data.get('purpose', 'invoice')
+    if purpose not in ('invoice', 'receipt'):
+        return jsonify(ok=False, error='Tipo de correo no válido'), 400
+    idempotency_key = f"pago:{pay['id']}:{purpose}:{request_id or _idempotency_minute_bucket()}"
     existing = next((m for m in store.list('pending_emails')
                      if m.get('idempotency_key') == idempotency_key), None)
     if existing:
@@ -11280,8 +11305,11 @@ def api_pago_send(pago_id):
     host = request.host_url.rstrip('/')
     # Aca SI se emite el token: este es el momento en que el enlace sale
     # hacia el cliente. Ver _invoice_send_email_text.
-    default_subject, default_body, invoice_url = _invoice_send_email_text(
-        pay, client, job, lead, host, emitir_token=True)
+    try:
+        default_subject, default_body, invoice_url = _invoice_send_email_text(
+            pay, client, job, lead, host, emitir_token=True, purpose=purpose)
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
 
     # Si Kevin edito el "Para/Asunto/Mensaje" en la vista previa, respetamos
     # eso tal cual -- si no mando nada, generamos el correo por defecto.
@@ -11301,12 +11329,13 @@ def api_pago_send(pago_id):
         job_id=pay.get('job_id'),
         client_id=pay.get('client_id') or None,
         tenant_id=pay.get('tenant_id') or (job or {}).get('tenant_id'),
-        source='manual:invoice-send',
+        source='manual:pago-receipt' if purpose == 'receipt' else 'manual:invoice-send',
         idempotency_key=idempotency_key,
     )
 
     _apply_document_delivery(pay, mail)
-    pay['last_action'] = mail.get('status')
+    if purpose != 'receipt':
+        pay['last_action'] = mail.get('status')
     store.upsert('payments', pay)
 
     return jsonify({

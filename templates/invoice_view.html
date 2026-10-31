@@ -165,7 +165,7 @@
     <div class="sn-actions">
       <button class="sn-btn" type="button" onclick='sendInvoice({{ invoice.id|tojson }})'>
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>
-        Enviar factura
+        {{ 'Enviar recordatorio de pago' if balance > 0 else 'Enviar estado de cuenta' }}
       </button>
       {# Sistema de documentos (29-ago-2026): la factura ahora tiene una
          vista web real, hermana de la cotizacion. Esta es la MISMA pagina
@@ -221,9 +221,11 @@
           <td data-label="Monto" style="text-align:right;"><span class="sn-money">Q{{ '{:,.2f}'.format(row.amount or 0) }}</span></td>
           <td class="stack-actions" style="text-align:right;">
             <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;">
-            {% if row.status == 'Pagado' %}
-              <button class="sn-btn sn-btn-sm" type="button" onclick='sendInvoice({{ row.id|tojson }})'>Enviar recibo</button>
-            {% else %}
+            {% if row.can_send_receipt %}
+              <button class="sn-btn sn-btn-sm" type="button" onclick='sendPaymentReceipt({{ row.id|tojson }})'>Enviar recibo</button>
+            {% endif %}
+            {% if row.status not in ['Pagado', 'Cancelado'] %}
+              <button class="sn-btn sn-btn-sm" type="button" onclick='sendInvoice({{ row.id|tojson }})'>Enviar recordatorio de pago</button>
               <button class="sn-btn sn-btn-sm" type="button" onclick='openRecordPayment({{ row.id|tojson }}, {{ (row.amount or 0)|tojson }})'>Registrar pago</button>
               {% if row.payment_link_url %}
               <button class="sn-btn sn-btn-sm" type="button" onclick='navigator.clipboard && navigator.clipboard.writeText({{ row.payment_link_url|tojson }}); flashToast("Link copiado", "success")'>

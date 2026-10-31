@@ -25,6 +25,7 @@
   function payload() {
     return {to_email: field('to').value.trim(), subject: field('subject').value.trim(),
       body: field('body').value.trim().replaceAll(previewUrl, config.marker),
+      purpose: sendOptions.purpose || 'invoice',
       template_id: field('template').value || null, workflow_step_id: sendOptions.workflow_step_id || null};
   }
 
@@ -74,6 +75,7 @@
   }
 
   window.sendInvoice = id => window.reviewDocumentEmail('invoice', id);
+  window.sendPaymentReceipt = id => window.reviewDocumentEmail('invoice', id, {purpose: 'receipt'});
 
   window.reviewDocumentEmail = async function (documentKind, id, options = {}) {
     if (dialog.open) return;
@@ -82,6 +84,7 @@
     kind = documentKind;
     config = kinds[kind];
     sendOptions = options;
+    field('title').textContent = options.purpose === 'receipt' ? 'Enviar recibo de pago' : 'Revisar antes de enviar';
     useTemplate = false;
     requestId = crypto.randomUUID();
     pendingId = null;
@@ -96,7 +99,10 @@
     field('status').textContent = 'Cargando el correo. Todavía no se ha enviado.';
     dialog.showModal();
     try {
-      const query = options.template_id ? '?template_id=' + encodeURIComponent(options.template_id) : '';
+      const params = new URLSearchParams();
+      if (options.template_id) params.set('template_id', options.template_id);
+      if (options.purpose) params.set('purpose', options.purpose);
+      const query = params.size ? '?' + params.toString() : '';
       const response = await fetch(config.path + encodeURIComponent(id) + '/send-preview' + query);
       const data = await response.json();
       if (!dialog.open || current !== revision) return;
