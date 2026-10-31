@@ -1583,6 +1583,36 @@ def _leads_newest_first(leads):
         lead.get('created'), lead.get('created_time'))['timestamp'], reverse=True)
 
 
+def _lead_repeat_matches(leads):
+    """Possible repeats by contact and event day, including archived inquiries."""
+    groups = defaultdict(dict)
+    keys_by_id = {}
+    for lead in leads:
+        tenant_id = lead.get('tenant_id')
+        day = _parse_iso_day(lead.get('fecha_tentativa'))
+        if not lead.get('id') or not tenant_id or not day:
+            continue
+        email = _norm_email(lead.get('email'))
+        phone = _norm_phone(lead.get('telefono'))
+        # Guatemala forms accept local numbers with or without +502.
+        if len(phone) == 11 and phone.startswith('502'):
+            phone = phone[3:]
+        contacts = []
+        if '@' in email:
+            contacts.append(('email', email))
+        if len(phone) >= 8:
+            contacts.append(('phone', phone))
+        keys = [(tenant_id, day, kind, value) for kind, value in contacts]
+        keys_by_id[lead['id']] = keys
+        for key in keys:
+            groups[key][lead['id']] = lead
+    return {
+        lead_id: {other_id: other for key in keys for other_id, other in groups[key].items()
+                  if other_id != lead_id}
+        for lead_id, keys in keys_by_id.items()
+    }
+
+
 def _job_canonical_score(job, lead=None):
     status = str(job.get('status') or '').strip().lower()
     explicit_ids = {
@@ -3984,6 +4014,7 @@ def leads_list():
     from src.mail_tracker import get_tracker
 
     leads = _open_leads()
+    repeat_matches = _lead_repeat_matches(list_leads())
     # Fechas donde hay mas de un lead abierto interesado (estilo Studio Ninja:
     # naranja = "another lead is at the same time"), para ayudar a decidir si
     # aceptar o no una boda cuando hay competencia por la misma fecha.
@@ -4004,6 +4035,8 @@ def leads_list():
     _leads_lead_ids_cache = {l.get('id') for l in leads}
 
     for lead in leads:
+        repeats = repeat_matches.get(lead.get('id'), {})
+        lead['repeat_count'] = len(repeats) + 1 if repeats else 0
         if lead.get('status') not in ('Convertido', 'Perdido'):
             try:
                 steps, progress, _ = compute_workflow_steps_for_lead(
@@ -4028,7 +4061,8 @@ def leads_list():
         conflict_job = conflicts[0].get('nombre') if conflicts else None
         lead['date_conflict'] = conflict_job
         lead['date_conflict_details'] = [_date_conflict_detail(other, 'block' if other.get('type') == 'block' else 'job') for other in conflicts]
-        other_leads_same_date = [i for i in open_leads_by_date.get(fecha, []) if i != lead.get('id')] if fecha else []
+        other_leads_same_date = [i for i in open_leads_by_date.get(fecha, [])
+                                if i != lead.get('id') and i not in repeats] if fecha else []
         lead['date_conflict_details'] += [_date_conflict_detail(other, 'lead') for other in leads
                                           if other.get('id') in other_leads_same_date]
         lead['other_lead_conflict'] = bool(fecha) and not conflict_job and bool(other_leads_same_date)
@@ -4186,6 +4220,12 @@ def lead_detail(lead_id):
     if converted_job:
         return redirect(url_for('job_detail', job_id=converted_job['id']))
 
+    all_leads = list_leads()
+    repeats = _lead_repeat_matches(all_leads).get(lead_id, {})
+    repeat_leads = [dict(item, received=_notification_moment(item.get('created'), item.get('created_time')))
+                    for item in _leads_newest_first(all_leads)
+                    if item['id'] == lead_id or item['id'] in repeats] if repeats else []
+
     # Combinar LEAD + PRODUCTION workflows para mostrar todo en el sidebar
     lead_tmpl = LEAD_WORKFLOW()
     prod_tmpl = PRODUCTION_WORKFLOW()
@@ -4265,6 +4305,7 @@ def lead_detail(lead_id):
 
     return render_template('lead_detail.html',
                           lead=lead,
+                          repeat_leads=repeat_leads,
                           meetings=meetings_for_lead(store, lead_id),
                           workflow_steps=workflow_steps,
                           lead_steps=lead_steps, prod_steps=prod_steps,
