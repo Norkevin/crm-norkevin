@@ -32,7 +32,7 @@ from src.travel import TravelService, public_venue_catalog
 from src.place_search import google_places_enabled, google_place_suggestions, valid_place_query, SearchLimitReached, SearchUnavailable
 from src.travel_mail import compose_travel, content_digest, legacy_travel_conflict, package_link_keys, strip_travel_block
 from src.tenant_brand_map import display_name_for_tenant as _brand_display_name_for_tenant
-from src.lead_intake import lead_intake, ESTIMATED_BUDGETS
+from src.lead_intake import lead_intake, ESTIMATED_BUDGETS, PREVIOUS_ESTIMATED_BUDGETS
 
 travel_service = TravelService(store)
 
@@ -7470,8 +7470,8 @@ def api_captacion_submit():
         service = data.get('servicio_solicitado')
         legacy = data.get('intake_version') in ('1', '2', 1, 2)
         if not legacy and budget == '':
-            budget = 'Aún no lo sabemos'
-        allowed_budgets = PUBLIC_INTAKE_LEGACY_BUDGETS if legacy else ESTIMATED_BUDGETS
+            budget = 'Aún no lo tenemos claro'
+        allowed_budgets = PUBLIC_INTAKE_LEGACY_BUDGETS if legacy else ESTIMATED_BUDGETS + PREVIOUS_ESTIMATED_BUDGETS
         if service not in PUBLIC_INTAKE_SERVICES or budget not in allowed_budgets:
             return jsonify({'ok': False, 'error': 'Selecciona qué servicio necesitan y un presupuesto estimado, o indica que aún no lo saben.'}), 400
         qualification = {'version': 3, 'service': service, 'estimated_budget': budget,

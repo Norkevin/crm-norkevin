@@ -5,7 +5,7 @@ import re
 import pytest
 
 from conftest import login_as_tenant
-from src.lead_intake import ESTIMATED_BUDGETS, lead_intake
+from src.lead_intake import ESTIMATED_BUDGETS, PREVIOUS_ESTIMATED_BUDGETS, lead_intake
 
 
 def old_inquiry(message='100 invitados\nFotos al atardecer <3', collection=''):
@@ -51,7 +51,7 @@ def test_edited_notes_and_customer_text_are_not_guessed_or_deleted():
     ('norkevin-photography', 'tenant-norkevin-photography'),
     ('astral-weddings', 'tenant-norkevin'),
 ])
-@pytest.mark.parametrize('budget', [*ESTIMATED_BUDGETS, ''])
+@pytest.mark.parametrize('budget', [*dict.fromkeys(ESTIMATED_BUDGETS + PREVIOUS_ESTIMATED_BUDGETS), ''])
 def test_new_intake_separates_answers_message_and_owner_email(client, monkeypatch, slug, tenant_id, budget):
     import app as crm
     from flask import g
@@ -68,7 +68,7 @@ def test_new_intake_separates_answers_message_and_owner_email(client, monkeypatc
     with crm.app.test_request_context():
         g.public_tenant_id = tenant_id
         lead = crm.get_lead(response.json['lead_id'])
-        expected_budget = budget or 'Aún no lo sabemos'
+        expected_budget = budget or 'Aún no lo tenemos claro'
         assert lead['notas'] == payload['notas']
         assert lead['presupuesto'] == expected_budget
         assert lead['intake_qualification'] == dict(
@@ -99,7 +99,10 @@ def test_public_form_has_estimates_services_and_no_catalogs(client, slug):
     assert 'encajan con su inversión' not in html
     assert 'id="presupuesto"' in html
     assert 'required' not in re.search(r'<select id="presupuesto"[^>]*>', html).group()
-    assert all(budget in html for budget in ESTIMATED_BUDGETS)
+    budget_select = re.search(r'<select id="presupuesto"[^>]*>(.*?)</select>', html, re.S).group(1)
+    assert re.findall(r'<option[^>]*>(.*?)</option>', budget_select) == [
+        'Selecciona un rango', 'Q10,000', 'Q15,000', 'Q20,000 o más', 'Aún no lo tenemos claro',
+    ]
     for service in ('Fotografía de boda', 'Video de boda', 'Fotografía y video de boda',
                     'Sesión / Save the Date', 'Fotografía de bebé', 'Pedida de mano', 'Otro servicio'):
         assert service in html

@@ -1,7 +1,9 @@
 """Present form answers separately from the customer's free-text message."""
 
-ESTIMATED_BUDGETS = ('Menos de Q5,000', 'Q5,000 a Q9,999', 'Q10,000 a Q14,999',
-                     'Q15,000 a Q19,999', 'Q20,000 o más', 'Aún no lo sabemos')
+ESTIMATED_BUDGETS = ('Q10,000', 'Q15,000', 'Q20,000 o más', 'Aún no lo tenemos claro')
+# Accept submissions from forms that were already open before the options changed.
+PREVIOUS_ESTIMATED_BUDGETS = ('Menos de Q5,000', 'Q5,000 a Q9,999', 'Q10,000 a Q14,999',
+                              'Q15,000 a Q19,999', 'Q20,000 o más', 'Aún no lo sabemos')
 
 BUDGET_ANSWERS = {
     'Sí, la inversión es compatible': 'Indican que los precios se ajustan a su presupuesto',
