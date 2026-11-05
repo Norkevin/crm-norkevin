@@ -184,7 +184,7 @@
             {% endif %}
           </div>
           <div>
-            <label for="notas">Notas <span class="optional">/ opcional</span></label>
+            <label for="notas">¿Qué más les gustaría contarnos? <span class="optional">/ opcional</span></label>
             <textarea id="notas" name="notas" class="field" rows="4" maxlength="5000" placeholder="Cuéntanos cómo imaginas tu boda, cuántos invitados esperan o cualquier detalle que quieras compartir."></textarea>
           </div>
           <div>
@@ -199,7 +199,7 @@
       <fieldset>
         <legend><span>03</span> La cobertura que buscan</legend>
         <div class="fields">
-          <input type="hidden" name="intake_version" value="1">
+          <input type="hidden" name="intake_version" value="3">
           <div>
             <label for="servicio_solicitado">¿Qué servicio necesitan? *</label>
             <select id="servicio_solicitado" name="servicio_solicitado" class="field" required>
@@ -208,18 +208,14 @@
             </select>
           </div>
           <div>
-            <label for="presupuesto">¿Las colecciones encajan con su inversión? *</label>
-            <p class="hint" id="catalog-hint">Antes de elegir, <a href="{{ intake_catalog_url }}" target="_blank" rel="noopener noreferrer">consulta nuestras colecciones y precios (PDF)</a>{% if intake_catalog_2028_url %}; para una boda en 2028, <a href="{{ intake_catalog_2028_url }}" target="_blank" rel="noopener noreferrer">consulta el catálogo 2028 (PDF)</a>{% endif %}. Confirmaremos la tarifa y disponibilidad para su fecha.</p>
-            <select id="presupuesto" name="presupuesto" class="field" aria-describedby="catalog-hint" required>
-              <option value="" selected>Selecciona una opción</option>
+            <label for="presupuesto">¿Tienen algún presupuesto estimado? <span class="optional">/ opcional</span></label>
+            <select id="presupuesto" name="presupuesto" class="field" aria-describedby="budget-hint">
+              <option value="" selected>Selecciona un rango</option>
               {% for budget in intake_budgets %}<option value="{{ budget }}">{{ budget }}</option>{% endfor %}
             </select>
+            <p class="hint" id="budget-hint">Montos en quetzales. Si aún no tienen un presupuesto, pueden dejarlo por definir.</p>
           </div>
-          <div>
-            <label for="coleccion_interes">Colección de interés <span class="optional">/ opcional</span></label>
-            <input id="coleccion_interes" name="coleccion_interes" class="field" maxlength="160" placeholder="Nombre de la colección o cobertura que desean">
-          </div>
-          <p class="hint">Con estos datos revisaremos la disponibilidad y la propuesta adecuada. Si todavía necesitan orientación, pueden indicarlo.</p>
+          <p class="hint">Envíen su consulta y les compartiremos los paquetes y precios para el servicio que buscan, junto con la disponibilidad para su fecha.</p>
         </div>
       </fieldset>
       <div id="form-error" class="form-error" role="alert" hidden></div>

@@ -10,7 +10,8 @@ def test_qualification_is_saved_in_own_brand_without_claiming_verified_fit(clien
     import app as module
     from flask import g
     html = client.get('/captacion/' + slug).get_data(as_text=True)
-    assert own in html and foreign not in html
+    assert 'drive.google.com' not in html
+    assert 'name="coleccion_interes"' not in html
     assert 'name="presupuesto"' in html and 'name="servicio_solicitado"' in html
     payload = {
         'tenant_slug': slug, 'nombre': 'Consulta sintética', 'email': 'test@example.com',
@@ -29,8 +30,8 @@ def test_qualification_is_saved_in_own_brand_without_claiming_verified_fit(clien
         assert lead['intake_qualification']['status'] == 'Pendiente de revisión'
         assert (('18TR7KhEcRDpGOKsUnJNOaRvTna5l9edS' if slug == 'norkevin-photography' and year == '2028' else own)
                 in lead['intake_qualification']['catalog_url'])
-        assert payload['servicio_solicitado'] in lead['notas']
-        assert lead['notas'].endswith(payload['notas'])
+        assert lead['notas'] == payload['notas']
+        assert lead['intake_qualification']['version'] == 2
         assert lead['status'] == 'Nuevo'
         g.public_tenant_id = 'tenant-norkevin' if slug == 'norkevin-photography' else 'tenant-norkevin-photography'
         assert module.get_lead(response.json['lead_id']) is None
