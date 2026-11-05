@@ -14,7 +14,13 @@
 <p style="margin:0 0 24px;"><strong>Tipo:</strong> {{ lead.tipo_evento or 'Por definir' }}<br><strong>Lugar:</strong> {{ lead.locacion or 'Por definir' }}{% if lead.nombre_pareja %}<br><strong>Pareja:</strong> {{ lead.nombre_pareja }}{% endif %}</p>
 <h2 style="font-size:17px;margin:0 0 10px;">Contacto</h2>
 <p style="margin:0 0 24px;"><strong>Email:</strong> {{ lead.email or 'No indicado' }}<br><strong>Teléfono:</strong> {{ lead.telefono or 'No indicado' }}<br><strong>Origen:</strong> {{ lead.fuente or source_label }}</p>
-{% if notes %}<h2 style="font-size:17px;margin:0 0 10px;">Mensaje del lead</h2><div style="background:#f5f7f9;padding:14px;border-radius:6px;white-space:pre-wrap;margin-bottom:24px;">{{ notes }}</div>{% endif %}
+{% if intake.answers %}
+<h2 style="font-size:17px;margin:0 0 10px;">Respuestas del formulario</h2>
+<dl style="margin:0 0 24px;">
+{% for label, value in intake.answers %}<dt style="font-weight:bold;">{{ label }}</dt><dd style="margin:0 0 10px;overflow-wrap:anywhere;white-space:pre-wrap;">{{ value }}</dd>{% endfor %}
+</dl>
+{% endif %}
+{% if notes %}<h2 style="font-size:17px;margin:0 0 10px;">{{ 'Mensaje del cliente' if intake.answers else 'Notas' }}</h2><div style="background:#f5f7f9;padding:14px;border-radius:6px;white-space:pre-wrap;margin-bottom:24px;">{{ notes }}</div>{% endif %}
 <p style="margin:0 0 20px;"><a href="{{ lead_url }}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#3f5b70;color:#fff;padding:13px 22px;border-radius:7px;text-decoration:none;font-weight:bold;">Abrir ficha del lead</a></p>
 <p style="font-size:12px;color:#607486;margin:0;border-top:1px solid #e6ebef;padding-top:16px;">Recibido desde {{ source_label }}.</p>
 </td></tr></table></td></tr></table></body></html>

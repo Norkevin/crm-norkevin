@@ -180,3 +180,12 @@
 .lead-detail .lead-repeat-heading a { display: inline-flex; align-items: center; min-height: 44px; color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .lead-detail .lead-repeat-meta { margin: 4px 0; font-size: 13px; line-height: 1.6; }
 .lead-detail .lead-repeat-notes { margin: 12px 0 0; white-space: pre-wrap; font-size: 14px; line-height: 1.6; max-width: 72ch; }
+
+/* Form selections stay distinct from the customer's own words. */
+.lead-detail .lead-intake-message { min-width: 0; }
+.lead-detail .lead-intake { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--sn-line); }
+.lead-detail .lead-intake h3 { margin: 0 0 16px; font-size: 16px; font-weight: 600; }
+.lead-detail .lead-intake dl { margin: 0; display: grid; gap: 14px; }
+.lead-detail .lead-intake dt { margin-bottom: 4px; font-size: 12px; color: var(--sn-muted); }
+.lead-detail .lead-intake dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.lead-detail .lead-repeat-list .lead-intake { margin: 16px 0; padding: 0; border: 0; }

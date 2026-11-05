@@ -1,0 +1,10 @@
+{% if intake.answers %}
+<section class="lead-intake" aria-label="Respuestas del formulario">
+  <h3>Respuestas del formulario</h3>
+  <dl>
+    {% for label, value in intake.answers %}
+    <div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+    {% endfor %}
+  </dl>
+</section>
+{% endif %}

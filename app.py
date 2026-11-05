@@ -32,6 +32,7 @@ from src.travel import TravelService, public_venue_catalog
 from src.place_search import google_places_enabled, google_place_suggestions, valid_place_query, SearchLimitReached, SearchUnavailable
 from src.travel_mail import compose_travel, content_digest, legacy_travel_conflict, package_link_keys, strip_travel_block
 from src.tenant_brand_map import display_name_for_tenant as _brand_display_name_for_tenant
+from src.lead_intake import lead_intake, ESTIMATED_BUDGETS
 
 travel_service = TravelService(store)
 
@@ -120,6 +121,7 @@ _bootstrap_default_email_templates()
 _bootstrap_seed_table('packages')
 
 app = Flask(__name__)
+app.jinja_env.filters['lead_intake'] = lead_intake
 
 # Filtro Jinja compartido: cualquier plantilla puede escribir
 # `{{ fecha|fecha_es }}` y obtener "28 de noviembre de 2026" en vez de la fecha
@@ -7372,8 +7374,8 @@ def api_settings_package_delete(package_id):
 
 
 PUBLIC_INTAKE_SERVICES = ('Fotografía de boda', 'Video de boda', 'Fotografía y video de boda',
-                          'Sesión / Save the Date', 'Otro servicio')
-PUBLIC_INTAKE_BUDGETS = ('Sí, la inversión es compatible',
+                          'Sesión / Save the Date', 'Fotografía de bebé', 'Pedida de mano', 'Otro servicio')
+PUBLIC_INTAKE_LEGACY_BUDGETS = ('Sí, la inversión es compatible',
                          'Necesitamos orientación',
                          'Presupuesto menor al catálogo')
 PUBLIC_INTAKE_NORKEVIN_2028 = 'https://drive.google.com/file/d/18TR7KhEcRDpGOKsUnJNOaRvTna5l9edS/view'
@@ -7412,9 +7414,7 @@ def captacion_form(tenant_slug=None):
         contact_email=contact_email,
         contact_phone=contact_phone,
         intake_services=PUBLIC_INTAKE_SERVICES,
-        intake_budgets=PUBLIC_INTAKE_BUDGETS,
-        intake_catalog_url=PUBLIC_INTAKE_CATALOGS.get(tenant.get('slug')),
-        intake_catalog_2028_url=PUBLIC_INTAKE_NORKEVIN_2028 if tenant.get('slug') == 'norkevin-photography' else None,
+        intake_budgets=ESTIMATED_BUDGETS,
         venue_catalog=public_venue_catalog(),
         google_places_enabled=google_places_enabled(),
     )
@@ -7464,27 +7464,31 @@ def api_captacion_submit():
     if not tenant:
         return jsonify({'ok': False, 'error': 'Cuenta no reconocida'}), 400
     qualification = None
+    budget = data.get('presupuesto', '')
     if tenant.get('slug') in PUBLIC_INTAKE_CATALOGS and any(
             key in data for key in ('intake_version', 'servicio_solicitado', 'coleccion_interes')):
         service = data.get('servicio_solicitado')
-        budget = data.get('presupuesto')
-        collection = data.get('coleccion_interes', '')
-        if service not in PUBLIC_INTAKE_SERVICES or budget not in PUBLIC_INTAKE_BUDGETS:
-            return jsonify({'ok': False, 'error': 'Selecciona el servicio y cómo encajan las colecciones con su inversión.'}), 400
-        if not isinstance(collection, str) or len(collection) > 160:
-            return jsonify({'ok': False, 'error': 'Escribe la colección en un máximo de 160 caracteres.'}), 400
-        qualification = {
-            'version': 1, 'service': service, 'budget_fit_declared': budget,
-            'collection': collection.strip(),
-            'catalog_url': PUBLIC_INTAKE_NORKEVIN_2028 if tenant['slug'] == 'norkevin-photography'
-                and str(data.get('fecha_tentativa', '')).startswith('2028-') else PUBLIC_INTAKE_CATALOGS[tenant['slug']],
-            'status': 'Pendiente de revisión',
-        }
-        summary = f'Servicio solicitado: {service}\nEncaje de inversión declarado: {budget}'
-        if collection.strip():
-            summary += f'\nColección de interés: {collection.strip()}'
-        summary += '\nSolicitud: revisar disponibilidad y propuesta. Disponibilidad y encaje pendientes de revisión.'
-        notes = summary + ('\n\n' + notes.strip() if notes.strip() else '')
+        legacy = data.get('intake_version') in ('1', '2', 1, 2)
+        if not legacy and budget == '':
+            budget = 'Aún no lo sabemos'
+        allowed_budgets = PUBLIC_INTAKE_LEGACY_BUDGETS if legacy else ESTIMATED_BUDGETS
+        if service not in PUBLIC_INTAKE_SERVICES or budget not in allowed_budgets:
+            return jsonify({'ok': False, 'error': 'Selecciona qué servicio necesitan y un presupuesto estimado, o indica que aún no lo saben.'}), 400
+        qualification = {'version': 3, 'service': service, 'estimated_budget': budget,
+                         'status': 'Pendiente de revisión'}
+        if legacy:
+            # Accept forms already open before this release, without recreating
+            # the generated notes or interpreting price fit as an amount.
+            collection = data.get('coleccion_interes', '')
+            if not isinstance(collection, str) or len(collection) > 160:
+                return jsonify({'ok': False, 'error': 'Escribe la colección en un máximo de 160 caracteres.'}), 400
+            qualification = {
+                'version': 2, 'service': service, 'budget_fit_declared': budget,
+                'collection': collection.strip(),
+                'catalog_url': PUBLIC_INTAKE_NORKEVIN_2028 if tenant['slug'] == 'norkevin-photography'
+                    and str(data.get('fecha_tentativa', '')).startswith('2028-') else PUBLIC_INTAKE_CATALOGS[tenant['slug']],
+                'status': 'Pendiente de revisión',
+            }
     event_date = data.get('fecha_tentativa')
     try:
         if not isinstance(event_date, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', event_date):
@@ -7508,7 +7512,7 @@ def api_captacion_submit():
         'tipo_evento': data.get('tipo_evento', 'Boda'),
         'fecha_tentativa': event_date,
         'locacion': data.get('locacion', ''),
-        'presupuesto': data.get('presupuesto', ''),
+        'presupuesto': budget,
         'notas': notes.strip(),
         'created': _dt.now().isoformat()[:10],
         'is_new': True,
@@ -11965,14 +11969,18 @@ def _notify_new_lead(lead, source_label):
                        'Coincide con: ' + ', '.join(item.get('nombre') or item.get('title') or 'Reserva' for item in conflicts)]
     if lead.get('nombre_pareja'):
         body_lines += [f'Nombre de su pareja: {lead["nombre_pareja"]}']
-    notes = lead.get('notas') or lead.get('notes')
+    intake = lead_intake(lead)
+    if intake['answers']:
+        body_lines += ['', 'Respuestas del formulario:']
+        body_lines += [f'{label}: {value}' for label, value in intake['answers']]
+    notes = intake['message']
     if notes:
-        body_lines += ['', 'Notas:', notes]
+        body_lines += ['', 'Mensaje del cliente:' if intake['answers'] else 'Notas:', notes]
     base = (os.environ.get('APP_BASE_URL') or 'https://flowingcrm.com').rstrip('/')
     lead_url = f'{base}/leads/{url_quote(str(lead.get("id")), safe="")}'
     body_lines += ['', 'Abrir ficha del lead', lead_url]
     html_body = app.jinja_env.get_template('emails/new_lead.html').render(lead=lead, company_name=tenant.get('name') or 'Flow CRM',
-                                source_label=source_label, conflicts=conflicts, notes=notes, lead_url=lead_url)
+                                source_label=source_label, conflicts=conflicts, notes=notes, intake=intake, lead_url=lead_url)
     try:
         # Internal notices are explicitly authorized for automatic delivery.
         # The tracker still verifies this company's lead and configured inbox.
