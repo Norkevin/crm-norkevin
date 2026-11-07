@@ -10,7 +10,8 @@ Estilo Studio Ninja:
 """
 import uuid
 import logging
-from datetime import datetime
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from .email_delivery import send_email
@@ -104,6 +105,36 @@ def check_attachments_same_tenant(tenant_id, attachments):
 
 MISSING_CLIENT_WARNING = 'sin cliente asociado: no se pudo verificar la identidad'
 NEW_LEAD_NOTIFICATION = 'auto:new-lead-notify'
+
+
+def check_lead_event_date(entry, now=None):
+    """Stop lead sales mail after the event, including already queued mail.
+
+    Job payments/deliveries and the owner's internal inquiry notice are not
+    sales follow-ups. Compare calendar dates in Guatemala, not the UTC host.
+    """
+    if (not entry.get('lead_id') or entry.get('job_id')
+            or entry.get('source') == NEW_LEAD_NOTIFICATION):
+        return None
+    lead = store.get('leads', entry['lead_id']) or {}
+    if lead.get('tenant_id') != entry.get('tenant_id'):
+        return None  # Existing identity checks handle foreign/missing records.
+    value = lead.get('fecha_tentativa') or lead.get('fecha_evento')
+    if not value:
+        return None
+    try:
+        event_date = date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return 'La fecha del evento no es válida. Corrígela antes de enviar el seguimiento.'
+    zone = ZoneInfo('America/Guatemala')
+    moment = now or datetime.now(zone)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=zone)
+    if event_date < moment.astimezone(zone).date():
+        return ('La fecha del evento (' + event_date.strftime('%d/%m/%Y')
+                + ') ya pasó. Se bloqueó el correo de captación; revisa la fecha '
+                'o continúa la posventa desde el trabajo correspondiente.')
+    return None
 
 
 def new_lead_notification_recipient(tenant_id):
@@ -306,6 +337,9 @@ def _requested_auto_delivery_enabled(entry):
 
 
 def _commercial_check(entry):
+    date_error = check_lead_event_date(entry)
+    if date_error:
+        return date_error
     if not commercial_validate:
         return None
     try:
@@ -393,8 +427,10 @@ class MailTracker:
         """
         tenant_id = tenant_id or store.current_tenant_id()
 
-        commercial = {}
-        if commercial_prepare:
+        date_error = check_lead_event_date(dict(tenant_id=tenant_id,
+            lead_id=lead_id, job_id=job_id, source=source))
+        commercial = {'blocked_reason': date_error} if date_error else {}
+        if not date_error and commercial_prepare:
             try:
                 commercial = commercial_prepare(dict(tenant_id=tenant_id, lead_id=lead_id,
                     job_id=job_id, template_id=template_id, source=source,
