@@ -28,6 +28,41 @@ def payment_deadline(job, earlier=''):
     return min(earlier, limit) if earlier else limit
 
 
+def payment_agenda(costs, today, days=14):
+    """Pending installments in cents, ordered by deadline rather than payee."""
+    groups = {key: dict(key=key, label=label, rows=[], total=0) for key, label in (
+        ('late', 'Vencidos'), ('today', 'Vencen hoy'), ('soon', f'Próximos {days} días'))}
+    cutoff = (date.fromisoformat(today) + timedelta(days=days)).isoformat()
+    undated = 0
+    for cost in costs:
+        remaining = max(cost['pending'], 0)
+        if not remaining:
+            continue
+        entries = list(cost['schedule'])
+        unplanned = remaining - sum(max(entry['pending'], 0) for entry in entries)
+        if unplanned > 0:
+            entries.append(dict(due_date=cost['due_date'], pending=unplanned))
+        for entry in entries:
+            amount = min(max(entry['pending'], 0), remaining)
+            remaining -= amount
+            if not amount:
+                continue
+            due = entry['due_date']
+            if due and cost['due_date']:
+                due = min(due, cost['due_date'])
+            if not due:
+                undated += amount
+                continue
+            if due > cutoff:
+                continue
+            key = 'late' if due < today else 'today' if due == today else 'soon'
+            groups[key]['rows'].append(dict(cost, due_date=due, due_amount=amount))
+            groups[key]['total'] += amount
+    for group in groups.values():
+        group['rows'].sort(key=lambda row: (row['due_date'], row['beneficiary_name'], row['job_name']))
+    return dict(groups=list(groups.values()), undated=undated, days=days, cutoff=cutoff)
+
+
 TRAVEL_RESPONSES = {'available': 'Disponible todo el viaje', 'wedding_only': 'Solo el día de la boda',
                     'unavailable': 'No disponible', 'pending': 'Por responder'}
 
@@ -846,6 +881,11 @@ def register_teams(app, crm_store, canonical_jobs, financial_summary, job_is_act
             section = 'jobs'
         # Job pages always resolve against the complete authorized set, independently of report filters.
         data = snapshot(None if job_id or section == 'jobs' else year)
+        if section == 'payments':
+            due_days = request.args.get('days', '14')
+            if due_days not in ('7', '14', '30'):
+                abort(400)
+            data['payment_agenda'] = payment_agenda(data['costs'], datetime.now(LOCAL_ZONE).date().isoformat(), int(due_days))
         view = request.args.get('view', 'upcoming')
         query = request.args.get('q', '').strip()
         if view not in ('upcoming', 'past', 'archived', 'not_applicable', 'all') or len(query) > 200:

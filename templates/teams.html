@@ -2,9 +2,10 @@
 {% block title %}Teams{% endblock %}
 {% block header %}Teams{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='teams.css',v='20261022-mobile-controls') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='teams.css',v='20261111-payment-priorities') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='teams-owner.css',v='20261015-compact') }}">
-<section class="ft ft-owner{{ ' ft-owner-detail' if selected else '' }} sn-page-wide">
+<section class="ft ft-owner{{ ' ft-owner-detail' if selected else '' }} sn-page-wide" data-teams-owner>
+  <a class="ft-back-link" data-teams-back href="/teams/jobs">← Volver a bodas</a>
   <header class="ft-heading ft-owner-hero">
     <div class="ft-title-group">
       {% if selected and selected.boda_date and selected.boda_date|length == 10 %}<time class="ft-detail-date" datetime="{{ selected.boda_date }}" aria-label="{{ selected.boda_date|teams_date }}"><span>{{ selected.boda_date[8:10]|int }}</span><small>{{ ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][(selected.boda_date[5:7]|int)-1] }} {{ selected.boda_date[:4] }}</small></time>{% endif %}
@@ -127,5 +128,5 @@
   <footer class="ft-footer">Teams · {{ "Laboratorio local · bodas de prueba" if config.FLOW_TEAMS_LOCAL else "Operación del equipo" }} · {{ 'Google Calendar conectado · Invitaciones individuales y pendientes en lote' if calendar_email else 'Calendar sin conectar · Invitaciones por correo desde cada boda' }} · <a href="/teams/roadmap">Cómo funciona Teams</a></footer>
 </section>
 <script>window.flowTeamsCSRF = {{ csrf|tojson }};</script>
-<script src="{{ url_for('static',filename='teams.js',v='20261022-mobile-controls') }}" defer></script>
+<script src="{{ url_for('static',filename='teams.js',v='20261111-payment-priorities') }}" defer></script>
 {% endblock %}
