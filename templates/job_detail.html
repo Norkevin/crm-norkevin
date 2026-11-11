@@ -318,8 +318,11 @@
                  g.invoice_id: el invoice_id puede repetirse entre bodas y
                  mandaba a la factura de otro cliente. #}
               <a class="sn-btn sn-btn-sm" href="/invoices/{{ g.enlace or g.invoice_id }}">Ver</a>
-              <button class="sn-btn sn-btn-sm" type="button" onclick="sendPayment('{{ g.payments[0].id }}')">Enviar</button>
-              {% if g.balance > 0 %}<button class="sn-btn sn-btn-sm" type="button" onclick="openRecordPayment('{{ g.payments[0].id }}', '{{ g.payments[0].amount or 0 }}')">Registrar pago</button>{% endif %}
+              {% if g.next_payment %}
+              <button class="sn-btn sn-btn-sm" type="button" onclick='sendInvoice({{ g.next_payment.id|tojson }})'>Enviar recordatorio de pago</button>
+              <button class="sn-btn sn-btn-sm" type="button" onclick='openRecordPayment({{ g.next_payment.id|tojson }}, {{ (g.next_payment.amount or 0)|tojson }})'>Registrar pago</button>
+              {% else %}<button class="sn-btn sn-btn-sm" type="button" onclick='sendInvoice({{ g.payments[0].id|tojson }})'>Enviar estado de cuenta</button>{% endif %}
+              {% if g.receipt_payment %}<button class="sn-btn sn-btn-sm" type="button" onclick='sendPaymentReceipt({{ g.receipt_payment.id|tojson }})'>Enviar recibo de pago</button>{% endif %}
             </div>
           </div>
           {% else %}

@@ -4,6 +4,38 @@
     set(key, value) { try { sessionStorage.setItem(key, value); } catch (_) { /* Browser storage is optional. */ } },
     remove(key) { try { sessionStorage.removeItem(key); } catch (_) { /* Browser storage is optional. */ } }
   };
+  if (document.querySelector('[data-teams-owner]')) {
+    const back = document.querySelector('[data-teams-back]');
+    const current = location.pathname + location.search;
+    const scroller = () => {
+      const main = document.querySelector('main');
+      return main && main.scrollHeight > main.clientHeight ? main : document.scrollingElement;
+    };
+    let previousIsTeams = false;
+    try {
+      const previous = new URL(document.referrer);
+      if (previous.origin === location.origin && /^\/teams(?:\/|$)/.test(previous.pathname)
+          && previous.pathname + previous.search !== location.pathname + location.search) {
+        back.href = previous.pathname + previous.search + previous.hash;
+        back.textContent = '← Volver a la vista anterior';
+        previousIsTeams = true;
+      }
+    } catch (_) { /* Direct visits keep a useful, local destination. */ }
+    window.addEventListener('pagehide', () => localState.set(`flow-teams-scroll:${current}`, String(scroller().scrollTop)));
+    back?.addEventListener('click', event => {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const target = new URL(back.href, location.origin);
+      localState.set('flow-teams-restore-scroll', target.pathname + target.search);
+      if (previousIsTeams && window.history.length > 1) {
+        event.preventDefault();
+        window.history.back();
+      }
+    });
+    if (localState.get('flow-teams-restore-scroll') === current) {
+      localState.remove('flow-teams-restore-scroll');
+      requestAnimationFrame(() => { scroller().scrollTop = Number(localState.get(`flow-teams-scroll:${current}`)) || 0; });
+    }
+  }
   document.querySelectorAll('.ft-list-filter select').forEach(select => {
     select.addEventListener('change', () => select.form.requestSubmit());
   });
@@ -205,6 +237,7 @@
     });
     beneficiary.form.elements.amount.value = '0.00';
   });
+  let paymentTrigger;
   document.querySelectorAll('[data-pay-beneficiary]').forEach(button => button.addEventListener('click', () => {
     if (beneficiary.form.dataset.commandKey) {
       showError('Hay un abono pendiente de confirmar. Recarga y revisa el historial antes de registrar otro.'); return;
@@ -214,11 +247,25 @@
     beneficiary.value = button.dataset.payBeneficiary;
     beneficiary.dispatchEvent(new Event('change'));
     const editor = document.querySelector('#ft-payment-editor');
+    paymentTrigger = button;
+    button.closest('[role="tabpanel"]').append(editor);
     editor.hidden = false;
     const full = button.hasAttribute('data-pay-full');
     editor.querySelector('[data-payment-title]').textContent = `${full ? 'Pago completo' : 'Abono'} a ${button.dataset.payName}`;
+    editor.querySelector('[data-payment-help]').textContent = button.dataset.payCost
+      ? 'Este registro corresponde al vencimiento seleccionado. Ajusta el importe si hiciste un abono parcial.'
+      : 'Revisa cuánto pagaste a cada concepto. Puedes ajustar los importes antes de guardar.';
     if (full) {
       editor.querySelectorAll('[data-beneficiary]:not([hidden]) input').forEach(input => { input.value = input.max; });
+      beneficiary.form.dispatchEvent(new Event('input'));
+    }
+    if (button.dataset.payCost) {
+      editor.querySelector('[data-payment-title]').textContent = `Registrar pago a ${button.dataset.payName}`;
+      editor.querySelectorAll('[data-beneficiary]').forEach(row => {
+        const input = row.querySelector('input');
+        row.hidden = input.dataset.costId !== button.dataset.payCost;
+        input.value = row.hidden ? '0' : button.dataset.payAmount;
+      });
       beneficiary.form.dispatchEvent(new Event('input'));
     }
     editor.scrollIntoView({block:'start', behavior:'smooth'});
@@ -226,7 +273,7 @@
   }));
   document.querySelector('[data-payment-cancel]')?.addEventListener('click', () => {
     document.querySelector('#ft-payment-editor').hidden = true;
-    document.querySelector('[data-pay-beneficiary]')?.focus();
+    paymentTrigger?.focus();
   });
   if (beneficiary) beneficiary.form.addEventListener('input', () => {
     const total = [...beneficiary.form.querySelectorAll('[data-cost-id]')]
@@ -255,7 +302,11 @@
       tabs[index].click(); tabs[index].focus();
     });
   });
-  const rememberedTab = localState.get(`flow-teams-tab:${location.pathname}`);
+  document.querySelectorAll('[data-open-job-tab]').forEach(button => button.addEventListener('click', () => {
+    document.querySelector(`[data-job-tab="${button.dataset.openJobTab}"]`)?.click();
+    document.querySelector(`[data-job-tab="${button.dataset.openJobTab}"]`)?.focus();
+  }));
+  const rememberedTab = new URLSearchParams(location.search).get('tab') || localState.get(`flow-teams-tab:${location.pathname}`);
   const restoreTab = [...document.querySelectorAll('[data-job-tab]')]
     .find(button => button.dataset.jobTab === rememberedTab);
   if (restoreTab && !window.flowTeamsPortalOverview) restoreTab.click();

@@ -173,3 +173,16 @@ body.ft-portal-body{margin:0;background:var(--flow-canvas);color:var(--sn-ink);f
   .ft.ft-owner .ft-crew-manage>summary{flex-wrap:wrap;gap:2px 12px;padding-top:12px;padding-bottom:4px}
   .ft.ft-owner .ft-crew-manage>summary span{flex-basis:100%}
 }
+
+/* Payment deadlines keep the amount due separate from the full payee balance. */
+.ft-back-link{display:inline-flex;align-items:center;min-height:44px;margin-bottom:8px;font-weight:600;text-decoration:none}
+.ft-due-summary{display:flex;flex-wrap:wrap;gap:24px;padding:18px 0;border-block:1px solid var(--sn-line);margin:16px 0 28px}
+.ft-due-summary>a{flex:1;min-width:150px;display:grid;gap:6px;color:var(--sn-ink);text-decoration:none}
+.ft-due-summary strong{font-size:24px;font-variant-numeric:tabular-nums}
+.ft-due-summary small{color:var(--sn-muted)}
+.ft-due-group{margin:24px 0;scroll-margin-top:24px}
+.ft-due-group td a,.ft-due-group td small{display:block;margin-top:6px}
+.ft-due-group td strong{font-variant-numeric:tabular-nums}
+.ft-due-group td:nth-child(2){max-width:380px;overflow-wrap:anywhere}
+.ft-due-group td:last-child{min-width:150px}
+@media(max-width:600px){.ft-due-summary{gap:18px}.ft-due-summary>a{min-width:100%;grid-template-columns:1fr auto}.ft-due-summary small{grid-column:1/-1}.ft-due-group td:nth-child(2){max-width:none}}

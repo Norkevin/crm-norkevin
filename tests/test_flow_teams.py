@@ -1900,7 +1900,7 @@ def test_secondary_coverage_team_costs_roll_up_once_to_parent_and_portal(web):
     assert secondary['id'] == 'secondary:civil-event' and secondary['parent_job_id'] == 'job-1'
     assert secondary['boda_date'] == '2026-11-07' and secondary['income'] == 0
     assert len([j for j in summary['jobs'] if j.get('secondary')]) == 1
-    assert 'Trabajo secundario' in owner.get('/teams/jobs').get_data(as_text=True)
+    assert 'Trabajo secundario' in owner.get('/teams/jobs?view=all').get_data(as_text=True)
     assert 'Ligado a' in owner.get('/teams/jobs/secondary:civil-event').get_data(as_text=True)
     person = member(store)
     def command(action, **values):

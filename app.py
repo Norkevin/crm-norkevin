@@ -5594,6 +5594,8 @@ def job_detail(job_id):
     for p in payments:
         p['due_date_display_es'] = _format_date_es(p.get('due_date')) or p.get('due_date') or '-'
         p['paid_date_display_es'] = _format_date_es(p.get('paid_date') or p.get('fecha_pago'))
+        p['can_send_receipt'] = (p.get('tipo') != 'team_payment' and p.get('status') != 'Cancelado'
+                                 and _row_paid_amount(p) > 0)
     quotes = [
         q for q in store.list('quotes')
         if q.get('job_id') == job_id or (job.get('lead_id') and q.get('lead_id') == job.get('lead_id'))
@@ -5629,6 +5631,10 @@ def job_detail(job_id):
     invoice_groups = []
     for group in invoice_groups_map.values():
         group['balance'] = max(group['total'] - group['paid'], 0)
+        group['next_payment'] = next((p for p in group['payments'] if p.get('tipo') != 'team_payment'
+                                     and p.get('status') != 'Cancelado' and _row_saldo_vivo(p) > 0), None)
+        group['receipt_payment'] = max((p for p in group['payments'] if p['can_send_receipt']),
+                                      key=lambda p: p.get('paid_date') or p.get('fecha_pago') or '', default=None)
         group['next_due_display_es'] = _format_date_es(group.get('next_due')) or group.get('next_due') or '-'
         invoice_groups.append(group)
     contracts = [c for c in store.list('contracts') if c.get('job_id') == job_id]
@@ -11209,6 +11215,10 @@ def _invoice_send_email_text(pay, client, job, lead, host, *, emitir_token=False
                 _render_message_template(body, client=client, lead=lead, job=job), invoice_url)
     document = _invoice_document(pay['id'], tenant_id=tenant_id)
     amount = document['pendiente'] if document else _row_saldo_vivo(pay)
+    schedule = document['schedule'] if document else [pay]
+    # A reminder from a paid representative row advances to the next unpaid installment.
+    installment = pay if _row_saldo_vivo(pay) > 0 and pay.get('status') != 'Cancelado' else next(
+        (row for row in schedule if row.get('status') != 'Cancelado' and _row_saldo_vivo(row) > 0), None)
     # Antes hardcodeado a 'ASTRAL WEDDINGS' sin importar el tenant del job --
     # mismo patron del incidente del 16 de agosto, aca en la firma de la
     # factura. Resuelto via la marca canonica del tenant dueno del pago/job.
@@ -11217,11 +11227,15 @@ def _invoice_send_email_text(pay, client, job, lead, host, *, emitir_token=False
     subject = (f'Recordatorio de pago · Factura {invoice_id} - {empresa}' if amount > 0
                else f'Estado de cuenta · Factura {invoice_id} - {empresa}')
     summary = (
-        f'Este es un recordatorio automático de {empresa}. '
+        f'Te compartimos el detalle de tu próximo pago con {empresa}. '
         f'Actualmente tienes un saldo pendiente de Q{amount:,.2f} '
         f'correspondiente a tu factura {invoice_id}.'
         if amount > 0 else f'Tu factura {invoice_id} está pagada. Gracias por tu pago.'
     )
+    if amount > 0 and installment:
+        due = _format_date_es(installment.get('due_date')) or 'Por definir'
+        summary += (f'\n\nCuota pendiente: Q{_row_saldo_vivo(installment):,.2f}'
+                    f'\nFecha de vencimiento: {due}')
     body = (
         f"Hola {name},\n\n"
         f"{summary}\n\n"
@@ -11426,7 +11440,9 @@ def _payment_reminder_email_text(pay, client, job, payment_link):
     empresa = _brand_display_name_for_tenant(job_tenant_id)
     bank_info = (settings_dict.get('company') or {}).get('bank_info') or ''
     name = _client_name(client=client, lead=None, job=job)
-    amount = round(float(pay.get('amount') or 0), 2)
+    amount = _row_saldo_vivo(pay)
+    document = _invoice_document(pay['id'], tenant_id=job_tenant_id) if pay.get('id') else None
+    balance = document['pendiente'] if document else amount
     due_date_str = pay.get('due_date') or ''
     when_text = 'sin fecha de vencimiento definida'
     if due_date_str:
@@ -11455,7 +11471,8 @@ def _payment_reminder_email_text(pay, client, job, payment_link):
     body = (
         f"Hola {name},\n\n"
         f"Te escribo para recordarte tu proximo pago con {empresa}.\n\n"
-        f"Monto: Q{amount:,.2f}\n"
+        f"Saldo total pendiente: Q{balance:,.2f}\n"
+        f"Cuota pendiente: Q{amount:,.2f}\n"
         f"Vence: {due_date_str or 'Por definir'} ({when_text})\n\n"
         f"Opciones de pago:\n\n" + "\n\n".join(options) + "\n\n"
         f"Cualquier duda, avisame.\n\nSaludos,\n{empresa}"

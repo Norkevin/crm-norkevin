@@ -80,7 +80,7 @@ def test_send_invoice_preview_does_not_send(auth_client):
     assert data['to_email'] == 'invoicedyn@example.com'
     assert invoice_id in data['subject']
     assert 'Q15,000.00' in data['body']
-    assert 'recordatorio automático' in data['body']
+    assert 'Cuota pendiente: Q7,500.00' in data['body']
     assert 'pagarla' not in data['body']
     assert data['preview_url'].endswith(f'/invoices/{pay1_id}/documento')
     assert '[[INVOICE_LINK]]' not in data['html']
