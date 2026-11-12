@@ -8147,7 +8147,7 @@ def api_job_record_payment(job_id):
     if amount <= 0:
         return jsonify({'ok': False, 'error': 'El monto debe ser mayor a 0'}), 400
 
-    paid_date = data.get('fecha_pago') or data.get('paid_date') or date.today().isoformat()
+    paid_date = data.get('fecha_pago') or data.get('paid_date') or datetime.now(ZoneInfo('America/Guatemala')).date().isoformat()
     touched = _apply_payment_sequentially(job_id, amount, paid_date)
     if not touched:
         return jsonify({'ok': False, 'error': 'No hay cuotas pendientes para este job'}), 400
@@ -8176,7 +8176,7 @@ def api_payment_mark_paid(pay_id):
     from datetime import datetime as _dt
 
     data = request.json or request.form
-    fecha_pago = data.get('fecha_pago') or data.get('paid_date') or date.today().isoformat()
+    fecha_pago = data.get('fecha_pago') or data.get('paid_date') or datetime.now(ZoneInfo('America/Guatemala')).date().isoformat()
     all_payments = store.list('payments')
     pay = next((p for p in all_payments if p.get('id') == pay_id or p.get('invoice_id') == pay_id), None)
     if not pay:
@@ -11705,6 +11705,8 @@ def api_pago_update(pago_id):
             store.upsert('payments', pay)
             return jsonify(ok=True, payment_id=pay['id'], updated={'due_date': value, 'status': pay['status']})
     pay = store.get('payments', pago_id) or next((p for p in store.list('payments') if p.get('invoice_id') == pago_id), None)
+    if not pay and 'fecha_pago' in data:
+        return jsonify(ok=False, error='Pago no encontrado.'), 404
     if pay:
         local_fields = {}
         if 'monto_acordado' in data or 'amount' in data:
@@ -11713,7 +11715,14 @@ def api_pago_update(pago_id):
             except (TypeError, ValueError):
                 return jsonify({'ok': False, 'error': 'monto invalido'}), 400
         if 'fecha_pago' in data:
-            local_fields['fecha_pago'] = data.get('fecha_pago') or None
+            value = data.get('fecha_pago')
+            try:
+                if date.fromisoformat(value).isoformat() != value:
+                    raise ValueError
+            except (ValueError, TypeError):
+                return jsonify(ok=False, error='Elige una fecha de cobro valida.'), 400
+            local_fields.update(paid_date=value, fecha_pago=value)
+            local_fields['last_action'] = f'Fecha de cobro corregida a {value}'
         if 'comprobante_url' in data:
             local_fields['comprobante_url'] = data.get('comprobante_url')
         if 'evento' in data:
