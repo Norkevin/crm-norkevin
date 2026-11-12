@@ -1282,7 +1282,7 @@ function sendPayment(paymentId) { sendInvoice(paymentId); }
 function openRecordPayment(id, amount) {
   document.getElementById('payment-id').value = id;
   document.getElementById('payment-amount').value = Number(amount || 0).toFixed(2);
-  document.getElementById('payment-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('payment-date').value = flowToday();
   openModal('payment-modal');
 }
 function submitRecordPayment(event) {

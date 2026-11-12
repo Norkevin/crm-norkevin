@@ -1,4 +1,10 @@
 // Keep date ranges consistent in the dashboard and calendar.
+function flowToday() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Guatemala', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+}
+
 function formatFlowDate(value, includeTime) {
   if (!value) return '';
   const raw = String(value);

@@ -356,7 +356,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 function openRecordPayment(paymentId, amount) {
   document.getElementById('record-payment-id').value = paymentId;
   document.getElementById('record-payment-amount').value = Number(amount || 0).toFixed(2);
-  document.getElementById('record-payment-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('record-payment-date').value = flowToday();
   document.getElementById('payment-record-modal').classList.add('open');
 }
 function closeRecordPayment() {

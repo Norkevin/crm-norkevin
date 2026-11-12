@@ -4,6 +4,24 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
+test('payment defaults follow Guatemala at UTC midnight and year/month boundaries', () => {
+  const context = vm.createContext({});
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/date-range.js'), 'utf8'), context);
+  for (const [instant, expected] of [
+    ['2026-11-12T01:51:18Z', '2026-11-11'],
+    ['2026-12-01T05:59:59Z', '2026-11-30'],
+    ['2027-01-01T05:59:59Z', '2026-12-31'],
+    ['2027-01-01T06:00:00Z', '2027-01-01'],
+  ]) {
+    context.Date = class extends Date { constructor() { super(instant); } };
+    assert.equal(context.flowToday(), expected);
+  }
+  for (const name of ['payments', 'job_detail', 'invoice_view']) {
+    const html = fs.readFileSync(path.join(__dirname, `../templates/${name}.html`), 'utf8');
+    assert.match(html, /document\.getElementById\('(record-payment-date|payment-date)'\)\.value = flowToday\(\)/);
+  }
+});
+
 test('Spanish display keeps the stored day and clock without timezone conversion', () => {
   const context = vm.createContext({});
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/date-range.js'), 'utf8'), context);
