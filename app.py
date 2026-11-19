@@ -1117,8 +1117,21 @@ def _lead_packages_from_2028(lead, step_id):
         return False
 
 
+NORKEVIN_FOLLOWUP_TEMPLATES_2028 = {
+    'seguimiento_cliente': 'seguimiento norkevin 2028',
+    'levanta_muertos': 'levanta muertos norkevin 2028',
+    'seguimiento_final': 'seguimiento final norkevin 2028',
+}
+
+
 def _lead_step_email_template(lead, step_id, template_id, jobs=None):
     template = _get_email_template(template_id)
+    if step_id in NORKEVIN_FOLLOWUP_TEMPLATES_2028 and _lead_packages_from_2028(lead, 'envio_paquetes'):
+        # Only active variants participate; existing delivery states stay untouched.
+        return next((item for item in store.list('email_templates')
+                     if item.get('tenant_id') == lead.get('tenant_id') and item.get('activo', True)
+                     and ' '.join((item.get('name') or '').casefold().split()) == NORKEVIN_FOLLOWUP_TEMPLATES_2028[step_id]
+                     and (item.get('cuerpo') or '').strip()), template)
     if not _lead_packages_unavailable(lead, step_id, jobs):
         if _lead_packages_from_2028(lead, step_id):
             return next((item for item in store.list('email_templates')
@@ -1149,7 +1162,7 @@ def _travel_package_context(entry):
     is_packages = (entry.get('source') == 'workflow:lead-step:envio_paquetes'
                    or entry.get('workflow_step_id') == 'envio_paquetes'
                    or bool(step and step.email_template_id and step.email_template_id == entry.get('template_id'))
-                   or 'paquete' in name or bool(entry.get('travel_snapshot')))
+                   or 'paquete' in name)
     if not is_packages:
         # Copying a package email into the free composer must not bypass review.
         body_links = package_link_keys(entry.get('body'))
@@ -1161,7 +1174,7 @@ def _travel_package_context(entry):
             if body_links.intersection(package_link_keys(candidate.get('cuerpo'))):
                 template, is_packages = candidate, True
                 break
-    return (lead, template) if is_packages else None
+    return (lead, template) if is_packages or entry.get('travel_snapshot') else None
 
 
 def _travel_package_year_error(lead, template, body):
@@ -4613,8 +4626,16 @@ def api_lead_send_email(lead_id):
 
     data = request.get_json() or {}
     template = _get_email_template(data.get('template_id'))
-    packages_step = ('envio_paquetes' if _travel_package_context(dict(tenant_id=lead.get('tenant_id'),
-        lead_id=lead_id, template_id=data.get('template_id'), body=data.get('body'))) else data.get('step_id'))
+    followup_step = data.get('step_id') or next((step.id for step in LEAD_WORKFLOW(lead.get('tenant_id')).steps
+        if step.email_template_id and step.email_template_id == data.get('template_id')), None)
+    if template and followup_step in NORKEVIN_FOLLOWUP_TEMPLATES_2028:
+        template = _lead_step_email_template(lead, followup_step, template['id'])
+        data['template_id'] = template['id']
+    package_context = _travel_package_context(dict(tenant_id=lead.get('tenant_id'),
+        lead_id=lead_id, template_id=data.get('template_id'),
+        body=data.get('body') or (template or {}).get('cuerpo')))
+    packages_step = ('envio_paquetes' if package_context and
+        (not template or package_context[1].get('id') == template.get('id')) else data.get('step_id'))
     if (data.get('complete_step') or packages_step == 'envio_paquetes') and (_lead_packages_unavailable(lead, packages_step) or _lead_packages_from_2028(lead, packages_step)):
         step = next((item for item in LEAD_WORKFLOW(lead.get('tenant_id')).steps if item.id == 'envio_paquetes'), None)
         template = _lead_step_email_template(lead, 'envio_paquetes', step.email_template_id if step else None)
