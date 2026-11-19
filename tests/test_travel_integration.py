@@ -479,3 +479,105 @@ def test_unknown_to_custom_rate_invalidates_old_notice(travel_flow):
     crm.travel_service.save_rule(TID, dict(value='Playa de ejemplo', scope='region',
         photo_amount=1000, photo_video_amount=1500, approval_status='approved'))
     assert 'tarifa cambió' in crm._validate_travel_email(mail)
+
+
+@pytest.mark.parametrize('year', ['2027', '2028', '2029'])
+@pytest.mark.parametrize('path', ['workflow', 'manual'])
+@pytest.mark.parametrize('step_id', ['seguimiento_cliente', 'levanta_muertos', 'seguimiento_final'])
+def test_reviewed_2028_followup_variants_route_by_event_year(travel_flow, monkeypatch, year, path, step_id):
+    crm, client, make = travel_flow
+    drafts = json.loads((Path(__file__).parents[1] / 'data/seeds/norkevin_followups_2028.default.json').read_text())
+    selected = next(t for t in drafts if t['name'].casefold() == crm.NORKEVIN_FOLLOWUP_TEMPLATES_2028[step_id])
+    assert all(t['activo'] and FIXTURE['links']['2028'] in t['cuerpo']
+               and FIXTURE['links']['2027'] not in t['cuerpo'] for t in drafts)
+    original = dict(id='test-original-followup', tenant_id=TID, name='Seguimiento anterior',
+                    asunto='Consulta de boda', cuerpo='Hola %client_name%\n' + FIXTURE['links']['2027'], activo=True)
+    crm.store.upsert('email_templates', original)
+    workflow = crm.LEAD_WORKFLOW(TID).to_dict()
+    next(s for s in workflow['steps'] if s['id'] == step_id)['email_template_id'] = original['id']
+    crm.store.save_tenant_dict('workflow_templates', {workflow['id']: workflow}, TID)
+    lead = make('Las Lagunas Boutique Hotel', year)
+    crm.store.upsert('email_templates', dict(selected, activo=False))
+    assert crm._lead_step_email_template(lead, step_id, original['id'])['id'] == original['id']
+    # Activate only a synthetic copy in isolated test storage.
+    crm.store.upsert('email_templates', dict(selected, activo=True))
+    expected = selected if year >= '2028' else original
+    assert crm._lead_step_email_template(lead, step_id, original['id'])['id'] == expected['id']
+    assert crm._lead_step_email_template(dict(lead, tenant_id='tenant-norkevin'), step_id, original['id'])['id'] != selected['id']
+    step_view = next(s for s in crm.compute_workflow_steps_for_lead(lead)[0] if s['id'] == step_id)
+    assert step_view['email_template_id'] == expected['id']
+    sent = []
+    monkeypatch.setattr('src.mail_tracker.send_email', lambda *a, **k: sent.append(a))
+    if path == 'workflow':
+        result = crm._complete_lead_workflow_step(lead, step_id)
+        mail = crm.store.get('pending_emails', result['mail_id'])
+    else:
+        response = client.post('/api/leads/' + lead['id'] + '/send-email', json={'template_id': original['id']})
+        assert response.status_code == 200
+        mail = crm.store.get('pending_emails', response.json['mail_id'])
+    assert mail['template_id'] == expected['id'] and mail['status'] == 'pending'
+    assert strip_travel_block(mail['body']) == crm._render_message_template(expected['cuerpo'], lead=lead)
+    assert mail['travel_snapshot']['photo_amount'] == 2500
+    assert mail['travel_snapshot']['photo_video_amount'] == 4500
+    assert crm._validate_travel_email(mail) is None and not sent
+    assert crm.store.get('email_templates', original['id'])['cuerpo'] == original['cuerpo']
+
+
+
+@pytest.mark.parametrize('step_id', ['seguimiento_cliente', 'levanta_muertos', 'seguimiento_final'])
+def test_active_2028_sequence_sends_once_and_keeps_omitted_steps(travel_flow, monkeypatch, step_id):
+    from datetime import datetime
+    from src.email_delivery import DeliveryResult
+    crm, client, make = travel_flow
+    monkeypatch.setenv('WORKFLOW_AUTO_SEND_BRANDS', 'norkevin')
+    templates = json.loads((Path(__file__).parents[1] / 'data/seeds/norkevin_followups_2028.default.json').read_text())
+    for template in templates:
+        crm.store.upsert('email_templates', template)
+    selected = next(t for t in templates if t['name'].casefold() == crm.NORKEVIN_FOLLOWUP_TEMPLATES_2028[step_id])
+    original = dict(id='test-sequence-original', tenant_id=TID, name='Seguimiento anterior',
+                    asunto='Consulta', cuerpo='Hola\n' + FIXTURE['links']['2027'], activo=True)
+    crm.store.upsert('email_templates', original)
+    workflow = crm.LEAD_WORKFLOW(TID).to_dict()
+    next(s for s in workflow['steps'] if s['id'] == step_id)['email_template_id'] = original['id']
+    crm.store.save_tenant_dict('workflow_templates', {workflow['id']: workflow}, TID)
+    lead = make('Las Lagunas Boutique Hotel', '2028')
+    instance = crm.workflow_engine.list_instances(subject_id=lead['id'], subject_type='lead')[0]
+    instance.auto_prepare = True
+    instance.trigger_at = datetime(2026, 10, 1)
+    for sid in instance.step_states:
+        instance.step_states[sid] = crm.StepStatus.SKIPPED
+    instance.step_states['envio_paquetes'] = crm.StepStatus.DONE
+    instance.step_states[step_id] = crm.StepStatus.PENDING
+    before = dict(instance.step_states)
+    calls = []
+    monkeypatch.setattr('src.mail_tracker.send_email', lambda *a, **k:
+                        calls.append((a, k)) or DeliveryResult(ok=True, provider='test', mode='test'))
+    due = datetime(2027, 6, 1)
+    queued = crm._prepare_due_workflow_emails(TID, now=due)
+    assert len(queued) == 1 and queued[0]['step_id'] == step_id
+    mail = crm.store.get('pending_emails', queued[0]['mail_id'])
+    assert mail['template_id'] == selected['id'] and mail['status'] == 'pending'
+    assert crm._validate_travel_email(mail) is None
+    assert crm._send_due_workflow_emails(TID, now=due) == [{'mail_id': mail['id'], 'ok': True}]
+    assert len(calls) == 1 and FIXTURE['links']['2028'] in calls[0][0][2]
+    assert FIXTURE['links']['2027'] not in calls[0][0][2]
+    assert 'Q2,500' in calls[0][0][2] and 'Q4,500' in calls[0][0][2]
+    assert instance.step_states == dict(before, **{step_id: crm.StepStatus.DONE})
+    assert not crm._prepare_due_workflow_emails(TID, now=due)
+    assert not crm._send_due_workflow_emails(TID, now=due) and len(calls) == 1
+
+
+def test_followup_snapshot_does_not_allow_a_removed_or_old_catalog(travel_flow):
+    crm, client, make = travel_flow
+    lead = make()
+    template = dict(id='test-followup-snapshot', tenant_id=TID, name='Levanta Muertos Norkevin 2028',
+                    asunto='Consulta', cuerpo='Hola\n' + FIXTURE['links']['2028'], activo=True)
+    crm.store.upsert('email_templates', template)
+    entry = dict(tenant_id=TID, lead_id=lead['id'], template_id=template['id'],
+                 subject='Consulta', body=template['cuerpo'])
+    entry.update(crm._prepare_travel_email(entry, research=False))
+    assert crm._validate_travel_email(entry) is None
+    entry['body'] = entry['body'].replace(FIXTURE['links']['2028'], FIXTURE['links']['2027'])
+    assert '2028' in crm._validate_travel_email(entry)
+    entry['body'] = 'Sin enlace'
+    assert '2028' in crm._validate_travel_email(entry)

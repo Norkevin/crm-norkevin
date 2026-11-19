@@ -1,0 +1,32 @@
+[
+  {
+    "id": "tpl-norkevin-seguimiento-2028",
+    "tenant_id": "tenant-norkevin-photography",
+    "name": "Seguimiento Norkevin 2028",
+    "asunto": "Tu fotografo de bodas",
+    "cuerpo": "Hola %client_name%,\n\nSolo estoy haciendo un seguimiento de la información que solicitaste hace unos días. sobre tu boda el %job_date% ¿Tienen alguna pregunta?\n\n¡Me encantaría responderlas para ustedes!\n\nPuedes volver a consultar los paquetes para tu boda aquí:\nhttps://drive.google.com/file/d/18TR7KhEcRDpGOKsUnJNOaRvTna5l9edS/view?usp=sharing\n\nAvísenme si hay algo en lo que pueda ayudar :)",
+    "adjuntos": [],
+    "activo": true,
+    "created": "2026-11-18"
+  },
+  {
+    "id": "tpl-norkevin-levanta-muertos-2028",
+    "tenant_id": "tenant-norkevin-photography",
+    "name": "Levanta Muertos Norkevin 2028",
+    "asunto": "Te escribo rápido sobre tu boda 👀",
+    "cuerpo": "Hola %client_name%\n\nMira, te escribo rápido porque justo estoy cerrando fechas y me acordé de tu boda… No sé si ya encontraste fotógrafo o si lo dejaste en pausa, pero te soy honesto: varias fechas se están llenando bastante rápido y no quería que te quedaras sin alguien que realmente documente tu día como se merece.\n\nPorque al final, la boda pasa en un día… pero las fotos son lo único que te queda para toda la vida. Mi estilo es bien natural, nada forzado, y me enfoco en capturar momentos reales — no solo fotos bonitas, sino recuerdos que de verdad se sientan.\n\nSi todavía estás viendo opciones, puedo mandarte bodas completas para que veas exactamente lo que entrego, no solo highlights.\n\nY si te interesa, vemos rápido disponibilidad y te explico cómo puedes reservar la fecha antes de que alguien más la tome.\n\nhttps://drive.google.com/file/d/18TR7KhEcRDpGOKsUnJNOaRvTna5l9edS/view?usp=sharing\n\nQuedo pendiente 👀\n\nKevin Lemus\nNorkevin Photography",
+    "adjuntos": [],
+    "activo": true,
+    "created": "2026-11-18"
+  },
+  {
+    "id": "tpl-norkevin-seguimiento-final-2028",
+    "tenant_id": "tenant-norkevin-photography",
+    "name": "Seguimiento Final Norkevin 2028",
+    "asunto": "Hola %client_name% esto te podría interesar para tu boda el %job_date%",
+    "cuerpo": "Hola %client_name%,\n\nTe escribo rápido porque se liberó tu fecha el %job_date% y me acordé de ustedes antes de volver a abrirla 😊\n\nSé que esto a veces se queda en pausa, pero justo pasa que cuando lo retoman… la fecha ya no está. Entonces preferí avisarte primero.\n\nSi todavía lo están considerando, te puedo dejar un 20% de descuento para que puedan aprovechar y asegurar la fecha.\n\nSi quieres, lo vemos rápido y te la dejo bloqueada antes de que alguien más la tome 🙌\n\nVer paquetes de boda\nhttps://drive.google.com/file/d/18TR7KhEcRDpGOKsUnJNOaRvTna5l9edS/view?usp=sharing\n\nQuedo atento 👍",
+    "adjuntos": [],
+    "activo": true,
+    "created": "2026-11-18"
+  }
+]
