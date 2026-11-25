@@ -48,7 +48,7 @@
 .term__body { grid-column: 2; font-size: 13.5px; color: var(--text-secondary);
               line-height: 1.65; white-space: pre-line; margin-top: 5px; }
 .term--sin-num { grid-template-columns: 1fr; }
-.term--sin-num .term__body { grid-column: 1; }
+.term--sin-num .term__body, .term--sin-num .term__lista { grid-column: 1; }
 
 /* Las obligaciones vienen como lista. Se pintan como lista de verdad, con
    su marcador, en vez de dejar el asterisco crudo del texto. */
@@ -197,25 +197,23 @@
          con asteriscos. Se clasifica linea por linea porque una clausula
          puede traer una frase de entrada Y DESPUES los items; si se filtrara
          solo por los bullets, esa frase se perderia del contrato. #}
-      {% set _intro = [] %}
-      {% set _bullets = [] %}
-      {% for _ln in (body or '').split('\n') %}
-        {% set _t = _ln.strip() %}
-        {% if _t.startswith('*') %}
-          {% set _ = _bullets.append(_t[1:].strip()) %}
-        {% elif _t %}
-          {% set _ = _intro.append(_t) %}
-        {% endif %}
+      {% set groups = [] %}
+      {% for line in (body or '').split('\n') if line.strip() %}
+        {% set stripped = line.strip() %}
+        {% set bullet = stripped.startswith('*') %}
+        {% if not groups or groups[-1][0] != bullet %}{% set _ = groups.append((bullet, [])) %}{% endif %}
+        {% set _ = groups[-1][1].append(stripped[1:].strip() if bullet else stripped) %}
       {% endfor %}
       <div class="term{{ '' if _num else ' term--sin-num' }}">
         {% if _num %}<div class="term__num">{{ _num }}</div>{% endif %}
         {% if _titulo %}<div class="term__title">{{ _titulo }}</div>{% endif %}
-        {% if _intro %}<div class="term__body">{{ _intro | join('\n') }}</div>{% endif %}
-        {% if _bullets %}
-        <ul class="term__lista">
-          {% for _b in _bullets %}<li>{{ _b }}</li>{% endfor %}
-        </ul>
+        {% for bullet, lines in groups %}
+        {% if bullet %}
+        <ul class="term__lista">{% for line in lines %}<li>{{ line }}</li>{% endfor %}</ul>
+        {% else %}
+        <div class="term__body">{{ lines | join('\n') }}</div>
         {% endif %}
+        {% endfor %}
       </div>
       {% endfor %}
     </div>
@@ -421,6 +419,7 @@ async function saveSig() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       signature: dataUrl,
+      terms_revision: {{ contract.terms_revision or 0 }},
       signature_type: sigMode,
       signature_text: sigMode === 'type' ? (document.getElementById('typed-sig-name').value || '').trim() : ''
     })

@@ -23,6 +23,7 @@ eso habria sido el mismo bug con otro nombre."""
 import io
 import os
 from datetime import datetime
+from src.contract_templates import STANDARD_CLAUSES, resolve_clauses
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.colors import HexColor
@@ -393,29 +394,12 @@ def generate_quote_pdf(quote, lead, brand=None):
     return pdf_bytes
 
 
-def contract_terms(job, brand=None):
-    """Terminos del contrato, parametrizados por job. Usado por el PDF y la
-    vista web. `brand` (dict de resolve_pdf_brand) determina el nombre del
-    estudio en el texto legal -- antes decia "Astral Weddings" sin importar
-    el tenant real del job."""
-    brand = brand or _UNRESOLVED_BRAND
-    name = brand['display_name']
-    return [
-        ('1. Compromiso del Fotografo',
-         f'{name} se compromete a capturar, editar y entregar el material fotografico contratado en las fechas y plazos acordados. La calidad del trabajo se ajustara a los estandares profesionales de la industria.'),
-        ('2. Tarifas y Deposito',
-         f'La tarifa total es de Q{job.get("price_total", 0):,.2f}. '
-         + (f'Pago en {job.get("plan_pago", 1)} cuotas de Q{job.get("cuota_monto", 0):,.2f}.' if job.get('plan_pago', 1) > 1 else 'Pago en una sola exhibicion.')
-         + f' Deposito requerido: Q{job.get("price_total", 0) * 0.3:,.2f}.'),
-        ('3. Responsabilidades del Cliente',
-         '* Proporcionar informacion veraz y oportuna sobre el evento\n* Realizar los pagos en las fechas acordadas\n* Coordinar con el fotografo los horarios y ubicaciones del evento\n* Notificar cualquier cambio con al menos 30 dias de anticipacion'),
-        ('4. Responsabilidades del Fotografo',
-         '* Asistir puntualmente a todos los eventos acordados\n* Entregar las fotografias editadas en un plazo maximo de 30 dias\n* Mantener una copia de seguridad de todas las imagenes por 1 ano\n* Proveer una galeria online privada para revision del cliente'),
-        ('5. Cancelacion y Reembolso',
-         'En caso de cancelacion por parte del cliente con menos de 60 dias de anticipacion, el deposito no sera reembolsable. Cancelaciones con mas de 60 dias tendran un reembolso del 50% del deposito.'),
-        ('6. Propiedad Intelectual',
-         f'{name} retendra los derechos de autor sobre todas las imagenes. El cliente recibira una licencia personal no comercial para uso privado.'),
-    ]
+def contract_terms(job, brand=None, contract=None):
+    contract = contract or {}
+    if contract.get('terms'):
+        return contract['terms']
+    return resolve_clauses(contract.get('terms_pattern') or STANDARD_CLAUSES, job,
+                           (brand or _UNRESOLVED_BRAND)['display_name'])
 
 
 def generate_contract_pdf(contract, job, client, brand=None):
@@ -452,7 +436,7 @@ def generate_contract_pdf(contract, job, client, brand=None):
     y -= 15*mm
 
     # Terminos
-    terminos = contract_terms(job, brand=brand)
+    terminos = contract_terms(job, brand=brand, contract=contract)
 
     for title, body in terminos:
         if y < 60*mm:

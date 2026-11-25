@@ -244,7 +244,7 @@
             <a href="/contracts/{{ c.id }}" target="_blank" class="portal-action">Ver contrato</a>
             <a href="/contracts/{{ c.id }}/pdf" download class="portal-action">Descargar contrato PDF</a>
             {% if not c.signed %}
-            <button onclick="openSignature('{{ c.id }}')" class="portal-action primary">Firmar digitalmente</button>
+            <button onclick="openSignature('{{ c.id }}', {{ c.terms_revision or 0 }})" class="portal-action primary">Firmar digitalmente</button>
             {% endif %}
           </div>
         </div>
@@ -495,7 +495,9 @@ let currentContractId = null;
 let canvas, ctx, drawing = false;
 let signatureMode = 'draw';
 
-function openSignature(contractId) {
+let currentTermsRevision = 0;
+function openSignature(contractId, revision) {
+  currentTermsRevision = revision;
   currentContractId = contractId;
   document.getElementById('modal-sign').classList.remove('hidden');
   canvas = document.getElementById('signature-canvas');
@@ -572,6 +574,7 @@ function saveSignature() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       signature: dataUrl,
+      terms_revision: currentTermsRevision,
       signature_type: signatureMode,
       signature_text: signatureMode === 'type' ? (document.getElementById('typed-signature-name').value || '').trim() : ''
     })

@@ -370,15 +370,16 @@
       </div>
       </div>
 
-      <div class="sn-tab-panel" data-tab-panel="contracts" data-tab-group="job-detail-tabs">
+      <div class="sn-tab-panel" id="job-contracts" data-tab-panel="contracts" data-tab-group="job-detail-tabs">
       <div class="sn-card wide">
         <div class="sn-card-head">
           <div class="sn-card-title">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 3h8l4 4v14H4V3h4Zm8 0v5h4"/></svg>
             Contratos
           </div>
+          <a class="sn-btn sn-btn-sm" href="/settings/contracts">Tipos de contrato</a>
           {% if not contracts %}
-          <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" onclick="createContract()">
+          <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" aria-label="Crear contrato" onclick="createContract()">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
           </button>
           {% endif %}
@@ -388,7 +389,7 @@
           <div class="sn-list-item">
             <div class="sn-list-row">
               <div>
-                <div class="sn-list-title">CONTRATO DE BODAS {{ (current_tenant.name or 'CRM')|upper }}</div>
+                <div class="sn-list-title">{{ (c.template_name or 'Contrato de bodas')|upper }} {{ (current_tenant.name or 'CRM')|upper }}</div>
                 <div class="sn-list-meta">{{ {'pending':('Pendiente de envío' if workflow_auto_mail else 'Pendiente de aprobación'), 'failed':'Falló el envío', 'blocked':'Envío bloqueado', 'discarded':'Correo descartado'}.get(c.delivery_status) or ('Enviado el ' ~ c.sent_at if c.sent_at else 'Preparado · sin envío confirmado') }}</div>
                 <div class="sn-list-meta">
                   {{ c.status or 'Borrador' }}
@@ -398,13 +399,14 @@
               </div>
             </div>
             <div class="sn-list-actions">
+              {% if c.editable %}<a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/edit">Editar contrato</a>{% endif %}
               <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}" target="_blank">Ver</a>
               <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf" target="_blank">PDF</a>
               <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Enviar</button>
               {% if not c.photographer_signed %}
-              <button class="sn-btn sn-btn-sm sn-btn-primary" type="button" onclick="openPhotographerSignature('{{ c.id }}')">Firmar (fotografo)</button>
+              <button class="sn-btn sn-btn-sm sn-btn-primary" type="button" onclick="openPhotographerSignature('{{ c.id }}', {{ c.terms_revision or 0 }})">Firmar (fotografo)</button>
               {% endif %}
-              {% if not c.signed and not c.photographer_signed %}
+              {% if c.editable %}
               <button class="sn-btn sn-btn-sm" type="button" onclick="deleteContract('{{ c.id }}')" style="color:#b3263b;" title="Eliminar contrato">Eliminar</button>
               {% endif %}
             </div>
@@ -1251,7 +1253,7 @@ function createInvoice(event) {
 }
 function createContract() {
   apiPost('/api/contracts/new', { job_id: JOB_ID })
-    .then(function() { flashToast('Contrato creado', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .then(function(data) { location.assign('/contracts/' + data.contract_id + '/edit'); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 function deleteContract(contractId) {
@@ -1302,7 +1304,9 @@ function sendContract(id) { reviewDocumentEmail('contract', id); }
 
 var photogSigCanvas, photogSigCtx, photogSigDrawing = false, photogSigContractId = null;
 var photogSigMode = 'draw';
-function openPhotographerSignature(contractId) {
+var photogTermsRevision = 0;
+function openPhotographerSignature(contractId, revision) {
+  photogTermsRevision = revision;
   photogSigContractId = contractId;
   openModal('photographer-sign-modal');
   photogSigCanvas = document.getElementById('photog-sig-canvas');
@@ -1377,6 +1381,7 @@ async function savePhotogSig() {
   if (!dataUrl) return;
   apiPost('/api/contracts/' + photogSigContractId + '/sign-photographer', {
     signature: dataUrl,
+    terms_revision: photogTermsRevision,
     signature_type: photogSigMode,
     signature_text: photogSigMode === 'type' ? (document.getElementById('photog-typed-sig-name').value || '').trim() : ''
   })
@@ -1724,7 +1729,14 @@ function openHistoryLog() {
 
   var nextLink = document.getElementById('job-next-workflow');
   if (nextLink) { nextLink.addEventListener('click', function() { if (built) { show('workflow'); } }); }
-  document.addEventListener('DOMContentLoaded', sync);
+  document.addEventListener('DOMContentLoaded', function() {
+    sync();
+    if (new URLSearchParams(location.search).get('tab') === 'contracts') {
+      if (built) show('archivos');
+      document.querySelector('[data-tab-target="contracts"]').click();
+      document.getElementById('job-contracts').scrollIntoView({block:'nearest'});
+    }
+  });
   window.addEventListener('resize', sync);
 })();
 </script>

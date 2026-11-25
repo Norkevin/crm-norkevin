@@ -28,6 +28,7 @@ from src.workflow import WorkflowEngine, LEAD_WORKFLOW, PRODUCTION_WORKFLOW
 from src.workflow.models import StepStatus, WorkflowStatus, TriggerType
 from src.storage import store, log_security_event, TenantMismatchError
 from src import public_links, public_tokens, quote_numbering
+from src.contract_templates import STANDARD_CLAUSES, validated_clauses
 from src.travel import TravelService, public_venue_catalog
 from src.place_search import google_places_enabled, google_place_suggestions, valid_place_query, SearchLimitReached, SearchUnavailable
 from src.travel_mail import compose_travel, content_digest, legacy_travel_conflict, package_link_keys, strip_travel_block
@@ -705,6 +706,21 @@ def _apply_document_delivery(document, mail, reminder=False):
         document[prefix + 'queued_at'] = mail.get('created_at') or datetime.now().isoformat()
 
 
+def _save_contract_delivery(contract_id, mail):
+    with store.locked_tables('contracts'):
+        current = get_contract(contract_id)
+        if not current or not mail or current.get('tenant_id') != mail.get('tenant_id'):
+            return {}
+        _apply_document_delivery(current, mail)
+        if not current.get('signed'):
+            if mail.get('status') in ('sent', 'opened', 'clicked'):
+                current['status'] = 'Enviado'
+            elif not current.get('sent_at'):
+                current['status'] = 'Preparado'
+        store.upsert('contracts', current)
+        return current
+
+
 def _apply_workflow_delivery(instance, step_id, mail):
     if instance.step_states.get(step_id) == StepStatus.SKIPPED:
         return
@@ -797,15 +813,15 @@ def _sync_mail_delivery(mail):
     kind, record_id = parts[:2]
     collection = {'quote': 'quotes', 'contract': 'contracts', 'pago': 'payments',
                   'questionnaire': 'questionnaires', 'jobquestionnaire': 'questionnaires'}.get(kind)
-    if collection:
+    if collection == 'contracts':
+        _save_contract_delivery(record_id, mail)
+    elif collection:
         record = store.get(collection, record_id)
         if record and record.get('tenant_id') == mail.get('tenant_id'):
             _apply_document_delivery(record, mail, reminder=kind == 'pago' and 'reminder' in parts)
             if mail.get('status') == 'sent':
                 if collection == 'quotes' and record.get('status') == 'Preparada':
                     record['status'] = 'Enviada'
-                elif collection == 'contracts' and not record.get('signed'):
-                    record['status'] = 'Enviado'
                 elif collection == 'questionnaires' and record.get('status') != 'Respondido':
                     record['status'] = 'Sent'
             store.upsert(collection, record)
@@ -862,17 +878,39 @@ def _booking_progress(job):
             'label': 'Reserva confirmada' if all(c['done'] for c in checks) else 'Reserva por completar'}
 
 
+def _contract_library(tenant_id):
+    library = store.get('contract_libraries', tenant_id) or {}
+    standard = {'name': 'Contrato de bodas', 'clauses': STANDARD_CLAUSES}
+    return {
+        'id': tenant_id, 'tenant_id': tenant_id,
+        'options': {'boda': standard, **library.get('options', {})},
+        'default_id': library.get('default_id', 'boda'),
+        'revision': library.get('revision', 0),
+    }
+
+
+def _contract_signed(contract):
+    return bool(contract.get('signed') or contract.get('photographer_signed')
+                or contract.get('signed_at') or contract.get('photographer_signed_at')
+                or (contract.get('status') or '').casefold().startswith('firmado'))
+
+
 def _ensure_contract_for_job(job):
-    existing = next((c for c in store.list('contracts') if c.get('job_id') == job['id']), None)
-    if existing:
-        return existing
     import uuid
-    contract = {'id': 'contract-' + uuid.uuid4().hex[:8], 'job_id': job['id'],
-                'client_id': job['client_id'], 'lead_id': job.get('lead_id'),
-                'tenant_id': job.get('tenant_id'), 'tipo': 'boda', 'status': 'Borrador',
-                'signed': False, 'created': datetime.now().isoformat()}
-    store.upsert('contracts', contract)
-    return contract
+    with store.locked_tables('contracts'):
+        existing = next((c for c in store.list('contracts') if c.get('job_id') == job['id']), None)
+        if existing:
+            return existing
+        library = _contract_library(job.get('tenant_id'))
+        selected = library['options'][library['default_id']]
+        contract = {'id': 'contract-' + uuid.uuid4().hex[:8], 'job_id': job['id'],
+                    'client_id': job['client_id'], 'lead_id': job.get('lead_id'),
+                    'tenant_id': job.get('tenant_id'), 'tipo': 'boda', 'status': 'Borrador',
+                    'template_id': library['default_id'], 'template_name': selected['name'],
+                    'terms_pattern': selected['clauses'],
+                    'signed': False, 'created': datetime.now().isoformat()}
+        store.upsert('contracts', contract)
+        return contract
 
 
 def _complete_job_workflow_step(job, step_id, result_message=None, mail_id=None):
@@ -5659,6 +5697,8 @@ def job_detail(job_id):
         group['next_due_display_es'] = _format_date_es(group.get('next_due')) or group.get('next_due') or '-'
         invoice_groups.append(group)
     contracts = [c for c in store.list('contracts') if c.get('job_id') == job_id]
+    for contract in contracts:
+        contract['editable'] = not _contract_signed(contract)
     questionnaire_template_cache = _questionnaire_template(job.get('tenant_id'))
     questionnaires = [
         _linked_questionnaire(q, template_cache=questionnaire_template_cache) for q in store.list('questionnaires')
@@ -14805,7 +14845,7 @@ def contract_view(contract_id):
         contract=contract,
         job=job,
         client=client,
-        terms=contract_terms(job, brand=brand),
+        terms=contract_terms(job, brand=brand, contract=contract),
         brand=brand,
         theme=_document_theme(job.get('tenant_id') or contract.get('tenant_id')),
     )
@@ -14834,7 +14874,7 @@ def contract_pdf(contract_id):
         {'nombre': f"{client.get('first_name','')} {client.get('last_name','')}".strip(),
          'contacto': [x for x in (client.get('email'), client.get('phone')) if x]},
         brand,
-        terms=contract_terms(job, brand=brand),
+        terms=contract_terms(job, brand=brand, contract=contract),
         simbolo=theme.get('currency_symbol') or 'Q',
         fecha_evento=_format_date_es(job.get('boda_date')),
         firmas_es={
@@ -14901,6 +14941,100 @@ def invoice_pdf(invoice_id):
 # CONTRACT CREATION + MANAGEMENT
 # ============================================================
 
+@app.route('/settings/contracts')
+def settings_contracts():
+    library = _contract_library(get_current_tenant_id())
+    selected_id = request.args.get('tipo', library['default_id'])
+    is_new = selected_id == 'nuevo'
+    selected = library['options'].get(library['default_id'] if is_new else selected_id)
+    if not selected:
+        abort(404)
+    return render_template('contract_editor.html', library=library, selected_id=selected_id,
+                           clauses=selected['clauses'], name='' if is_new else selected['name'],
+                           revision=library['revision'], save_url=url_for('save_contract_type'))
+
+
+@app.post('/api/settings/contracts')
+def save_contract_type():
+    import uuid
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(ok=False, error='Datos inválidos.'), 400
+    try:
+        clauses = validated_clauses(data.get('clauses'))
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    name = data.get('name')
+    if not isinstance(name, str) or not 1 <= len(name.strip()) <= 120:
+        return jsonify(ok=False, error='Ingresá un nombre de hasta 120 caracteres.'), 400
+    with store.locked_tables('contract_libraries'):
+        library = _contract_library(get_current_tenant_id())
+        if data.get('revision') != library['revision']:
+            return jsonify(ok=False, error='Los tipos de contrato cambiaron. Recargá la página.'), 409
+        key = data.get('template_id')
+        if key == 'nuevo':
+            key = uuid.uuid4().hex
+        elif not isinstance(key, str) or key not in library['options']:
+            return jsonify(ok=False, error='Tipo de contrato desconocido.'), 404
+        if any(k != key and t['name'].casefold() == name.strip().casefold()
+               for k, t in library['options'].items()):
+            return jsonify(ok=False, error='Ya existe un tipo con ese nombre.'), 400
+        library['options'][key] = {'name': name.strip(), 'clauses': clauses}
+        if data.get('make_default') is True:
+            library['default_id'] = key
+        library['revision'] += 1
+        store.upsert('contract_libraries', library)
+    return jsonify(ok=True, url=url_for('settings_contracts', tipo=key, guardado=1))
+
+
+@app.get('/contracts/<contract_id>/edit')
+def contract_edit(contract_id):
+    contract = get_contract(contract_id)
+    if not contract:
+        abort(404)
+    job = get_job(contract['job_id'])
+    if not job:
+        abort(404)
+    if _contract_signed(contract):
+        return redirect(url_for('contract_view', contract_id=contract_id))
+    library = _contract_library(job['tenant_id'])
+    return render_template('contract_editor.html', contract=contract, job=job, library=library,
+                           selected_id=contract.get('template_id', 'boda'),
+                           clauses=contract.get('terms_pattern') or STANDARD_CLAUSES,
+                           revision=contract.get('terms_revision', 0),
+                           save_url=url_for('save_contract_terms', contract_id=contract_id))
+
+
+@app.post('/api/contracts/<contract_id>/edit')
+def save_contract_terms(contract_id):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(ok=False, error='Datos inválidos.'), 400
+    try:
+        clauses = validated_clauses(data.get('clauses'))
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    with store.locked_tables('contracts'):
+        contract = get_contract(contract_id)
+        if not contract:
+            return jsonify(ok=False, error='Contrato no encontrado.'), 404
+        if _contract_signed(contract):
+            return jsonify(ok=False, error='Este contrato ya tiene una firma.'), 409
+        revision = contract.get('terms_revision', 0)
+        if data.get('revision') != revision:
+            return jsonify(ok=False, error='El contrato cambió. Recargá la página para revisar la nueva versión.'), 409
+        key = data.get('template_id')
+        library = _contract_library(get_current_tenant_id())
+        if not isinstance(key, str) or key not in library['options']:
+            return jsonify(ok=False, error='Tipo de contrato desconocido.'), 400
+        store.upsert('contracts', {
+            'id': contract_id, 'terms_pattern': clauses, 'terms_revision': revision + 1,
+            'template_id': key, 'template_name': library['options'][key]['name'],
+        })
+    return jsonify(ok=True, url=url_for('job_detail', job_id=contract['job_id'], tab='contracts',
+                                        _anchor='job-contracts'))
+
+
 @app.route('/api/contracts/new', methods=['POST'])
 def api_contract_new():
     """Crea el contrato de un job -- o devuelve el que ya existe. Kevin: 'quiero
@@ -14935,12 +15069,13 @@ def api_contract_new():
 def api_contract_delete(contract_id):
     """Elimina un contrato -- para limpiar duplicados que se hayan generado
     antes de que /api/contracts/new fuera idempotente."""
-    contract = get_contract(contract_id)
-    if not contract:
-        return jsonify({'ok': False, 'error': 'Contrato no encontrado'}), 404
-    if contract.get('signed') or contract.get('photographer_signed'):
-        return jsonify({'ok': False, 'error': 'No se puede eliminar un contrato ya firmado'}), 400
-    store.delete('contracts', contract_id)
+    with store.locked_tables('contracts'):
+        contract = get_contract(contract_id)
+        if not contract:
+            return jsonify({'ok': False, 'error': 'Contrato no encontrado'}), 404
+        if _contract_signed(contract):
+            return jsonify({'ok': False, 'error': 'No se puede eliminar un contrato ya firmado'}), 400
+        store.delete('contracts', contract_id)
     return jsonify({'ok': True})
 
 
@@ -15188,69 +15323,35 @@ def client_portal(client_id):
 # DIGITAL SIGNATURE (firma simple)
 # ============================================================
 
-@app.route('/api/contracts/<contract_id>/sign', methods=['POST'])
-def api_contract_sign(contract_id):
-    """Registra la firma digital del cliente."""
-    import base64
-    from datetime import datetime as _dt
-
-    contract = get_contract(contract_id)
-    if not contract:
-        return jsonify({'ok': False, 'error': 'Contrato no encontrado'}), 404
-
-    data = request.get_json() or {}
-    signature_data = data.get('signature', '')  # base64 PNG
-
-    if not signature_data:
-        return jsonify({'ok': False, 'error': 'Firma requerida'}), 400
-
-    # Guardar firma completa (antes se truncaba a 100 caracteres, lo que
-    # rompia el data URI y la imagen nunca se veia).
-    contract['signed'] = True
-    contract['signed_at'] = _dt.now().isoformat()
-    contract['signature_preview'] = signature_data
-    contract['signature_type'] = data.get('signature_type') or 'draw'
-    contract['signature_text'] = data.get('signature_text') or ''
-    contract['status'] = 'Firmado' if contract.get('photographer_signed') else 'Firmado por cliente'
-    store.upsert('contracts', contract)
-
-    return jsonify({
-        'ok': True,
-        'contract_id': contract_id,
-        'status': contract['status'],
-        'signed_at': contract['signed_at']
-    })
-
-
-@app.route('/api/contracts/<contract_id>/sign-photographer', methods=['POST'])
-def api_contract_sign_photographer(contract_id):
-    """Registra la firma del fotografo (ASTRAL WEDDINGS) en el contrato."""
-    from datetime import datetime as _dt
-
-    contract = get_contract(contract_id)
-    if not contract:
-        return jsonify({'ok': False, 'error': 'Contrato no encontrado'}), 404
-
-    data = request.get_json() or {}
-    signature_data = data.get('signature', '')
-    if not signature_data:
-        return jsonify({'ok': False, 'error': 'Firma requerida'}), 400
-
-    contract['photographer_signed'] = True
-    contract['photographer_signed_at'] = _dt.now().isoformat()
-    contract['photographer_signature_preview'] = signature_data
-    contract['photographer_signature_type'] = data.get('signature_type') or 'draw'
-    contract['photographer_signature_text'] = data.get('signature_text') or ''
-    if contract.get('signed'):
-        contract['status'] = 'Firmado'
-    store.upsert('contracts', contract)
-
-    return jsonify({
-        'ok': True,
-        'contract_id': contract_id,
-        'status': contract.get('status'),
-        'photographer_signed_at': contract['photographer_signed_at']
-    })
+@app.post('/api/contracts/<contract_id>/sign', defaults={'photographer': False})
+@app.post('/api/contracts/<contract_id>/sign-photographer', defaults={'photographer': True})
+def api_contract_sign(contract_id, photographer):
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict) or not data.get('signature'):
+        return jsonify(ok=False, error='Firma requerida'), 400
+    prefix = 'photographer_' if photographer else ''
+    with store.locked_tables('contracts'):
+        contract = get_contract(contract_id)
+        if not contract:
+            return jsonify(ok=False, error='Contrato no encontrado'), 404
+        if data.get('terms_revision', 0) != contract.get('terms_revision', 0):
+            return jsonify(ok=False, error='El contrato cambió. Recargá la página y revisá las cláusulas antes de firmar.'), 409
+        if not contract.get(prefix + 'signed'):
+            job = get_job(contract['job_id'])
+            if job and not contract.get('terms'):
+                brand = resolve_pdf_brand(job.get('tenant_id') or contract.get('tenant_id'))
+                contract['terms'] = contract_terms(job, brand=brand, contract=contract)
+            contract.update({
+                prefix + 'signed': True, prefix + 'signed_at': datetime.now().isoformat(),
+                prefix + 'signature_preview': data['signature'],
+                prefix + 'signature_type': data.get('signature_type') or 'draw',
+                prefix + 'signature_text': data.get('signature_text') or '',
+            })
+            if contract.get('signed'):
+                contract['status'] = 'Firmado' if contract.get('photographer_signed') else 'Firmado por cliente'
+            store.upsert('contracts', contract)
+    return jsonify(ok=True, contract_id=contract_id, status=contract.get('status'),
+                   **{prefix + 'signed_at': contract.get(prefix + 'signed_at')})
 
 
 @app.route('/api/contracts/<contract_id>/send', methods=['POST'])
@@ -15295,10 +15396,7 @@ def api_contract_send(contract_id):
         idempotency_key=idempotency_key,
     )
 
-    _apply_document_delivery(contract, mail)
-    if not contract.get('signed'):
-        contract['status'] = 'Enviado' if mail.get('status') == 'sent' else 'Preparado'
-    store.upsert('contracts', contract)
+    contract = _save_contract_delivery(contract['id'], mail)
     if step_id:
         _complete_job_workflow_step(job, step_id, mail_id=mail.get('id'))
 
@@ -15598,10 +15696,7 @@ def _prepare_job_workflow_email(job, step, *, send_now=False):
     )
     if contract and result.get('mail_id'):
         mail = store.get('pending_emails', result['mail_id']) or store.get('mail_log', result['mail_id'])
-        _apply_document_delivery(contract, mail)
-        if not contract.get('signed'):
-            contract['status'] = 'Enviado' if mail.get('status') == 'sent' else 'Preparado'
-        store.upsert('contracts', contract)
+        _save_contract_delivery(contract['id'], mail)
     return result
 
 
