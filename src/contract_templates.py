@@ -18,16 +18,36 @@ STANDARD_CLAUSES = [
 ]
 
 
-def resolve_clauses(pattern, job, studio):
+def contract_is_signed(contract):
+    return bool(contract.get('signed') or contract.get('photographer_signed')
+                or contract.get('signed_at') or contract.get('photographer_signed_at')
+                or (contract.get('status') or '').casefold().startswith('firmado'))
+
+
+def resolve_clauses(pattern, job, studio, *, amounts=(), legacy_signed=False):
     total = float(job.get('price_total') or 0)
-    installments = int(job.get('plan_pago') or 1)
-    installment_amount = float(job.get('cuota_monto') or 0)
+    installments = max(1, int(job.get('plan_pago') or 1))
+    if legacy_signed:
+        # Signed before we stored snapshots: reproduce the wording those parties signed.
+        first = float(job.get('cuota_monto') or 0)
+        deposit = total * 0.3
+        equal = True
+    else:
+        first = amounts[0] if amounts else round(total / installments, 2)
+        deposit = first
+        installments = len(amounts) or installments
+        equal = (all(amount == first for amount in amounts) if amounts
+                 else round(first * installments, 2) == round(total, 2))
+
+    plan = 'Pago en una sola exhibicion.'
+    if installments > 1:
+        plan = (f'Pago en {installments} cuotas de Q{first:,.2f}.' if equal
+                else f'Pago en {installments} cuotas según el calendario acordado.')
     values = {
         '%estudio%': studio,
         '%total%': f'Q{total:,.2f}',
-        '%deposito%': f'Q{total * 0.3:,.2f}',
-        '%plan_de_pago%': (f'Pago en {installments} cuotas de Q{installment_amount:,.2f}.'
-                           if installments > 1 else 'Pago en una sola exhibicion.'),
+        '%deposito%': f'Q{deposit:,.2f}',
+        '%plan_de_pago%': plan,
     }
     def render(text):
         return re.sub(r'%[a-z_]+%', lambda m: values.get(m[0], m[0]), text)

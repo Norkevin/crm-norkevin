@@ -86,3 +86,50 @@ def test_editor_and_templates_require_owner_session(client):
         assert '/login' in client.get(url).location
     for url in ('/api/settings/contracts', '/api/contracts/contract-example/edit'):
         assert client.post(url, json={}).status_code == 401
+
+
+@pytest.mark.parametrize(('count', 'expected'), [(1, '6,500.00'), (2, '3,250.00'),
+                                                  (3, '2,166.67'), (4, '1,625.00')])
+def test_draft_deposit_follows_selected_installments_without_a_schedule(count, expected):
+    from src.pdf_generator import contract_terms
+
+    job = {'price_total': 6500, 'plan_pago': count, 'cuota_monto': 1950}
+    fees = contract_terms(job)[1][1]
+    assert f'Deposito requerido: Q{expected}.' in fees
+
+
+def test_old_signed_contract_without_snapshot_keeps_its_original_fee_clause():
+    from src.pdf_generator import contract_terms
+
+    job = {'price_total': 6500, 'plan_pago': 4, 'cuota_monto': 1625}
+    for signature in ({'signed': True}, {'photographer_signed': True}, {'status': 'Firmado'}):
+        assert '4 cuotas de Q1,625.00. Deposito requerido: Q1,950.00.' in contract_terms(job, contract=signature)[1][1]
+
+
+def test_current_plan_drives_contract_web_pdf_and_signature(auth_client, monkeypatch):
+    import app as crm
+
+    job = create_job(crm, 'tenant-norkevin', 'deposit')
+    job.update(price_total=6500, plan_pago=4, cuota_monto=1625, accepted_quote_id='quote-deposit')
+    crm.store.upsert('jobs', job)
+    contract_id = auth_client.post('/api/contracts/new', json={'job_id': job['id']}).json['contract_id']
+    url = f'/contracts/{contract_id}'
+    # Includes an old plan, a partial payment, and intentionally out-of-order records.
+    for key, position, original in [('old', 1, 1950), ('last', 2, 5000), ('first', 1, 1500)]:
+        crm.store.upsert('payments', dict(id=key, tenant_id=job['tenant_id'], job_id=job['id'],
+                                         quote_id='quote-deposit', cuota=f'{position}/2',
+                                         amount=original-100, original_amount=original))
+    for status, ids in [('superseded', ['old']), ('active', ['last', 'first'])]:
+        crm.store.upsert('payment_schedules', dict(id=status, status=status, tenant_id=job['tenant_id'],
+                                                  job_id=job['id'], origin='quote-deposit', payment_ids=ids))
+    expected = 'Pago en 2 cuotas según el calendario acordado. Deposito requerido: Q1,500.00.'
+    assert expected in auth_client.get(url).text
+    draw = crm.render_contract_pdf
+    def verify_pdf(*args, **kwargs):
+        assert expected in kwargs['terms'][1][1]
+        return draw(*args, **kwargs)
+    monkeypatch.setattr(crm, 'render_contract_pdf', verify_pdf)
+    assert auth_client.get(url+'/pdf').data.startswith(b'%PDF')
+    assert auth_client.post('/api'+url+'/sign', json={'signature': 'de prueba'}).json['ok']
+    crm.store.upsert('payments', {'id': 'first', 'original_amount': 999})
+    assert expected in auth_client.get(url).text

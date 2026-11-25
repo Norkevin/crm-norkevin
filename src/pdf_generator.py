@@ -23,7 +23,7 @@ eso habria sido el mismo bug con otro nombre."""
 import io
 import os
 from datetime import datetime
-from src.contract_templates import STANDARD_CLAUSES, resolve_clauses
+from src.contract_templates import STANDARD_CLAUSES, contract_is_signed, resolve_clauses
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.colors import HexColor
@@ -394,12 +394,13 @@ def generate_quote_pdf(quote, lead, brand=None):
     return pdf_bytes
 
 
-def contract_terms(job, brand=None, contract=None):
+def contract_terms(job, brand=None, contract=None, *, amounts=()):
     contract = contract or {}
     if contract.get('terms'):
         return contract['terms']
     return resolve_clauses(contract.get('terms_pattern') or STANDARD_CLAUSES, job,
-                           (brand or _UNRESOLVED_BRAND)['display_name'])
+                           (brand or _UNRESOLVED_BRAND)['display_name'], amounts=amounts,
+                           legacy_signed=contract_is_signed(contract))
 
 
 def generate_contract_pdf(contract, job, client, brand=None):

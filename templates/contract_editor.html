@@ -72,7 +72,7 @@
     <label><input type="checkbox" id="make-default" {% if selected_id == library.default_id %}checked disabled{% endif %}> Usar como predeterminado para contratos nuevos</label>
     {% endif %}
     <details style="margin:12px 0"><summary>Campos automáticos del trabajo</summary>
-      <p class="sn-muted"><code>%estudio%</code> inserta la marca, <code>%total%</code> el valor del trabajo, <code>%plan_de_pago%</code> las cuotas y <code>%deposito%</code> el depósito del 30 %.</p>
+      <p class="sn-muted"><code>%estudio%</code> inserta la marca, <code>%total%</code> el valor del trabajo, <code>%plan_de_pago%</code> las cuotas y <code>%deposito%</code> el importe de la primera cuota del plan elegido.</p>
     </details>
     <div id="clauses">{% for title, body in clauses %}{{ clause(title, body) }}{% endfor %}</div>
     <div class="contract-tools">

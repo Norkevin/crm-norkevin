@@ -28,7 +28,7 @@ from src.workflow import WorkflowEngine, LEAD_WORKFLOW, PRODUCTION_WORKFLOW
 from src.workflow.models import StepStatus, WorkflowStatus, TriggerType
 from src.storage import store, log_security_event, TenantMismatchError
 from src import public_links, public_tokens, quote_numbering
-from src.contract_templates import STANDARD_CLAUSES, validated_clauses
+from src.contract_templates import STANDARD_CLAUSES, contract_is_signed, validated_clauses
 from src.travel import TravelService, public_venue_catalog
 from src.place_search import google_places_enabled, google_place_suggestions, valid_place_query, SearchLimitReached, SearchUnavailable
 from src.travel_mail import compose_travel, content_digest, legacy_travel_conflict, package_link_keys, strip_travel_block
@@ -887,12 +887,6 @@ def _contract_library(tenant_id):
         'default_id': library.get('default_id', 'boda'),
         'revision': library.get('revision', 0),
     }
-
-
-def _contract_signed(contract):
-    return bool(contract.get('signed') or contract.get('photographer_signed')
-                or contract.get('signed_at') or contract.get('photographer_signed_at')
-                or (contract.get('status') or '').casefold().startswith('firmado'))
 
 
 def _ensure_contract_for_job(job):
@@ -5698,7 +5692,7 @@ def job_detail(job_id):
         invoice_groups.append(group)
     contracts = [c for c in store.list('contracts') if c.get('job_id') == job_id]
     for contract in contracts:
-        contract['editable'] = not _contract_signed(contract)
+        contract['editable'] = not contract_is_signed(contract)
     questionnaire_template_cache = _questionnaire_template(job.get('tenant_id'))
     questionnaires = [
         _linked_questionnaire(q, template_cache=questionnaire_template_cache) for q in store.list('questionnaires')
@@ -14823,6 +14817,36 @@ def quote_pdf(quote_id):
     })
 
 
+def _contract_installment_amounts(job):
+    """Use only the chosen plan, including the original value of already-paid installments."""
+    quote_id = job.get('accepted_quote_id')
+    schedules = [s for s in _job_schedules(job['id'])
+                 if not quote_id or s.get('origin') == quote_id]
+    active = [s for s in schedules if s.get('status') == SCHEDULE_ACTIVE]
+    if len(active) == 1:
+        ids = set(active[0].get('payment_ids') or [])
+        rows = [p for p in list_payments(job.get('tenant_id')) if p['id'] in ids]
+    elif quote_id and not schedules:
+        # Accepted quotes created before explicit schedules still have linked payments.
+        rows = [p for p in list_payments(job.get('tenant_id')) if p.get('quote_id') == quote_id]
+    else:
+        return []
+
+    rows = [p for p in rows if p.get('job_id') == job['id']
+            and p.get('tipo') != 'team_payment' and p.get('status') != 'Cancelado']
+    def order(row):
+        number = str(row.get('cuota') or '').partition('/')[0]
+        return (int(number) if number.isdecimal() else float('inf'), row.get('due_date') or '', row['id'])
+    return [_row_original_amount(p) for p in sorted(rows, key=order)]
+
+
+@app.template_global()
+def document_contract_terms(job, contract, brand=None):
+    amounts = [] if contract_is_signed(contract) or contract.get('terms') else _contract_installment_amounts(job)
+    return contract_terms(job, brand=brand or resolve_pdf_brand(job.get('tenant_id')),
+                          contract=contract, amounts=amounts)
+
+
 @app.route('/contracts/<contract_id>')
 def contract_view(contract_id):
     """Vista web del contrato (cliente): terminos, estado de firma y firma digital."""
@@ -14845,7 +14869,7 @@ def contract_view(contract_id):
         contract=contract,
         job=job,
         client=client,
-        terms=contract_terms(job, brand=brand, contract=contract),
+        terms=document_contract_terms(job, contract, brand),
         brand=brand,
         theme=_document_theme(job.get('tenant_id') or contract.get('tenant_id')),
     )
@@ -14874,7 +14898,7 @@ def contract_pdf(contract_id):
         {'nombre': f"{client.get('first_name','')} {client.get('last_name','')}".strip(),
          'contacto': [x for x in (client.get('email'), client.get('phone')) if x]},
         brand,
-        terms=contract_terms(job, brand=brand, contract=contract),
+        terms=document_contract_terms(job, contract, brand),
         simbolo=theme.get('currency_symbol') or 'Q',
         fecha_evento=_format_date_es(job.get('boda_date')),
         firmas_es={
@@ -14995,7 +15019,7 @@ def contract_edit(contract_id):
     job = get_job(contract['job_id'])
     if not job:
         abort(404)
-    if _contract_signed(contract):
+    if contract_is_signed(contract):
         return redirect(url_for('contract_view', contract_id=contract_id))
     library = _contract_library(job['tenant_id'])
     return render_template('contract_editor.html', contract=contract, job=job, library=library,
@@ -15018,7 +15042,7 @@ def save_contract_terms(contract_id):
         contract = get_contract(contract_id)
         if not contract:
             return jsonify(ok=False, error='Contrato no encontrado.'), 404
-        if _contract_signed(contract):
+        if contract_is_signed(contract):
             return jsonify(ok=False, error='Este contrato ya tiene una firma.'), 409
         revision = contract.get('terms_revision', 0)
         if data.get('revision') != revision:
@@ -15073,7 +15097,7 @@ def api_contract_delete(contract_id):
         contract = get_contract(contract_id)
         if not contract:
             return jsonify({'ok': False, 'error': 'Contrato no encontrado'}), 404
-        if _contract_signed(contract):
+        if contract_is_signed(contract):
             return jsonify({'ok': False, 'error': 'No se puede eliminar un contrato ya firmado'}), 400
         store.delete('contracts', contract_id)
     return jsonify({'ok': True})
@@ -15340,7 +15364,7 @@ def api_contract_sign(contract_id, photographer):
             job = get_job(contract['job_id'])
             if job and not contract.get('terms'):
                 brand = resolve_pdf_brand(job.get('tenant_id') or contract.get('tenant_id'))
-                contract['terms'] = contract_terms(job, brand=brand, contract=contract)
+                contract['terms'] = document_contract_terms(job, contract, brand)
             contract.update({
                 prefix + 'signed': True, prefix + 'signed_at': datetime.now().isoformat(),
                 prefix + 'signature_preview': data['signature'],

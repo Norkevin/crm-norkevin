@@ -82,59 +82,12 @@
       <div class="contract-title">CONTRATO DE BODAS ASTRAL WEDDINGS</div>
     </div>
 
+    {% for title, body in document_contract_terms(job, contract) %}
     <div class="term">
-      <div class="term-title">1. Compromiso del Fotografo</div>
-      <div class="term-body">
-        ASTRAL WEDDINGS se compromete a capturar, editar y entregar el material fotografico contratado en las fechas y plazos acordados en este contrato. La calidad del trabajo se ajustara a los estandares profesionales de la industria.
-      </div>
+      <div class="term-title">{{ title }}</div>
+      <div class="term-body" style="white-space: pre-line">{{ body }}</div>
     </div>
-
-    <div class="term">
-      <div class="term-title">2. Tarifas y Deposito</div>
-      <div class="term-body">
-        La tarifa total por los servicios contratados es de <strong>Q{{ '{:,.2f}'.format(job.price_total) }}</strong>.
-        {% if job.plan_pago and job.plan_pago > 1 %}
-        El pago se realizara en <strong>{{ job.plan_pago }} cuotas de Q{{ '{:,.2f}'.format(job.cuota_monto) }}</strong> segun el calendario acordado.
-        {% else %}
-        El pago se realizara en una sola exhibicion antes de la fecha del evento.
-        {% endif %}
-        Un deposito de <strong>Q{{ '{:,.2f}'.format(job.price_total * 0.3) }}</strong> es requerido para confirmar la reserva.
-      </div>
-    </div>
-
-    <div class="term">
-      <div class="term-title">3. Responsabilidades del Cliente</div>
-      <ul class="term-list">
-        <li>Proporcionar informacion veraz y oportuna sobre el evento</li>
-        <li>Realizar los pagos en las fechas acordadas</li>
-        <li>Coordinar con el fotografo los horarios y ubicaciones del evento</li>
-        <li>Notificar cualquier cambio con al menos 30 dias de anticipacion</li>
-      </ul>
-    </div>
-
-    <div class="term">
-      <div class="term-title">4. Responsabilidades del Fotografo</div>
-      <ul class="term-list">
-        <li>Asistir puntualmente a todos los eventos acordados</li>
-        <li>Entregar las fotografias editadas en un plazo maximo de 30 dias despues del evento</li>
-        <li>Mantener una copia de seguridad de todas las imagenes por 1 año</li>
-        <li>Proveer una galeria online privada para revision del cliente</li>
-      </ul>
-    </div>
-
-    <div class="term">
-      <div class="term-title">5. Cancelacion y Reembolso</div>
-      <div class="term-body">
-        En caso de cancelacion por parte del cliente con menos de 60 dias de anticipacion al evento, el deposito no sera reembolsable. Cancelaciones con mas de 60 dias tendran un reembolso del 50% del deposito.
-      </div>
-    </div>
-
-    <div class="term">
-      <div class="term-title">6. Propiedad Intelectual</div>
-      <div class="term-body">
-        ASTRAL WEDDINGS retendra los derechos de autor sobre todas las imagenes. El cliente recibira una licencia personal no comercial para uso privado. ASTRAL WEDDINGS podra utilizar las imagenes en su portafolio y material de marketing.
-      </div>
-    </div>
+    {% endfor %}
 
     <!-- Firmas -->
     <div class="signatures">
