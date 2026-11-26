@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const template = fs.readFileSync(path.join(__dirname, '../templates/client_portal.html'), 'utf8');
-const script = template.slice(template.indexOf('var PORTAL_TABS'), template.indexOf('let currentContractId'));
+const script = template.match(/<script>\s*(var PORTAL_TABS[\s\S]*?)<\/script>/)[1];
 
 function element(initial = []) {
   const classes = new Set(initial);

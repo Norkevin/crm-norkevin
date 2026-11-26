@@ -1,0 +1,3 @@
+<button type="button" class="{{ delete_class }}" style="color:#b3263b"
+        data-contract-delete="{{ contract.id }}" data-signed="{{ 'true' if has_signature else 'false' }}"
+        data-return-url="{{ url_for('job_detail', job_id=job.id, tab='contracts', _anchor='job-contracts') }}">Borrar contrato</button>

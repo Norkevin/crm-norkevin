@@ -14847,9 +14847,10 @@ def document_contract_terms(job, contract, brand=None):
                           contract=contract, amounts=amounts)
 
 
-@app.route('/contracts/<contract_id>')
+@app.get('/contracts/<contract_id>/estudio', endpoint='studio_contract_view')
+@app.get('/contracts/<contract_id>')
 def contract_view(contract_id):
-    """Vista web del contrato (cliente): terminos, estado de firma y firma digital."""
+    """Muestra los términos y la firma que corresponde a la sesión."""
     contract = get_contract(contract_id)
     if not contract:
         abort(404)
@@ -14866,7 +14867,8 @@ def contract_view(contract_id):
     # se conserva por si alguna vista vieja todavia lo espera.
     return render_template(
         'contract_view.html',
-        contract=contract,
+        contract=contract, studio_view=bool(session.get('logged_in')),
+        has_signature=contract_is_signed(contract),
         job=job,
         client=client,
         terms=document_contract_terms(job, contract, brand),
@@ -15020,7 +15022,7 @@ def contract_edit(contract_id):
     if not job:
         abort(404)
     if contract_is_signed(contract):
-        return redirect(url_for('contract_view', contract_id=contract_id))
+        return redirect(url_for('studio_contract_view', contract_id=contract_id))
     library = _contract_library(job['tenant_id'])
     return render_template('contract_editor.html', contract=contract, job=job, library=library,
                            selected_id=contract.get('template_id', 'boda'),
@@ -15091,15 +15093,27 @@ def api_contract_new():
 
 @app.route('/api/contracts/<contract_id>', methods=['DELETE'])
 def api_contract_delete(contract_id):
-    """Elimina un contrato -- para limpiar duplicados que se hayan generado
-    antes de que /api/contracts/new fuera idempotente."""
-    with store.locked_tables('contracts'):
+    """Retira el enlace y conserva la versión original con sus firmas."""
+    # El observador de correo también toma el lock de contratos desde la cola.
+    with store.locked_tables('pending_emails', 'mail_log'), store.locked_tables('contracts'):
         contract = get_contract(contract_id)
         if not contract:
-            return jsonify({'ok': False, 'error': 'Contrato no encontrado'}), 404
-        if contract_is_signed(contract):
-            return jsonify({'ok': False, 'error': 'No se puede eliminar un contrato ya firmado'}), 400
-        store.delete('contracts', contract_id)
+            return jsonify(ok=False, error='Contrato no encontrado'), 404
+        confirmation = request.get_json(silent=True)
+        if contract_is_signed(contract) and not (
+                isinstance(confirmation, dict) and confirmation.get('confirm_signed') is True):
+            return jsonify(ok=False, error='El contrato tiene firmas. Recargá la página y confirmá que querés borrarlo.'), 400
+        mails = [m for m in store.list('pending_emails')
+                 if m['id'] == contract.get('mail_id') or
+                 (m.get('idempotency_key') or '').startswith(f'contract:{contract_id}:')]
+        if any(m.get('status') == 'sending' for m in mails):
+            return jsonify(ok=False, error='Hay un envío en curso. Esperá a que termine y volvé a intentarlo.'), 409
+        actor = _actor_actual()
+        contract.update(archived_at=datetime.now().isoformat(), archived_by=actor)
+        store.upsert('contracts', contract)
+        for mail in mails:
+            if mail.get('status') in ('pending', 'failed', 'blocked'):
+                _mail_tracker_module.get_tracker().discard_pending(mail['id'], actor=actor)
     return jsonify({'ok': True})
 
 
@@ -15306,7 +15320,7 @@ def client_portal(client_id):
         if any(q.get('status') in ('Preparada', 'Enviada') for q in job_quotes) and not booking['checks'][0]['done']:
             action = ('Elegí tu cotización', 'quotes')
         elif unsigned:
-            action = ('Revisá y firmá tu contrato', 'contracts')
+            action = ('Revisá el contrato' if session.get('logged_in') else 'Revisá y firmá tu contrato', 'contracts')
         elif due and (not booking['checks'][2]['done'] or (due.get('due_date') or '9999') <= date.today().isoformat()):
             action = ('Revisá tu próximo pago', 'invoices')
         elif unanswered:
@@ -15350,6 +15364,8 @@ def client_portal(client_id):
 @app.post('/api/contracts/<contract_id>/sign', defaults={'photographer': False})
 @app.post('/api/contracts/<contract_id>/sign-photographer', defaults={'photographer': True})
 def api_contract_sign(contract_id, photographer):
+    if not photographer and session.get('logged_in'):
+        return jsonify(ok=False, error='Desde el CRM solo podés firmar como fotógrafo.'), 403
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict) or not data.get('signature'):
         return jsonify(ok=False, error='Firma requerida'), 400
@@ -15421,6 +15437,8 @@ def api_contract_send(contract_id):
     )
 
     contract = _save_contract_delivery(contract['id'], mail)
+    if not contract:
+        return jsonify(ok=False, error='El contrato ya no está disponible.'), 404
     if step_id:
         _complete_job_workflow_step(job, step_id, mail_id=mail.get('id'))
 

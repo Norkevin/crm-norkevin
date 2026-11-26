@@ -192,7 +192,7 @@ def test_del_lead_se_llega_a_la_vista_del_contrato_no_solo_al_pdf(auth_client, t
     # Comilla de cierre pegada al id: distingue el link a la vista
     # (/contracts/{id}") del link al PDF (/contracts/{id}/pdf"), que ya
     # existia y no hay que confundir con el nuevo.
-    assert f'href="/contracts/{contract_id}"' in html, \
+    assert f'href="/contracts/{contract_id}/estudio"' in html, \
         'falta el link a la vista del contrato (no solo al PDF)'
 
 
@@ -211,7 +211,7 @@ def test_del_cliente_se_llega_a_la_vista_del_contrato_no_solo_al_pdf(auth_client
     })
 
     html = auth_client.get(f"/clients/{client['id']}").get_data(as_text=True)
-    assert f'href="/contracts/{contract_id}"' in html, \
+    assert f'href="/contracts/{contract_id}/estudio"' in html, \
         'falta el link a la vista del contrato (no solo al PDF)'
 
 

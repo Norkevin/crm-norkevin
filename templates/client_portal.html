@@ -1,3 +1,4 @@
+{% set studio_view = session is defined and session.get('logged_in') %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -234,17 +235,21 @@
               <div class="font-medium text-ink">Contrato #{{ c.id }}</div>
               <div class="text-xs text-ink-soft">{{ c.created|fecha_es }}</div>
             </div>
-            {% if c.signed %}
+            {% if c.signed and c.photographer_signed %}
             <span class="portal-badge b-green">Firmado</span>
+            {% elif c.signed or c.photographer_signed %}
+            <span class="portal-badge b-amber">Falta la firma {{ 'del fotógrafo' if c.signed else 'del cliente' }}</span>
             {% else %}
             <span class="portal-badge b-amber">Pendiente firma</span>
             {% endif %}
           </div>
           <div class="portal-action-group">
-            <a href="/contracts/{{ c.id }}" target="_blank" class="portal-action">Ver contrato</a>
+            <a href="/contracts/{{ c.id }}{{ '/estudio' if studio_view else '' }}" target="_blank" class="portal-action">Ver contrato</a>
             <a href="/contracts/{{ c.id }}/pdf" download class="portal-action">Descargar contrato PDF</a>
-            {% if not c.signed %}
-            <button onclick="openSignature('{{ c.id }}', {{ c.terms_revision or 0 }})" class="portal-action primary">Firmar digitalmente</button>
+            {% if studio_view and not c.photographer_signed %}
+            <a href="/contracts/{{ c.id }}/estudio#firmas" class="portal-action primary">Firmar como fotógrafo</a>
+            {% elif not studio_view and not c.signed %}
+            <button onclick="openSignature('{{ c.id }}', {{ c.terms_revision or 0 }})" class="portal-action primary">Firmar como cliente</button>
             {% endif %}
           </div>
         </div>
@@ -432,10 +437,10 @@
   </main>
 </div>
 
-<!-- MODAL: Firma digital -->
+{% if not studio_view %}
 <div id="modal-sign" class="hidden fixed inset-0 bg-ink/50 z-50 flex items-center justify-center p-4">
   <div class="bg-white rounded-2xl shadow-lg max-w-md w-full p-6">
-    <h3 class="font-semibold text-lg mb-2">Firma digital</h3>
+    <h3 class="font-semibold text-lg mb-2">Firmar como cliente</h3>
     <p class="text-xs text-ink-soft mb-4">Puedes dibujar tu firma o escribir tu nombre.</p>
     <div class="flex gap-2 mb-4">
       <button id="sign-mode-draw" type="button" onclick="setSignatureMode('draw')" class="text-sm px-3 py-2 border border-gray-200 rounded-lg font-medium" style="background:#E4ECF2;color:#30495D;">Dibujar</button>
@@ -457,6 +462,7 @@
   </div>
 </div>
 
+{% endif %}
 <script>
 var PORTAL_TABS = ['quotes', 'contracts', 'invoices', 'questionnaires', 'galeria'];
 function showPortalTab(tab, event) {
@@ -491,6 +497,10 @@ function toggleInvoiceGroup(invoiceId, button) {
   }
 }
 
+</script>
+
+{% if not studio_view %}
+<script>
 let currentContractId = null;
 let canvas, ctx, drawing = false;
 let signatureMode = 'draw';
@@ -618,6 +628,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+{% endif %}
 
 <script src="{{ url_for('static', filename='mobile.js') }}" defer></script>
 </body>

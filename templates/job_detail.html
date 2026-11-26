@@ -379,8 +379,8 @@
           </div>
           <a class="sn-btn sn-btn-sm" href="/settings/contracts">Tipos de contrato</a>
           {% if not contracts %}
-          <button class="sn-btn sn-btn-icon sn-btn-primary" type="button" aria-label="Crear contrato" onclick="createContract()">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>
+          <button class="sn-btn sn-btn-sm sn-btn-primary" type="button" onclick="createContract()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg> Crear contrato
           </button>
           {% endif %}
         </div>
@@ -393,22 +393,20 @@
                 <div class="sn-list-meta">{{ {'pending':('Pendiente de envío' if workflow_auto_mail else 'Pendiente de aprobación'), 'failed':'Falló el envío', 'blocked':'Envío bloqueado', 'discarded':'Correo descartado'}.get(c.delivery_status) or ('Enviado el ' ~ c.sent_at if c.sent_at else 'Preparado · sin envío confirmado') }}</div>
                 <div class="sn-list-meta">
                   {{ c.status or 'Borrador' }}
-                  {% if c.signed %} &middot; Cliente firmo{% endif %}
-                  {% if c.photographer_signed %} &middot; Fotografo firmo{% endif %}
+                  {% if c.signed %} &middot; El cliente firmó{% endif %}
+                  {% if c.photographer_signed %} &middot; El fotógrafo firmó{% endif %}
                 </div>
               </div>
             </div>
             <div class="sn-list-actions">
               {% if c.editable %}<a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/edit">Editar contrato</a>{% endif %}
-              <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}" target="_blank">Ver</a>
+              <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/estudio" target="_blank" rel="noopener">Ver contrato</a>
               <a class="sn-btn sn-btn-sm" href="/contracts/{{ c.id }}/pdf" target="_blank">PDF</a>
               <button class="sn-btn sn-btn-sm" type="button" onclick="sendContract('{{ c.id }}')">Enviar</button>
               {% if not c.photographer_signed %}
-              <button class="sn-btn sn-btn-sm sn-btn-primary" type="button" onclick="openPhotographerSignature('{{ c.id }}', {{ c.terms_revision or 0 }})">Firmar (fotografo)</button>
+              <button class="sn-btn sn-btn-sm sn-btn-primary" type="button" onclick="openPhotographerSignature('{{ c.id }}', {{ c.terms_revision or 0 }})">Firmar como fotógrafo</button>
               {% endif %}
-              {% if c.editable %}
-              <button class="sn-btn sn-btn-sm" type="button" onclick="deleteContract('{{ c.id }}')" style="color:#b3263b;" title="Eliminar contrato">Eliminar</button>
-              {% endif %}
+              {% with contract=c, has_signature=not c.editable, delete_class='sn-btn sn-btn-sm' %}{% include '_contract_delete_button.html' %}{% endwith %}
             </div>
           </div>
           {% else %}
@@ -883,7 +881,7 @@ Quedo a tu disposición para cualquier consulta adicional.</textarea>
 <div class="modal-overlay" id="photographer-sign-modal">
   <div class="modal-content" style="width:min(460px,100%);">
     <button type="button" class="modal-close" onclick="closeModal('photographer-sign-modal')" aria-label="Cerrar">x</button>
-    <h2 class="modal-title">Firma del fotografo</h2>
+    <h2 class="modal-title">Firma del fotógrafo</h2>
     <p class="sn-muted" style="margin:-8px 0 14px;font-size:12.5px;">Puedes dibujar tu firma o escribir tu nombre.</p>
     <div style="display:flex;gap:8px;margin-bottom:12px;">
       <button id="photog-sig-mode-draw" type="button" class="sn-btn" onclick="setPhotogSigMode('draw')">Dibujar</button>
@@ -1256,16 +1254,6 @@ function createContract() {
     .then(function(data) { location.assign('/contracts/' + data.contract_id + '/edit'); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
-function deleteContract(contractId) {
-  if (!confirm('Eliminar este contrato duplicado?')) return;
-  fetch('/api/contracts/' + contractId, { method: 'DELETE' })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.ok) { flashToast('Contrato eliminado', 'success'); setTimeout(function(){ location.reload(); }, 450); }
-      else { flashToast(data.error || 'Error', 'error'); }
-    })
-    .catch(function() { flashToast('Error de red', 'error'); });
-}
 function createContractForStep(stepId) {
   if (!CLIENT_EMAIL) {
     flashToast('Este job no tiene email de cliente', 'error');
@@ -1385,7 +1373,7 @@ async function savePhotogSig() {
     signature_type: photogSigMode,
     signature_text: photogSigMode === 'type' ? (document.getElementById('photog-typed-sig-name').value || '').trim() : ''
   })
-    .then(function() { flashToast('Firma del fotografo guardada', 'success'); setTimeout(function(){ location.reload(); }, 500); })
+    .then(function() { flashToast('Firma del fotógrafo guardada', 'success'); setTimeout(function(){ location.reload(); }, 500); })
     .catch(function(err) { flashToast(err.message, 'error'); });
 }
 function sendClientEmail() {
@@ -1740,6 +1728,7 @@ function openHistoryLog() {
   window.addEventListener('resize', sync);
 })();
 </script>
+<script src="/static/contract-delete.js" defer></script>
 <script src="{{ url_for('static', filename='workflow-timing.js', v='20261014-auto-send') }}" defer></script>
 <script src="{{ url_for('static', filename='email-preview.js') }}"></script>
 <script>installEmailPreview("email-subject", "email-body");</script>
