@@ -3,7 +3,7 @@ El boton + de la tarjeta de Contracts y el trigger del workflow step
 'Firma de contrato' llamaban a /api/contracts/new cada vez, creando un
 registro (y un link) nuevo en cada click/disparo. El endpoint ahora es
 idempotente por job_id, y se agrego un DELETE para limpiar los duplicados
-que ya existan (bloqueado si el contrato ya fue firmado)."""
+que ya existan (las versiones firmadas requieren confirmación)."""
 
 
 def _make_job_with_client(app_module, suffix):
@@ -68,7 +68,7 @@ def test_deleting_an_unsigned_contract_works(auth_client):
     assert 'onclick="createContract()"' in resp.get_data(as_text=True)
 
 
-def test_deleting_a_signed_contract_is_blocked(auth_client):
+def test_deleting_a_signed_contract_requires_confirmation(auth_client):
     import app as app_module
     client_id, job_id = _make_job_with_client(app_module, 'd')
 
@@ -98,3 +98,67 @@ def test_workflow_step_trigger_reuses_the_same_contract_across_multiple_fires(au
         contract_ids.append(resp.get_json()['contract_id'])
 
     assert len(set(contract_ids)) == 1
+
+
+def test_contract_roles_retirement_and_replacement(auth_client, sample_business):
+    import app as crm
+    from conftest import login_as_tenant
+
+    job = sample_business['job']
+    guest = crm.app.test_client()
+    def create():
+        return auth_client.post('/api/contracts/new', json={'job_id': job['id']}).json['contract_id']
+
+    cid = create()
+    url = '/contracts/' + cid
+    api = '/api' + url
+    mark = {'signature': 'firma de prueba'}
+    confirm = {'confirm_signed': True}
+    for surface in (url, url + '/estudio'):
+        studio = auth_client.get(surface).text
+        assert 'Firmar como fotógrafo' in studio and 'Firmar como cliente' not in studio
+        assert 'Borrar contrato' in studio
+    portal_url = '/portal/' + job['client_id']
+    assert 'id="modal-sign"' not in auth_client.get(portal_url).text
+    assert 'Firmar como fotógrafo' in auth_client.get(portal_url).text
+    assert 'Firmar como cliente' in guest.get(portal_url).text
+    public = guest.get(url).text
+    assert 'Firmar como cliente' in public and 'Firmar como fotógrafo' not in public
+    assert 'Borrar contrato' not in public
+    assert '/login' in guest.get(url + '/estudio').location
+    assert guest.post(api + '/sign-photographer', json=mark).status_code == 401
+    assert guest.delete(api, json=confirm).status_code == 401
+    assert auth_client.post(api + '/sign', json=mark).status_code == 403
+    assert auth_client.post(api + '/sign-photographer', json=mark).status_code == 200
+    assert not crm.get_contract(cid)['signed']
+    assert 'Pendiente de la firma del cliente' in auth_client.get(url).text
+    assert guest.post(api + '/sign', json=mark).status_code == 200
+
+    other = crm.app.test_client()
+    login_as_tenant(other, 'tenant-norkevin-photography', 'otra@example.invalid')
+    assert other.delete(api, json=confirm).status_code == 404
+    assert other.post(api + '/sign-photographer', json=mark).status_code == 404
+    assert other.get(url + '/estudio').status_code == 404
+
+    mail = dict(id='pend-retirar', tenant_id=job['tenant_id'], job_id=job['id'],
+                idempotency_key='contract:' + cid + ':workflow:1', status='sending')
+    crm.store.upsert('pending_emails', mail)
+    assert auth_client.delete(api, json=confirm).status_code == 409
+    crm.store.upsert('pending_emails', dict(mail, status='pending'))
+    before = crm.get_contract(cid)
+    assert auth_client.delete(api, json=confirm).json['ok']
+    saved = crm.store.get('contracts', cid, include_archived=True)
+    assert saved['archived_at'] and saved['archived_by']
+    assert {k: saved[k] for k in before} == before
+    assert crm.store.get('pending_emails', mail['id'])['status'] == 'discarded'
+    for path in (url, url+'/pdf'):
+        assert guest.get(path).status_code == 404
+    assert guest.post(api+'/sign', json=mark).status_code == 404
+    assert auth_client.post(api+'/sign-photographer', json=mark).status_code == 404
+    assert auth_client.post(api+'/send', json={}).status_code == 404
+    assert cid not in guest.get('/portal/' + job['client_id']).text
+    new_id = create()
+    assert new_id != cid and not crm.get_contract(new_id)['signed']
+    assert 'Firmar como cliente' in guest.get('/contracts/' + new_id).text
+    delivery = auth_client.post('/api/contracts/' + new_id + '/send', json={})
+    assert delivery.status_code == 200 and delivery.json['contract_url'].endswith('/' + new_id)

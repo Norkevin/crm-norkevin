@@ -72,8 +72,9 @@ def test_each_signature_locks_the_reviewed_version(auth_client, signer):
     url = f'/api/contracts/{contract_id}'
     edit = {'template_id': 'boda', 'revision': 0, 'clauses': [['Acuerdo', 'Valor %total%.']]}
     assert auth_client.post(url+'/edit', json=edit).status_code == 200
-    assert auth_client.post(url+'/'+signer, json={'signature': 'previa'}).status_code == 409
-    assert auth_client.post(url+'/'+signer, json={'signature': 'aceptada', 'terms_revision': 1}).status_code == 200
+    signing_client = auth_client if signer == 'sign-photographer' else crm.app.test_client()
+    assert signing_client.post(url+'/'+signer, json={'signature': 'previa'}).status_code == 409
+    assert signing_client.post(url+'/'+signer, json={'signature': 'aceptada', 'terms_revision': 1}).status_code == 200
     edit['revision'] = 1
     assert auth_client.post(url+'/edit', json=edit).status_code == 409
     assert f'/contracts/{contract_id}/edit' not in auth_client.get('/jobs/'+job['id']).text
@@ -130,6 +131,6 @@ def test_current_plan_drives_contract_web_pdf_and_signature(auth_client, monkeyp
         return draw(*args, **kwargs)
     monkeypatch.setattr(crm, 'render_contract_pdf', verify_pdf)
     assert auth_client.get(url+'/pdf').data.startswith(b'%PDF')
-    assert auth_client.post('/api'+url+'/sign', json={'signature': 'de prueba'}).json['ok']
+    assert crm.app.test_client().post('/api'+url+'/sign', json={'signature': 'de prueba'}).json['ok']
     crm.store.upsert('payments', {'id': 'first', 'original_amount': 999})
     assert expected in auth_client.get(url).text

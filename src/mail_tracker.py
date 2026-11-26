@@ -337,6 +337,11 @@ def _requested_auto_delivery_enabled(entry):
 
 
 def _commercial_check(entry):
+    key = (entry.get('idempotency_key') or '').split(':')
+    if len(key) >= 2 and key[0] == 'contract':
+        contract = store.get('contracts', key[1], include_archived=True)
+        if contract and contract.get('archived_at'):
+            return 'Este contrato se borró. Prepará el envío desde el contrato nuevo.'
     date_error = check_lead_event_date(entry)
     if date_error:
         return date_error

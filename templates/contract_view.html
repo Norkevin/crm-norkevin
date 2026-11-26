@@ -136,8 +136,11 @@
 {% import '_document_parts.html' as ui with context %}
 
 {% set _firmado = contract.signed and contract.photographer_signed %}
+{% set can_sign = not (contract.photographer_signed if studio_view else contract.signed) %}
+{% set sign_label = 'Firmar como fotógrafo' if studio_view else 'Firmar como cliente' %}
+{% set pending_label = ('Falta la firma del fotógrafo' if can_sign else 'Pendiente de la firma del cliente') if studio_view else 'Falta tu firma' %}
 {{ ui.topbar(theme, 'Contrato', contract.id,
-             'Firmado' if _firmado else ('Falta tu firma' if not contract.signed else 'Pendiente de la firma del estudio'),
+             'Firmado' if _firmado else (pending_label if not contract.signed else 'Pendiente de la firma del estudio'),
              'success' if _firmado else 'warning') }}
 
 <div class="doc-page doc-body" style="padding-top: clamp(18px, 2.4vw, 26px);">
@@ -224,7 +227,7 @@
   <div class="card">
     <div class="card__body">
       <div class="section-head">
-        <h2 class="doc-h2">Firmas</h2>
+        <h2 class="doc-h2" id="firmas">Firmas</h2>
       </div>
       <div class="firmas">
         <div class="firma">
@@ -267,22 +270,25 @@
       <div class="wide-card__text">
         <div class="wide-card__label">Documento</div>
         <div class="wide-card__value">
-          {% if contract.signed %}Contrato firmado{% else %}Firmá tu contrato{% endif %}
+          {% if _firmado %}Contrato firmado{% elif can_sign %}{{ 'Firma del fotógrafo' if studio_view else 'Firma del cliente' }}{% elif studio_view %}Pendiente de la firma del cliente{% else %}Pendiente de la firma del estudio{% endif %}
         </div>
         <p class="doc-text doc-text--sm" style="margin-top:3px;">
-          {% if contract.signed %}Podés descargarlo cuando quieras.
-          {% else %}Al firmar, aceptás los términos descritos arriba.{% endif %}
+          {% if can_sign %}Al firmar, aceptás los términos descritos arriba.{% else %}Podés descargar el contrato en PDF.{% endif %}
         </p>
       </div>
       <div class="action-bar">
-        {% if not contract.signed %}
+        {% if can_sign %}
         <button type="button" class="btn btn--primary" onclick="openSignatureModal()">
-          {{ ui.icon('check-circle') }} Firmar contrato
+          {{ ui.icon('check-circle') }} {{ sign_label }}
         </button>
         {% endif %}
         <a class="btn btn--secondary" href="/contracts/{{ contract.id }}/pdf" target="_blank">
           {{ ui.icon('download') }} Ver PDF
         </a>
+        {% if studio_view %}
+          {% with delete_class='btn btn--secondary' %}{% include '_contract_delete_button.html' %}{% endwith %}
+          <script src="/static/contract-delete.js" defer></script>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -291,15 +297,10 @@
 
 {{ ui.doc_footer(theme, 'Gracias por confiar en nosotros.', 'Estamos para servirte.') }}
 
-{# ---------- Modal de firma (funcionalmente identico al anterior) ----------
-   Solo se emite si el contrato NO esta firmado. Un contrato ya firmado no
-   tiene por que seguir cargando el canvas ni el fetch a /sign. El modal y
-   su <script> viajan juntos: el DOMContentLoaded busca #sig-canvas sin
-   guarda, asi que dejar uno sin el otro tira un error de JS. #}
-{% if not contract.signed %}
+{% if can_sign %}
 <div class="sig-modal-overlay" id="sig-modal-overlay">
   <div class="sig-modal">
-    <h2 class="sig-modal__title">Firmar contrato</h2>
+    <h2 class="sig-modal__title">{{ sign_label }}</h2>
     <p class="sig-modal__hint">Dibujá tu firma o escribí tu nombre completo.</p>
     <div class="sig-tabs">
       <button id="sig-mode-draw" type="button" class="btn btn--secondary" onclick="setSigMode('draw')">Dibujar</button>
@@ -315,7 +316,7 @@
     <div class="sig-actions">
       <button type="button" class="btn btn--secondary" onclick="clearSig()">Limpiar</button>
       <button type="button" class="btn btn--secondary" onclick="closeSignatureModal()">Cancelar</button>
-      <button type="button" class="btn btn--primary" onclick="saveSig()">Guardar firma</button>
+      <button type="button" class="btn btn--primary" onclick="saveSig()">{{ sign_label }}</button>
     </div>
   </div>
 </div>
@@ -323,7 +324,7 @@
 <script>
 var sigCanvas, sigCtx, sigDrawing = false;
 var sigMode = 'draw';
-var CONTRACT_ID = {{ contract.id|tojson }};
+var signatureUrl = {{ ('/api/contracts/' ~ contract.id ~ ('/sign-photographer' if studio_view else '/sign'))|tojson }};
 
 function openSignatureModal() {
   document.getElementById('sig-modal-overlay').classList.add('open');
@@ -414,7 +415,7 @@ document.addEventListener('DOMContentLoaded', function() {
 async function saveSig() {
   var dataUrl = sigMode === 'type' ? await renderTypedSig() : sigCanvas.toDataURL('image/png');
   if (!dataUrl) return;
-  fetch('/api/contracts/' + CONTRACT_ID + '/sign', {
+  fetch(signatureUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
